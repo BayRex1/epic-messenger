@@ -138,6 +138,19 @@
         .notification.success {
             background: #00b894;
         }
+        
+        .test-accounts {
+            margin-top: 20px;
+            padding: 15px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .test-accounts div {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -151,8 +164,8 @@
         
         <form id="loginForm">
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" placeholder="your@email.com" required>
+                <label for="email">Email или юзернейм</label>
+                <input type="text" id="email" placeholder="your@email.com или username" required>
             </div>
             
             <div class="form-group">
@@ -170,8 +183,13 @@
             </div>
             
             <div class="form-group">
-                <label for="regUsername">Имя пользователя</label>
-                <input type="text" id="regUsername" placeholder="Придумайте имя" required>
+                <label for="regUsername">Юзернейм</label>
+                <input type="text" id="regUsername" placeholder="Придумайте юзернейм" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="regDisplayName">Имя для отображения</label>
+                <input type="text" id="regDisplayName" placeholder="Ваше имя" required>
             </div>
             
             <div class="form-group">
@@ -184,6 +202,13 @@
         
         <div class="switch-form">
             <button class="switch-btn" id="switchBtn">Создать аккаунт</button>
+        </div>
+        
+        <div class="test-accounts">
+            <div><strong>Тестовые аккаунты:</strong></div>
+            <div>👑 Админ: admin / 123</div>
+            <div>👨‍💻 Разработчик: BayRex / 123</div>
+            <div>👤 Тестовый: testuser / 123</div>
         </div>
     </div>
 
@@ -254,6 +279,7 @@
             
             const email = document.getElementById('regEmail').value;
             const username = document.getElementById('regUsername').value;
+            const displayName = document.getElementById('regDisplayName').value;
             const password = document.getElementById('regPassword').value;
             
             try {
@@ -262,7 +288,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, username, password })
+                    body: JSON.stringify({ email, username, displayName, password })
                 });
                 
                 const result = await response.json();
