@@ -621,6 +621,11 @@ app.get('/main.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'main.html'));
 });
 
+// Страница исправления localStorage
+app.get('/fix.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'fix.html'));
+});
+
 // Запуск сервера
 const PORT = process.env.PORT || 3000;
 
@@ -637,6 +642,7 @@ server.listen(PORT, () => {
   console.log('🔍 User search: ENABLED');
   console.log('😊 Emoji keyboard: DISABLED');
   console.log('🔧 Admin functions: In profile menu');
+  console.log('🔧 Fix page: /fix.html');
   console.log('🔑 Admin: admin@epic.com / admin123');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);

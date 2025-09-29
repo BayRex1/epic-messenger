@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Epic Messenger</title>
+</head>
+<body>
+    <h1>Исправление Epic Messenger</h1>
+    <button onclick="fixLocalStorage()">Исправить проблему</button>
+    <script>
+        function fixLocalStorage() {
+            localStorage.removeItem('user');
+            localStorage.removeItem('currentChatId');
+            alert('Данные очищены! Теперь зайди нормально через логин страницу.');
+            window.location.href = '/';
+        }
+        // Автоматически исправляем при загрузке
+        fixLocalStorage();
+    </script>
+</body>
+</html>
