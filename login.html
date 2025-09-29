@@ -4,96 +4,139 @@
     <title>Epic - Вход</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            min-height: 100vh;
+        
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #0088cc;
+            --accent-hover: #0099e6;
+            --error-color: #e17055;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             display: flex;
             justify-content: center;
             align-items: center;
+            min-height: 100vh;
+            padding: 20px;
         }
+        
         .login-container {
-            background: white;
+            background: var(--bg-secondary);
             padding: 40px;
             border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             width: 100%;
             max-width: 400px;
+            border: 1px solid var(--bg-tertiary);
         }
+        
         .logo {
             text-align: center;
             margin-bottom: 30px;
         }
+        
         .logo h1 {
-            font-size: 2.5em;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #0088cc, #00a8ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            font-weight: 300;
+            margin-bottom: 8px;
         }
-        .tabs {
-            display: flex;
-            margin-bottom: 25px;
-            border-bottom: 2px solid #f0f0f0;
+        
+        .logo p {
+            color: var(--text-secondary);
+            font-size: 14px;
         }
-        .tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            border: none;
-            background: none;
-            font-size: 16px;
-            color: #999;
-            transition: all 0.3s;
-        }
-        .tab.active {
-            color: #667eea;
-            border-bottom: 2px solid #667eea;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .input-group {
+        
+        .form-group {
             margin-bottom: 20px;
         }
-        input {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #f0f0f0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border 0.3s;
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
         }
-        input:focus {
+        
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 12px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+        
+        .form-group input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
         }
-        .btn {
+        
+        .form-group input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .login-btn {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 14px;
+            background: var(--accent-color);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s;
+            margin-bottom: 15px;
         }
-        .btn:hover {
-            transform: translateY(-2px);
+        
+        .login-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
         }
-        .test-account {
+        
+        .switch-form {
+            text-align: center;
             margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
+        }
+        
+        .switch-btn {
+            background: none;
+            border: none;
+            color: var(--accent-color);
+            cursor: pointer;
             font-size: 14px;
-            color: #666;
+            text-decoration: underline;
+        }
+        
+        .switch-btn:hover {
+            color: var(--accent-hover);
+        }
+        
+        .notification {
+            padding: 12px 16px;
+            background: var(--error-color);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .notification.success {
+            background: #00b894;
         }
     </style>
 </head>
@@ -101,105 +144,155 @@
     <div class="login-container">
         <div class="logo">
             <h1>Epic</h1>
+            <p>Мессенджер нового поколения</p>
         </div>
         
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('login')">Вход</button>
-            <button class="tab" onclick="showTab('register')">Регистрация</button>
-        </div>
+        <div class="notification" id="notification"></div>
         
-        <div id="login" class="tab-content active">
-            <div class="input-group">
-                <input type="email" id="loginEmail" placeholder="Email" value="test@mail.ru">
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="your@email.com" required>
             </div>
-            <div class="input-group">
-                <input type="password" id="loginPassword" placeholder="Пароль" value="123">
-            </div>
-            <button class="btn" onclick="login()">Войти в Epic</button>
             
-            <div class="test-account">
-                <strong>Тестовый аккаунт:</strong><br>
-                Email: test@mail.ru<br>
-                Пароль: 123
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" placeholder="Введите пароль" required>
             </div>
-        </div>
+            
+            <button type="submit" class="login-btn">Войти</button>
+        </form>
         
-        <div id="register" class="tab-content">
-            <div class="input-group">
-                <input type="email" id="regEmail" placeholder="Email">
+        <form id="registerForm" style="display: none;">
+            <div class="form-group">
+                <label for="regEmail">Email</label>
+                <input type="email" id="regEmail" placeholder="your@email.com" required>
             </div>
-            <div class="input-group">
-                <input type="text" id="regUsername" placeholder="Имя пользователя">
+            
+            <div class="form-group">
+                <label for="regUsername">Имя пользователя</label>
+                <input type="text" id="regUsername" placeholder="Придумайте имя" required>
             </div>
-            <div class="input-group">
-                <input type="password" id="regPassword" placeholder="Пароль">
+            
+            <div class="form-group">
+                <label for="regPassword">Пароль</label>
+                <input type="password" id="regPassword" placeholder="Придумайте пароль" required>
             </div>
-            <button class="btn" onclick="register()">Создать аккаунт</button>
+            
+            <button type="submit" class="login-btn">Зарегистрироваться</button>
+        </form>
+        
+        <div class="switch-form">
+            <button class="switch-btn" id="switchBtn">Создать аккаунт</button>
         </div>
     </div>
 
     <script>
-        function showTab(tabName) {
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const switchBtn = document.getElementById('switchBtn');
+        const notification = document.getElementById('notification');
+
+        let isLogin = true;
+
+        switchBtn.addEventListener('click', function() {
+            isLogin = !isLogin;
             
-            event.target.classList.add('active');
-            document.getElementById(tabName).classList.add('active');
-        }
-        
-        async function login() {
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                localStorage.setItem('user', JSON.stringify(result.user));
-                window.location.href = '/main.html';
+            if (isLogin) {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                switchBtn.textContent = 'Создать аккаунт';
             } else {
-                alert('Ошибка: ' + result.message);
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                switchBtn.textContent = 'Уже есть аккаунт';
             }
+            
+            hideNotification();
+        });
+
+        function showNotification(message, isSuccess = false) {
+            notification.textContent = message;
+            notification.className = `notification ${isSuccess ? 'success' : ''}`;
+            notification.style.display = 'block';
         }
-        
-        async function register() {
+
+        function hideNotification() {
+            notification.style.display = 'none';
+        }
+
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                    window.location.href = '/main.html';
+                } else {
+                    showNotification(result.message);
+                }
+            } catch (error) {
+                showNotification('Ошибка соединения');
+            }
+        });
+
+        registerForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
             const email = document.getElementById('regEmail').value;
             const username = document.getElementById('regUsername').value;
             const password = document.getElementById('regPassword').value;
             
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, username, password })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                alert('Аккаунт создан! Теперь войдите.');
-                showTab('login');
-            } else {
-                alert('Ошибка: ' + result.message);
-            }
-        }
-        
-        // Enter для отправки
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    if (document.getElementById('login').classList.contains('active')) {
-                        login();
-                    } else {
-                        register();
-                    }
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, true);
+                    // Переключаем на форму входа после успешной регистрации
+                    setTimeout(() => {
+                        isLogin = true;
+                        loginForm.style.display = 'block';
+                        registerForm.style.display = 'none';
+                        switchBtn.textContent = 'Создать аккаунт';
+                        document.getElementById('email').value = email;
+                        hideNotification();
+                    }, 2000);
+                } else {
+                    showNotification(result.message);
                 }
-            });
+            } catch (error) {
+                showNotification('Ошибка соединения');
+            }
         });
+
+        // Проверяем если пользователь уже авторизован
+        window.onload = function() {
+            const user = localStorage.getItem('user');
+            if (user) {
+                window.location.href = '/main.html';
+            }
+        };
     </script>
 </body>
 </html>

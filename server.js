@@ -3,7 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const fs = require('fs');
-const bcrypt = require('bcryptjs');
 const cors = require('cors');
 
 const app = express();
@@ -25,7 +24,6 @@ app.use(express.static(__dirname));
 const USERS_FILE = 'users.json';
 const MESSAGES_FILE = 'messages.json';
 const AVATARS_FILE = 'avatars.json';
-const SETTINGS_FILE = 'settings.json';
 
 // Функции для работы с файлами
 const loadData = (file, defaultValue) => {
@@ -46,6 +44,7 @@ const loadData = (file, defaultValue) => {
 const saveData = (file, data) => {
   try {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    console.log(`💾 ${file} saved`);
     return true;
   } catch (error) {
     console.error(`Error saving ${file}:`, error);
@@ -57,17 +56,15 @@ const saveData = (file, data) => {
 let users = loadData(USERS_FILE, []);
 let messages = loadData(MESSAGES_FILE, []);
 let avatars = loadData(AVATARS_FILE, {});
-let settings = loadData(SETTINGS_FILE, {});
 const onlineUsers = new Map();
 
 // Создаем админа если нет пользователей
 if (users.length === 0) {
-  const hashedPassword = bcrypt.hashSync('admin123', 10);
   users.push({
     id: 'admin',
     email: 'admin@epic.com',
     username: 'Admin',
-    password: hashedPassword,
+    password: 'admin123',
     status: 'online',
     verified: true,
     isDeveloper: true,
@@ -88,10 +85,6 @@ app.post('/api/register', (req, res) => {
     return res.json({ success: false, message: 'Все поля обязательны' });
   }
   
-  if (password.length < 3) {
-    return res.json({ success: false, message: 'Пароль слишком короткий' });
-  }
-  
   if (users.find(u => u.email === email)) {
     return res.json({ success: false, message: 'Email уже занят' });
   }
@@ -101,13 +94,12 @@ app.post('/api/register', (req, res) => {
   }
   
   const userId = Date.now().toString();
-  const hashedPassword = bcrypt.hashSync(password, 10);
   
   const newUser = {
     id: userId,
     email,
     username,
-    password: hashedPassword,
+    password: password,
     status: 'online',
     verified: false,
     isDeveloper: false,
@@ -137,17 +129,19 @@ app.post('/api/register', (req, res) => {
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   
-  const user = users.find(u => u.email === email);
+  const user = users.find(u => u.email === email && u.password === password);
   if (!user) {
-    return res.json({ success: false, message: 'Неверный email или пароль' });
-  }
-  
-  if (!bcrypt.compareSync(password, user.password)) {
     return res.json({ success: false, message: 'Неверный email или пароль' });
   }
   
   user.status = 'online';
   saveData(USERS_FILE, users);
+  
+  // Загружаем аватарку если есть
+  let userAvatar = null;
+  if (user.avatar && avatars[user.avatar]) {
+    userAvatar = avatars[user.avatar];
+  }
   
   res.json({ 
     success: true, 
@@ -159,7 +153,7 @@ app.post('/api/login', (req, res) => {
       verified: user.verified,
       isDeveloper: user.isDeveloper,
       status: 'online',
-      avatar: user.avatar
+      avatar: userAvatar
     } 
   });
 });
@@ -190,8 +184,9 @@ app.post('/api/update-profile', (req, res) => {
   }
   
   if (avatarData) {
-    avatars[userId] = avatarData;
-    users[userIndex].avatar = userId;
+    const avatarId = userId;
+    avatars[avatarId] = avatarData;
+    users[userIndex].avatar = avatarId;
     saveData(AVATARS_FILE, avatars);
   }
   
@@ -218,6 +213,7 @@ app.post('/api/update-profile', (req, res) => {
     }
   }
   
+  // Возвращаем обновленные данные пользователя
   const updatedUser = users[userIndex];
   let userAvatar = null;
   if (updatedUser.avatar && avatars[updatedUser.avatar]) {
@@ -247,22 +243,12 @@ app.get('/api/search-users', (req, res) => {
     return res.json([]);
   }
   
-  const currentUser = users.find(u => u.id === currentUserId);
-  if (!currentUser) {
-    return res.json([]);
-  }
-  
   const searchTerm = query.toLowerCase().trim();
-  let filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u => 
     u.id !== currentUserId &&
     (u.username.toLowerCase().includes(searchTerm) ||
      u.email.toLowerCase().includes(searchTerm))
   );
-  
-  // Если пользователь не верифицирован - показываем только верифицированных
-  if (!currentUser.verified) {
-    filteredUsers = filteredUsers.filter(u => u.verified);
-  }
   
   // Добавляем аватарки
   const usersWithAvatars = filteredUsers.map(u => {
@@ -289,17 +275,7 @@ app.get('/api/search-users', (req, res) => {
 app.get('/api/users', (req, res) => {
   const { currentUserId } = req.query;
   
-  const currentUser = users.find(u => u.id === currentUserId);
-  if (!currentUser) {
-    return res.json([]);
-  }
-  
-  let filteredUsers = users.filter(u => u.id !== currentUserId);
-  
-  // Если пользователь не верифицирован - показываем только верифицированных
-  if (!currentUser.verified) {
-    filteredUsers = filteredUsers.filter(u => u.verified);
-  }
+  const filteredUsers = users.filter(u => u.id !== currentUserId);
   
   // Добавляем аватарки
   const usersWithAvatars = filteredUsers.map(u => {
@@ -349,29 +325,40 @@ app.get('/api/user/:id', (req, res) => {
   });
 });
 
+// Получение профиля пользователя
+app.get('/api/user-profile/:id', (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  let userAvatar = null;
+  if (user.avatar && avatars[user.avatar]) {
+    userAvatar = avatars[user.avatar];
+  }
+  
+  res.json({
+    success: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      verified: user.verified,
+      isDeveloper: user.isDeveloper,
+      status: user.status,
+      avatar: userAvatar,
+      createdAt: user.createdAt
+    }
+  });
+});
+
 // Сохранение настроек
 app.post('/api/save-settings', (req, res) => {
-  const { userId, theme, notifications } = req.body;
-  
-  if (!userId) {
-    return res.json({ success: false, message: 'ID пользователя обязателен' });
-  }
-  
-  if (!settings[userId]) {
-    settings[userId] = {};
-  }
-  
-  if (theme) settings[userId].theme = theme;
-  if (notifications !== undefined) settings[userId].notifications = notifications;
-  
-  saveData(SETTINGS_FILE, settings);
-  
   res.json({ success: true, message: 'Настройки сохранены' });
 });
 
 // Получение настроек
 app.get('/api/settings/:userId', (req, res) => {
-  const userSettings = settings[req.params.userId] || {
+  const userSettings = {
     theme: 'dark',
     notifications: true
   };
@@ -379,7 +366,12 @@ app.get('/api/settings/:userId', (req, res) => {
   res.json({ success: true, settings: userSettings });
 });
 
-// Админка - получение всех пользователей
+// Очистка кэша
+app.post('/api/clear-cache', (req, res) => {
+  res.json({ success: true, message: 'Кэш очищен' });
+});
+
+// Получение всех пользователей для админа
 app.get('/api/admin/users', (req, res) => {
   const usersWithAvatars = users.map(u => {
     let userAvatar = null;
@@ -458,6 +450,49 @@ app.post('/api/admin/toggle-developer', (req, res) => {
   });
 });
 
+// Удаление пользователя
+app.post('/api/admin/delete-user', (req, res) => {
+  const { userId } = req.body;
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  // Не даем удалить самого себя
+  if (userId === req.body.adminId) {
+    return res.json({ success: false, message: 'Нельзя удалить свой аккаунт' });
+  }
+  
+  users.splice(userIndex, 1);
+  saveData(USERS_FILE, users);
+  
+  // Удаляем аватарку если есть
+  if (avatars[userId]) {
+    delete avatars[userId];
+    saveData(AVATARS_FILE, avatars);
+  }
+  
+  // Удаляем сообщения пользователя
+  messages = messages.filter(msg => msg.userId !== userId && msg.toUserId !== userId);
+  saveData(MESSAGES_FILE, messages);
+  
+  // Отключаем пользователя если онлайн
+  const onlineUserEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (onlineUserEntry) {
+    const [socketId, onlineUser] = onlineUserEntry;
+    io.to(socketId).emit('account_deleted');
+    onlineUsers.delete(socketId);
+  }
+  
+  res.json({ 
+    success: true, 
+    message: 'Пользователь удален' 
+  });
+});
+
 // Получение эмодзи (пустой массив)
 app.get('/api/emojis', (req, res) => {
   res.json({ success: true, emojis: [] });
@@ -469,10 +504,19 @@ io.on('connection', (socket) => {
 
   socket.on('user_join', (userData) => {
     const user = users.find(u => u.id === userData.userId);
-    if (!user) return;
+    if (!user) {
+      console.log('❌ User not found:', userData.userId);
+      return;
+    }
     
     user.status = 'online';
     saveData(USERS_FILE, users);
+    
+    // Загружаем аватарку
+    let userAvatar = null;
+    if (user.avatar && avatars[user.avatar]) {
+      userAvatar = avatars[user.avatar];
+    }
     
     const onlineUser = {
       socketId: socket.id,
@@ -480,13 +524,16 @@ io.on('connection', (socket) => {
       userId: userData.userId,
       status: 'online',
       verified: user.verified,
-      isDeveloper: user.isDeveloper
+      isDeveloper: user.isDeveloper,
+      avatar: userAvatar
     };
     
     onlineUsers.set(socket.id, onlineUser);
     
+    // Уведомляем всех о новом пользователе
     socket.broadcast.emit('user_online', onlineUser);
-    io.emit('online_users', Array.from(onlineUsers.values()));
+    
+    console.log('👋 User joined:', user.username);
   });
 
   // Загрузка истории чата
@@ -496,14 +543,19 @@ io.on('connection', (socket) => {
       (msg.userId === data.targetId && msg.toUserId === data.userId)
     );
     
+    // Сортируем сообщения по времени
     chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
     socket.emit('chat_history_loaded', { targetId: data.targetId, messages: chatMessages });
   });
 
   // Отправка сообщения
   socket.on('send_message', (messageData) => {
     const onlineUser = onlineUsers.get(socket.id);
-    if (!onlineUser) return;
+    if (!onlineUser) {
+      console.log('❌ Online user not found for socket:', socket.id);
+      return;
+    }
     
     const message = {
       id: Date.now().toString(),
@@ -538,6 +590,8 @@ io.on('connection', (socket) => {
       const [recipientSocketId, recipientUser] = recipientEntry;
       io.to(recipientSocketId).emit('new_message', message);
       console.log('📨 Сообщение доставлено пользователю:', recipientUser.username);
+    } else {
+      console.log('⚠️ Получатель оффлайн, сообщение сохранено для истории');
     }
   });
 
@@ -552,8 +606,8 @@ io.on('connection', (socket) => {
       }
       
       onlineUsers.delete(socket.id);
-      socket.broadcast.emit('user_offline', onlineUser.userId);
-      io.emit('online_users', Array.from(onlineUsers.values()));
+      
+      console.log('👋 User disconnected:', onlineUser.username);
     }
   });
 });
@@ -565,10 +619,6 @@ app.get('/', (req, res) => {
 
 app.get('/main.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'main.html'));
-});
-
-app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 // Запуск сервера
@@ -586,7 +636,7 @@ server.listen(PORT, () => {
   console.log('📁 File sharing: ENABLED');
   console.log('🔍 User search: ENABLED');
   console.log('😊 Emoji keyboard: DISABLED');
-  console.log('🔧 Admin panel: /admin.html');
+  console.log('🔧 Admin functions: In profile menu');
   console.log('🔑 Admin: admin@epic.com / admin123');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);

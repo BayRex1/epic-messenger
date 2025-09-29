@@ -486,7 +486,7 @@
             padding: 5px;
         }
         
-        .emoji-btn {
+        .file-input-btn {
             padding: 10px;
             background: none;
             border: none;
@@ -497,7 +497,7 @@
             margin: 0 5px;
         }
         
-        .emoji-btn:hover {
+        .file-input-btn:hover {
             background: var(--bg-secondary);
         }
         
@@ -531,16 +531,6 @@
         .send-btn:hover {
             background: var(--accent-hover);
             transform: translateY(-1px);
-        }
-        
-        .file-input-btn {
-            background: var(--bg-tertiary) !important;
-            margin-right: 5px;
-            padding: 10px !important;
-        }
-        
-        .file-input-btn:hover {
-            background: var(--bg-secondary) !important;
         }
         
         .no-chat-selected {
@@ -599,113 +589,6 @@
             stroke-width: 1;
             stroke-linecap: round;
             stroke-linejoin: round;
-        }
-        
-        .admin-link {
-            position: absolute;
-            top: 24px;
-            right: 24px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 16px;
-            background: var(--bg-tertiary);
-            transition: all 0.3s;
-            display: none;
-        }
-        
-        .admin-link:hover {
-            color: var(--accent-color);
-            background: var(--bg-tertiary);
-            filter: brightness(1.1);
-        }
-        
-        /* Эмодзи клавиатура */
-        .emoji-keyboard {
-            position: absolute;
-            bottom: 80px;
-            left: 20px;
-            right: 20px;
-            background: var(--bg-tertiary);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            z-index: 1000;
-            display: none;
-            border: 1px solid var(--border-color);
-            max-height: 300px;
-            overflow: hidden;
-        }
-        
-        .emoji-header {
-            padding: 15px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .emoji-search {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            outline: none;
-        }
-        
-        .emoji-close {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 18px;
-            margin-left: 10px;
-        }
-        
-        .emoji-categories {
-            display: flex;
-            padding: 0 15px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .emoji-category {
-            padding: 10px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: var(--text-secondary);
-            transition: all 0.3s;
-        }
-        
-        .emoji-category.active {
-            color: var(--accent-color);
-            border-bottom: 2px solid var(--accent-color);
-        }
-        
-        .emoji-container {
-            height: 200px;
-            overflow-y: auto;
-            padding: 15px;
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 8px;
-        }
-        
-        .emoji {
-            font-size: 24px;
-            cursor: pointer;
-            text-align: center;
-            padding: 5px;
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-        
-        .emoji:hover {
-            background: var(--bg-secondary);
-            transform: scale(1.2);
         }
         
         /* Модальные окна */
@@ -876,24 +759,93 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
-        /* Тулы для разработчика */
-        .developer-tooltip {
-            position: absolute;
+        /* Админ панель стили */
+        .admin-btn {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
             background: var(--bg-tertiary);
             color: var(--text-primary);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            z-index: 1000;
-            white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .admin-btn:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .admin-btn.active {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .admin-btn.delete {
+            background: var(--error-color);
+            color: white;
+        }
+        
+        .admin-btn.delete:hover {
+            background: #c53030;
+        }
+        
+        .admin-user-item {
+            transition: background 0.3s;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .admin-user-item:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        /* Аватар загрузка */
+        .avatar-upload {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .avatar-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 600;
+            overflow: hidden;
+        }
+        
+        .avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-label:hover {
+            background: var(--accent-hover);
         }
     </style>
 </head>
 <body class="theme-dark">
-    <!-- Ссылка на админ-панель -->
-    <a href="/admin.html" class="admin-link" target="_blank" id="adminLink">⚙️ Админ панель</a>
-    
     <!-- Боковая панель -->
     <div class="sidebar">
         <div class="profile-section">
@@ -911,7 +863,7 @@
             <div class="profile-menu" id="profileMenu">
                 <div class="profile-menu-item" onclick="showProfileEditModal()">👤 Мой профиль</div>
                 <div class="profile-menu-item" onclick="showSettingsModal()">⚙️ Настройки</div>
-                <div class="profile-menu-item" id="adminPanelMenuItem" style="display: none;" onclick="openAdminPanel()">🔐 Админ панель</div>
+                <div class="profile-menu-item" id="adminPanelMenuItem" style="display: none;" onclick="showAdminPanel()">🔐 Админ панель</div>
                 <div class="profile-menu-item" onclick="switchAccount()">🔄 Сменить аккаунт</div>
                 <div class="profile-menu-item" onclick="logout()" style="color: var(--error-color);">🚪 Выйти</div>
             </div>
@@ -945,26 +897,11 @@
 
         <div id="messageInputContainer" class="message-input-container" style="display: none;">
             <div class="message-input-wrapper">
-                <button class="emoji-btn" onclick="toggleEmojiKeyboard()">😊</button>
                 <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt">
                 <button class="file-input-btn" onclick="openFilePicker()">📎</button>
-                <input type="text" id="messageInput" placeholder="Введите сообщение...">
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." onkeypress="handleKeyPress(event)">
             </div>
             <button class="send-btn" onclick="sendMessage()">➤</button>
-        </div>
-
-        <!-- Эмодзи клавиатура -->
-        <div class="emoji-keyboard" id="emojiKeyboard">
-            <div class="emoji-header">
-                <input type="text" class="emoji-search" placeholder="Поиск эмодзи..." id="emojiSearch">
-                <button class="emoji-close" onclick="toggleEmojiKeyboard()">✕</button>
-            </div>
-            <div class="emoji-categories" id="emojiCategories">
-                <!-- Категории будут добавлены через JS -->
-            </div>
-            <div class="emoji-container" id="emojiContainer">
-                <!-- Эмодзи будут добавлены через JS -->
-            </div>
         </div>
 
         <div id="noChatSelected" class="no-chat-selected">
@@ -1019,275 +956,12 @@
         let currentUser = null;
         let currentChat = null;
         let allUsers = [];
-        let userSettings = {};
-        let emojis = [];
 
-        // Загрузка настроек
-        async function loadSettings() {
-            try {
-                const response = await fetch(`/api/settings/${currentUser.id}`);
-                const result = await response.json();
-                if (result.success) {
-                    userSettings = result.settings;
-                    applyTheme(userSettings.theme);
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки настроек:', error);
-                userSettings = { theme: 'dark', notifications: true };
-                applyTheme('dark');
-            }
-        }
-
-        // Применение темы
-        function applyTheme(theme) {
-            document.body.className = `theme-${theme}`;
-            userSettings.theme = theme;
-        }
-
-        // Сохранение настроек
-        async function saveSettings() {
-            try {
-                const response = await fetch('/api/save-settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId: currentUser.id,
-                        theme: userSettings.theme,
-                        notifications: userSettings.notifications
-                    })
-                });
-                
-                const result = await response.json();
-                if (!result.success) {
-                    console.error('Ошибка сохранения настроек:', result.message);
-                }
-            } catch (error) {
-                console.error('Ошибка сохранения настроек:', error);
-            }
-        }
-
-        function getStatusText(status) {
-            const statusMap = {
-                'online': '🟢 Online',
-                'away': '🟡 Away',
-                'dnd': '🔴 Do not disturb',
-                'offline': '⚫ Offline'
-            };
-            return statusMap[status] || status;
-        }
-
-        function getFileIcon(fileName) {
-            const ext = fileName.split('.').pop().toLowerCase();
-            const icons = {
-                'pdf': '📕', 'doc': '📄', 'docx': '📄', 'txt': '📝',
-                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️',
-                'mp4': '🎥', 'avi': '🎥', 'mov': '🎥', 'webm': '🎥',
-                'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'm4a': '🎵',
-                'zip': '📦', 'rar': '📦'
-            };
-            return icons[ext] || '📎';
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        function isImageFile(fileName) {
-            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-            const ext = fileName.split('.').pop().toLowerCase();
-            return imageExts.includes(ext);
-        }
-
-        function isAudioFile(fileName) {
-            const audioExts = ['mp3', 'wav', 'ogg', 'm4a', 'flac'];
-            const ext = fileName.split('.').pop().toLowerCase();
-            return audioExts.includes(ext);
-        }
-
-        function isVideoFile(fileName) {
-            const videoExts = ['mp4', 'avi', 'mov', 'webm', 'mkv'];
-            const ext = fileName.split('.').pop().toLowerCase();
-            return videoExts.includes(ext);
-        }
-
-        // Загрузка эмодзи
-        async function loadEmojis() {
-            try {
-                const response = await fetch('/api/emojis');
-                const result = await response.json();
-                if (result.success) {
-                    emojis = result.emojis;
-                    initEmojiKeyboard();
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки эмодзи:', error);
-                // Запасные эмодзи
-                emojis = [
-                    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
-                    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
-                    '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩'
-                ];
-                initEmojiKeyboard();
-            }
-        }
-
-        // Инициализация эмодзи клавиатуры
-        function initEmojiKeyboard() {
-            const categories = {
-                'faces': '😀',
-                'animals': '🐵',
-                'food': '🍎',
-                'activities': '⚽',
-                'travel': '🚗',
-                'objects': '💡',
-                'symbols': '❤️',
-                'flags': '🏁'
-            };
-
-            const categoriesContainer = document.getElementById('emojiCategories');
-            const emojiContainer = document.getElementById('emojiContainer');
-
-            // Добавляем категории
-            categoriesContainer.innerHTML = '';
-            Object.keys(categories).forEach(category => {
-                const button = document.createElement('button');
-                button.className = 'emoji-category';
-                button.textContent = categories[category];
-                button.onclick = () => filterEmojis(category);
-                categoriesContainer.appendChild(button);
-            });
-
-            // Показываем все эмодзи
-            filterEmojis('all');
-        }
-
-        function filterEmojis(category) {
-            const emojiContainer = document.getElementById('emojiContainer');
-            emojiContainer.innerHTML = '';
-
-            // Активируем категорию
-            document.querySelectorAll('.emoji-category').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-
-            emojis.forEach(emoji => {
-                const emojiElement = document.createElement('div');
-                emojiElement.className = 'emoji';
-                emojiElement.textContent = emoji;
-                emojiElement.onclick = () => insertEmoji(emoji);
-                emojiContainer.appendChild(emojiElement);
-            });
-        }
-
-        function insertEmoji(emoji) {
-            const input = document.getElementById('messageInput');
-            input.value += emoji;
-            input.focus();
-            toggleEmojiKeyboard();
-        }
-
-        function toggleEmojiKeyboard() {
-            const keyboard = document.getElementById('emojiKeyboard');
-            keyboard.style.display = keyboard.style.display === 'block' ? 'none' : 'block';
-        }
-
-        // Закрытие эмодзи клавиатуры при клике вне
-        document.addEventListener('click', function(event) {
-            if (!event.target.closest('.emoji-keyboard') && !event.target.closest('.emoji-btn')) {
-                document.getElementById('emojiKeyboard').style.display = 'none';
-            }
-        });
-
-        // Поиск пользователей
-        async function searchUsers() {
-            const query = document.getElementById('searchInput').value.trim();
-            const resultsContainer = document.getElementById('searchResults');
-            
-            if (query === '') {
-                resultsContainer.style.display = 'none';
-                resultsContainer.innerHTML = '';
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}&currentUserId=${currentUser.id}`);
-                const results = await response.json();
-                
-                if (results.length > 0) {
-                    resultsContainer.innerHTML = results.map(user => `
-                        <div class="search-result-item" onclick="selectUserFromSearch('${user.id}')">
-                            <div class="chat-avatar" style="width: 40px; height: 40px; margin-right: 12px;">
-                                ${user.avatar ? 
-                                    `<img src="${user.avatar}" alt="${user.username}">` :
-                                    user.username.charAt(0).toUpperCase()
-                                }
-                            </div>
-                            <div class="chat-info">
-                                <h4>${user.username} ${user.verified ? getVerifiedBadge() : ''} ${user.isDeveloper ? getDeveloperBadge() : ''}</h4>
-                                <span>${user.email} • ${getStatusText(user.status)}</span>
-                            </div>
-                        </div>
-                    `).join('');
-                    resultsContainer.style.display = 'block';
-                } else {
-                    resultsContainer.innerHTML = '<div class="search-result-item" style="justify-content: center; color: var(--text-secondary);">Пользователи не найдены</div>';
-                    resultsContainer.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Ошибка поиска:', error);
-                resultsContainer.innerHTML = '<div class="search-result-item" style="justify-content: center; color: var(--error-color);">Ошибка поиска</div>';
-                resultsContainer.style.display = 'block';
-            }
-        }
-
-        // Выбор пользователя из поиска
-        function selectUserFromSearch(userId) {
-            const user = allUsers.find(u => u.id === userId);
-            if (user) {
-                startChat(user);
-                document.getElementById('searchResults').style.display = 'none';
-                document.getElementById('searchInput').value = '';
-            } else {
-                // Если пользователь не найден в allUsers, загружаем его данные
-                loadUserAndStartChat(userId);
-            }
-        }
-
-        // Загрузка данных пользователя и начало чата
-        async function loadUserAndStartChat(userId) {
-            try {
-                const response = await fetch(`/api/user/${userId}`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    startChat(result.user);
-                    document.getElementById('searchResults').style.display = 'none';
-                    document.getElementById('searchInput').value = '';
-                    
-                    // Обновляем список пользователей
-                    if (!allUsers.find(u => u.id === userId)) {
-                        allUsers.push(result.user);
-                        updateChatsList();
-                    }
-                } else {
-                    alert('Пользователь не найден');
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки пользователя:', error);
-                alert('Ошибка загрузки пользователя');
-            }
-        }
-
-        // Загрузка при запуске - ИСПРАВЛЕННАЯ ВЕРСИЯ
+        // Загрузка при запуске
         window.onload = async function() {
             currentUser = JSON.parse(localStorage.getItem('user'));
             if (!currentUser) {
-                window.location.href = '/login.html';
+                window.location.href = '/';
                 return;
             }
             
@@ -1302,12 +976,6 @@
             } catch (error) {
                 console.error('Ошибка загрузки данных пользователя:', error);
             }
-            
-            // Загружаем настройки
-            await loadSettings();
-            
-            // Загружаем эмодзи
-            await loadEmojis();
             
             // Обновляем интерфейс
             updateUserInterface();
@@ -1344,15 +1012,8 @@
                 (currentUser.isDeveloper ? getDeveloperBadge() : '');
             document.getElementById('userStatus').textContent = getStatusText(currentUser.status);
             
-            if (currentUser.verified) {
-                document.getElementById('userVerifiedBadge').innerHTML = getVerifiedBadge();
-                document.getElementById('userVerifiedBadge').style.display = 'inline';
-            }
-            
+            // Показываем админ панель только разработчикам
             if (currentUser.isDeveloper) {
-                document.getElementById('userDeveloperBadge').innerHTML = getDeveloperBadge();
-                document.getElementById('userDeveloperBadge').style.display = 'inline';
-                document.getElementById('adminLink').style.display = 'block';
                 document.getElementById('adminPanelMenuItem').style.display = 'block';
             }
         }
@@ -1368,6 +1029,203 @@
             }
         });
 
+        function getStatusText(status) {
+            const statusMap = {
+                'online': '🟢 Online',
+                'away': '🟡 Away',
+                'dnd': '🔴 Do not disturb',
+                'offline': '⚫ Offline'
+            };
+            return statusMap[status] || status;
+        }
+
+        // Админ панель
+        function showAdminPanel() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
+                    <h3>🔐 Админ панель</h3>
+                    <div style="margin-bottom: 20px;">
+                        <input type="text" id="adminSearch" class="modal-input" placeholder="🔍 Поиск пользователей..." oninput="searchAdminUsers()">
+                    </div>
+                    <div id="adminUsersList" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Список пользователей будет здесь -->
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn primary" onclick="closeModal(this)">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            loadAdminUsers();
+        }
+
+        async function loadAdminUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const users = await response.json();
+                displayAdminUsers(users);
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+                showNotification('Ошибка загрузки пользователей', 'error');
+            }
+        }
+
+        function displayAdminUsers(users) {
+            const container = document.getElementById('adminUsersList');
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Нет пользователей</div>';
+                return;
+            }
+            
+            container.innerHTML = users.map(user => `
+                <div class="admin-user-item">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="avatar" style="width: 40px; height: 40px;">
+                                ${user.avatar ? 
+                                    `<img src="${user.avatar}" alt="${user.username}" style="width: 100%; height: 100%; border-radius: 50%;">` :
+                                    user.username.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; display: flex; align-items: center; gap: 5px;">
+                                    ${user.username}
+                                    ${user.verified ? getVerifiedBadge() : ''}
+                                    ${user.isDeveloper ? getDeveloperBadge() : ''}
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${user.email}</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">
+                                    ${getStatusText(user.status)} • ${new Date(user.createdAt).toLocaleDateString()}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="admin-btn ${user.verified ? 'active' : ''}" 
+                                    onclick="toggleVerify('${user.id}', ${!user.verified})"
+                                    title="${user.verified ? 'Снять верификацию' : 'Верифицировать'}">
+                                ${user.verified ? '✅' : '❌'}
+                            </button>
+                            <button class="admin-btn ${user.isDeveloper ? 'active' : ''}" 
+                                    onclick="toggleDeveloper('${user.id}', ${!user.isDeveloper})"
+                                    title="${user.isDeveloper ? 'Снять разработчика' : 'Назначить разработчика'}">
+                                ${user.isDeveloper ? '👨‍💻' : '💻'}
+                            </button>
+                            ${user.id !== currentUser.id ? `
+                                <button class="admin-btn delete" 
+                                        onclick="deleteUser('${user.id}')"
+                                        title="Удалить пользователя">
+                                    🗑️
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function searchAdminUsers() {
+            const query = document.getElementById('adminSearch').value.toLowerCase();
+            const items = document.querySelectorAll('.admin-user-item');
+            
+            items.forEach(item => {
+                const username = item.querySelector('div[style*="font-weight: 600"]').textContent.toLowerCase();
+                const email = item.querySelector('div[style*="font-size: 12px"]').textContent.toLowerCase();
+                
+                if (username.includes(query) || email.includes(query)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        async function toggleVerify(userId, verified) {
+            if (!confirm(`Вы уверены, что хотите ${verified ? 'верифицировать' : 'снять верификацию'} этого пользователя?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/toggle-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, verified })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    loadAdminUsers();
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка обновления', 'error');
+            }
+        }
+
+        async function toggleDeveloper(userId, isDeveloper) {
+            if (!confirm(`Вы уверены, что хотите ${isDeveloper ? 'назначить разработчиком' : 'снять роль разработчика'} этого пользователя?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/toggle-developer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, isDeveloper })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    loadAdminUsers();
+                    
+                    // Если изменили текущего пользователя, обновляем интерфейс
+                    if (userId === currentUser.id) {
+                        currentUser.isDeveloper = isDeveloper;
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        updateUserInterface();
+                    }
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка обновления', 'error');
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите удалить этого пользователя? Все его сообщения и данные будут удалены!')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/delete-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, adminId: currentUser.id })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    loadAdminUsers();
+                    loadAllUsers(); // Обновляем список чатов
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка удаления', 'error');
+            }
+        }
+
+        // Остальные функции...
         function showProfileEditModal() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -1388,7 +1246,6 @@
                     
                     <input type="text" class="modal-input" id="profileUsername" value="${currentUser.username}" placeholder="Имя пользователя">
                     
-                    <!-- Статус верификации -->
                     <div style="margin: 20px 0; padding: 16px; background: var(--bg-tertiary); border-radius: 12px; text-align: center;">
                         <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">Статус аккаунта</div>
                         <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -1399,11 +1256,6 @@
                             <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">
                                 ${getDeveloperBadge()}
                                 <span style="font-weight: 600;">Разработчик Epic</span>
-                            </div>
-                        ` : ''}
-                        ${!currentUser.verified ? `
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                                Для получения верификации обратитесь к администратору
                             </div>
                         ` : ''}
                     </div>
@@ -1448,30 +1300,18 @@
                         <div class="settings-item">
                             <div style="font-weight: 600; margin-bottom: 8px;">🎨 Тема оформления</div>
                             <div class="theme-selector">
-                                <div class="theme-option ${userSettings.theme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
+                                <div class="theme-option active" onclick="changeTheme('dark')">
                                     🌙 Тёмная
                                 </div>
-                                <div class="theme-option ${userSettings.theme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
+                                <div class="theme-option" onclick="changeTheme('light')">
                                     ☀️ Светлая
                                 </div>
-                            </div>
-                        </div>
-                        
-                        <div class="settings-item" onclick="toggleNotifications()">
-                            <div style="font-weight: 600; margin-bottom: 4px;">🔔 Уведомления</div>
-                            <div style="font-size: 13px; color: var(--text-secondary);">
-                                ${userSettings.notifications ? '✅ Включены' : '❌ Выключены'}
                             </div>
                         </div>
                         
                         <div class="settings-item" onclick="clearCache()">
                             <div style="font-weight: 600; margin-bottom: 4px;">💾 Очистка кэша</div>
                             <div style="font-size: 13px; color: var(--text-secondary);">Очистить локальные данные</div>
-                        </div>
-                        
-                        <div class="settings-item" onclick="showNotification('Функция в разработке', 'info')">
-                            <div style="font-weight: 600; margin-bottom: 4px;">🔒 Конфиденциальность</div>
-                            <div style="font-size: 13px; color: var(--text-secondary);">Настройки приватности</div>
                         </div>
                     </div>
                     
@@ -1484,24 +1324,12 @@
         }
 
         function changeTheme(theme) {
-            applyTheme(theme);
-            saveSettings();
-            document.querySelectorAll('.theme-option').forEach(opt => {
-                opt.classList.remove('active');
-            });
-            event.target.classList.add('active');
-        }
-
-        function toggleNotifications() {
-            userSettings.notifications = !userSettings.notifications;
-            saveSettings();
-            showNotification(`Уведомления ${userSettings.notifications ? 'включены' : 'выключены'}`, 'success');
-            closeModal(document.querySelector('.modal-overlay'));
-            showSettingsModal();
+            document.body.className = `theme-${theme}`;
+            showNotification(`Тема изменена на ${theme === 'dark' ? 'тёмную' : 'светлую'}`, 'success');
         }
 
         async function clearCache() {
-            if (confirm('Вы уверены, что хотите очистить кэш? Это удалит только временные файлы, не сообщения.')) {
+            if (confirm('Вы уверены, что хотите очистить кэш?')) {
                 try {
                     const response = await fetch('/api/clear-cache', {
                         method: 'POST',
@@ -1512,13 +1340,13 @@
                     const result = await response.json();
                     if (result.success) {
                         showNotification('Кэш очищен', 'success');
-                    } else {
-                        showNotification('Ошибка очистки кэша', 'error');
-                    }
+                    localStorage.removeItem('currentChatId');
+                    location.reload();
+                    closeModal(document.querySelector('.modal-overlay'));
+                    showNotification('Кэш очищен', 'success');
                 } catch (error) {
                     showNotification('Ошибка очистки кэша', 'error');
                 }
-                closeModal(document.querySelector('.modal-overlay'));
             }
         }
 
@@ -1609,7 +1437,7 @@
             if (confirm('Вы уверены, что хотите сменить аккаунт?')) {
                 localStorage.removeItem('user');
                 localStorage.removeItem('currentChatId');
-                window.location.href = '/login.html';
+                window.location.href = '/';
             }
         }
 
@@ -1621,7 +1449,7 @@
                 });
                 localStorage.removeItem('user');
                 localStorage.removeItem('currentChatId');
-                window.location.href = '/login.html';
+                window.location.href = '/';
             }
         }
 
@@ -1670,19 +1498,68 @@
             `).join('');
         }
 
-        // Начало чата - ИСПРАВЛЕННАЯ ВЕРСИЯ
+        // Поиск пользователей
+        async function searchUsers() {
+            const query = document.getElementById('searchInput').value.trim();
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (query === '') {
+                resultsContainer.style.display = 'none';
+                resultsContainer.innerHTML = '';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}&currentUserId=${currentUser.id}`);
+                const results = await response.json();
+                
+                if (results.length > 0) {
+                    resultsContainer.innerHTML = results.map(user => `
+                        <div class="search-result-item" onclick="selectUserFromSearch('${user.id}')">
+                            <div class="chat-avatar" style="width: 40px; height: 40px; margin-right: 12px;">
+                                ${user.avatar ? 
+                                    `<img src="${user.avatar}" alt="${user.username}">` :
+                                    user.username.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div class="chat-info">
+                                <h4>${user.username} ${user.verified ? getVerifiedBadge() : ''} ${user.isDeveloper ? getDeveloperBadge() : ''}</h4>
+                                <span>${user.email} • ${getStatusText(user.status)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    resultsContainer.style.display = 'block';
+                } else {
+                    resultsContainer.innerHTML = '<div class="search-result-item" style="justify-content: center; color: var(--text-secondary);">Пользователи не найдены</div>';
+                    resultsContainer.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Ошибка поиска:', error);
+                resultsContainer.innerHTML = '<div class="search-result-item" style="justify-content: center; color: var(--error-color);">Ошибка поиска</div>';
+                resultsContainer.style.display = 'block';
+            }
+        }
+
+        function selectUserFromSearch(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (user) {
+                startChat(user);
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('searchInput').value = '';
+            }
+        }
+
+        // Начало чата
         function startChat(userId) {
             let user;
             
             if (typeof userId === 'string') {
-                // Если передан ID, ищем пользователя
                 user = allUsers.find(u => u.id === userId);
                 if (!user) {
                     console.error('Пользователь не найден:', userId);
                     return;
                 }
             } else {
-                // Если передан объект пользователя
                 user = userId;
             }
             
@@ -1694,7 +1571,7 @@
             document.getElementById('messageInputContainer').style.display = 'flex';
             
             updateChatHeader(user);
-            loadChatHistory(user.id); // Используем новую функцию
+            loadChatHistory(user.id);
             updateChatsList();
             
             // Сохраняем текущий чат в localStorage
@@ -1722,25 +1599,28 @@
             document.getElementById('chatUserStatus').textContent = getStatusText(user.status);
         }
 
-        // НОВАЯ ФУНКЦИЯ - загрузка истории чата
         function loadChatHistory(userId) {
             if (!userId) return;
             
-            // Показываем индикатор загрузки
             const container = document.getElementById('chatMessages');
             container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Загрузка истории...</div>';
             
-            // Загружаем историю через WebSocket
             socket.emit('load_chat_history', {
                 userId: currentUser.id,
                 targetId: userId
             });
         }
 
-        // Обработчик загрузки истории
+        // Socket events
         socket.on('chat_history_loaded', (data) => {
             if (currentChat && currentChat.id === data.targetId) {
                 displayMessages(data.messages);
+            }
+        });
+
+        socket.on('new_message', (message) => {
+            if (currentChat && message.userId === currentChat.id) {
+                addMessageToChat(message, false);
             }
         });
 
@@ -1754,19 +1634,24 @@
             }
             
             messages.forEach(msg => {
-                const isMe = msg.userId === currentUser.id;
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
-                
-                if (msg.type === 'file') {
-                    messageDiv.innerHTML = createFileMessageHTML(msg, isMe);
-                } else {
-                    messageDiv.innerHTML = createTextMessageHTML(msg, isMe);
-                }
-                
-                container.appendChild(messageDiv);
+                addMessageToChat(msg, msg.userId === currentUser.id);
             });
             
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addMessageToChat(message, isMe) {
+            const container = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
+            
+            if (message.type === 'file') {
+                messageDiv.innerHTML = createFileMessageHTML(message, isMe);
+            } else {
+                messageDiv.innerHTML = createTextMessageHTML(message, isMe);
+            }
+            
+            container.appendChild(messageDiv);
             container.scrollTop = container.scrollHeight;
         }
 
@@ -1779,12 +1664,16 @@
         }
 
         function createFileMessageHTML(msg, isMe) {
+            const isImage = msg.fileName && msg.fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+            const isVideo = msg.fileName && msg.fileName.match(/\.(mp4|avi|mov|webm)$/i);
+            const isAudio = msg.fileName && msg.fileName.match(/\.(mp3|wav|ogg|m4a)$/i);
+            
             let previewHTML = '';
-            if (isImageFile(msg.fileName)) {
+            if (isImage) {
                 previewHTML = `<div class="file-preview"><img src="${msg.fileData}" alt="${msg.fileName}"></div>`;
-            } else if (isVideoFile(msg.fileName)) {
+            } else if (isVideo) {
                 previewHTML = `<div class="video-player"><video controls><source src="${msg.fileData}" type="${msg.fileType}"></video></div>`;
-            } else if (isAudioFile(msg.fileName)) {
+            } else if (isAudio) {
                 previewHTML = `<div class="audio-player"><audio controls><source src="${msg.fileData}" type="${msg.fileType}"></audio></div>`;
             }
             
@@ -1808,6 +1697,26 @@
             `;
         }
 
+        function getFileIcon(fileName) {
+            const ext = fileName.split('.').pop().toLowerCase();
+            const icons = {
+                'pdf': '📕', 'doc': '📄', 'docx': '📄', 'txt': '📝',
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️',
+                'mp4': '🎥', 'avi': '🎥', 'mov': '🎥', 'webm': '🎥',
+                'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'm4a': '🎵',
+                'zip': '📦', 'rar': '📦'
+            };
+            return icons[ext] || '📎';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
         function openFilePicker() {
             document.getElementById('fileInput').click();
         }
@@ -1818,7 +1727,12 @@
             }
         });
 
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ отправки сообщения
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
@@ -1843,22 +1757,6 @@
             
             addMessageToChat(message, true);
             input.value = '';
-        }
-
-        // ОБНОВЛЕННАЯ ФУНКЦИЯ добавления сообщения в чат
-        function addMessageToChat(message, isMe) {
-            const container = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
-            
-            if (message.type === 'file') {
-                messageDiv.innerHTML = createFileMessageHTML(message, isMe);
-            } else {
-                messageDiv.innerHTML = createTextMessageHTML(message, isMe);
-            }
-            
-            container.appendChild(messageDiv);
-            container.scrollTop = container.scrollHeight;
         }
 
         function sendFile(file) {
@@ -1914,11 +1812,11 @@
             modal.className = 'modal-overlay';
             
             let content = '';
-            if (isImageFile(fileName)) {
+            if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
                 content = `<img src="${url}" style="max-width: 90vw; max-height: 90vh; border-radius: 8px;">`;
-            } else if (isVideoFile(fileName)) {
+            } else if (fileName.match(/\.(mp4|avi|mov|webm)$/i)) {
                 content = `<video controls style="max-width: 90vw; max-height: 90vh;"><source src="${url}"></video>`;
-            } else if (isAudioFile(fileName)) {
+            } else if (fileName.match(/\.(mp3|wav|ogg|m4a)$/i)) {
                 content = `<audio controls style="width: 300px;"><source src="${url}"></audio>`;
             } else {
                 content = `<div style="text-align: center; padding: 40px;">Файл: ${fileName}<br><a href="${url}" download="${fileName}" style="color: var(--accent-color);">Скачать</a></div>`;
@@ -1933,81 +1831,58 @@
             document.body.appendChild(modal);
         }
 
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ - убрал email из просмотра профиля
         function viewUserProfile(userId) {
-            socket.emit('get_user_profile', userId, (response) => {
-                if (response.success) {
-                    const user = response.user;
-                    const modal = document.createElement('div');
-                    modal.className = 'modal-overlay';
-                    modal.innerHTML = `
-                        <div class="modal-content">
-                            <h3>👤 Профиль пользователя</h3>
-                            <div style="text-align: center; margin: 20px 0;">
-                                <div class="avatar" style="width: 80px; height: 80px; margin: 0 auto 15px;">
-                                    ${user.avatar ? 
-                                        `<img src="${user.avatar}" alt="${user.username}">` :
-                                        user.username.charAt(0).toUpperCase()
-                                    }
-                                </div>
-                                <h4>${user.username} ${user.verified ? getVerifiedBadge() : ''} ${user.isDeveloper ? getDeveloperBadge() : ''}</h4>
-                                <div style="color: var(--text-secondary);">ID: ${user.id}</div>
-                            </div>
-                            <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px; margin: 20px 0;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                    <span>Статус:</span>
-                                    <span>${getStatusText(user.status)}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                    <span>Аккаунт:</span>
-                                    <span>${user.verified ? '✅ Верифицирован' : '❌ Не верифицирован'}</span>
-                                </div>
-                                ${user.isDeveloper ? `
-                                    <div style="display: flex; justify-content: space-between;">
-                                        <span>Роль:</span>
-                                        <span>👨‍💻 Разработчик Epic</span>
-                                    </div>
-                                ` : ''}
-                                <div style="display: flex; justify-content: space-between; margin-top: ${user.isDeveloper ? '0' : '12px'};">
-                                    <span>Зарегистрирован:</span>
-                                    <span>${new Date(user.createdAt).toLocaleDateString()}</span>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="modal-btn primary" style="flex: 1;" onclick="startChat('${user.id}')">💬 Написать</button>
-                                <button class="modal-btn secondary" style="flex: 1;" onclick="this.closest('.modal-overlay').remove()">Закрыть</button>
-                            </div>
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>👤 Профиль пользователя</h3>
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div class="avatar" style="width: 80px; height: 80px; margin: 0 auto 15px;">
+                            ${currentChat.avatar ? 
+                                `<img src="${currentChat.avatar}" alt="${currentChat.username}">` :
+                                currentChat.username.charAt(0).toUpperCase()
+                            }
                         </div>
-                    `;
-                    document.body.appendChild(modal);
-                }
-            });
+                        <h4>${currentChat.username} ${currentChat.verified ? getVerifiedBadge() : ''} ${currentChat.isDeveloper ? getDeveloperBadge() : ''}</h4>
+                        <div style="color: var(--text-secondary);">ID: ${currentChat.id}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px; margin: 20px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span>Статус:</span>
+                            <span>${getStatusText(currentChat.status)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span>Аккаунт:</span>
+                            <span>${currentChat.verified ? '✅ Верифицирован' : '❌ Не верифицирован'}</span>
+                        </div>
+                        ${currentChat.isDeveloper ? `
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Роль:</span>
+                                <span>👨‍💻 Разработчик Epic</span>
+                            </div>
+                        ` : ''}
+                        <div style="display: flex; justify-content: space-between; margin-top: ${currentChat.isDeveloper ? '0' : '12px'};">
+                            <span>Зарегистрирован:</span>
+                            <span>${new Date(currentChat.createdAt).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="modal-btn primary" style="flex: 1;" onclick="closeModal(this)">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
 
-        // Открытие админ панели
-        function openAdminPanel() {
-            if (currentUser && currentUser.verified) {
-                window.open('/admin.html', '_blank');
-            } else {
-                alert('Доступ запрещен. Требуется верификация.');
-            }
-        }
-
-        // Socket events
-        socket.on('message_history', (messages) => {
-            displayMessages(messages);
-        });
-
-        socket.on('new_message', (message) => {
-            if (currentChat && message.userId === currentChat.id) {
-                if (message.type === 'file') {
-                    addMessageToChat(message, false);
-                } else {
-                    addMessageToChat(message, false);
-                }
+        // Закрытие результатов поиска при клике вне области
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.search-box')) {
+                document.getElementById('searchResults').style.display = 'none';
             }
         });
 
+        // Socket events для обновлений
         socket.on('user_verified', (data) => {
             if (currentUser.id === data.userId) {
                 currentUser.verified = data.verified;
@@ -2017,17 +1892,12 @@
             }
         });
 
-        // Enter для отправки сообщения
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // Закрытие результатов поиска при клике вне области
-        document.addEventListener('click', function(event) {
-            if (!event.target.closest('.search-box')) {
-                document.getElementById('searchResults').style.display = 'none';
+        socket.on('user_developer_updated', (data) => {
+            if (currentUser.id === data.userId) {
+                currentUser.isDeveloper = data.isDeveloper;
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                updateUserInterface();
+                showNotification(data.isDeveloper ? '👨‍💻 Роль разработчика назначена!' : '💻 Роль разработчика снята', data.isDeveloper ? 'success' : 'info');
             }
         });
     </script>
