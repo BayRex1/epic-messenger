@@ -913,8 +913,15 @@
         </div>
     </div>
 
-    <script>
-    // HTML для бейджей
+    <script src="/socket.io/socket.io.js"></script>
+<script>
+    // Глобальные переменные
+    let socket = null;
+    let currentUser = null;
+    let currentChat = null;
+    let allUsers = [];
+
+    // Базовые функции (должны быть в начале)
     function getVerifiedBadge() {
         return `
         <span class="verified-badge" title="Верифицированный аккаунт">
@@ -951,17 +958,6 @@
         `;
     }
 
-    const socket = io();
-    let currentUser = null;
-    let currentChat = null;
-    let allUsers = [];
-
-    // Базовые функции
-    function toggleProfileMenu() {
-        const menu = document.getElementById('profileMenu');
-        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-    }
-
     function getStatusText(status) {
         const statusMap = {
             'online': '🟢 Online',
@@ -987,8 +983,16 @@
         button.closest('.modal-overlay').remove();
     }
 
-    // Загрузка при запуске
+    function toggleProfileMenu() {
+        const menu = document.getElementById('profileMenu');
+        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    }
+
+    // Инициализация при загрузке
     window.onload = async function() {
+        // Инициализируем socket.io
+        socket = io();
+        
         currentUser = JSON.parse(localStorage.getItem('user'));
         if (!currentUser) {
             window.location.href = '/';
@@ -1025,7 +1029,42 @@
                 setTimeout(() => startChat(lastChatUser), 500);
             }
         }
+
+        // Настраиваем обработчики socket.io
+        setupSocketEvents();
     };
+
+    function setupSocketEvents() {
+        socket.on('chat_history_loaded', (data) => {
+            if (currentChat && currentChat.id === data.targetId) {
+                displayMessages(data.messages);
+            }
+        });
+
+        socket.on('new_message', (message) => {
+            if (currentChat && message.userId === currentChat.id) {
+                addMessageToChat(message, false);
+            }
+        });
+
+        socket.on('user_verified', (data) => {
+            if (currentUser.id === data.userId) {
+                currentUser.verified = data.verified;
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                updateUserInterface();
+                showNotification(data.verified ? '🎉 Аккаунт верифицирован!' : '❌ Верификация отменена', data.verified ? 'success' : 'error');
+            }
+        });
+
+        socket.on('user_developer_updated', (data) => {
+            if (currentUser.id === data.userId) {
+                currentUser.isDeveloper = data.isDeveloper;
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                updateUserInterface();
+                showNotification(data.isDeveloper ? '👨‍💻 Роль разработчика назначена!' : '💻 Роль разработчика снята', data.isDeveloper ? 'success' : 'info');
+            }
+        });
+    }
 
     function updateUserInterface() {
         if (currentUser.avatar) {
@@ -1416,37 +1455,6 @@
         reader.readAsDataURL(file);
     }
 
-    // Socket events
-    socket.on('chat_history_loaded', (data) => {
-        if (currentChat && currentChat.id === data.targetId) {
-            displayMessages(data.messages);
-        }
-    });
-
-    socket.on('new_message', (message) => {
-        if (currentChat && message.userId === currentChat.id) {
-            addMessageToChat(message, false);
-        }
-    });
-
-    socket.on('user_verified', (data) => {
-        if (currentUser.id === data.userId) {
-            currentUser.verified = data.verified;
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            updateUserInterface();
-            showNotification(data.verified ? '🎉 Аккаунт верифицирован!' : '❌ Верификация отменена', data.verified ? 'success' : 'error');
-        }
-    });
-
-    socket.on('user_developer_updated', (data) => {
-        if (currentUser.id === data.userId) {
-            currentUser.isDeveloper = data.isDeveloper;
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            updateUserInterface();
-            showNotification(data.isDeveloper ? '👨‍💻 Роль разработчика назначена!' : '💻 Роль разработчика снята', data.isDeveloper ? 'success' : 'info');
-        }
-    });
-
     // Профиль и настройки
     function showProfileEditModal() {
         const modal = document.createElement('div');
@@ -1661,10 +1669,12 @@
 
     function logout() {
         if (confirm('Вы уверены, что хотите выйти?')) {
-            socket.emit('user_leave', {
-                username: currentUser.username,
-                userId: currentUser.id
-            });
+            if (socket) {
+                socket.emit('user_leave', {
+                    username: currentUser.username,
+                    userId: currentUser.id
+                });
+            }
             localStorage.removeItem('user');
             localStorage.removeItem('currentChatId');
             window.location.href = '/';
@@ -1715,7 +1725,7 @@
         document.body.appendChild(modal);
     }
 
-    // Админ панель (остается без изменений)
+    // Админ панель
     function showAdminPanel() {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
