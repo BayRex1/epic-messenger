@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+users.json
+messages.json
+avatars.json
+.env
