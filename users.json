@@ -1,0 +1,83 @@
+[
+  {
+    "id": "1758905500939",
+    "email": "amirsaraev00@gmail.com",
+    "username": "BayRex",
+    "password": "qverti1230",
+    "createdAt": "2025-09-26T16:51:40.941Z",
+    "status": "online",
+    "verified": true,
+    "avatar": "1758905500939",
+    "isDeveloper": true
+  },
+  {
+    "id": "1758909636335",
+    "email": "test@mail.ru",
+    "username": "admin",
+    "password": "123",
+    "createdAt": "2025-09-26T18:00:36.337Z",
+    "status": "online",
+    "verified": false,
+    "avatar": "1758909636335"
+  },
+  {
+    "id": "1758953127819",
+    "email": "user@mail.com",
+    "username": "user",
+    "password": "qverti123",
+    "status": "online",
+    "verified": false,
+    "createdAt": "2025-09-27T06:05:27.823Z"
+  },
+  {
+    "id": "1758969400357",
+    "email": "Limonat@gmail.com",
+    "username": "limonat",
+    "password": "12345",
+    "status": "offline",
+    "verified": true,
+    "avatar": null,
+    "createdAt": "2025-09-27T10:36:40.357Z",
+    "isDeveloper": true
+  },
+  {
+    "id": "1",
+    "email": "test@mail.ru",
+    "username": "TestUser",
+    "password": "123",
+    "status": "online",
+    "verified": false,
+    "avatar": "1",
+    "createdAt": "2025-09-27T15:58:51.245Z"
+  },
+  {
+    "id": "2",
+    "email": "user@mail.ru",
+    "username": "RegularUser",
+    "password": "123",
+    "status": "online",
+    "verified": false,
+    "avatar": null,
+    "createdAt": "2025-09-27T15:58:51.275Z"
+  },
+  {
+    "id": "3",
+    "email": "alice@mail.ru",
+    "username": "Alice",
+    "password": "123",
+    "status": "away",
+    "verified": false,
+    "avatar": null,
+    "createdAt": "2025-09-27T15:58:51.275Z"
+  },
+  {
+    "id": "4",
+    "email": "bob@mail.ru",
+    "username": "Bob",
+    "password": "123",
+    "status": "online",
+    "verified": false,
+    "avatar": null,
+    "createdAt": "2025-09-27T15:58:51.275Z"
+  }
+]
