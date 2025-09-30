@@ -2,13 +2,11 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 
-// Упрощаем CORS настройки для Render.com
 const io = socketIo(server, {
   cors: {
     origin: "*",
@@ -16,97 +14,48 @@ const io = socketIo(server, {
   }
 });
 
-app.use(cors());
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(__dirname));
 
-// Используем файловую базу данных вместо памяти
-const db = new sqlite3.Database('epic_messenger.db', (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-  } else {
-    console.log('✅ Connected to SQLite database');
-    initializeDatabase();
+// Файлы для хранения данных
+const DATA_FILE = 'data.json';
+
+// Функции для работы с файлами
+const loadData = () => {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = fs.readFileSync(DATA_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error loading data:', error);
   }
-});
+  
+  // Возвращаем данные по умолчанию
+  return {
+    users: [],
+    messages: [],
+    posts: []
+  };
+};
 
-// Инициализация таблиц
-function initializeDatabase() {
-  db.serialize(() => {
-    // Таблица пользователей
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE,
-      username TEXT UNIQUE,
-      displayName TEXT,
-      password TEXT,
-      status TEXT DEFAULT 'online',
-      verified INTEGER DEFAULT 0,
-      isDeveloper INTEGER DEFAULT 0,
-      avatar TEXT,
-      description TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+const saveData = (data) => {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('💾 Data saved');
+  } catch (error) {
+    console.error('Error saving data:', error);
+  }
+};
 
-    // Таблица сообщений
-    db.run(`CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      userId TEXT,
-      username TEXT,
-      displayName TEXT,
-      text TEXT,
-      toUserId TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      verified INTEGER DEFAULT 0,
-      isDeveloper INTEGER DEFAULT 0,
-      type TEXT DEFAULT 'text',
-      fileData TEXT,
-      fileName TEXT,
-      fileType TEXT,
-      fileSize INTEGER DEFAULT 0,
-      FOREIGN KEY (userId) REFERENCES users (id)
-    )`);
+// Загружаем данные
+let data = loadData();
+let { users, messages, posts } = data;
 
-    // Таблица постов
-    db.run(`CREATE TABLE IF NOT EXISTS posts (
-      id TEXT PRIMARY KEY,
-      userId TEXT,
-      text TEXT,
-      image TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (userId) REFERENCES users (id)
-    )`);
-
-    // Таблица лайков постов
-    db.run(`CREATE TABLE IF NOT EXISTS post_likes (
-      id TEXT PRIMARY KEY,
-      postId TEXT,
-      userId TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (postId) REFERENCES posts (id),
-      FOREIGN KEY (userId) REFERENCES users (id),
-      UNIQUE(postId, userId)
-    )`);
-
-    // Таблица комментариев
-    db.run(`CREATE TABLE IF NOT EXISTS post_comments (
-      id TEXT PRIMARY KEY,
-      postId TEXT,
-      userId TEXT,
-      text TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (postId) REFERENCES posts (id),
-      FOREIGN KEY (userId) REFERENCES users (id)
-    )`);
-
-    // Создаем тестовых пользователей
-    createTestUsers();
-  });
-}
-
-function createTestUsers() {
-  const testUsers = [
+// Создаем тестовых пользователей если нет пользователей
+if (users.length === 0) {
+  users = [
     {
       id: '1',
       email: 'admin@epic.com',
@@ -114,10 +63,11 @@ function createTestUsers() {
       displayName: 'Администратор',
       password: '123',
       status: 'online',
-      verified: 1,
-      isDeveloper: 1,
+      verified: true,
+      isDeveloper: true,
       avatar: null,
-      description: 'Главный администратор системы'
+      description: 'Главный администратор системы',
+      createdAt: new Date().toISOString()
     },
     {
       id: '2',
@@ -126,10 +76,11 @@ function createTestUsers() {
       displayName: 'BayRex',
       password: '123',
       status: 'online',
-      verified: 1,
-      isDeveloper: 1,
+      verified: true,
+      isDeveloper: true,
       avatar: null,
-      description: 'Разработчик Epic Messenger'
+      description: 'Разработчик Epic Messenger',
+      createdAt: new Date().toISOString()
     },
     {
       id: '3',
@@ -138,37 +89,17 @@ function createTestUsers() {
       displayName: 'Тестовый Пользователь',
       password: '123',
       status: 'online',
-      verified: 0,
-      isDeveloper: 0,
+      verified: false,
+      isDeveloper: false,
       avatar: null,
-      description: 'Обычный пользователь'
+      description: 'Обычный пользователь',
+      createdAt: new Date().toISOString()
     }
   ];
-
-  testUsers.forEach(user => {
-    db.get('SELECT id FROM users WHERE id = ?', [user.id], (err, row) => {
-      if (err) {
-        console.error('Error checking user:', err);
-        return;
-      }
-      
-      if (!row) {
-        db.run(
-          `INSERT INTO users (id, email, username, displayName, password, status, verified, isDeveloper, avatar, description) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [user.id, user.email, user.username, user.displayName, user.password, user.status, 
-           user.verified, user.isDeveloper, user.avatar, user.description],
-          (err) => {
-            if (err) {
-              console.error('Error creating test user:', err);
-            } else {
-              console.log('👑 Created test user:', user.username);
-            }
-          }
-        );
-      }
-    });
-  });
+  
+  // Сохраняем начальные данные
+  saveData({ users, messages, posts });
+  console.log('👑 Created test users');
 }
 
 const onlineUsers = new Map();
@@ -197,7 +128,10 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    database: 'SQLite'
+    users: users.length,
+    messages: messages.length,
+    posts: posts.length,
+    storage: 'JSON file'
   });
 });
 
@@ -209,82 +143,356 @@ app.post('/api/register', (req, res) => {
     return res.json({ success: false, message: 'Все поля обязательны' });
   }
   
-  db.get('SELECT id FROM users WHERE email = ? OR username = ?', [email, username], (err, row) => {
-    if (err) {
-      return res.json({ success: false, message: 'Ошибка базы данных' });
-    }
-    
-    if (row) {
-      return res.json({ success: false, message: 'Email или юзернейм уже занят' });
-    }
-    
-    const userId = Date.now().toString();
-    
-    db.run(
-      `INSERT INTO users (id, email, username, displayName, password, description) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, email, username, displayName, password, 'Новый пользователь Epic Messenger'],
-      function(err) {
-        if (err) {
-          return res.json({ success: false, message: 'Ошибка регистрации' });
-        }
-        
-        res.json({ 
-          success: true, 
-          message: 'Регистрация успешна!', 
-          user: { 
-            id: userId, 
-            username: username,
-            displayName: displayName,
-            email: email,
-            verified: false,
-            isDeveloper: false,
-            avatar: null,
-            status: 'online',
-            description: 'Новый пользователь Epic Messenger'
-          } 
-        });
-      }
-    );
+  if (users.find(u => u.email === email)) {
+    return res.json({ success: false, message: 'Email уже занят' });
+  }
+  
+  if (users.find(u => u.username === username)) {
+    return res.json({ success: false, message: 'Юзернейм уже занят' });
+  }
+  
+  const userId = Date.now().toString();
+  
+  const newUser = {
+    id: userId,
+    email,
+    username,
+    displayName,
+    password: password,
+    status: 'online',
+    verified: false,
+    isDeveloper: false,
+    avatar: null,
+    description: 'Новый пользователь Epic Messenger',
+    createdAt: new Date().toISOString()
+  };
+  
+  users.push(newUser);
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Регистрация успешна!', 
+    user: newUser
   });
 });
 
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   
-  db.get(
-    'SELECT * FROM users WHERE (email = ? OR username = ?) AND password = ?',
-    [email, email, password],
-    (err, user) => {
-      if (err) {
-        console.error('Database error:', err);
-        return res.json({ success: false, message: 'Ошибка базы данных' });
-      }
-      
-      if (!user) {
-        return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
-      }
-      
-      // Обновляем статус пользователя
-      db.run('UPDATE users SET status = ? WHERE id = ?', ['online', user.id]);
-      
-      res.json({ 
-        success: true, 
-        message: 'Вход выполнен!', 
-        user: { 
-          id: user.id, 
-          username: user.username,
-          displayName: user.displayName,
-          email: user.email,
-          verified: Boolean(user.verified),
-          isDeveloper: Boolean(user.isDeveloper),
-          status: 'online',
-          avatar: user.avatar,
-          description: user.description
-        } 
-      });
+  const user = users.find(u => (u.email === email || u.username === email) && u.password === password);
+  if (!user) {
+    return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
+  }
+  
+  user.status = 'online';
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Вход выполнен!', 
+    user: user
+  });
+});
+
+app.post('/api/update-profile', (req, res) => {
+  const { userId, username, displayName, description, status, avatarData } = req.body;
+  
+  if (!userId) {
+    return res.json({ success: false, message: 'ID пользователя обязателен' });
+  }
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  if (username) {
+    const existingUser = users.find(u => u.username === username && u.id !== userId);
+    if (existingUser) {
+      return res.json({ success: false, message: 'Юзернейм уже занят' });
     }
+    users[userIndex].username = username;
+  }
+  
+  if (displayName) {
+    users[userIndex].displayName = displayName;
+  }
+  
+  if (description !== undefined) {
+    users[userIndex].description = description;
+  }
+  
+  if (status) {
+    users[userIndex].status = status;
+  }
+  
+  if (avatarData) {
+    users[userIndex].avatar = avatarData;
+  }
+  
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Профиль обновлен',
+    user: users[userIndex]
+  });
+});
+
+app.get('/api/search-users', (req, res) => {
+  const { query, currentUserId } = req.query;
+  
+  if (!query || !currentUserId) {
+    return res.json([]);
+  }
+  
+  const searchTerm = query.toLowerCase().trim();
+  const filteredUsers = users.filter(u => 
+    u.id !== currentUserId &&
+    (u.username.toLowerCase().includes(searchTerm) ||
+     u.displayName.toLowerCase().includes(searchTerm) ||
+     u.email.toLowerCase().includes(searchTerm))
   );
+  
+  res.json(filteredUsers);
+});
+
+app.get('/api/users', (req, res) => {
+  const { currentUserId } = req.query;
+  
+  const filteredUsers = users.filter(u => u.id !== currentUserId);
+  res.json(filteredUsers);
+});
+
+app.get('/api/user/:id', (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  res.json({
+    success: true,
+    user: user
+  });
+});
+
+// Посты API
+app.get('/api/posts', (req, res) => {
+  const postsWithUsers = posts.map(post => {
+    const user = users.find(u => u.id === post.userId);
+    return {
+      ...post,
+      user: user ? {
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      } : null
+    };
+  });
+  
+  res.json(postsWithUsers.reverse());
+});
+
+app.post('/api/posts', (req, res) => {
+  const { userId, text, image } = req.body;
+  
+  if (!userId || !text) {
+    return res.json({ success: false, message: 'Текст поста обязателен' });
+  }
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const post = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    image: image || null,
+    likes: [],
+    comments: [],
+    timestamp: new Date().toISOString()
+  };
+  
+  posts.push(post);
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Пост опубликован',
+    post: {
+      ...post,
+      user: {
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      }
+    }
+  });
+});
+
+app.post('/api/posts/:id/like', (req, res) => {
+  const { userId } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const likeIndex = posts[postIndex].likes.indexOf(userId);
+  if (likeIndex === -1) {
+    posts[postIndex].likes.push(userId);
+  } else {
+    posts[postIndex].likes.splice(likeIndex, 1);
+  }
+  
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    likes: posts[postIndex].likes.length,
+    isLiked: likeIndex === -1
+  });
+});
+
+app.post('/api/posts/:id/comment', (req, res) => {
+  const { userId, text } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const comment = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    timestamp: new Date().toISOString(),
+    user: {
+      username: user.username,
+      displayName: user.displayName,
+      avatar: user.avatar,
+      verified: user.verified,
+      isDeveloper: user.isDeveloper
+    }
+  };
+  
+  posts[postIndex].comments.push(comment);
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Комментарий добавлен',
+    comment
+  });
+});
+
+app.delete('/api/posts/:id', (req, res) => {
+  const postId = req.params.id;
+  const { userId } = req.body;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const post = posts[postIndex];
+  if (post.userId !== userId) {
+    return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
+  }
+  
+  posts.splice(postIndex, 1);
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Пост удален'
+  });
+});
+
+// Админ endpoints
+app.get('/api/admin/users', (req, res) => {
+  res.json(users);
+});
+
+app.post('/api/admin/toggle-verify', (req, res) => {
+  const { userId, verified } = req.body;
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  users[userIndex].verified = verified;
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: `Аккаунт ${verified ? 'верифицирован' : 'деверифицирован'}` 
+  });
+});
+
+app.post('/api/admin/toggle-developer', (req, res) => {
+  const { userId, isDeveloper } = req.body;
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  users[userIndex].isDeveloper = isDeveloper;
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: `Роль разработчика ${isDeveloper ? 'назначена' : 'снята'}` 
+  });
+});
+
+app.post('/api/admin/delete-user', (req, res) => {
+  const { userId, adminId } = req.body;
+  
+  const adminUser = users.find(u => u.id === adminId);
+  if (!adminUser || !adminUser.isDeveloper) {
+    return res.json({ success: false, message: 'Недостаточно прав' });
+  }
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  if (userId === adminId) {
+    return res.json({ success: false, message: 'Нельзя удалить самого себя' });
+  }
+  
+  users.splice(userIndex, 1);
+  
+  // Удаляем сообщения пользователя
+  messages = messages.filter(msg => msg.userId !== userId && msg.toUserId !== userId);
+  
+  // Удаляем посты пользователя
+  posts = posts.filter(post => post.userId !== userId);
+  
+  saveData({ users, messages, posts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Пользователь удален' 
+  });
 });
 
 // WebSocket соединения
@@ -292,58 +500,39 @@ io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
   socket.on('user_join', (userData) => {
-    const userId = userData.userId;
+    const user = users.find(u => u.id === userData.userId);
+    if (!user) {
+      console.log('❌ User not found:', userData.userId);
+      return;
+    }
     
-    db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-      if (err || !user) {
-        console.log('❌ User not found:', userId);
-        return;
-      }
-      
-      // Обновляем статус пользователя
-      db.run('UPDATE users SET status = ? WHERE id = ?', ['online', userId]);
-      
-      const onlineUser = {
-        socketId: socket.id,
-        username: user.username,
-        displayName: user.displayName,
-        userId: userId,
-        status: 'online',
-        verified: Boolean(user.verified),
-        isDeveloper: Boolean(user.isDeveloper),
-        avatar: user.avatar
-      };
-      
-      onlineUsers.set(socket.id, onlineUser);
-      
-      console.log('👋 User joined:', user.displayName);
-    });
+    user.status = 'online';
+    saveData({ users, messages, posts });
+    
+    const onlineUser = {
+      socketId: socket.id,
+      username: user.username,
+      displayName: user.displayName,
+      userId: userData.userId,
+      status: 'online',
+      verified: user.verified,
+      isDeveloper: user.isDeveloper,
+      avatar: user.avatar
+    };
+    
+    onlineUsers.set(socket.id, onlineUser);
+    
+    console.log('👋 User joined:', user.displayName);
   });
 
   socket.on('load_chat_history', (data) => {
-    const { userId, targetId } = data;
-    
-    db.all(
-      `SELECT * FROM messages 
-       WHERE (userId = ? AND toUserId = ?) OR (userId = ? AND toUserId = ?)
-       ORDER BY timestamp ASC`,
-      [userId, targetId, targetId, userId],
-      (err, messages) => {
-        if (err) {
-          console.error('Chat history error:', err);
-          return;
-        }
-        
-        socket.emit('chat_history_loaded', { 
-          targetId: targetId, 
-          messages: messages.map(msg => ({
-            ...msg,
-            verified: Boolean(msg.verified),
-            isDeveloper: Boolean(msg.isDeveloper)
-          }))
-        });
-      }
+    const chatMessages = messages.filter(msg => 
+      (msg.userId === data.userId && msg.toUserId === data.targetId) ||
+      (msg.userId === data.targetId && msg.toUserId === data.userId)
     );
+    
+    chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    socket.emit('chat_history_loaded', { targetId: data.targetId, messages: chatMessages });
   });
 
   socket.on('send_message', (messageData) => {
@@ -353,9 +542,8 @@ io.on('connection', (socket) => {
       return;
     }
     
-    const messageId = Date.now().toString();
     const message = {
-      id: messageId,
+      id: Date.now().toString(),
       userId: onlineUser.userId,
       username: onlineUser.username,
       displayName: onlineUser.displayName,
@@ -371,57 +559,39 @@ io.on('connection', (socket) => {
       fileSize: messageData.fileSize || 0
     };
     
-    db.run(
-      `INSERT INTO messages (id, userId, username, displayName, text, toUserId, timestamp, 
-       verified, isDeveloper, type, fileData, fileName, fileType, fileSize) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [message.id, message.userId, message.username, message.displayName, message.text, 
-       message.toUserId, message.timestamp, message.verified ? 1 : 0, 
-       message.isDeveloper ? 1 : 0, message.type, message.fileData, 
-       message.fileName, message.fileType, message.fileSize],
-      (err) => {
-        if (err) {
-          console.error('Error saving message:', err);
-          return;
-        }
-        
-        console.log('💬 Сохранено сообщение от', message.displayName, 'к', messageData.toUserId);
-        
-        // Отправляем сообщение отправителю
-        socket.emit('new_message', message);
-        
-        // Отправляем сообщение получателю если он онлайн
-        const recipientEntry = Array.from(onlineUsers.entries())
-          .find(([_, u]) => u.userId === messageData.toUserId);
-        
-        if (recipientEntry) {
-          const [recipientSocketId, recipientUser] = recipientEntry;
-          io.to(recipientSocketId).emit('new_message', message);
-          console.log('📨 Сообщение доставлено пользователю:', recipientUser.displayName);
-        }
-      }
-    );
+    messages.push(message);
+    saveData({ users, messages, posts });
+    
+    console.log('💬 Сохранено сообщение от', message.displayName, 'к', messageData.toUserId);
+    
+    // Отправляем сообщение отправителю
+    socket.emit('new_message', message);
+    
+    // Отправляем сообщение получателю если он онлайн
+    const recipientEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === messageData.toUserId);
+    
+    if (recipientEntry) {
+      const [recipientSocketId, recipientUser] = recipientEntry;
+      io.to(recipientSocketId).emit('new_message', message);
+      console.log('📨 Сообщение доставлено пользователю:', recipientUser.displayName);
+    }
   });
 
   socket.on('disconnect', () => {
     const onlineUser = onlineUsers.get(socket.id);
     if (onlineUser) {
-      db.run('UPDATE users SET status = ? WHERE id = ?', ['offline', onlineUser.userId]);
+      const user = users.find(u => u.id === onlineUser.userId);
+      if (user) {
+        user.status = 'offline';
+        saveData({ users, messages, posts });
+      }
       
       onlineUsers.delete(socket.id);
       
       console.log('👋 User disconnected:', onlineUser.displayName);
     }
   });
-});
-
-// Обработка ошибок
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Запуск сервера
@@ -432,7 +602,17 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 EPIC MESSENGER SERVER STARTED!');
   console.log('📡 Port:', PORT);
   console.log('🌐 Environment:', process.env.NODE_ENV || 'development');
-  console.log('💾 Storage: SQLite Database');
+  console.log('💾 Storage: JSON file');
   console.log('🔐 Authentication: ENABLED');
+  console.log('✅ Verified system: ACTIVE');
+  console.log('👨‍💻 Developer badges: ENABLED');
+  console.log('🖼️ Avatar upload: ENABLED');
+  console.log('📁 File sharing: ENABLED');
+  console.log('🔍 User search: ENABLED');
+  console.log('📝 Posts system: ENABLED');
+  console.log('👥 Loaded users:', users.length);
+  console.log('💬 Messages in history:', messages.length);
+  console.log('📮 Posts:', posts.length);
+  console.log('🔑 Test accounts: admin / 123, BayRex / 123, testuser / 123');
   console.log('=====================================');
 });
