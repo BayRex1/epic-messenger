@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Epic - Вход</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -150,6 +151,29 @@
         
         .test-accounts div {
             margin: 5px 0;
+        }
+
+        /* Мобильные стили */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .login-container {
+                padding: 30px 20px;
+            }
+            
+            .logo h1 {
+                font-size: 28px;
+            }
+            
+            .form-group input {
+                padding: 12px 14px;
+            }
+            
+            .login-btn {
+                padding: 12px;
+            }
         }
     </style>
 </head>
@@ -319,6 +343,16 @@
                 window.location.href = '/main.html';
             }
         };
+
+        // Адаптация для мобильных
+        function handleMobileLayout() {
+            if (window.innerWidth <= 480) {
+                document.body.style.padding = '10px';
+            }
+        }
+
+        window.addEventListener('resize', handleMobileLayout);
+        handleMobileLayout();
     </script>
 </body>
 </html>
