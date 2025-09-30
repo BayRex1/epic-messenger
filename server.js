@@ -28,6 +28,7 @@ app.use(express.static(__dirname));
 const USERS_FILE = 'users.json';
 const MESSAGES_FILE = 'messages.json';
 const AVATARS_FILE = 'avatars.json';
+const POSTS_FILE = 'posts.json';
 
 // Функции для работы с файлами
 const loadData = (file, defaultValue) => {
@@ -59,6 +60,7 @@ const saveData = (file, data) => {
 let users = loadData(USERS_FILE, []);
 let messages = loadData(MESSAGES_FILE, []);
 let avatars = loadData(AVATARS_FILE, {});
+let posts = loadData(POSTS_FILE, []);
 const onlineUsers = new Map();
 
 // Создаем тестовых пользователей если нет пользователей
@@ -412,6 +414,136 @@ app.get('/api/user-profile/:id', (req, res) => {
   });
 });
 
+// Посты API
+app.get('/api/posts', (req, res) => {
+  const postsWithAvatars = posts.map(post => {
+    const user = users.find(u => u.id === post.userId);
+    let userAvatar = null;
+    if (user && user.avatar && avatars[user.avatar]) {
+      userAvatar = avatars[user.avatar];
+    }
+    
+    return {
+      ...post,
+      user: {
+        username: user?.username,
+        displayName: user?.displayName,
+        avatar: userAvatar,
+        verified: user?.verified,
+        isDeveloper: user?.isDeveloper
+      }
+    };
+  });
+  
+  res.json(postsWithAvatars.reverse()); // Новые посты первыми
+});
+
+app.post('/api/posts', (req, res) => {
+  const { userId, text, image } = req.body;
+  
+  if (!userId || !text) {
+    return res.json({ success: false, message: 'Текст поста обязателен' });
+  }
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const post = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    image: image || null,
+    likes: [],
+    comments: [],
+    timestamp: new Date().toISOString()
+  };
+  
+  posts.push(post);
+  saveData(POSTS_FILE, posts);
+  
+  res.json({ 
+    success: true, 
+    message: 'Пост опубликован',
+    post: {
+      ...post,
+      user: {
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar && avatars[user.avatar] ? avatars[user.avatar] : null,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      }
+    }
+  });
+});
+
+app.post('/api/posts/:id/like', (req, res) => {
+  const { userId } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const likeIndex = posts[postIndex].likes.indexOf(userId);
+  if (likeIndex === -1) {
+    // Лайк
+    posts[postIndex].likes.push(userId);
+  } else {
+    // Убрать лайк
+    posts[postIndex].likes.splice(likeIndex, 1);
+  }
+  
+  saveData(POSTS_FILE, posts);
+  
+  res.json({ 
+    success: true, 
+    likes: posts[postIndex].likes.length,
+    isLiked: likeIndex === -1
+  });
+});
+
+app.post('/api/posts/:id/comment', (req, res) => {
+  const { userId, text } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const comment = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    timestamp: new Date().toISOString(),
+    user: {
+      username: user.username,
+      displayName: user.displayName,
+      avatar: user.avatar && avatars[user.avatar] ? avatars[user.avatar] : null,
+      verified: user.verified,
+      isDeveloper: user.isDeveloper
+    }
+  };
+  
+  posts[postIndex].comments.push(comment);
+  saveData(POSTS_FILE, posts);
+  
+  res.json({ 
+    success: true, 
+    message: 'Комментарий добавлен',
+    comment
+  });
+});
+
 // Админ endpoints
 app.get('/api/admin/users', (req, res) => {
   const usersWithAvatars = users.map(u => {
@@ -608,8 +740,8 @@ app.get('/main.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'main.html'));
 });
 
-app.get('/chat.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'chat.html'));
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
 });
 
 // Health check для Render.com
@@ -618,7 +750,8 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     users: users.length,
-    messages: messages.length
+    messages: messages.length,
+    posts: posts.length
   });
 });
 
@@ -637,8 +770,10 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🖼️ Avatar upload: ENABLED');
   console.log('📁 File sharing: ENABLED');
   console.log('🔍 User search: ENABLED');
+  console.log('📝 Posts system: ENABLED');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
+  console.log('📮 Posts:', posts.length);
   console.log('🔑 Test accounts: admin / 123, BayRex / 123, testuser / 123');
   console.log('=====================================');
 });
