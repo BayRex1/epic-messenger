@@ -45,60 +45,6 @@
             transition: all 0.3s ease;
         }
         
-        /* Мобильные стили */
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-                height: 100vh;
-            }
-            
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .main-content {
-                flex: 1;
-            }
-            
-            .profile-section {
-                padding: 15px;
-            }
-            
-            .search-box {
-                padding: 15px;
-            }
-            
-            .chats-section {
-                max-height: 200px;
-                overflow-y: auto;
-            }
-            
-            .chat-header {
-                padding: 12px 16px;
-            }
-            
-            .message {
-                max-width: 85%;
-            }
-            
-            .message-input-container {
-                padding: 15px;
-            }
-            
-            .mobile-back-btn {
-                display: block !important;
-                background: none;
-                border: none;
-                color: var(--text-primary);
-                font-size: 20px;
-                margin-right: 12px;
-                cursor: pointer;
-            }
-        }
-
         /* Сайдбар */
         .sidebar {
             width: 380px;
@@ -796,6 +742,7 @@
             max-width: 100%;
             border-radius: 12px;
             margin-top: 8px;
+            cursor: pointer;
         }
         
         .post-actions {
@@ -1185,27 +1132,255 @@
             background: var(--accent-hover);
         }
 
-        /* Мобильная навигация */
-        .mobile-only {
-            display: none;
-        }
-        
+        /* Улучшенная мобильная адаптация */
         @media (max-width: 768px) {
-            .mobile-only {
-                display: block;
+            body {
+                flex-direction: column;
+                height: 100vh;
+                padding: 0;
+                overflow: hidden;
             }
             
-            .desktop-only {
-                display: none;
-            }
-            
-            .sidebar.active {
+            .sidebar {
+                width: 100%;
+                height: 100vh;
+                position: fixed;
+                top: 0;
+                left: 0;
+                z-index: 1000;
                 transform: translateX(0);
+                transition: transform 0.3s ease;
+                overflow-y: auto;
+            }
+            
+            .sidebar.hidden {
+                transform: translateX(-100%);
+            }
+            
+            .main-content {
+                width: 100%;
+                height: 100vh;
+                position: fixed;
+                top: 0;
+                left: 0;
+                z-index: 1001;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                background: var(--bg-primary);
             }
             
             .main-content.active {
-                transform: translateX(100%);
+                transform: translateX(0);
             }
+            
+            .profile-section {
+                padding: 15px;
+                background: var(--bg-secondary);
+            }
+            
+            .search-box {
+                padding: 15px;
+            }
+            
+            .chats-section, .posts-section {
+                height: calc(100vh - 200px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 8px 15px;
+            }
+            
+            .chat-header {
+                padding: 15px;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                min-height: 70px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .mobile-back-btn {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                background: none;
+                border: none;
+                color: var(--text-primary);
+                font-size: 24px;
+                margin-right: 15px;
+                cursor: pointer;
+                padding: 8px;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                transition: background 0.3s;
+            }
+            
+            .mobile-back-btn:hover {
+                background: var(--bg-tertiary);
+            }
+            
+            .chat-messages {
+                padding: 15px;
+                height: calc(100vh - 140px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                scroll-behavior: smooth;
+            }
+            
+            .message {
+                max-width: 85%;
+                margin: 8px 0;
+                padding: 12px 16px;
+                word-wrap: break-word;
+            }
+            
+            .message-input-container {
+                padding: 15px;
+                background: var(--bg-secondary);
+                position: sticky;
+                bottom: 0;
+                border-top: 1px solid var(--border-color);
+                min-height: 70px;
+            }
+            
+            .message-input-wrapper {
+                background: var(--bg-tertiary);
+                border-radius: 25px;
+                padding: 8px 15px;
+            }
+            
+            #messageInput {
+                font-size: 16px;
+            }
+            
+            .post {
+                margin-bottom: 15px;
+                padding: 15px;
+                border-radius: 12px;
+                background: var(--bg-secondary);
+            }
+            
+            .comments-section {
+                max-height: 300px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 1px solid var(--border-color);
+            }
+            
+            .comments-list {
+                max-height: 200px;
+                overflow-y: auto;
+                margin-bottom: 15px;
+            }
+            
+            .nav-tabs {
+                position: sticky;
+                top: 0;
+                z-index: 5;
+                background: var(--bg-secondary);
+            }
+            
+            .add-post-btn {
+                bottom: 90px;
+                right: 20px;
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+                z-index: 1002;
+            }
+            
+            .chat-item {
+                padding: 15px;
+                margin: 5px 0;
+                border-radius: 12px;
+                transition: all 0.2s;
+            }
+            
+            .chat-item:active {
+                background: var(--bg-tertiary);
+                transform: scale(0.98);
+            }
+        }
+
+        /* Фиксы для iOS Safari */
+        @supports (-webkit-touch-callout: none) {
+            .chat-messages {
+                padding-bottom: 30px;
+            }
+            
+            .message-input-container {
+                padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            }
+            
+            .posts-section,
+            .chats-section {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+        }
+
+        /* Улучшения для очень маленьких экранов */
+        @media (max-width: 360px) {
+            .profile-section {
+                padding: 12px 15px;
+            }
+            
+            .search-box {
+                padding: 12px 15px;
+            }
+            
+            .chat-header {
+                padding: 12px 15px;
+            }
+            
+            .message-input-container {
+                padding: 12px 15px;
+            }
+            
+            .post {
+                padding: 12px;
+            }
+            
+            .nav-tabs {
+                padding: 0 12px;
+            }
+        }
+
+        /* Плавная анимация для всех интерактивных элементов */
+        .chat-item,
+        .post-action,
+        .file-btn,
+        .modal-btn,
+        .profile-menu-item {
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Улучшение скроллбаров для мобильных */
+        .chat-messages::-webkit-scrollbar,
+        .posts-section::-webkit-scrollbar,
+        .chats-section::-webkit-scrollbar,
+        .comments-section::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track,
+        .posts-section::-webkit-scrollbar-track,
+        .chats-section::-webkit-scrollbar-track,
+        .comments-section::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb,
+        .posts-section::-webkit-scrollbar-thumb,
+        .chats-section::-webkit-scrollbar-thumb,
+        .comments-section::-webkit-scrollbar-thumb {
+            background: var(--text-secondary);
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -1369,6 +1544,25 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
+        // Обновленная функция для мобильной навигации
+        function setupMobileLayout() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                document.getElementById('sidebar').classList.remove('hidden');
+                document.getElementById('mainContent').classList.remove('active');
+                
+                // Скрываем кнопку назад если нет активного чата
+                if (!currentChat) {
+                    document.querySelector('.mobile-back-btn').style.display = 'none';
+                }
+            } else {
+                // На десктопе показываем все как есть
+                document.getElementById('sidebar').classList.remove('hidden');
+                document.getElementById('mainContent').classList.remove('active');
+            }
+        }
+
+        // Обновленная функция переключения вкладок
         function showTab(tabName) {
             currentTab = tabName;
             
@@ -1385,6 +1579,32 @@
             
             if (tabName === 'posts') {
                 loadPosts();
+                
+                // На мобильных скроллим к началу постов
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => {
+                        const postsSection = document.getElementById('postsSection');
+                        postsSection.scrollTop = 0;
+                    }, 100);
+                }
+            } else {
+                // На мобильных скроллим к началу чатов
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => {
+                        const chatsSection = document.getElementById('chatsSection');
+                        chatsSection.scrollTop = 0;
+                    }, 100);
+                }
+            }
+        }
+
+        // Функция для автоматического скролла к низу чата
+        function scrollToBottom() {
+            const container = document.getElementById('chatMessages');
+            if (container) {
+                setTimeout(() => {
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
             }
         }
 
@@ -1437,14 +1657,6 @@
             // Адаптация для мобильных
             setupMobileLayout();
         };
-
-        function setupMobileLayout() {
-            const isMobile = window.innerWidth <= 768;
-            if (isMobile) {
-                document.getElementById('sidebar').classList.add('active');
-                document.getElementById('mainContent').classList.remove('active');
-            }
-        }
 
         function setupSocketEvents() {
             socket.on('chat_history_loaded', (data) => {
@@ -1624,7 +1836,7 @@
             }
         }
 
-        // Начало чата
+        // Обновленная функция начала чата
         function startChat(userId) {
             let user;
             
@@ -1642,8 +1854,9 @@
             
             // Мобильная навигация
             if (window.innerWidth <= 768) {
-                document.getElementById('sidebar').classList.remove('active');
+                document.getElementById('sidebar').classList.add('hidden');
                 document.getElementById('mainContent').classList.add('active');
+                document.querySelector('.mobile-back-btn').style.display = 'block';
             }
             
             document.getElementById('noChatSelected').style.display = 'none';
@@ -1658,20 +1871,22 @@
             // Сохраняем текущий чат в localStorage
             localStorage.setItem('currentChatId', user.id);
             
+            // Фокус на поле ввода с небольшой задержкой
             setTimeout(() => {
                 document.getElementById('messageInput').focus();
-            }, 100);
+            }, 300);
         }
 
-        // Закрытие чата (для мобильных)
+        // Обновленная функция закрытия чата
         function closeChat() {
             currentChat = null;
             localStorage.removeItem('currentChatId');
             
             // Мобильная навигация
             if (window.innerWidth <= 768) {
-                document.getElementById('sidebar').classList.add('active');
+                document.getElementById('sidebar').classList.remove('hidden');
                 document.getElementById('mainContent').classList.remove('active');
+                document.querySelector('.mobile-back-btn').style.display = 'none';
             }
             
             document.getElementById('chatHeader').style.display = 'none';
@@ -1680,6 +1895,9 @@
             document.getElementById('noChatSelected').style.display = 'flex';
             
             updateChatsList();
+            
+            // Очищаем историю сообщений
+            document.getElementById('chatMessages').innerHTML = '';
         }
 
         function updateChatHeader(user) {
@@ -1725,9 +1943,10 @@
                 addMessageToChat(msg, msg.userId === currentUser.id);
             });
             
-            container.scrollTop = container.scrollHeight;
+            scrollToBottom();
         }
 
+        // Обновленная функция добавления сообщения
         function addMessageToChat(message, isMe) {
             const container = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
@@ -1740,7 +1959,7 @@
             }
             
             container.appendChild(messageDiv);
-            container.scrollTop = container.scrollHeight;
+            scrollToBottom();
         }
 
         function createTextMessageHTML(msg, isMe) {
@@ -1945,6 +2164,7 @@
             }
         }
 
+        // Обновленная функция отображения постов
         function displayPosts(posts) {
             const container = document.getElementById('postsList');
             
@@ -1980,10 +2200,10 @@
                     </div>
                     <div class="post-content">
                         <div class="post-text">${post.text}</div>
-                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Пост изображение">` : ''}
+                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Пост изображение" onclick="openImageModal('${post.image}')">` : ''}
                     </div>
                     <div class="post-actions">
-                        <button class="post-action ${post.likes && post.likes.length > 0 ? 'liked' : ''}" onclick="likePost('${post.id}')">
+                        <button class="post-action ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" onclick="likePost('${post.id}')">
                             ❤️ ${post.likes ? post.likes.length : 0}
                         </button>
                         <button class="post-action" onclick="toggleComments('${post.id}')">
@@ -2019,6 +2239,20 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Функция для открытия изображения поста в полный экран
+        function openImageModal(imageUrl) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.style.zIndex = '10002';
+            modal.innerHTML = `
+                <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                    <img src="${imageUrl}" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
+                    <button onclick="this.closest('.modal-overlay').remove()" style="position: absolute; top: 20px; right: 20px; background: var(--error-color); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; z-index: 10003;">✕</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
 
         // Функция для удаления поста
@@ -2708,8 +2942,10 @@
             }
         }
 
-        // Адаптация к изменению размера окна
-        window.addEventListener('resize', setupMobileLayout);
+        // Обновленный обработчик изменения размера окна
+        window.addEventListener('resize', function() {
+            setupMobileLayout();
+        });
 
         // Восстановление темы при загрузке
         const savedTheme = localStorage.getItem('theme');
