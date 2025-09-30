@@ -1,28 +1,42 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Frick Messenger</title>
+    <title>Epic Messenger</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body { 
-            font-family: Arial; 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
             margin: 0; 
-            padding: 50px; 
+            padding: 20px; 
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             text-align: center;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
+        
         .container {
             max-width: 500px;
-            margin: 100px auto;
+            width: 100%;
             background: rgba(255,255,255,0.1);
             padding: 40px;
-            border-radius: 15px;
+            border-radius: 20px;
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
         }
+        
         h1 {
             font-size: 3em;
             margin-bottom: 20px;
+            background: linear-gradient(135deg, #fff, #e0e0e0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
+        
         .btn {
             display: inline-block;
             padding: 15px 30px;
@@ -32,20 +46,113 @@
             border-radius: 25px;
             margin: 10px;
             font-size: 18px;
-            transition: transform 0.2s;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            cursor: pointer;
         }
+        
         .btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+        
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 120px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .test-accounts {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            font-size: 14px;
+        }
+        
+        .test-accounts div {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        /* Мобильные стили */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 2.5em;
+            }
+            
+            .btn {
+                padding: 12px 25px;
+                font-size: 16px;
+            }
+            
+            .features {
+                gap: 10px;
+            }
+            
+            .feature {
+                padding: 12px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Frick</h1>
-        <p>Добро пожаловать в мессенджер Frick</p>
-        <a href="/main.html" class="btn">Открыть мессенджер</a>
-        <br>
-        <small>Тестовый аккаунт: test@mail.ru / 123</small>
+        <h1>Epic</h1>
+        <p style="font-size: 18px; margin-bottom: 25px; opacity: 0.9;">Современный мессенджер с постами и обменом файлами</p>
+        
+        <div class="features">
+            <div class="feature">💬 Чат в реальном времени</div>
+            <div class="feature">📝 Система постов</div>
+            <div class="feature">🖼️ Обмен файлами</div>
+            <div class="feature">👥 Поиск пользователей</div>
+        </div>
+        
+        <a href="/login.html" class="btn">🚀 Начать общение</a>
+        
+        <div class="test-accounts">
+            <div><strong>Тестовые аккаунты:</strong></div>
+            <div>👑 Админ: admin / 123</div>
+            <div>👨‍💻 Разработчик: BayRex / 123</div>
+            <div>👤 Тестовый: testuser / 123</div>
+        </div>
     </div>
+
+    <script>
+        // Адаптация для мобильных
+        function handleMobileLayout() {
+            if (window.innerWidth <= 480) {
+                document.body.style.padding = '10px';
+            }
+        }
+
+        window.addEventListener('resize', handleMobileLayout);
+        handleMobileLayout();
+    </script>
 </body>
 </html>
