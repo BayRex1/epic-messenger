@@ -1474,6 +1474,7 @@
         let currentChat = null;
         let allUsers = [];
         let currentTab = 'chats';
+        let chatOpened = false;
 
         // Базовые функции
         function getVerifiedBadge() {
@@ -1724,8 +1725,8 @@
                 document.getElementById('userAvatarText').style.display = 'none';
             } else {
                 document.getElementById('userAvatarText').textContent = currentUser.displayName.charAt(0).toUpperCase();
-                document.getElementById('userAvatarImg').style.display = 'none';
                 document.getElementById('userAvatarText').style.display = 'block';
+                document.getElementById('userAvatarImg').style.display = 'none';
             }
             
             document.getElementById('userName').innerHTML = currentUser.displayName + 
@@ -1850,7 +1851,13 @@
                 user = userId;
             }
             
+            // Если уже в этом чате, не перезагружаем
+            if (currentChat && currentChat.id === user.id) {
+                return;
+            }
+            
             currentChat = user;
+            chatOpened = true;
             
             // Мобильная навигация
             if (window.innerWidth <= 768) {
@@ -1879,7 +1886,10 @@
 
         // Обновленная функция закрытия чата
         function closeChat() {
+            if (!chatOpened) return;
+            
             currentChat = null;
+            chatOpened = false;
             localStorage.removeItem('currentChatId');
             
             // Мобильная навигация
@@ -1917,28 +1927,56 @@
             document.getElementById('chatUserStatus').textContent = getStatusText(user.status);
         }
 
+        // Исправленная функция загрузки истории чата
         function loadChatHistory(userId) {
             if (!userId) return;
             
             const container = document.getElementById('chatMessages');
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Загрузка истории...</div>';
+            // Временно показываем индикатор загрузки, но НЕ сбрасываем состояние чата
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Загрузка истории...</div>';
+            container.appendChild(loadingIndicator);
             
             socket.emit('load_chat_history', {
                 userId: currentUser.id,
                 targetId: userId
             });
+            
+            // Убираем индикатор через 2 секунды на всякий случай
+            setTimeout(() => {
+                if (loadingIndicator.parentNode) {
+                    loadingIndicator.remove();
+                }
+            }, 2000);
         }
 
         // Сообщения
         function displayMessages(messages) {
             const container = document.getElementById('chatMessages');
-            container.innerHTML = '';
+            
+            // Очищаем только если это действительно новая история
+            if (currentChat && container.children.length > 0) {
+                // Проверяем, есть ли уже сообщения в этом чате
+                const hasMessages = Array.from(container.children).some(child => 
+                    child.classList.contains('message')
+                );
+                
+                if (!hasMessages) {
+                    container.innerHTML = '';
+                }
+            } else {
+                container.innerHTML = '';
+            }
             
             if (messages.length === 0) {
-                container.innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">Нет сообщений. Начните общение!</div>';
+                // Добавляем сообщение о пустом чате, но не перезаписываем весь контейнер
+                const emptyMessage = document.createElement('div');
+                emptyMessage.innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">Нет сообщений. Начните общение!</div>';
+                container.appendChild(emptyMessage);
                 return;
             }
             
+            // Добавляем сообщения по одному
             messages.forEach(msg => {
                 addMessageToChat(msg, msg.userId === currentUser.id);
             });
