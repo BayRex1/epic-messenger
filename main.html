@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Epic - Мессенджер</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -44,6 +45,60 @@
             transition: all 0.3s ease;
         }
         
+        /* Мобильные стили */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                height: 100vh;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .main-content {
+                flex: 1;
+            }
+            
+            .profile-section {
+                padding: 15px;
+            }
+            
+            .search-box {
+                padding: 15px;
+            }
+            
+            .chats-section {
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            
+            .chat-header {
+                padding: 12px 16px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .message-input-container {
+                padding: 15px;
+            }
+            
+            .mobile-back-btn {
+                display: block !important;
+                background: none;
+                border: none;
+                color: var(--text-primary);
+                font-size: 20px;
+                margin-right: 12px;
+                cursor: pointer;
+            }
+        }
+
         /* Сайдбар */
         .sidebar {
             width: 380px;
@@ -51,6 +106,11 @@
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-back-btn {
+            display: none;
         }
         
         .profile-section {
@@ -89,6 +149,7 @@
             border: 2px solid var(--accent-color);
             box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
             overflow: hidden;
+            flex-shrink: 0;
         }
         
         .avatar img {
@@ -99,6 +160,7 @@
         
         .profile-info {
             flex: 1;
+            min-width: 0;
         }
         
         .profile-info h3 {
@@ -108,6 +170,9 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .profile-info span {
@@ -151,6 +216,33 @@
         
         .profile-menu-item:last-child {
             border-bottom: none;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 12px 16px;
+            text-align: center;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .nav-tab.active {
+            border-bottom-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        .nav-tab:hover {
+            background: var(--bg-tertiary);
         }
         
         .search-box {
@@ -217,6 +309,14 @@
             flex: 1;
             overflow-y: auto;
             padding: 8px;
+            display: block;
+        }
+        
+        .posts-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: none;
         }
         
         .section-title {
@@ -264,6 +364,7 @@
             transition: all 0.3s;
             border: 2px solid transparent;
             overflow: hidden;
+            flex-shrink: 0;
         }
         
         .chat-avatar:hover {
@@ -280,6 +381,7 @@
         .chat-info {
             flex: 1;
             cursor: pointer;
+            min-width: 0;
         }
         
         .chat-info h4 {
@@ -289,11 +391,17 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .chat-info span {
             color: var(--text-secondary);
             font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         /* Основной контент */
@@ -302,6 +410,7 @@
             display: flex;
             flex-direction: column;
             background: var(--bg-primary);
+            transition: all 0.3s ease;
         }
         
         .chat-header {
@@ -315,6 +424,7 @@
         .chat-header-info {
             flex: 1;
             cursor: pointer;
+            min-width: 0;
         }
         
         .chat-header-info h3 {
@@ -324,6 +434,9 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .chat-header-info span {
@@ -392,15 +505,20 @@
         .file-icon {
             font-size: 24px;
             margin-right: 12px;
+            flex-shrink: 0;
         }
         
         .file-details {
             flex: 1;
+            min-width: 0;
         }
         
         .file-name {
             font-weight: 600;
             margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .file-size {
@@ -500,6 +618,7 @@
             border-radius: 50%;
             transition: all 0.3s;
             margin: 0 5px;
+            flex-shrink: 0;
         }
         
         .file-input-btn:hover {
@@ -514,6 +633,7 @@
             background: transparent;
             color: var(--text-primary);
             outline: none;
+            min-width: 0;
         }
         
         #messageInput::placeholder {
@@ -531,6 +651,7 @@
             font-weight: 600;
             transition: all 0.3s;
             margin-left: 10px;
+            flex-shrink: 0;
         }
         
         .send-btn:hover {
@@ -546,6 +667,7 @@
             color: var(--text-secondary);
             font-size: 16px;
             text-align: center;
+            padding: 20px;
         }
         
         .verified-badge {
@@ -554,6 +676,7 @@
             margin-left: 4px;
             animation: goldPulse 2s infinite;
             cursor: help;
+            flex-shrink: 0;
         }
         
         .developer-badge {
@@ -562,12 +685,14 @@
             margin-left: 4px;
             animation: bluePulse 2s infinite;
             cursor: help;
+            flex-shrink: 0;
         }
         
         .verified-badge svg, .developer-badge svg {
             width: 16px;
             height: 16px;
             vertical-align: middle;
+            flex-shrink: 0;
         }
         
         @keyframes goldPulse {
@@ -598,6 +723,211 @@
             stroke-linejoin: round;
         }
         
+        /* Посты */
+        .post {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .post-user {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .post-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .post-user-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .post-user-info h4 {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .post-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .post-content {
+            margin-bottom: 16px;
+        }
+        
+        .post-text {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            word-wrap: break-word;
+        }
+        
+        .post-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+        }
+        
+        .post-actions {
+            display: flex;
+            gap: 20px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 12px;
+        }
+        
+        .post-action {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+        
+        .post-action:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        .post-action.liked {
+            color: var(--error-color);
+        }
+        
+        .comments-section {
+            margin-top: 16px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 12px;
+        }
+        
+        .comment {
+            display: flex;
+            margin-bottom: 12px;
+        }
+        
+        .comment-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .comment-content {
+            flex: 1;
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 12px;
+        }
+        
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .comment-user {
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .comment-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .comment-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .add-comment {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .comment-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .comment-input:focus {
+            border-color: var(--accent-color);
+        }
+        
+        .add-post-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 136, 204, 0.4);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        
+        .add-post-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.1);
+        }
+        
         /* Модальные окна */
         .modal-overlay {
             position: fixed;
@@ -611,6 +941,7 @@
             align-items: center;
             z-index: 10000;
             animation: fadeIn 0.3s;
+            padding: 20px;
         }
         
         @keyframes fadeIn {
@@ -622,12 +953,14 @@
             background: var(--bg-secondary);
             padding: 32px;
             border-radius: 24px;
-            width: 90%;
+            width: 100%;
             max-width: 440px;
             color: var(--text-primary);
             animation: modalSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border-color);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            max-height: 90vh;
+            overflow-y: auto;
         }
         
         @keyframes modalSlideUp {
@@ -850,11 +1183,34 @@
         .file-label:hover {
             background: var(--accent-hover);
         }
+
+        /* Мобильная навигация */
+        .mobile-only {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .mobile-only {
+                display: block;
+            }
+            
+            .desktop-only {
+                display: none;
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .main-content.active {
+                transform: translateX(100%);
+            }
+        }
     </style>
 </head>
 <body class="theme-dark">
     <!-- Боковая панель -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <div class="profile-section">
             <div class="profile-header" onclick="toggleProfileMenu()">
                 <div class="avatar" id="userAvatar">
@@ -876,20 +1232,31 @@
             </div>
         </div>
 
+        <div class="nav-tabs">
+            <div class="nav-tab active" onclick="showTab('chats')">💬 Чаты</div>
+            <div class="nav-tab" onclick="showTab('posts')">📝 Посты</div>
+        </div>
+
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="🔍 Поиск пользователей..." oninput="searchUsers()">
             <div class="search-results" id="searchResults"></div>
         </div>
 
-        <div class="chats-section">
+        <div class="chats-section" id="chatsSection">
             <div class="section-title">Все пользователи</div>
             <div id="chatsList"></div>
+        </div>
+
+        <div class="posts-section" id="postsSection">
+            <div class="section-title">Лента постов</div>
+            <div id="postsList"></div>
         </div>
     </div>
 
     <!-- Основной контент -->
-    <div class="main-content">
+    <div class="main-content" id="mainContent">
         <div id="chatHeader" class="chat-header" style="display: none;">
+            <button class="mobile-back-btn" onclick="closeChat()">←</button>
             <div class="avatar" id="chatUserAvatar" style="margin-right: 16px;">
                 <img id="chatUserAvatarImg" style="display: none;">
                 <span id="chatUserAvatarText">U</span>
@@ -920,6 +1287,9 @@
         </div>
     </div>
 
+    <!-- Кнопка добавления поста -->
+    <button class="add-post-btn" id="addPostBtn" style="display: none;" onclick="showAddPostModal()">+</button>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         // Глобальные переменные
@@ -927,6 +1297,7 @@
         let currentUser = null;
         let currentChat = null;
         let allUsers = [];
+        let currentTab = 'chats';
 
         // Базовые функции
         function getVerifiedBadge() {
@@ -995,6 +1366,25 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
+        function showTab(tabName) {
+            currentTab = tabName;
+            
+            // Обновляем активные табы
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Показываем соответствующий раздел
+            document.getElementById('chatsSection').style.display = tabName === 'chats' ? 'block' : 'none';
+            document.getElementById('postsSection').style.display = tabName === 'posts' ? 'block' : 'none';
+            document.getElementById('addPostBtn').style.display = tabName === 'posts' ? 'block' : 'none';
+            
+            if (tabName === 'posts') {
+                loadPosts();
+            }
+        }
+
         // Инициализация при загрузке
         window.onload = async function() {
             // Инициализируем socket.io
@@ -1002,7 +1392,7 @@
             
             currentUser = JSON.parse(localStorage.getItem('user'));
             if (!currentUser) {
-                window.location.href = '/';
+                window.location.href = '/login.html';
                 return;
             }
             
@@ -1040,7 +1430,18 @@
 
             // Настраиваем обработчики socket.io
             setupSocketEvents();
+            
+            // Адаптация для мобильных
+            setupMobileLayout();
         };
+
+        function setupMobileLayout() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                document.getElementById('sidebar').classList.add('active');
+                document.getElementById('mainContent').classList.remove('active');
+            }
+        }
 
         function setupSocketEvents() {
             socket.on('chat_history_loaded', (data) => {
@@ -1227,6 +1628,12 @@
             
             currentChat = user;
             
+            // Мобильная навигация
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+                document.getElementById('mainContent').classList.add('active');
+            }
+            
             document.getElementById('noChatSelected').style.display = 'none';
             document.getElementById('chatHeader').style.display = 'flex';
             document.getElementById('chatMessages').style.display = 'flex';
@@ -1242,6 +1649,25 @@
             setTimeout(() => {
                 document.getElementById('messageInput').focus();
             }, 100);
+        }
+
+        // Закрытие чата (для мобильных)
+        function closeChat() {
+            currentChat = null;
+            localStorage.removeItem('currentChatId');
+            
+            // Мобильная навигация
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.add('active');
+                document.getElementById('mainContent').classList.remove('active');
+            }
+            
+            document.getElementById('chatHeader').style.display = 'none';
+            document.getElementById('chatMessages').style.display = 'none';
+            document.getElementById('messageInputContainer').style.display = 'none';
+            document.getElementById('noChatSelected').style.display = 'flex';
+            
+            updateChatsList();
         }
 
         function updateChatHeader(user) {
@@ -1484,6 +1910,272 @@
             reader.readAsDataURL(file);
         }
 
+        // Посты
+        async function loadPosts() {
+            try {
+                const response = await fetch('/api/posts');
+                const posts = await response.json();
+                displayPosts(posts);
+            } catch (error) {
+                console.error('Ошибка загрузки постов:', error);
+                showNotification('Ошибка загрузки постов', 'error');
+            }
+        }
+
+        function displayPosts(posts) {
+            const container = document.getElementById('postsList');
+            
+            if (posts.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+                        <div>Пока нет постов</div>
+                        <div style="font-size: 14px; margin-top: 8px;">Будьте первым, кто опубликует что-то!</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = posts.map(post => `
+                <div class="post" id="post-${post.id}">
+                    <div class="post-header">
+                        <div class="post-user">
+                            <div class="post-avatar">
+                                ${post.user.avatar ? 
+                                    `<img src="${post.user.avatar}" alt="${post.user.displayName}">` :
+                                    post.user.displayName.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div class="post-user-info">
+                                <h4>${post.user.displayName} ${post.user.verified ? getVerifiedBadge() : ''} ${post.user.isDeveloper ? getDeveloperBadge() : ''}</h4>
+                                <div class="post-time">${new Date(post.timestamp).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <div class="post-text">${post.text}</div>
+                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Пост изображение">` : ''}
+                    </div>
+                    <div class="post-actions">
+                        <button class="post-action ${post.likes.includes(currentUser.id) ? 'liked' : ''}" onclick="likePost('${post.id}')">
+                            ❤️ ${post.likes.length}
+                        </button>
+                        <button class="post-action" onclick="toggleComments('${post.id}')">
+                            💬 ${post.comments.length}
+                        </button>
+                    </div>
+                    <div class="comments-section" id="comments-${post.id}" style="display: none;">
+                        <div class="comments-list" id="comments-list-${post.id}">
+                            ${post.comments.map(comment => `
+                                <div class="comment">
+                                    <div class="comment-avatar">
+                                        ${comment.user.avatar ? 
+                                            `<img src="${comment.user.avatar}" alt="${comment.user.displayName}">` :
+                                            comment.user.displayName.charAt(0).toUpperCase()
+                                        }
+                                    </div>
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <div class="comment-user">
+                                                ${comment.user.displayName} ${comment.user.verified ? getVerifiedBadge() : ''} ${comment.user.isDeveloper ? getDeveloperBadge() : ''}
+                                            </div>
+                                            <div class="comment-time">${new Date(comment.timestamp).toLocaleTimeString()}</div>
+                                        </div>
+                                        <div class="comment-text">${comment.text}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="add-comment">
+                            <input type="text" class="comment-input" id="comment-input-${post.id}" placeholder="Напишите комментарий..." onkeypress="handleCommentKeyPress(event, '${post.id}')">
+                            <button class="send-btn" onclick="addComment('${post.id}')">➤</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddPostModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>📝 Создать пост</h3>
+                    <textarea class="modal-input" id="postText" placeholder="Что у вас нового?" style="height: 120px; resize: vertical;"></textarea>
+                    <div class="avatar-upload">
+                        <div class="avatar-preview" id="postImagePreview">
+                            <span>🖼️</span>
+                        </div>
+                        <input type="file" id="postImageFile" class="file-input" accept="image/*">
+                        <label for="postImageFile" class="file-label">📷 Добавить изображение</label>
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn secondary" onclick="closeModal(this)">Отмена</button>
+                        <button class="modal-btn primary" onclick="createPost()">Опубликовать</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Обработка загрузки изображения для поста
+            document.getElementById('postImageFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('Максимальный размер файла - 5MB');
+                        this.value = '';
+                        return;
+                    }
+                    
+                    if (!file.type.match('image.*')) {
+                        alert('Пожалуйста, выберите изображение');
+                        this.value = '';
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const preview = document.getElementById('postImagePreview');
+                        preview.innerHTML = `<img src="${e.target.result}" alt="Post image" style="width: 100%; height: 100%; object-fit: cover;">`;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        async function createPost() {
+            const text = document.getElementById('postText').value.trim();
+            const imageFile = document.getElementById('postImageFile').files[0];
+            
+            if (!text) {
+                showNotification('Введите текст поста', 'error');
+                return;
+            }
+            
+            let imageData = null;
+            if (imageFile) {
+                imageData = await compressImage(imageFile);
+            }
+            
+            try {
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        text: text,
+                        image: imageData
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Пост опубликован', 'success');
+                    closeModal(document.querySelector('.modal-overlay'));
+                    loadPosts();
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка публикации поста', 'error');
+            }
+        }
+
+        async function likePost(postId) {
+            try {
+                const response = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser.id })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Обновляем UI
+                    const likeBtn = document.querySelector(`#post-${postId} .post-action`);
+                    const likeCount = likeBtn.textContent.match(/\d+/);
+                    const newCount = result.likes;
+                    
+                    likeBtn.innerHTML = `❤️ ${newCount}`;
+                    likeBtn.classList.toggle('liked', result.isLiked);
+                    
+                    if (result.isLiked) {
+                        showNotification('❤️ Вам понравился пост', 'success');
+                    }
+                }
+            } catch (error) {
+                showNotification('Ошибка', 'error');
+            }
+        }
+
+        function toggleComments(postId) {
+            const commentsSection = document.getElementById(`comments-${postId}`);
+            commentsSection.style.display = commentsSection.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function handleCommentKeyPress(e, postId) {
+            if (e.key === 'Enter') {
+                addComment(postId);
+            }
+        }
+
+        async function addComment(postId) {
+            const input = document.getElementById(`comment-input-${postId}`);
+            const text = input.value.trim();
+            
+            if (!text) return;
+            
+            try {
+                const response = await fetch(`/api/posts/${postId}/comment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        text: text
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    input.value = '';
+                    
+                    // Добавляем комментарий в UI
+                    const commentsList = document.getElementById(`comments-list-${postId}`);
+                    const commentHTML = `
+                        <div class="comment">
+                            <div class="comment-avatar">
+                                ${currentUser.avatar ? 
+                                    `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">` :
+                                    currentUser.displayName.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div class="comment-content">
+                                <div class="comment-header">
+                                    <div class="comment-user">
+                                        ${currentUser.displayName} ${currentUser.verified ? getVerifiedBadge() : ''} ${currentUser.isDeveloper ? getDeveloperBadge() : ''}
+                                    </div>
+                                    <div class="comment-time">только что</div>
+                                </div>
+                                <div class="comment-text">${text}</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    commentsList.innerHTML += commentHTML;
+                    
+                    // Обновляем счетчик комментариев
+                    const commentBtn = document.querySelector(`#post-${postId} .post-action:nth-child(2)`);
+                    const currentCount = parseInt(commentBtn.textContent.match(/\d+/)[0]) || 0;
+                    commentBtn.innerHTML = `💬 ${currentCount + 1}`;
+                }
+            } catch (error) {
+                showNotification('Ошибка добавления комментария', 'error');
+            }
+        }
+
         // Профиль и настройки
         function showProfileEditModal() {
             const modal = document.createElement('div');
@@ -1712,7 +2404,7 @@
             if (confirm('Вы уверены, что хотите сменить аккаунт?')) {
                 localStorage.removeItem('user');
                 localStorage.removeItem('currentChatId');
-                window.location.href = '/';
+                window.location.href = '/login.html';
             }
         }
 
@@ -1726,7 +2418,7 @@
                 }
                 localStorage.removeItem('user');
                 localStorage.removeItem('currentChatId');
-                window.location.href = '/';
+                window.location.href = '/login.html';
             }
         }
 
@@ -1963,6 +2655,9 @@
                 showNotification('Ошибка удаления', 'error');
             }
         }
+
+        // Адаптация к изменению размера окна
+        window.addEventListener('resize', setupMobileLayout);
     </script>
 </body>
 </html>
