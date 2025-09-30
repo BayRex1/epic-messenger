@@ -30,28 +30,35 @@ const MESSAGES_FILE = 'messages.json';
 const AVATARS_FILE = 'avatars.json';
 const POSTS_FILE = 'posts.json';
 
-// Функции для работы с файлами
+// Улучшенные функции для работы с файлами
 const loadData = (file, defaultValue) => {
   try {
     if (fs.existsSync(file)) {
       const data = fs.readFileSync(file, 'utf8');
+      if (data.trim() === '') {
+        console.log(`⚠️ ${file} is empty, using default`);
+        return defaultValue;
+      }
       return JSON.parse(data);
     }
   } catch (error) {
-    console.error(`Error loading ${file}:`, error);
+    console.error(`❌ Error loading ${file}:`, error);
   }
   
+  console.log(`📁 Creating new ${file} with default data`);
   saveData(file, defaultValue);
   return defaultValue;
 };
 
 const saveData = (file, data) => {
   try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    console.log(`💾 ${file} saved`);
+    const tempFile = file + '.tmp';
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2));
+    fs.renameSync(tempFile, file);
+    console.log(`💾 ${file} saved successfully (${data.length || Object.keys(data).length} items)`);
     return true;
   } catch (error) {
-    console.error(`Error saving ${file}:`, error);
+    console.error(`❌ Error saving ${file}:`, error);
     return false;
   }
 };
@@ -62,6 +69,14 @@ let messages = loadData(MESSAGES_FILE, []);
 let avatars = loadData(AVATARS_FILE, {});
 let posts = loadData(POSTS_FILE, []);
 const onlineUsers = new Map();
+
+// Автосохранение каждые 30 секунд
+setInterval(() => {
+  saveData(USERS_FILE, users);
+  saveData(MESSAGES_FILE, messages);
+  saveData(AVATARS_FILE, avatars);
+  saveData(POSTS_FILE, posts);
+}, 30000);
 
 // Создаем тестовых пользователей если нет пользователей
 if (users.length === 0) {
@@ -621,6 +636,54 @@ app.post('/api/admin/toggle-developer', (req, res) => {
   });
 });
 
+app.post('/api/admin/delete-user', (req, res) => {
+  const { userId, adminId } = req.body;
+  
+  if (userId === adminId) {
+    return res.json({ success: false, message: 'Нельзя удалить самого себя' });
+  }
+  
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const username = users[userIndex].username;
+  users.splice(userIndex, 1);
+  
+  // Удаляем сообщения пользователя
+  messages = messages.filter(msg => msg.userId !== userId && msg.toUserId !== userId);
+  
+  // Удаляем посты пользователя
+  posts = posts.filter(post => post.userId !== userId);
+  
+  // Удаляем аватар
+  if (avatars[userId]) {
+    delete avatars[userId];
+  }
+  
+  saveData(USERS_FILE, users);
+  saveData(MESSAGES_FILE, messages);
+  saveData(POSTS_FILE, posts);
+  saveData(AVATARS_FILE, avatars);
+  
+  // Отключаем пользователя если он онлайн
+  const onlineUserEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (onlineUserEntry) {
+    const [socketId] = onlineUserEntry;
+    onlineUsers.delete(socketId);
+    io.to(socketId).emit('user_deleted');
+    io.sockets.sockets.get(socketId)?.disconnect();
+  }
+  
+  res.json({ 
+    success: true, 
+    message: `Пользователь ${username} удален` 
+  });
+});
+
 // WebSocket соединения
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
@@ -657,16 +720,32 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('user_online', onlineUser);
     
     console.log('👋 User joined:', user.displayName);
+    
+    // Отправляем историю сообщений пользователю
+    const userMessages = messages.filter(msg => 
+      msg.userId === userData.userId || msg.toUserId === userData.userId
+    );
+    
+    if (userMessages.length > 0) {
+      socket.emit('user_messages_loaded', { messages: userMessages });
+    }
   });
 
   socket.on('load_chat_history', (data) => {
+    console.log('📖 Loading chat history for user:', data.userId, 'with:', data.targetId);
+    
     const chatMessages = messages.filter(msg => 
       (msg.userId === data.userId && msg.toUserId === data.targetId) ||
       (msg.userId === data.targetId && msg.toUserId === data.userId)
     );
     
     chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    socket.emit('chat_history_loaded', { targetId: data.targetId, messages: chatMessages });
+    console.log(`💬 Loaded ${chatMessages.length} messages for chat`);
+    
+    socket.emit('chat_history_loaded', { 
+      targetId: data.targetId, 
+      messages: chatMessages 
+    });
   });
 
   socket.on('send_message', (messageData) => {
@@ -733,7 +812,7 @@ io.on('connection', (socket) => {
 
 // Статические файлы
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/main.html', (req, res) => {
@@ -751,7 +830,8 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     users: users.length,
     messages: messages.length,
-    posts: posts.length
+    posts: posts.length,
+    online: onlineUsers.size
   });
 });
 
@@ -763,7 +843,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 EPIC MESSENGER SERVER STARTED!');
   console.log('📡 Port:', PORT);
   console.log('🌐 Environment:', process.env.NODE_ENV || 'development');
-  console.log('💾 Storage: JSON files');
+  console.log('💾 Storage: JSON files (auto-save every 30s)');
   console.log('🔐 Authentication: ENABLED');
   console.log('✅ Verified system: ACTIVE');
   console.log('👨‍💻 Developer badges: ENABLED');
