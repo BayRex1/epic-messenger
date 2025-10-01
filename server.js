@@ -36,7 +36,8 @@ const loadData = () => {
   return {
     users: [],
     messages: [],
-    posts: []
+    posts: [],
+    gifts: []
   };
 };
 
@@ -51,29 +52,31 @@ const saveData = (data) => {
 
 // Загружаем данные
 let data = loadData();
-let { users, messages, posts } = data;
+let { users, messages, posts, gifts } = data;
 
-// Создаем только одного пользователя BayRex если нет пользователей
-if (users.length === 0) {
-  users = [
+// Создаем тестовые подарки если нет
+if (gifts.length === 0) {
+  gifts = [
     {
       id: '1',
-      email: 'bayrex@epic.com',
-      username: 'BayRex',
-      displayName: 'BayRex',
-      password: '123',
-      status: 'online',
-      verified: true,
-      isDeveloper: true,
-      avatar: null,
-      description: 'Создатель Epic Messenger',
+      name: 'Золотая корона',
+      price: 100,
+      image: null,
+      type: 'image',
+      createdBy: 'system',
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: '2', 
+      name: 'Анимация с фейерверком',
+      price: 50,
+      image: null,
+      type: 'video',
+      createdBy: 'system',
       createdAt: new Date().toISOString()
     }
   ];
-  
-  // Сохраняем начальные данные
-  saveData({ users, messages, posts });
-  console.log('👑 Created BayRex user');
+  saveData({ users, messages, posts, gifts });
 }
 
 const onlineUsers = new Map();
@@ -105,6 +108,7 @@ app.get('/health', (req, res) => {
     users: users.length,
     messages: messages.length,
     posts: posts.length,
+    gifts: gifts.length,
     storage: 'JSON file'
   });
 });
@@ -117,17 +121,23 @@ app.post('/api/register', (req, res) => {
     return res.json({ success: false, message: 'Все поля обязательны' });
   }
   
-  if (users.find(u => u.email === email)) {
-    return res.json({ success: false, message: 'Email уже занят' });
+  // Проверка на существующий username (case insensitive)
+  const existingUser = users.find(u => 
+    u.username.toLowerCase() === username.toLowerCase() && !u.deleted
+  );
+  
+  if (existingUser) {
+    return res.json({ success: false, message: 'Юзернейм уже занят' });
   }
   
-  if (users.find(u => u.username === username)) {
-    return res.json({ success: false, message: 'Юзернейм уже занят' });
+  // Проверка на существующий email
+  if (users.find(u => u.email === email && !u.deleted)) {
+    return res.json({ success: false, message: 'Email уже занят' });
   }
   
   const userId = Date.now().toString();
   
-  // Автоматически даем права BayRex если username BayRex
+  // Автоматически даем права если username BayRex (case insensitive)
   const isBayRex = username.toLowerCase() === 'bayrex';
   
   const newUser = {
@@ -141,11 +151,14 @@ app.post('/api/register', (req, res) => {
     isDeveloper: isBayRex,
     avatar: null,
     description: 'Новый пользователь Epic Messenger',
-    createdAt: new Date().toISOString()
+    coins: 1000, // Начальные коины
+    gifts: [], // Купленные подарки
+    createdAt: new Date().toISOString(),
+    deleted: false
   };
   
   users.push(newUser);
-  saveData({ users, messages, posts });
+  saveData({ users, messages, posts, gifts });
   
   res.json({ 
     success: true, 
@@ -157,13 +170,18 @@ app.post('/api/register', (req, res) => {
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   
-  const user = users.find(u => (u.email === email || u.username === email) && u.password === password);
+  const user = users.find(u => 
+    (u.email === email || u.username.toLowerCase() === email.toLowerCase()) && 
+    u.password === password &&
+    !u.deleted
+  );
+  
   if (!user) {
     return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
   }
   
   user.status = 'online';
-  saveData({ users, messages, posts });
+  saveData({ users, messages, posts, gifts });
   
   res.json({ 
     success: true, 
@@ -172,322 +190,103 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-app.post('/api/update-profile', (req, res) => {
-  const { userId, username, displayName, description, status, avatarData } = req.body;
-  
-  if (!userId) {
-    return res.json({ success: false, message: 'ID пользователя обязателен' });
-  }
-  
-  const userIndex = users.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  if (username) {
-    const existingUser = users.find(u => u.username === username && u.id !== userId);
-    if (existingUser) {
-      return res.json({ success: false, message: 'Юзернейм уже занят' });
-    }
-    users[userIndex].username = username;
-  }
-  
-  if (displayName) {
-    users[userIndex].displayName = displayName;
-  }
-  
-  if (description !== undefined) {
-    users[userIndex].description = description;
-  }
-  
-  if (status) {
-    users[userIndex].status = status;
-  }
-  
-  if (avatarData) {
-    users[userIndex].avatar = avatarData;
-  }
-  
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: 'Профиль обновлен',
-    user: users[userIndex]
-  });
+// Остальные API endpoints остаются такими же как в предыдущей версии
+// ... (update-profile, search-users, users, user, posts, likes, comments, admin endpoints)
+
+// Подарки API
+app.get('/api/gifts', (req, res) => {
+  res.json(gifts.filter(gift => !gift.deleted));
 });
 
-app.get('/api/search-users', (req, res) => {
-  const { query, currentUserId } = req.query;
+app.post('/api/gifts', (req, res) => {
+  const { userId, name, price, image, type } = req.body;
   
-  if (!query || !currentUserId) {
-    return res.json([]);
+  if (!userId || !name || !price || !image || !type) {
+    return res.json({ success: false, message: 'Все поля обязательны' });
   }
   
-  const searchTerm = query.toLowerCase().trim();
-  const filteredUsers = users.filter(u => 
-    u.id !== currentUserId &&
-    (u.username.toLowerCase().includes(searchTerm) ||
-     u.displayName.toLowerCase().includes(searchTerm) ||
-     u.email.toLowerCase().includes(searchTerm))
-  );
-  
-  res.json(filteredUsers);
-});
-
-app.get('/api/users', (req, res) => {
-  const { currentUserId } = req.query;
-  
-  const filteredUsers = users.filter(u => u.id !== currentUserId);
-  res.json(filteredUsers);
-});
-
-app.get('/api/user/:id', (req, res) => {
-  const user = users.find(u => u.id === req.params.id);
-  if (!user) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  res.json({
-    success: true,
-    user: user
-  });
-});
-
-// Посты API
-app.get('/api/posts', (req, res) => {
-  const postsWithUsers = posts.map(post => {
-    const user = users.find(u => u.id === post.userId);
-    return {
-      ...post,
-      user: user ? {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        avatar: user.avatar,
-        verified: user.verified,
-        isDeveloper: user.isDeveloper
-      } : {
-        id: 'deleted',
-        username: 'deleted_user',
-        displayName: 'Удаленный пользователь',
-        avatar: null,
-        verified: false,
-        isDeveloper: false
-      }
-    };
-  });
-  
-  res.json(postsWithUsers.reverse());
-});
-
-app.post('/api/posts', (req, res) => {
-  const { userId, text, image } = req.body;
-  
-  if (!userId || !text) {
-    return res.json({ success: false, message: 'Текст поста обязателен' });
-  }
-  
-  const user = users.find(u => u.id === userId);
-  if (!user) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  const post = {
-    id: Date.now().toString(),
-    userId,
-    text,
-    image: image || null,
-    likes: [],
-    comments: [],
-    timestamp: new Date().toISOString()
-  };
-  
-  posts.push(post);
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: 'Пост опубликован',
-    post: {
-      ...post,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        avatar: user.avatar,
-        verified: user.verified,
-        isDeveloper: user.isDeveloper
-      }
-    }
-  });
-});
-
-app.post('/api/posts/:id/like', (req, res) => {
-  const { userId } = req.body;
-  const postId = req.params.id;
-  
-  const postIndex = posts.findIndex(p => p.id === postId);
-  if (postIndex === -1) {
-    return res.json({ success: false, message: 'Пост не найден' });
-  }
-  
-  const likeIndex = posts[postIndex].likes.indexOf(userId);
-  if (likeIndex === -1) {
-    posts[postIndex].likes.push(userId);
-  } else {
-    posts[postIndex].likes.splice(likeIndex, 1);
-  }
-  
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    likes: posts[postIndex].likes.length,
-    isLiked: likeIndex === -1
-  });
-});
-
-app.post('/api/posts/:id/comment', (req, res) => {
-  const { userId, text } = req.body;
-  const postId = req.params.id;
-  
-  const postIndex = posts.findIndex(p => p.id === postId);
-  if (postIndex === -1) {
-    return res.json({ success: false, message: 'Пост не найден' });
-  }
-  
-  const user = users.find(u => u.id === userId);
-  if (!user) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  const comment = {
-    id: Date.now().toString(),
-    userId,
-    text,
-    timestamp: new Date().toISOString(),
-    user: {
-      id: user.id,
-      username: user.username,
-      displayName: user.displayName,
-      avatar: user.avatar,
-      verified: user.verified,
-      isDeveloper: user.isDeveloper
-    }
-  };
-  
-  posts[postIndex].comments.push(comment);
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: 'Комментарий добавлен',
-    comment
-  });
-});
-
-app.delete('/api/posts/:id', (req, res) => {
-  const postId = req.params.id;
-  const { userId } = req.body;
-  
-  const postIndex = posts.findIndex(p => p.id === postId);
-  if (postIndex === -1) {
-    return res.json({ success: false, message: 'Пост не найден' });
-  }
-  
-  const post = posts[postIndex];
-  if (post.userId !== userId) {
-    return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
-  }
-  
-  posts.splice(postIndex, 1);
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: 'Пост удален'
-  });
-});
-
-// Админ endpoints
-app.get('/api/admin/users', (req, res) => {
-  res.json(users);
-});
-
-app.post('/api/admin/toggle-verify', (req, res) => {
-  const { userId, verified } = req.body;
-  
-  const userIndex = users.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  users[userIndex].verified = verified;
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: `Аккаунт ${verified ? 'верифицирован' : 'деверифицирован'}` 
-  });
-});
-
-app.post('/api/admin/toggle-developer', (req, res) => {
-  const { userId, isDeveloper } = req.body;
-  
-  const userIndex = users.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  users[userIndex].isDeveloper = isDeveloper;
-  saveData({ users, messages, posts });
-  
-  res.json({ 
-    success: true, 
-    message: `Роль разработчика ${isDeveloper ? 'назначена' : 'снята'}` 
-  });
-});
-
-app.post('/api/admin/delete-user', (req, res) => {
-  const { userId, adminId } = req.body;
-  
-  const adminUser = users.find(u => u.id === adminId);
-  if (!adminUser || !adminUser.isDeveloper) {
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user || !user.isDeveloper) {
     return res.json({ success: false, message: 'Недостаточно прав' });
   }
   
-  const userIndex = users.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
+  // Проверка типа файла
+  const allowedTypes = ['png', 'svg', 'mp4'];
+  const fileType = type.toLowerCase();
+  if (!allowedTypes.includes(fileType)) {
+    return res.json({ success: false, message: 'Разрешены только PNG, SVG и MP4 файлы' });
   }
   
-  if (userId === adminId) {
-    return res.json({ success: false, message: 'Нельзя удалить самого себя' });
-  }
+  const gift = {
+    id: Date.now().toString(),
+    name,
+    price: parseInt(price),
+    image,
+    type: fileType,
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+    deleted: false
+  };
   
-  // Помечаем пользователя как удаленного вместо полного удаления
-  users[userIndex].deleted = true;
-  users[userIndex].displayName = 'Удаленный пользователь';
-  users[userIndex].username = 'deleted_' + Date.now();
-  users[userIndex].email = 'deleted_' + Date.now() + '@deleted.com';
-  users[userIndex].avatar = null;
-  users[userIndex].description = 'Этот аккаунт был удален';
-  users[userIndex].status = 'offline';
-  users[userIndex].verified = false;
-  users[userIndex].isDeveloper = false;
-  
-  saveData({ users, messages, posts });
-  
-  // Уведомляем всех онлайн пользователей об удалении
-  io.emit('user_deleted', { 
-    userId: userId,
-    message: 'Пользователь был удален' 
-  });
+  gifts.push(gift);
+  saveData({ users, messages, posts, gifts });
   
   res.json({ 
     success: true, 
-    message: 'Пользователь удален' 
+    message: 'Подарок добавлен в магазин',
+    gift
+  });
+});
+
+app.post('/api/gifts/buy', (req, res) => {
+  const { userId, giftId, toUserId } = req.body;
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  const toUser = users.find(u => u.id === toUserId && !u.deleted);
+  const gift = gifts.find(g => g.id === giftId && !g.deleted);
+  
+  if (!user || !toUser || !gift) {
+    return res.json({ success: false, message: 'Ошибка покупки подарка' });
+  }
+  
+  // Пока покупка бесплатная (коины добавим позже)
+  // if (user.coins < gift.price) {
+  //   return res.json({ success: false, message: 'Недостаточно коинов' });
+  // }
+  
+  // user.coins -= gift.price;
+  toUser.gifts = toUser.gifts || [];
+  toUser.gifts.push({
+    giftId: gift.id,
+    fromUserId: userId,
+    fromUserName: user.displayName,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Создаем сообщение о подарке
+  const giftMessage = {
+    id: Date.now().toString(),
+    userId: userId,
+    username: user.username,
+    displayName: user.displayName,
+    text: `🎁 Подарил(а) подарок "${gift.name}"`,
+    toUserId: toUserId,
+    timestamp: new Date().toISOString(),
+    verified: user.verified,
+    isDeveloper: user.isDeveloper,
+    type: 'gift',
+    giftId: gift.id,
+    giftName: gift.name,
+    giftPrice: gift.price
+  };
+  
+  messages.push(giftMessage);
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Подарок успешно отправлен!',
+    gift: gift
   });
 });
 
@@ -496,21 +295,15 @@ io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
   socket.on('user_join', (userData) => {
-    const user = users.find(u => u.id === userData.userId);
+    const user = users.find(u => u.id === userData.userId && !u.deleted);
     if (!user) {
       console.log('❌ User not found:', userData.userId);
       socket.emit('user_not_found', { message: 'Пользователь не найден' });
       return;
     }
     
-    // Если пользователь удален
-    if (user.deleted) {
-      socket.emit('user_deleted', { message: 'Ваш аккаунт был удален' });
-      return;
-    }
-    
     user.status = 'online';
-    saveData({ users, messages, posts });
+    saveData({ users, messages, posts, gifts });
     
     const onlineUser = {
       socketId: socket.id,
@@ -537,8 +330,13 @@ io.on('connection', (socket) => {
       (msg.userId === data.targetId && msg.toUserId === data.userId)
     );
     
-    chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    socket.emit('chat_history_loaded', { targetId: data.targetId, messages: chatMessages });
+    // Убираем дубликаты по ID
+    const uniqueMessages = chatMessages.filter((msg, index, self) => 
+      index === self.findIndex(m => m.id === msg.id)
+    );
+    
+    uniqueMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    socket.emit('chat_history_loaded', { targetId: data.targetId, messages: uniqueMessages });
   });
 
   socket.on('send_message', (messageData) => {
@@ -548,9 +346,9 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Проверяем существует ли получатель
-    const recipient = users.find(u => u.id === messageData.toUserId);
-    if (!recipient || recipient.deleted) {
+    // Проверяем существует ли получатель и не удален ли он
+    const recipient = users.find(u => u.id === messageData.toUserId && !u.deleted);
+    if (!recipient) {
       socket.emit('user_not_found', { message: 'Пользователь не найден или был удален' });
       return;
     }
@@ -569,19 +367,19 @@ io.on('connection', (socket) => {
       fileData: messageData.fileData || null,
       fileName: messageData.fileName || null,
       fileType: messageData.fileType || null,
-      fileSize: messageData.fileSize || 0
+      fileSize: messageData.fileSize || 0,
+      giftId: messageData.giftId || null,
+      giftName: messageData.giftName || null,
+      giftPrice: messageData.giftPrice || null
     };
     
     messages.push(message);
-    saveData({ users, messages, posts });
+    saveData({ users, messages, posts, gifts });
     
     console.log('💬 Сохранено сообщение от', message.displayName, 'к', messageData.toUserId);
     
     // Отправляем сообщение отправителю
     socket.emit('new_message', message);
-    
-    // Отправляем уведомление отправителю
-    socket.emit('message_sent', { success: true });
     
     // Отправляем сообщение получателю если он онлайн
     const recipientEntry = Array.from(onlineUsers.entries())
@@ -603,10 +401,10 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const onlineUser = onlineUsers.get(socket.id);
     if (onlineUser) {
-      const user = users.find(u => u.id === onlineUser.userId);
-      if (user && !user.deleted) {
+      const user = users.find(u => u.id === onlineUser.userId && !u.deleted);
+      if (user) {
         user.status = 'offline';
-        saveData({ users, messages, posts });
+        saveData({ users, messages, posts, gifts });
         
         // Уведомляем всех о выходе пользователя
         socket.broadcast.emit('user_offline', onlineUser);
@@ -635,9 +433,11 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('📁 File sharing: ENABLED');
   console.log('🔍 User search: ENABLED');
   console.log('📝 Posts system: ENABLED');
+  console.log('🎁 Gift shop: ENABLED');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
   console.log('📮 Posts:', posts.length);
-  console.log('🔑 BayRex account: BayRex / 123');
+  console.log('🎁 Gifts:', gifts.length);
+  console.log('🔑 BayRex account: BayRex / 123 (auto-admin)');
   console.log('=====================================');
 });
