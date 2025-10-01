@@ -76,16 +76,6 @@ if (gifts.length === 0) {
       createdBy: 'system',
       createdAt: new Date().toISOString(),
       deleted: false
-    },
-    {
-      id: '3',
-      name: 'Видео с поздравлением',
-      price: 75,
-      image: null,
-      type: 'video',
-      createdBy: 'system',
-      createdAt: new Date().toISOString(),
-      deleted: false
     }
   ];
   saveData({ users, messages, posts, gifts });
@@ -282,31 +272,6 @@ app.get('/api/user/:id', (req, res) => {
   res.json({
     success: true,
     user: user
-  });
-});
-
-// Получить подарки пользователя
-app.get('/api/user/:id/gifts', (req, res) => {
-  const user = users.find(u => u.id === req.params.id && !u.deleted);
-  if (!user) {
-    return res.json({ success: false, message: 'Пользователь не найден' });
-  }
-  
-  const userGifts = user.gifts || [];
-  
-  // Обогащаем данные подарков информацией о дарителе
-  const enrichedGifts = userGifts.map(gift => {
-    const fromUser = users.find(u => u.id === gift.fromUserId && !u.deleted);
-    return {
-      ...gift,
-      fromUserAvatar: fromUser?.avatar || null,
-      fromUserName: fromUser?.displayName || 'Неизвестный пользователь'
-    };
-  });
-  
-  res.json({
-    success: true,
-    gifts: enrichedGifts.reverse() // Новые подарки первыми
   });
 });
 
@@ -513,7 +478,7 @@ app.post('/api/gifts', (req, res) => {
 });
 
 app.post('/api/gifts/buy', (req, res) => {
-  const { userId, giftId, toUserId, messageText } = req.body;
+  const { userId, giftId, toUserId } = req.body;
   
   const user = users.find(u => u.id === userId && !u.deleted);
   const toUser = users.find(u => u.id === toUserId && !u.deleted);
@@ -532,14 +497,9 @@ app.post('/api/gifts/buy', (req, res) => {
   toUser.gifts = toUser.gifts || [];
   toUser.gifts.push({
     giftId: gift.id,
-    giftName: gift.name,
-    giftImage: gift.image,
-    giftType: gift.type,
     fromUserId: userId,
     fromUserName: user.displayName,
-    fromUserAvatar: user.avatar,
-    timestamp: new Date().toISOString(),
-    message: messageText || ''
+    timestamp: new Date().toISOString()
   });
   
   // Создаем сообщение о подарке
@@ -548,7 +508,7 @@ app.post('/api/gifts/buy', (req, res) => {
     userId: userId,
     username: user.username,
     displayName: user.displayName,
-    text: messageText || `🎁 Подарил(а) подарок "${gift.name}"`,
+    text: `🎁 Подарил(а) подарок "${gift.name}"`,
     toUserId: toUserId,
     timestamp: new Date().toISOString(),
     verified: user.verified,
@@ -556,10 +516,7 @@ app.post('/api/gifts/buy', (req, res) => {
     type: 'gift',
     giftId: gift.id,
     giftName: gift.name,
-    giftPrice: gift.price,
-    giftImage: gift.image,
-    giftType: gift.type,
-    messageText: messageText || ''
+    giftPrice: gift.price
   };
   
   messages.push(giftMessage);
@@ -778,10 +735,7 @@ io.on('connection', (socket) => {
       fileSize: messageData.fileSize || 0,
       giftId: messageData.giftId || null,
       giftName: messageData.giftName || null,
-      giftPrice: messageData.giftPrice || null,
-      giftImage: messageData.giftImage || null,
-      giftType: messageData.giftType || null,
-      messageText: messageData.messageText || null
+      giftPrice: messageData.giftPrice || null
     };
     
     messages.push(message);
