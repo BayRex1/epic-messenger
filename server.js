@@ -102,6 +102,23 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 
+// Мобильная версия
+app.get('/mobile.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'mobile.html'));
+});
+
+// Автоматическое перенаправление мобильных устройств
+app.get('/auto', (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+  
+  if (isMobile) {
+    res.redirect('/mobile.html');
+  } else {
+    res.redirect('/main.html');
+  }
+});
+
 // Health check для Render.com
 app.get('/health', (req, res) => {
   res.json({ 
@@ -836,10 +853,14 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🔍 User search: ENABLED');
   console.log('📝 Posts system: ENABLED');
   console.log('🎁 Gift shop: ENABLED');
+  console.log('📱 Mobile version: ENABLED');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
   console.log('📮 Posts:', posts.length);
   console.log('🎁 Gifts:', gifts.length);
   console.log('🔑 BayRex account: BayRex / 123 (auto-admin)');
+  console.log('🌐 Auto-redirect: /auto');
+  console.log('📱 Mobile: /mobile.html');
+  console.log('💻 Desktop: /main.html');
   console.log('=====================================');
 });
