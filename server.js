@@ -53,24 +53,11 @@ const saveData = (data) => {
 let data = loadData();
 let { users, messages, posts } = data;
 
-// Создаем тестовых пользователей если нет пользователей
+// Создаем только одного пользователя BayRex если нет пользователей
 if (users.length === 0) {
   users = [
     {
       id: '1',
-      email: 'admin@epic.com',
-      username: 'admin',
-      displayName: 'Администратор',
-      password: '123',
-      status: 'online',
-      verified: true,
-      isDeveloper: true,
-      avatar: null,
-      description: 'Главный администратор системы',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '2',
       email: 'bayrex@epic.com',
       username: 'BayRex',
       displayName: 'BayRex',
@@ -79,27 +66,14 @@ if (users.length === 0) {
       verified: true,
       isDeveloper: true,
       avatar: null,
-      description: 'Разработчик Epic Messenger',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '3',
-      email: 'test@mail.ru',
-      username: 'testuser',
-      displayName: 'Тестовый Пользователь',
-      password: '123',
-      status: 'online',
-      verified: false,
-      isDeveloper: false,
-      avatar: null,
-      description: 'Обычный пользователь',
+      description: 'Создатель Epic Messenger',
       createdAt: new Date().toISOString()
     }
   ];
   
   // Сохраняем начальные данные
   saveData({ users, messages, posts });
-  console.log('👑 Created test users');
+  console.log('👑 Created BayRex user');
 }
 
 const onlineUsers = new Map();
@@ -153,6 +127,9 @@ app.post('/api/register', (req, res) => {
   
   const userId = Date.now().toString();
   
+  // Автоматически даем права BayRex если username BayRex
+  const isBayRex = username.toLowerCase() === 'bayrex';
+  
   const newUser = {
     id: userId,
     email,
@@ -160,8 +137,8 @@ app.post('/api/register', (req, res) => {
     displayName,
     password: password,
     status: 'online',
-    verified: false,
-    isDeveloper: false,
+    verified: isBayRex,
+    isDeveloper: isBayRex,
     avatar: null,
     description: 'Новый пользователь Epic Messenger',
     createdAt: new Date().toISOString()
@@ -613,6 +590,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
   console.log('📮 Posts:', posts.length);
-  console.log('🔑 Test accounts: admin / 123, BayRex / 123, testuser / 123');
+  console.log('🔑 BayRex account: BayRex / 123');
   console.log('=====================================');
 });
