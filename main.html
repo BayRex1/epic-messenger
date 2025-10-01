@@ -1408,6 +1408,7 @@
             <div class="profile-menu" id="profileMenu">
                 <div class="profile-menu-item" onclick="showProfileEditModal()">👤 Мой профиль</div>
                 <div class="profile-menu-item" onclick="showSettingsModal()">⚙️ Настройки</div>
+                <div class="profile-menu-item" onclick="showShopModal()">🛍️ Магазин</div>
                 <div class="profile-menu-item" id="adminPanelMenuItem" style="display: none;" onclick="showAdminPanel()">🔐 Админ панель</div>
                 <div class="profile-menu-item" onclick="switchAccount()">🔄 Сменить аккаунт</div>
                 <div class="profile-menu-item" onclick="logout()" style="color: var(--error-color);">🚪 Выйти</div>
@@ -1530,14 +1531,32 @@
         }
 
         function showNotification(message, type = 'info') {
+            // Проверяем разрешение на уведомления
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Epic Messenger", {
+                    body: message,
+                    icon: "/favicon.ico"
+                });
+            }
+            
+            // Визуальное уведомление в интерфейсе
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
+            notification.style.zIndex = '10010';
             document.body.appendChild(notification);
             
+            // Вибро-фидбек на мобильных (если поддерживается)
+            if (navigator.vibrate && type !== 'info') {
+                navigator.vibrate(200);
+            }
+            
+            // Авто-удаление через 5 секунд
             setTimeout(() => {
-                notification.remove();
-            }, 3000);
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
         }
 
         function closeModal(button) {
@@ -1617,6 +1636,11 @@
 
         // Инициализация при загрузке
         window.onload = async function() {
+            // Запрос разрешения на уведомления
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+            
             // Инициализируем socket.io
             socket = io();
             
@@ -1675,6 +1699,18 @@
             socket.on('new_message', (message) => {
                 if (currentChat && (message.userId === currentChat.id || message.toUserId === currentChat.id)) {
                     addMessageToChat(message, message.userId === currentUser.id);
+                } else {
+                    // Показываем уведомление о новом сообщении
+                    showNotification(`💬 Новое сообщение от ${message.displayName}: ${message.text}`, 'info');
+                    
+                    // Обновляем список чатов чтобы показать непрочитанные сообщения
+                    updateChatsList();
+                }
+            });
+
+            socket.on('new_message_notification', (data) => {
+                if (!currentChat || currentChat.id !== data.userId) {
+                    showNotification(`💬 Новое сообщение от ${data.from}`, 'info');
                 }
             });
 
@@ -1722,6 +1758,17 @@
                     window.location.href = '/login.html';
                 }, 2000);
             });
+
+            socket.on('user_not_found', (data) => {
+                showNotification(data.message, 'error');
+            });
+
+            socket.on('message_sent', (data) => {
+                if (data.success) {
+                    // Сообщение успешно доставлено на сервер
+                    console.log('✅ Сообщение отправлено');
+                }
+            });
         }
 
         function updateUserInterface() {
@@ -1761,7 +1808,23 @@
         async function loadAllUsers() {
             try {
                 const response = await fetch(`/api/users?currentUserId=${currentUser.id}`);
-                allUsers = await response.json();
+                let users = await response.json();
+                
+                // Фильтруем удаленных пользователей или помечаем их
+                allUsers = users.map(user => {
+                    if (user.deleted) {
+                        return {
+                            ...user,
+                            displayName: 'Удаленный пользователь',
+                            username: 'deleted_user',
+                            status: 'offline',
+                            avatar: null,
+                            description: 'Этот аккаунт был удален'
+                        };
+                    }
+                    return user;
+                });
+                
                 updateChatsList();
             } catch (error) {
                 console.error('Ошибка загрузки пользователей:', error);
@@ -1834,12 +1897,19 @@
             }
         }
 
+        // Исправленная функция для мобильного поиска
         function selectUserFromSearch(userId) {
             const user = allUsers.find(u => u.id === userId);
             if (user) {
                 startChat(user);
                 document.getElementById('searchResults').style.display = 'none';
                 document.getElementById('searchInput').value = '';
+                
+                // На мобильных устройствах автоматически переходим в чат
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.add('hidden');
+                    document.getElementById('mainContent').classList.add('active');
+                }
             }
         }
 
@@ -2210,7 +2280,7 @@
             }
         }
 
-        // Обновленная функция отображения постов
+        // Обновленная функция отображения постов с изображениями
         function displayPosts(posts) {
             const container = document.getElementById('postsList');
             
@@ -2246,7 +2316,11 @@
                     </div>
                     <div class="post-content">
                         <div class="post-text">${post.text}</div>
-                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Пост изображение" onclick="openImageModal('${post.image}')">` : ''}
+                        ${post.image ? `
+                            <img src="${post.image}" class="post-image" alt="Пост изображение" 
+                                 onclick="openImageModal('${post.image}')" 
+                                 style="cursor: pointer; max-width: 100%; border-radius: 12px; margin-top: 12px;">
+                        ` : ''}
                     </div>
                     <div class="post-actions">
                         <button class="post-action ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" onclick="likePost('${post.id}')">
@@ -2293,8 +2367,8 @@
             modal.className = 'modal-overlay';
             modal.style.zIndex = '10002';
             modal.innerHTML = `
-                <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                    <img src="${imageUrl}" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
+                <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.9);">
+                    <img src="${imageUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                     <button onclick="this.closest('.modal-overlay').remove()" style="position: absolute; top: 20px; right: 20px; background: var(--error-color); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; z-index: 10003;">✕</button>
                 </div>
             `;
@@ -2620,6 +2694,33 @@
                     
                     <div class="modal-buttons">
                         <button class="modal-btn primary" onclick="closeModal(this)">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Функция магазина
+        function showShopModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>🛍️ Магазин подарков</h3>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🎁</div>
+                        <div style="color: var(--text-secondary); margin-bottom: 20px;">
+                            Скоро здесь появятся крутые подарки для ваших друзей!
+                        </div>
+                        <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 12px; margin: 15px 0;">
+                            <div style="font-weight: 600; margin-bottom: 8px;">💎 Система подарков</div>
+                            <div style="font-size: 14px; color: var(--text-secondary);">
+                                Отправляйте уникальные подарки друзьям в чатах и постах
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn primary" onclick="closeModal(this)">Понятно</button>
                     </div>
                 </div>
             `;
