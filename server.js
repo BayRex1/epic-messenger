@@ -64,7 +64,8 @@ if (gifts.length === 0) {
       image: null,
       type: 'image',
       createdBy: 'system',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      deleted: false
     },
     {
       id: '2', 
@@ -73,7 +74,8 @@ if (gifts.length === 0) {
       image: null,
       type: 'video',
       createdBy: 'system',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      deleted: false
     }
   ];
   saveData({ users, messages, posts, gifts });
@@ -190,12 +192,249 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// Остальные API endpoints остаются такими же как в предыдущей версии
-// ... (update-profile, search-users, users, user, posts, likes, comments, admin endpoints)
+app.post('/api/update-profile', (req, res) => {
+  const { userId, username, displayName, description, status, avatarData } = req.body;
+  
+  if (!userId) {
+    return res.json({ success: false, message: 'ID пользователя обязателен' });
+  }
+  
+  const userIndex = users.findIndex(u => u.id === userId && !u.deleted);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  if (username) {
+    const existingUser = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== userId && !u.deleted);
+    if (existingUser) {
+      return res.json({ success: false, message: 'Юзернейм уже занят' });
+    }
+    users[userIndex].username = username;
+  }
+  
+  if (displayName) {
+    users[userIndex].displayName = displayName;
+  }
+  
+  if (description !== undefined) {
+    users[userIndex].description = description;
+  }
+  
+  if (status) {
+    users[userIndex].status = status;
+  }
+  
+  if (avatarData) {
+    users[userIndex].avatar = avatarData;
+  }
+  
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Профиль обновлен',
+    user: users[userIndex]
+  });
+});
+
+app.get('/api/search-users', (req, res) => {
+  const { query, currentUserId } = req.query;
+  
+  if (!query || !currentUserId) {
+    return res.json([]);
+  }
+  
+  const searchTerm = query.toLowerCase().trim();
+  const filteredUsers = users.filter(u => 
+    u.id !== currentUserId &&
+    !u.deleted &&
+    (u.username.toLowerCase().includes(searchTerm) ||
+     u.displayName.toLowerCase().includes(searchTerm) ||
+     u.email.toLowerCase().includes(searchTerm))
+  );
+  
+  res.json(filteredUsers);
+});
+
+app.get('/api/users', (req, res) => {
+  const { currentUserId } = req.query;
+  
+  const filteredUsers = users.filter(u => u.id !== currentUserId && !u.deleted);
+  res.json(filteredUsers);
+});
+
+app.get('/api/user/:id', (req, res) => {
+  const user = users.find(u => u.id === req.params.id && !u.deleted);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  res.json({
+    success: true,
+    user: user
+  });
+});
+
+// Посты API
+app.get('/api/posts', (req, res) => {
+  const postsWithUsers = posts.map(post => {
+    const user = users.find(u => u.id === post.userId && !u.deleted);
+    return {
+      ...post,
+      user: user ? {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      } : {
+        id: 'deleted',
+        username: 'deleted_user',
+        displayName: 'Удаленный пользователь',
+        avatar: null,
+        verified: false,
+        isDeveloper: false
+      }
+    };
+  });
+  
+  res.json(postsWithUsers.reverse());
+});
+
+app.post('/api/posts', (req, res) => {
+  const { userId, text, image } = req.body;
+  
+  if (!userId || !text) {
+    return res.json({ success: false, message: 'Текст поста обязателен' });
+  }
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const post = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    image: image || null,
+    likes: [],
+    comments: [],
+    timestamp: new Date().toISOString()
+  };
+  
+  posts.push(post);
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Пост опубликован',
+    post: {
+      ...post,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      }
+    }
+  });
+});
+
+app.post('/api/posts/:id/like', (req, res) => {
+  const { userId } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const likeIndex = posts[postIndex].likes.indexOf(userId);
+  if (likeIndex === -1) {
+    posts[postIndex].likes.push(userId);
+  } else {
+    posts[postIndex].likes.splice(likeIndex, 1);
+  }
+  
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    likes: posts[postIndex].likes.length,
+    isLiked: likeIndex === -1
+  });
+});
+
+app.post('/api/posts/:id/comment', (req, res) => {
+  const { userId, text } = req.body;
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const comment = {
+    id: Date.now().toString(),
+    userId,
+    text,
+    timestamp: new Date().toISOString(),
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatar: user.avatar,
+      verified: user.verified,
+      isDeveloper: user.isDeveloper
+    }
+  };
+  
+  posts[postIndex].comments.push(comment);
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Комментарий добавлен',
+    comment
+  });
+});
+
+app.delete('/api/posts/:id', (req, res) => {
+  const postId = req.params.id;
+  const { userId } = req.body;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  const post = posts[postIndex];
+  if (post.userId !== userId) {
+    return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
+  }
+  
+  posts.splice(postIndex, 1);
+  saveData({ users, messages, posts, gifts });
+  
+  res.json({ 
+    success: true, 
+    message: 'Пост удален'
+  });
+});
 
 // Подарки API
 app.get('/api/gifts', (req, res) => {
-  res.json(gifts.filter(gift => !gift.deleted));
+  const availableGifts = gifts.filter(gift => !gift.deleted);
+  res.json(availableGifts);
 });
 
 app.post('/api/gifts', (req, res) => {
@@ -283,10 +522,136 @@ app.post('/api/gifts/buy', (req, res) => {
   messages.push(giftMessage);
   saveData({ users, messages, posts, gifts });
   
+  // Отправляем уведомление получателю если он онлайн
+  const recipientEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === toUserId);
+  
+  if (recipientEntry) {
+    const [recipientSocketId, recipientUser] = recipientEntry;
+    io.to(recipientSocketId).emit('new_message', giftMessage);
+  }
+  
   res.json({ 
     success: true, 
     message: 'Подарок успешно отправлен!',
     gift: gift
+  });
+});
+
+// Админ endpoints
+app.get('/api/admin/users', (req, res) => {
+  res.json(users);
+});
+
+app.post('/api/admin/toggle-verify', (req, res) => {
+  const { userId, verified } = req.body;
+  
+  const userIndex = users.findIndex(u => u.id === userId && !u.deleted);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  users[userIndex].verified = verified;
+  saveData({ users, messages, posts, gifts });
+  
+  // Отправляем уведомление пользователю если он онлайн
+  const userEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (userEntry) {
+    const [userSocketId] = userEntry;
+    io.to(userSocketId).emit('user_verified', { 
+      userId: userId, 
+      verified: verified 
+    });
+  }
+  
+  res.json({ 
+    success: true, 
+    message: `Аккаунт ${verified ? 'верифицирован' : 'деверифицирован'}` 
+  });
+});
+
+app.post('/api/admin/toggle-developer', (req, res) => {
+  const { userId, isDeveloper } = req.body;
+  
+  const userIndex = users.findIndex(u => u.id === userId && !u.deleted);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  users[userIndex].isDeveloper = isDeveloper;
+  saveData({ users, messages, posts, gifts });
+  
+  // Отправляем уведомление пользователю если он онлайн
+  const userEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (userEntry) {
+    const [userSocketId] = userEntry;
+    io.to(userSocketId).emit('user_developer_updated', { 
+      userId: userId, 
+      isDeveloper: isDeveloper 
+    });
+  }
+  
+  res.json({ 
+    success: true, 
+    message: `Роль разработчика ${isDeveloper ? 'назначена' : 'снята'}` 
+  });
+});
+
+app.post('/api/admin/delete-user', (req, res) => {
+  const { userId, adminId } = req.body;
+  
+  const adminUser = users.find(u => u.id === adminId && !u.deleted);
+  if (!adminUser || !adminUser.isDeveloper) {
+    return res.json({ success: false, message: 'Недостаточно прав' });
+  }
+  
+  const userIndex = users.findIndex(u => u.id === userId && !u.deleted);
+  if (userIndex === -1) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  if (userId === adminId) {
+    return res.json({ success: false, message: 'Нельзя удалить самого себя' });
+  }
+  
+  // Помечаем пользователя как удаленного вместо полного удаления
+  users[userIndex].deleted = true;
+  users[userIndex].displayName = 'Удаленный пользователь';
+  users[userIndex].username = 'deleted_' + Date.now();
+  users[userIndex].email = 'deleted_' + Date.now() + '@deleted.com';
+  users[userIndex].avatar = null;
+  users[userIndex].description = 'Этот аккаунт был удален';
+  users[userIndex].status = 'offline';
+  users[userIndex].verified = false;
+  users[userIndex].isDeveloper = false;
+  
+  saveData({ users, messages, posts, gifts });
+  
+  // Уведомляем всех онлайн пользователей об удалении
+  io.emit('user_deleted', { 
+    userId: userId,
+    message: 'Пользователь был удален' 
+  });
+  
+  // Отключаем пользователя если он онлайн
+  const userEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (userEntry) {
+    const [userSocketId] = userEntry;
+    io.to(userSocketId).emit('user_deleted', { 
+      message: 'Ваш аккаунт был удален администратором' 
+    });
+    onlineUsers.delete(userSocketId);
+  }
+  
+  res.json({ 
+    success: true, 
+    message: 'Пользователь удален' 
   });
 });
 
@@ -380,6 +745,7 @@ io.on('connection', (socket) => {
     
     // Отправляем сообщение отправителю
     socket.emit('new_message', message);
+    socket.emit('message_sent', { success: true });
     
     // Отправляем сообщение получателю если он онлайн
     const recipientEntry = Array.from(onlineUsers.entries())
