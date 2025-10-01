@@ -1388,6 +1388,33 @@
             background: var(--text-secondary);
             border-radius: 2px;
         }
+
+        /* Фиксы для мобильной клавиатуры */
+        @media (max-width: 768px) {
+            body.keyboard-open .main-content.active {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                transform: translateX(0) !important;
+            }
+            
+            body.keyboard-open .chat-messages {
+                height: calc(100vh - 200px) !important;
+                padding-bottom: 80px;
+            }
+            
+            body.keyboard-open .message-input-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--bg-secondary);
+                border-top: 1px solid var(--border-color);
+                z-index: 1005;
+            }
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -1570,6 +1597,28 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
+        // Функция для мобильного чата
+        function setupMobileChat() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                // Добавляем обработчик для клавиатуры
+                const messageInput = document.getElementById('messageInput');
+                if (messageInput) {
+                    messageInput.addEventListener('focus', function() {
+                        // При фокусе на поле ввода добавляем класс для фиксации интерфейса
+                        document.body.classList.add('keyboard-open');
+                    });
+                    
+                    messageInput.addEventListener('blur', function() {
+                        // При потере фокуса убираем класс
+                        setTimeout(() => {
+                            document.body.classList.remove('keyboard-open');
+                        }, 300);
+                    });
+                }
+            }
+        }
+
         // Обновленная функция для мобильной навигации
         function setupMobileLayout() {
             const isMobile = window.innerWidth <= 768;
@@ -1687,6 +1736,7 @@
             
             // Адаптация для мобильных
             setupMobileLayout();
+            setupMobileChat();
         };
 
         function setupSocketEvents() {
@@ -1810,8 +1860,8 @@
                 const response = await fetch(`/api/users?currentUserId=${currentUser.id}`);
                 let users = await response.json();
                 
-                // Фильтруем удаленных пользователей или помечаем их
-                allUsers = users.map(user => {
+                // Фильтруем удаленных пользователей
+                allUsers = users.filter(user => !user.deleted).map(user => {
                     if (user.deleted) {
                         return {
                             ...user,
@@ -1921,6 +1971,7 @@
                 user = allUsers.find(u => u.id === userId);
                 if (!user) {
                     console.error('Пользователь не найден:', userId);
+                    showNotification('Пользователь не найден', 'error');
                     return;
                 }
             } else {
@@ -1954,12 +2005,13 @@
             // Сохраняем текущий чат в localStorage
             localStorage.setItem('currentChatId', user.id);
             
-            // Фокус на поле ввода с небольшой задержкой (только на десктопе)
-            if (window.innerWidth > 768) {
-                setTimeout(() => {
-                    document.getElementById('messageInput').focus();
-                }, 300);
-            }
+            // Настраиваем мобильный чат
+            setupMobileChat();
+            
+            // Фокус на поле ввода с небольшой задержкой
+            setTimeout(() => {
+                document.getElementById('messageInput').focus();
+            }, 500);
         }
 
         // Обновленная функция закрытия чата
@@ -2010,7 +2062,9 @@
             if (!userId) return;
             
             const container = document.getElementById('chatMessages');
-            // Временно показываем индикатор загрузки, но НЕ сбрасываем состояние чата
+            // Полностью очищаем контейнер перед загрузкой новой истории
+            container.innerHTML = '';
+            
             const loadingIndicator = document.createElement('div');
             loadingIndicator.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Загрузка истории...</div>';
             container.appendChild(loadingIndicator);
@@ -2032,22 +2086,10 @@
         function displayMessages(messages) {
             const container = document.getElementById('chatMessages');
             
-            // Очищаем только если это действительно новая история
-            if (currentChat && container.children.length > 0) {
-                // Проверяем, есть ли уже сообщения в этом чате
-                const hasMessages = Array.from(container.children).some(child => 
-                    child.classList.contains('message')
-                );
-                
-                if (!hasMessages) {
-                    container.innerHTML = '';
-                }
-            } else {
-                container.innerHTML = '';
-            }
+            // Полностью очищаем контейнер
+            container.innerHTML = '';
             
             if (messages.length === 0) {
-                // Добавляем сообщение о пустом чате, но не перезаписываем весь контейнер
                 const emptyMessage = document.createElement('div');
                 emptyMessage.innerHTML = '<div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">Нет сообщений. Начните общение!</div>';
                 container.appendChild(emptyMessage);
@@ -2065,11 +2107,26 @@
         // Обновленная функция добавления сообщения
         function addMessageToChat(message, isMe) {
             const container = document.getElementById('chatMessages');
+            
+            // Проверяем, нет ли уже сообщения с таким ID
+            const existingMessage = Array.from(container.children).find(child => {
+                const messageId = child.getAttribute('data-message-id');
+                return messageId === message.id;
+            });
+            
+            if (existingMessage) {
+                console.log('⚠️ Дублирующее сообщение пропущено:', message.id);
+                return;
+            }
+            
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
+            messageDiv.setAttribute('data-message-id', message.id);
             
             if (message.type === 'file') {
                 messageDiv.innerHTML = createFileMessageHTML(message, isMe);
+            } else if (message.type === 'gift') {
+                messageDiv.innerHTML = createGiftMessageHTML(message, isMe);
             } else {
                 messageDiv.innerHTML = createTextMessageHTML(message, isMe);
             }
@@ -2118,6 +2175,38 @@
                 </div>
                 <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
             `;
+        }
+
+        // Функция для создания HTML подарка
+        function createGiftMessageHTML(msg, isMe) {
+            return `
+                <strong>${msg.displayName} ${msg.verified ? getVerifiedBadge() : ''} ${msg.isDeveloper ? getDeveloperBadge() : ''}</strong><br>
+                <div class="file-message">
+                    <div class="file-info">
+                        <div class="file-icon">🎁</div>
+                        <div class="file-details">
+                            <div class="file-name">${msg.giftName}</div>
+                            <div class="file-size">Цена: ${msg.giftPrice} E-COIN</div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <div style="font-size: 14px; color: var(--text-secondary);">
+                            ${isMe ? 'Вы подарили этот подарок' : 'Вам подарили этот подарок'}
+                        </div>
+                        <button class="file-btn" onclick="viewGiftInProfile('${msg.giftId}')" style="margin-top: 8px;">
+                            👀 Посмотреть в профиле
+                        </button>
+                    </div>
+                </div>
+                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+            `;
+        }
+
+        // Функция для просмотра подарка в профиле
+        function viewGiftInProfile(giftId) {
+            showNotification('Переход к подаркам в профиле', 'info');
+            // Здесь можно добавить логику перехода к разделу подарков в профиле
+            showProfileEditModal(); // Временно показываем профиль
         }
 
         function getFileIcon(fileName) {
@@ -2705,26 +2794,195 @@
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.innerHTML = `
-                <div class="modal-content">
+                <div class="modal-content" style="max-width: 500px;">
                     <h3>🛍️ Магазин подарков</h3>
-                    <div style="text-align: center; padding: 20px;">
-                        <div style="font-size: 48px; margin-bottom: 20px;">🎁</div>
-                        <div style="color: var(--text-secondary); margin-bottom: 20px;">
-                            Скоро здесь появятся крутые подарки для ваших друзей!
-                        </div>
-                        <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 12px; margin: 15px 0;">
-                            <div style="font-weight: 600; margin-bottom: 8px;">💎 Система подарков</div>
-                            <div style="font-size: 14px; color: var(--text-secondary);">
-                                Отправляйте уникальные подарки друзьям в чатах и постах
-                            </div>
-                        </div>
+                    <div id="giftsList" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
+                        <!-- Список подарков будет здесь -->
                     </div>
+                    ${currentUser.isDeveloper ? `
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 20px;">
+                            <h4 style="margin-bottom: 15px;">➕ Добавить новый подарок</h4>
+                            <input type="text" class="modal-input" id="giftName" placeholder="Название подарка">
+                            <input type="number" class="modal-input" id="giftPrice" placeholder="Цена в E-COIN" value="0">
+                            <select class="modal-input" id="giftType">
+                                <option value="png">PNG изображение</option>
+                                <option value="svg">SVG изображение</option>
+                                <option value="mp4">MP4 видео</option>
+                            </select>
+                            <div class="avatar-upload">
+                                <div class="avatar-preview" id="giftPreview">
+                                    <span>🎁</span>
+                                </div>
+                                <input type="file" id="giftFile" class="file-input" accept=".png,.svg,.mp4">
+                                <label for="giftFile" class="file-label">📁 Выбрать файл (PNG/SVG/MP4)</label>
+                            </div>
+                            <button class="modal-btn primary" onclick="addNewGift()" style="width: 100%; margin-top: 10px;">
+                                Добавить в магазин
+                            </button>
+                        </div>
+                    ` : ''}
                     <div class="modal-buttons">
-                        <button class="modal-btn primary" onclick="closeModal(this)">Понятно</button>
+                        <button class="modal-btn secondary" onclick="closeModal(this)">Закрыть</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
+            loadGifts();
+            
+            // Обработка загрузки файла подарка
+            if (currentUser.isDeveloper) {
+                document.getElementById('giftFile').addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const allowedTypes = ['image/png', 'image/svg+xml', 'video/mp4'];
+                        if (!allowedTypes.includes(file.type)) {
+                            alert('Разрешены только PNG, SVG и MP4 файлы');
+                            this.value = '';
+                            return;
+                        }
+                        
+                        if (file.size > 10 * 1024 * 1024) {
+                            alert('Максимальный размер файла - 10MB');
+                            this.value = '';
+                            return;
+                        }
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const preview = document.getElementById('giftPreview');
+                            if (file.type.includes('image')) {
+                                preview.innerHTML = `<img src="${e.target.result}" alt="Gift preview" style="width: 100%; height: 100%; object-fit: cover;">`;
+                            } else {
+                                preview.innerHTML = `
+                                    <div style="text-align: center; padding: 10px;">
+                                        <div style="font-size: 24px;">🎥</div>
+                                        <div style="font-size: 12px; margin-top: 5px;">Видео подарок</div>
+                                    </div>
+                                `;
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+        }
+
+        // Функция загрузки подарков
+        async function loadGifts() {
+            try {
+                const response = await fetch('/api/gifts');
+                const gifts = await response.json();
+                displayGifts(gifts);
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                showNotification('Ошибка загрузки подарков', 'error');
+            }
+        }
+
+        // Функция отображения подарков
+        function displayGifts(gifts) {
+            const container = document.getElementById('giftsList');
+            
+            if (gifts.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🎁</div>
+                        <div>Пока нет подарков в магазине</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = gifts.map(gift => `
+                <div class="gift-item" style="display: flex; align-items: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; margin-bottom: 10px;">
+                    <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden;">
+                        ${gift.image ? 
+                            `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">` :
+                            `<span style="font-size: 24px;">🎁</span>`
+                        }
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; margin-bottom: 5px;">${gift.name}</div>
+                        <div style="color: var(--text-secondary); font-size: 14px;">${gift.price} E-COIN</div>
+                    </div>
+                    <button class="file-btn" onclick="buyGift('${gift.id}')" style="flex-shrink: 0;">
+                        🎁 Подарить
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Функция покупки подарка
+        async function buyGift(giftId) {
+            if (!currentChat) {
+                showNotification('Выберите чат для отправки подарка', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/gifts/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        giftId: giftId,
+                        toUserId: currentChat.id
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Подарок успешно отправлен!', 'success');
+                    closeModal(document.querySelector('.modal-overlay'));
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка отправки подарка', 'error');
+            }
+        }
+
+        // Функция добавления нового подарка
+        async function addNewGift() {
+            const name = document.getElementById('giftName').value.trim();
+            const price = document.getElementById('giftPrice').value;
+            const type = document.getElementById('giftType').value;
+            const file = document.getElementById('giftFile').files[0];
+            
+            if (!name || !price || !type || !file) {
+                showNotification('Заполните все поля', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const response = await fetch('/api/gifts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: currentUser.id,
+                            name: name,
+                            price: parseInt(price),
+                            image: e.target.result,
+                            type: type
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showNotification('Подарок добавлен в магазин', 'success');
+                        closeModal(document.querySelector('.modal-overlay'));
+                    } else {
+                        showNotification(result.message, 'error');
+                    }
+                } catch (error) {
+                    showNotification('Ошибка добавления подарка', 'error');
+                }
+            };
+            reader.readAsDataURL(file);
         }
 
         function changeTheme(theme) {
