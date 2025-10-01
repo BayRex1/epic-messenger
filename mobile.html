@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Epic Messenger</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #0088cc;
+            --accent-hover: #0099e6;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            height: -webkit-fill-available;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+        
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: -webkit-fill-available;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            min-height: 60px;
+        }
+        
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 20px;
+            padding: 8px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .icon-btn:active {
+            background: var(--bg-tertiary);
+        }
+        
+        /* Navigation */
+        .nav-tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .nav-tab.active {
+            border-bottom-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        /* Content Areas */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            position: relative;
+        }
+        
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .page.hidden {
+            display: none;
+        }
+        
+        /* Chats List */
+        .chats-list {
+            padding: 10px;
+        }
+        
+        .chat-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .chat-item:active {
+            background: var(--bg-tertiary);
+            transform: scale(0.98);
+        }
+        
+        .chat-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 18px;
+            margin-right: 15px;
+            overflow: hidden;
+        }
+        
+        .chat-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .chat-info {
+            flex: 1;
+        }
+        
+        .chat-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+        
+        .chat-last-message {
+            color: var(--text-secondary);
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Chat View */
+        .chat-header {
+            background: var(--bg-secondary);
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 24px;
+            margin-right: 15px;
+            padding: 5px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 80px;
+        }
+        
+        .message {
+            max-width: 85%;
+            margin: 8px 0;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            animation: messageAppear 0.3s ease;
+        }
+        
+        @keyframes messageAppear {
+            from { 
+                opacity: 0; 
+                transform: translateY(10px) scale(0.95); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
+        }
+        
+        .message.incoming {
+            background: var(--bg-secondary);
+            align-self: flex-start;
+            border-bottom-left-radius: 6px;
+        }
+        
+        .message.outgoing {
+            background: var(--accent-color);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 6px;
+            margin-left: auto;
+        }
+        
+        .message-sender {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        
+        .message-text {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        /* Message Input */
+        .message-input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 10px 15px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        
+        .message-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: var(--bg-tertiary);
+            border-radius: 25px;
+            padding: 8px 15px;
+        }
+        
+        .message-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+            padding: 8px 0;
+        }
+        
+        .message-input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .send-btn {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-left: 10px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        .send-btn:active {
+            background: var(--accent-hover);
+            transform: scale(0.95);
+        }
+        
+        /* Search */
+        .search-container {
+            padding: 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 25px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+        
+        /* Keyboard fixes */
+        .keyboard-open .chat-messages {
+            padding-bottom: 120px;
+        }
+        
+        .keyboard-open .message-input-container {
+            position: relative;
+        }
+        
+        /* Safe area insets for notch phones */
+        @supports (padding: max(0px)) {
+            .header, .message-input-container {
+                padding-left: max(15px, env(safe-area-inset-left));
+                padding-right: max(15px, env(safe-area-inset-right));
+            }
+            
+            .message-input-container {
+                padding-bottom: max(10px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Chats List View -->
+        <div id="chatsView" class="page">
+            <div class="header">
+                <div class="header-title">Epic Messenger</div>
+                <div class="header-actions">
+                    <button class="icon-btn" onclick="showProfile()">👤</button>
+                    <button class="icon-btn" onclick="showSearch()">🔍</button>
+                </div>
+            </div>
+            
+            <div class="nav-tabs">
+                <div class="nav-tab active" onclick="showTab('chats')">💬 Чаты</div>
+                <div class="nav-tab" onclick="showTab('posts')">📝 Посты</div>
+            </div>
+            
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="🔍 Поиск пользователей..." id="searchInput">
+            </div>
+            
+            <div class="content-area">
+                <div id="chatsList" class="chats-list">
+                    <div class="loading">Загрузка чатов...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat View -->
+        <div id="chatView" class="page hidden">
+            <div class="chat-header">
+                <button class="back-btn" onclick="closeChat()">←</button>
+                <div class="chat-info">
+                    <div class="chat-name" id="chatUserName">User</div>
+                    <div class="chat-last-message" id="chatUserStatus">Online</div>
+                </div>
+            </div>
+            
+            <div class="content-area">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <div>Начните общение</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="message-input-container">
+                <div class="message-input-wrapper">
+                    <input type="text" class="message-input" placeholder="Введите сообщение..." id="messageInput">
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Profile View -->
+        <div id="profileView" class="page hidden">
+            <div class="header">
+                <button class="back-btn" onclick="closeProfile()">←</button>
+                <div class="header-title">Профиль</div>
+            </div>
+            
+            <div class="content-area">
+                <div style="padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div class="chat-avatar" style="width: 80px; height: 80px; margin: 0 auto 15px;">
+                            <span id="profileAvatarText">U</span>
+                        </div>
+                        <div style="font-size: 20px; font-weight: 600; margin-bottom: 5px;" id="profileName">User</div>
+                        <div style="color: var(--text-secondary);" id="profileUsername">@username</div>
+                    </div>
+                    
+                    <div style="background: var(--bg-secondary); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                        <div style="margin-bottom: 10px;">
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 5px;">Описание</div>
+                            <div id="profileDescription">Нет описания</div>
+                        </div>
+                    </div>
+                    
+                    <button class="chat-item" style="width: 100%; justify-content: center; background: var(--accent-color); color: white;" onclick="mobileLogout()">
+                        🚪 Выйти
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Глобальные переменные
+        let socket = null;
+        let currentUser = null;
+        let currentChat = null;
+        let allUsers = [];
+        
+        // Инициализация при загрузке
+        window.addEventListener('load', function() {
+            initializeApp();
+            
+            // Предотвращаем масштабирование при двойном тапе
+            document.addEventListener('dblclick', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            // Предотвращаем контекстное меню
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+        });
+        
+        async function initializeApp() {
+            // Проверяем авторизацию
+            currentUser = JSON.parse(localStorage.getItem('user'));
+            if (!currentUser) {
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Инициализируем socket.io
+            socket = io();
+            
+            // Настраиваем обработчики событий
+            setupSocketEvents();
+            
+            // Загружаем пользователей
+            await loadUsers();
+            
+            // Обновляем профиль
+            updateProfile();
+            
+            // Настраиваем обработчики ввода
+            setupInputHandlers();
+        }
+        
+        function setupSocketEvents() {
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                socket.emit('user_join', {
+                    userId: currentUser.id,
+                    username: currentUser.username,
+                    displayName: currentUser.displayName
+                });
+            });
+            
+            socket.on('new_message', function(message) {
+                if (currentChat && (message.userId === currentChat.id || message.toUserId === currentChat.id)) {
+                    addMessageToChat(message, message.userId === currentUser.id);
+                }
+            });
+            
+            socket.on('chat_history_loaded', function(data) {
+                if (currentChat && currentChat.id === data.targetId) {
+                    displayMessages(data.messages);
+                }
+            });
+        }
+        
+        function setupInputHandlers() {
+            // Отправка сообщения по Enter
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Обработка изменения размера клавиатуры
+            window.addEventListener('resize', function() {
+                if (window.visualViewport) {
+                    const keyboardHeight = window.innerHeight - window.visualViewport.height;
+                    if (keyboardHeight > 100) {
+                        document.body.classList.add('keyboard-open');
+                        scrollToBottom();
+                    } else {
+                        document.body.classList.remove('keyboard-open');
+                    }
+                }
+            });
+            
+            // Фокус на поле ввода
+            document.getElementById('messageInput').addEventListener('focus', function() {
+                setTimeout(scrollToBottom, 300);
+            });
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch(`/api/users?currentUserId=${currentUser.id}`);
+                allUsers = await response.json();
+                displayChatsList();
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('chatsList').innerHTML = '<div class="empty-state">Ошибка загрузки</div>';
+            }
+        }
+        
+        function displayChatsList() {
+            const container = document.getElementById('chatsList');
+            
+            if (allUsers.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет пользователей</div>';
+                return;
+            }
+            
+            container.innerHTML = allUsers.map(user => `
+                <div class="chat-item" onclick="openChat('${user.id}')">
+                    <div class="chat-avatar">
+                        ${user.avatar ? 
+                            `<img src="${user.avatar}" alt="${user.displayName}">` :
+                            user.displayName.charAt(0).toUpperCase()
+                        }
+                    </div>
+                    <div class="chat-info">
+                        <div class="chat-name">${user.displayName}</div>
+                        <div class="chat-last-message">@${user.username} • ${getStatusText(user.status)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function getStatusText(status) {
+            const statusMap = {
+                'online': '🟢 Online',
+                'away': '🟡 Away', 
+                'dnd': '🔴 DND',
+                'offline': '⚫ Offline'
+            };
+            return statusMap[status] || status;
+        }
+        
+        function openChat(userId) {
+            currentChat = allUsers.find(u => u.id === userId);
+            if (!currentChat) return;
+            
+            // Переключаемся на вид чата
+            document.getElementById('chatsView').classList.add('hidden');
+            document.getElementById('chatView').classList.remove('hidden');
+            
+            // Обновляем заголовок чата
+            document.getElementById('chatUserName').textContent = currentChat.displayName;
+            document.getElementById('chatUserStatus').textContent = getStatusText(currentChat.status);
+            
+            // Загружаем историю чата
+            loadChatHistory();
+            
+            // Фокус на поле ввода
+            setTimeout(() => {
+                document.getElementById('messageInput').focus();
+            }, 500);
+        }
+        
+        function closeChat() {
+            document.getElementById('chatView').classList.add('hidden');
+            document.getElementById('chatsView').classList.remove('hidden');
+            currentChat = null;
+        }
+        
+        function loadChatHistory() {
+            if (!currentChat) return;
+            
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '<div class="loading">Загрузка сообщений...</div>';
+            
+            socket.emit('load_chat_history', {
+                userId: currentUser.id,
+                targetId: currentChat.id
+            });
+        }
+        
+        function displayMessages(messages) {
+            const container = document.getElementById('chatMessages');
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+                return;
+            }
+            
+            container.innerHTML = messages.map(msg => `
+                <div class="message ${msg.userId === currentUser.id ? 'outgoing' : 'incoming'}">
+                    ${msg.userId !== currentUser.id ? `<div class="message-sender">${msg.displayName}</div>` : ''}
+                    <div class="message-text">${msg.text}</div>
+                    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                </div>
+            `).join('');
+            
+            scrollToBottom();
+        }
+        
+        function addMessageToChat(message, isMe) {
+            const container = document.getElementById('chatMessages');
+            
+            // Убираем empty state если есть
+            if (container.querySelector('.empty-state')) {
+                container.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
+            messageDiv.innerHTML = `
+                ${!isMe ? `<div class="message-sender">${message.displayName}</div>` : ''}
+                <div class="message-text">${message.text}</div>
+                <div class="message-time">${new Date(message.timestamp).toLocaleTimeString()}</div>
+            `;
+            
+            container.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            
+            if (!text || !currentChat) return;
+            
+            socket.emit('send_message', {
+                text: text,
+                toUserId: currentChat.id
+            });
+            
+            // Добавляем сообщение сразу в чат
+            const message = {
+                userId: currentUser.id,
+                displayName: currentUser.displayName,
+                text: text,
+                timestamp: new Date().toISOString()
+            };
+            
+            addMessageToChat(message, true);
+            input.value = '';
+        }
+        
+        function scrollToBottom() {
+            const container = document.getElementById('chatMessages');
+            if (container) {
+                setTimeout(() => {
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+            }
+        }
+        
+        function showTab(tabName) {
+            // Пока просто переключаем активную вкладку
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Здесь можно добавить логику для загрузки постов
+            if (tabName === 'posts') {
+                // loadPosts();
+            }
+        }
+        
+        function showProfile() {
+            document.getElementById('chatsView').classList.add('hidden');
+            document.getElementById('profileView').classList.remove('hidden');
+        }
+        
+        function closeProfile() {
+            document.getElementById('profileView').classList.add('hidden');
+            document.getElementById('chatsView').classList.remove('hidden');
+        }
+        
+        function showSearch() {
+            // Фокус на поле поиска
+            document.getElementById('searchInput').focus();
+        }
+        
+        function updateProfile() {
+            document.getElementById('profileName').textContent = currentUser.displayName;
+            document.getElementById('profileUsername').textContent = '@' + currentUser.username;
+            document.getElementById('profileDescription').textContent = currentUser.description || 'Нет описания';
+            document.getElementById('profileAvatarText').textContent = currentUser.displayName.charAt(0).toUpperCase();
+        }
+        
+        function mobileLogout() {
+            if (confirm('Выйти из аккаунта?')) {
+                localStorage.removeItem('user');
+                window.location.href = '/login.html';
+            }
+        }
+        
+        // Предотвращаем скролл страницы
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Обработка жестов (опционально)
+        let startX = 0;
+        document.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener('touchend', function(e) {
+            const endX = e.changedTouches[0].clientX;
+            const diff = startX - endX;
+            
+            // Swipe right to go back from chat
+            if (Math.abs(diff) > 50 && diff > 0 && currentChat) {
+                closeChat();
+            }
+        });
+    </script>
+</body>
+</html>
