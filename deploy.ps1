@@ -10,17 +10,16 @@ git add .
 
 # Создаем коммит
 Write-Host "💾 Creating commit..." -ForegroundColor Yellow
-git commit -m "🚀 Epic Messenger v2.0 - Complete functional update
+git commit -m "🚀 Epic Messenger v2.1 - Bug Fixes Update
 
-✅ Fixed file sharing (images, videos, audio)
-✅ Added persistent message history
-✅ Implemented chat list with back button
-✅ Added posts system with likes and comments
-✅ Improved mobile responsiveness
-✅ Fixed account switching to login page
-✅ Added navigation tabs (Chats/Posts)
-✅ Enhanced user profiles with descriptions
-✅ Working admin panel for @admin and @BayRex"
+✅ Fixed mobile chat opening from search
+✅ Added message notifications with sound/vibration
+✅ Fixed post images display and fullscreen view
+✅ Improved deleted user handling with proper labels
+✅ Added shop button in profile menu
+✅ Enhanced error handling and user feedback
+✅ Fixed WebSocket connection issues
+✅ Improved mobile responsiveness"
 
 # Пушим изменения
 Write-Host "📤 Pushing to GitHub..." -ForegroundColor Yellow
