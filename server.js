@@ -478,7 +478,7 @@ app.post('/api/gifts', (req, res) => {
 });
 
 app.post('/api/gifts/buy', (req, res) => {
-  const { userId, giftId, toUserId } = req.body;
+  const { userId, giftId, toUserId, message } = req.body;
   
   const user = users.find(u => u.id === userId && !u.deleted);
   const toUser = users.find(u => u.id === toUserId && !u.deleted);
@@ -508,7 +508,7 @@ app.post('/api/gifts/buy', (req, res) => {
     userId: userId,
     username: user.username,
     displayName: user.displayName,
-    text: `🎁 Подарил(а) подарок "${gift.name}"`,
+    text: message ? `🎁 Подарил(а) подарок "${gift.name}": ${message}` : `🎁 Подарил(а) подарок "${gift.name}"`,
     toUserId: toUserId,
     timestamp: new Date().toISOString(),
     verified: user.verified,
@@ -516,7 +516,9 @@ app.post('/api/gifts/buy', (req, res) => {
     type: 'gift',
     giftId: gift.id,
     giftName: gift.name,
-    giftPrice: gift.price
+    giftPrice: gift.price,
+    giftImage: gift.image,
+    giftType: gift.type
   };
   
   messages.push(giftMessage);
@@ -529,6 +531,40 @@ app.post('/api/gifts/buy', (req, res) => {
   if (recipientEntry) {
     const [recipientSocketId, recipientUser] = recipientEntry;
     io.to(recipientSocketId).emit('new_message', giftMessage);
+    
+    // Отправляем отдельное уведомление о подарке
+    io.to(recipientSocketId).emit('gift_received', {
+      fromUser: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper
+      },
+      gift: gift,
+      message: message,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Отправляем уведомление отправителю
+  const senderEntry = Array.from(onlineUsers.entries())
+    .find(([_, u]) => u.userId === userId);
+  
+  if (senderEntry) {
+    const [senderSocketId] = senderEntry;
+    io.to(senderSocketId).emit('gift_sent', {
+      toUser: {
+        id: toUser.id,
+        username: toUser.username,
+        displayName: toUser.displayName,
+        avatar: toUser.avatar
+      },
+      gift: gift,
+      message: message,
+      timestamp: new Date().toISOString()
+    });
   }
   
   res.json({ 
