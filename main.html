@@ -53,6 +53,7 @@
             flex-direction: column;
             border-right: 1px solid var(--border-color);
             transition: all 0.3s ease;
+            overflow: hidden;
         }
         
         .mobile-back-btn {
@@ -64,6 +65,7 @@
             border-bottom: 1px solid var(--border-color);
             position: relative;
             background: var(--bg-secondary);
+            flex-shrink: 0;
         }
         
         .profile-header {
@@ -169,6 +171,7 @@
             padding: 0 20px;
             border-bottom: 1px solid var(--border-color);
             background: var(--bg-secondary);
+            flex-shrink: 0;
         }
         
         .nav-tab {
@@ -195,6 +198,7 @@
             padding: 20px;
             border-bottom: 1px solid var(--border-color);
             position: relative;
+            flex-shrink: 0;
         }
         
         .search-box input {
@@ -365,6 +369,7 @@
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
+            flex-shrink: 0;
         }
         
         .chat-header-info {
@@ -544,6 +549,7 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
+            flex-shrink: 0;
         }
         
         .message-input-wrapper {
@@ -1878,10 +1884,12 @@
             // Сохраняем текущий чат в localStorage
             localStorage.setItem('currentChatId', user.id);
             
-            // Фокус на поле ввода с небольшой задержкой
-            setTimeout(() => {
-                document.getElementById('messageInput').focus();
-            }, 300);
+            // Фокус на поле ввода с небольшой задержкой (только на десктопе)
+            if (window.innerWidth > 768) {
+                setTimeout(() => {
+                    document.getElementById('messageInput').focus();
+                }, 300);
+            }
         }
 
         // Обновленная функция закрытия чата
