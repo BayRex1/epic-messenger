@@ -1311,6 +1311,31 @@
                 background: var(--bg-tertiary);
                 transform: scale(0.98);
             }
+            
+            /* Фикс для мобильной клавиатуры */
+            body.keyboard-open .main-content.active {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                transform: translateX(0) !important;
+            }
+            
+            body.keyboard-open .chat-messages {
+                height: calc(100vh - 200px) !important;
+                padding-bottom: 80px;
+            }
+            
+            body.keyboard-open .message-input-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--bg-secondary);
+                border-top: 1px solid var(--border-color);
+                z-index: 1005;
+            }
         }
 
         /* Фиксы для iOS Safari */
@@ -1509,6 +1534,7 @@
         let allUsers = [];
         let currentTab = 'chats';
         let chatOpened = false;
+        let gifts = [];
 
         // Базовые функции
         function getVerifiedBadge() {
@@ -1598,24 +1624,53 @@
         }
 
         // Функция для мобильного чата
+        function setupMobileKeyboard() {
+            const isMobile = window.innerWidth <= 768;
+            if (!isMobile) return;
+
+            const messageInput = document.getElementById('messageInput');
+            if (!messageInput) return;
+
+            let keyboardTimeout;
+
+            messageInput.addEventListener('focus', function() {
+                document.body.classList.add('keyboard-open');
+                clearTimeout(keyboardTimeout);
+                
+                // Прокручиваем к низу при фокусе
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 300);
+            });
+
+            messageInput.addEventListener('blur', function() {
+                keyboardTimeout = setTimeout(() => {
+                    document.body.classList.remove('keyboard-open');
+                }, 300);
+            });
+
+            // Предотвращаем прокрутку страницы при вводе
+            messageInput.addEventListener('touchstart', function(e) {
+                e.stopPropagation();
+            });
+
+            messageInput.addEventListener('touchmove', function(e) {
+                e.stopPropagation();
+            });
+        }
+
         function setupMobileChat() {
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
-                // Добавляем обработчик для клавиатуры
-                const messageInput = document.getElementById('messageInput');
-                if (messageInput) {
-                    messageInput.addEventListener('focus', function() {
-                        // При фокусе на поле ввода добавляем класс для фиксации интерфейса
-                        document.body.classList.add('keyboard-open');
-                    });
-                    
-                    messageInput.addEventListener('blur', function() {
-                        // При потере фокуса убираем класс
-                        setTimeout(() => {
-                            document.body.classList.remove('keyboard-open');
-                        }, 300);
-                    });
-                }
+                setupMobileKeyboard();
+                
+                // Добавляем обработчик для изменения ориентации
+                window.addEventListener('orientationchange', function() {
+                    setTimeout(() => {
+                        document.body.classList.remove('keyboard-open');
+                        scrollToBottom();
+                    }, 500);
+                });
             }
         }
 
@@ -1819,6 +1874,14 @@
                     console.log('✅ Сообщение отправлено');
                 }
             });
+
+            socket.on('gift_received', (data) => {
+                showNotification(`🎁 Вы получили подарок от ${data.fromUser.displayName}!`, 'success');
+            });
+
+            socket.on('gift_sent', (data) => {
+                showNotification(`🎁 Подарок отправлен ${data.toUser.displayName}!`, 'success');
+            });
         }
 
         function updateUserInterface() {
@@ -1991,6 +2054,9 @@
                 document.getElementById('sidebar').classList.add('hidden');
                 document.getElementById('mainContent').classList.add('active');
                 document.querySelector('.mobile-back-btn').style.display = 'block';
+                
+                // Сбрасываем состояние клавиатуры
+                document.body.classList.remove('keyboard-open');
             }
             
             document.getElementById('noChatSelected').style.display = 'none';
@@ -2010,8 +2076,18 @@
             
             // Фокус на поле ввода с небольшой задержкой
             setTimeout(() => {
-                document.getElementById('messageInput').focus();
-            }, 500);
+                const input = document.getElementById('messageInput');
+                if (input) {
+                    input.focus();
+                    
+                    // На мобильных устройствах прокручиваем к низу после фокуса
+                    if (window.innerWidth <= 768) {
+                        setTimeout(() => {
+                            scrollToBottom();
+                        }, 500);
+                    }
+                }
+            }, 300);
         }
 
         // Обновленная функция закрытия чата
@@ -2027,6 +2103,9 @@
                 document.getElementById('sidebar').classList.remove('hidden');
                 document.getElementById('mainContent').classList.remove('active');
                 document.querySelector('.mobile-back-btn').style.display = 'none';
+                
+                // Сбрасываем состояние клавиатуры
+                document.body.classList.remove('keyboard-open');
             }
             
             document.getElementById('chatHeader').style.display = 'none';
@@ -2179,6 +2258,25 @@
 
         // Функция для создания HTML подарка
         function createGiftMessageHTML(msg, isMe) {
+            let giftPreview = '';
+            if (msg.giftImage) {
+                if (msg.giftType === 'mp4') {
+                    giftPreview = `
+                        <div class="file-preview">
+                            <video controls autoplay loop style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                                <source src="${msg.giftImage}" type="video/mp4">
+                            </video>
+                        </div>
+                    `;
+                } else {
+                    giftPreview = `
+                        <div class="file-preview">
+                            <img src="${msg.giftImage}" alt="${msg.giftName}" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="previewGiftImage('${msg.giftImage}', '${msg.giftType}')">
+                        </div>
+                    `;
+                }
+            }
+            
             return `
                 <strong>${msg.displayName} ${msg.verified ? getVerifiedBadge() : ''} ${msg.isDeveloper ? getDeveloperBadge() : ''}</strong><br>
                 <div class="file-message">
@@ -2189,24 +2287,46 @@
                             <div class="file-size">Цена: ${msg.giftPrice} E-COIN</div>
                         </div>
                     </div>
+                    ${giftPreview}
                     <div style="text-align: center; margin-top: 10px;">
                         <div style="font-size: 14px; color: var(--text-secondary);">
                             ${isMe ? 'Вы подарили этот подарок' : 'Вам подарили этот подарок'}
                         </div>
-                        <button class="file-btn" onclick="viewGiftInProfile('${msg.giftId}')" style="margin-top: 8px;">
-                            👀 Посмотреть в профиле
-                        </button>
                     </div>
                 </div>
                 <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
             `;
         }
 
-        // Функция для просмотра подарка в профиле
-        function viewGiftInProfile(giftId) {
-            showNotification('Переход к подаркам в профиле', 'info');
-            // Здесь можно добавить логику перехода к разделу подарков в профиле
-            showProfileEditModal(); // Временно показываем профиль
+        // Функция для просмотра изображения подарка
+        function previewGiftImage(imageUrl, giftType) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            
+            let content = '';
+            if (giftType === 'mp4') {
+                content = `
+                    <div style="text-align: center;">
+                        <video controls autoplay loop style="max-width: 80vw; max-height: 80vh; border-radius: 12px;">
+                            <source src="${imageUrl}" type="video/mp4">
+                        </video>
+                    </div>
+                `;
+            } else {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${imageUrl}" alt="Подарок" style="max-width: 80vw; max-height: 80vh; border-radius: 12px;">
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = `
+                <div style="position: relative;">
+                    ${content}
+                    <button onclick="this.closest('.modal-overlay').remove()" style="position: absolute; top: 20px; right: 20px; background: var(--error-color); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px;">✕</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
 
         function getFileIcon(fileName) {
@@ -2871,7 +2991,7 @@
         async function loadGifts() {
             try {
                 const response = await fetch('/api/gifts');
-                const gifts = await response.json();
+                gifts = await response.json();
                 displayGifts(gifts);
             } catch (error) {
                 console.error('Ошибка загрузки подарков:', error);
@@ -2895,7 +3015,7 @@
             
             container.innerHTML = gifts.map(gift => `
                 <div class="gift-item" style="display: flex; align-items: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; margin-bottom: 10px;">
-                    <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden;">
+                    <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden; cursor: pointer;" onclick="previewGift('${gift.id}')">
                         ${gift.image ? 
                             `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">` :
                             `<span style="font-size: 24px;">🎁</span>`
@@ -2905,15 +3025,121 @@
                         <div style="font-weight: 600; margin-bottom: 5px;">${gift.name}</div>
                         <div style="color: var(--text-secondary); font-size: 14px;">${gift.price} E-COIN</div>
                     </div>
-                    <button class="file-btn" onclick="buyGift('${gift.id}')" style="flex-shrink: 0;">
-                        🎁 Подарить
+                    <button class="file-btn" onclick="selectGiftForSending('${gift.id}')" style="flex-shrink: 0;">
+                        🎁 Выбрать
                     </button>
                 </div>
             `).join('');
         }
 
-        // Функция покупки подарка
-        async function buyGift(giftId) {
+        // Функция для предпросмотра подарка
+        function previewGift(giftId) {
+            const gift = gifts.find(g => g.id === giftId && !g.deleted);
+            if (!gift) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            
+            let content = '';
+            if (gift.type === 'mp4') {
+                content = `
+                    <div style="text-align: center;">
+                        <video controls autoplay loop style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                            <source src="${gift.image}" type="video/mp4">
+                            Ваш браузер не поддерживает видео.
+                        </video>
+                    </div>
+                `;
+            } else {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${gift.image}" alt="${gift.name}" style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="text-align: center;">
+                    <h3>${gift.name}</h3>
+                    ${content}
+                    <div style="margin: 20px 0;">
+                        <div style="font-size: 18px; font-weight: 600; color: var(--accent-color);">${gift.price} E-COIN</div>
+                        <div style="color: var(--text-secondary); margin-top: 8px;">${gift.type.toUpperCase()} подарок</div>
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn secondary" onclick="closeModal(this)">Закрыть</button>
+                        <button class="modal-btn primary" onclick="selectGiftForSending('${gift.id}'); closeModal(this);">Выбрать для отправки</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Функция для выбора подарка для отправки
+        function selectGiftForSending(giftId) {
+            const gift = gifts.find(g => g.id === giftId && !g.deleted);
+            if (!gift) {
+                showNotification('Подарок не найден', 'error');
+                return;
+            }
+
+            closeModal(document.querySelector('.modal-overlay')); // Закрываем магазин
+            
+            // Создаем модальное окно для отправки подарка с текстом
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>🎁 Отправить подарок</h3>
+                    
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div style="width: 100px; height: 100px; border-radius: 12px; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; overflow: hidden;">
+                            ${gift.image ? 
+                                gift.type === 'mp4' ? 
+                                    `<video autoplay loop muted style="width: 100%; height: 100%; object-fit: cover;">
+                                        <source src="${gift.image}" type="video/mp4">
+                                    </video>` :
+                                    `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">`
+                                : `<span style="font-size: 36px;">🎁</span>`
+                            }
+                        </div>
+                        <h4>${gift.name}</h4>
+                        <div style="color: var(--text-secondary);">${gift.price} E-COIN</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="giftMessage">Сообщение к подарку (необязательно)</label>
+                        <textarea class="modal-input" id="giftMessage" placeholder="Добавьте сообщение к подарку..." style="height: 80px; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 12px; margin: 15px 0;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <div class="avatar" style="width: 40px; height: 40px;">
+                                ${currentChat.avatar ? 
+                                    `<img src="${currentChat.avatar}" alt="${currentChat.displayName}">` :
+                                    currentChat.displayName.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">${currentChat.displayName}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Получатель</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button class="modal-btn secondary" onclick="closeModal(this)">Отмена</button>
+                        <button class="modal-btn primary" onclick="sendGiftWithMessage('${gift.id}')">Отправить подарок</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Функция для отправки подарка с сообщением
+        async function sendGiftWithMessage(giftId) {
+            const giftMessage = document.getElementById('giftMessage').value.trim();
+            
             if (!currentChat) {
                 showNotification('Выберите чат для отправки подарка', 'error');
                 return;
@@ -2926,7 +3152,8 @@
                     body: JSON.stringify({
                         userId: currentUser.id,
                         giftId: giftId,
-                        toUserId: currentChat.id
+                        toUserId: currentChat.id,
+                        message: giftMessage
                     })
                 });
                 
@@ -2935,12 +3162,41 @@
                 if (result.success) {
                     showNotification('Подарок успешно отправлен!', 'success');
                     closeModal(document.querySelector('.modal-overlay'));
+                    
+                    // Если есть сообщение, отправляем его отдельно
+                    if (giftMessage) {
+                        setTimeout(() => {
+                            socket.emit('send_message', {
+                                text: giftMessage,
+                                toUserId: currentChat.id
+                            });
+                            
+                            // Немедленно добавляем сообщение в чат
+                            const message = {
+                                userId: currentUser.id,
+                                username: currentUser.username,
+                                displayName: currentUser.displayName,
+                                text: giftMessage,
+                                timestamp: new Date().toISOString(),
+                                verified: currentUser.verified,
+                                isDeveloper: currentUser.isDeveloper,
+                                type: 'text'
+                            };
+                            
+                            addMessageToChat(message, true);
+                        }, 500);
+                    }
                 } else {
                     showNotification(result.message, 'error');
                 }
             } catch (error) {
                 showNotification('Ошибка отправки подарка', 'error');
             }
+        }
+
+        // Функция покупки подарка (оставить для обратной совместимости)
+        async function buyGift(giftId) {
+            selectGiftForSending(giftId);
         }
 
         // Функция добавления нового подарка
@@ -3115,6 +3371,7 @@
             }
         }
 
+        // Обновленная функция просмотра профиля пользователя
         function viewUserProfile(userId) {
             if (!currentChat) return;
             
@@ -3153,12 +3410,231 @@
                             </div>
                         ` : ''}
                     </div>
+                    
+                    <!-- ДОБАВЛЕН РАЗДЕЛ ПОДАРКОВ -->
+                    <div style="margin: 20px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h4 style="margin: 0;">🎁 Полученные подарки</h4>
+                            <button class="admin-btn" onclick="viewAllGifts('${currentChat.id}')" style="font-size: 12px; padding: 6px 12px;">
+                                Все подарки
+                            </button>
+                        </div>
+                        <div id="userGiftsPreview" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 200px; overflow-y: auto;">
+                            <!-- Превью подарков будет здесь -->
+                        </div>
+                    </div>
+                    
                     <div style="display: flex; gap: 10px;">
-                        <button class="modal-btn primary" style="flex: 1;" onclick="closeModal(this)">Закрыть</button>
+                        <button class="modal-btn primary" style="flex: 1;" onclick="sendGiftToUser('${currentChat.id}')">🎁 Отправить подарок</button>
+                        <button class="modal-btn secondary" style="flex: 1;" onclick="closeModal(this)">Закрыть</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
+            
+            // Загружаем подарки пользователя
+            loadUserGiftsPreview(currentChat.id);
+        }
+
+        // Функция для загрузки превью подарков пользователя
+        async function loadUserGiftsPreview(userId) {
+            try {
+                const user = allUsers.find(u => u.id === userId && !u.deleted);
+                if (!user || !user.gifts || user.gifts.length === 0) {
+                    document.getElementById('userGiftsPreview').innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-secondary);">
+                            <div>🎁</div>
+                            <div style="font-size: 12px; margin-top: 5px;">Нет полученных подарков</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Берем только последние 6 подарков для превью
+                const recentGifts = user.gifts.slice(-6).reverse();
+                
+                const giftsHTML = await Promise.all(recentGifts.map(async (userGift) => {
+                    const gift = gifts.find(g => g.id === userGift.giftId && !g.deleted);
+                    if (!gift) return '';
+                    
+                    const fromUser = allUsers.find(u => u.id === userGift.fromUserId && !u.deleted);
+                    const fromName = fromUser ? fromUser.displayName : 'Неизвестный';
+                    
+                    return `
+                        <div style="text-align: center; cursor: pointer;" onclick="previewUserGift('${gift.id}', '${fromName}')" title="От ${fromName}">
+                            <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; overflow: hidden;">
+                                ${gift.image ? 
+                                    gift.type === 'mp4' ? 
+                                        `<video muted style="width: 100%; height: 100%; object-fit: cover;">
+                                            <source src="${gift.image}" type="video/mp4">
+                                        </video>` :
+                                        `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">`
+                                    : `<span style="font-size: 20px;">🎁</span>`
+                                }
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${gift.name}</div>
+                        </div>
+                    `;
+                }));
+                
+                document.getElementById('userGiftsPreview').innerHTML = giftsHTML.join('');
+                
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                document.getElementById('userGiftsPreview').innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--error-color);">
+                        <div>❌</div>
+                        <div style="font-size: 12px; margin-top: 5px;">Ошибка загрузки</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Функция для просмотра всех подарков пользователя
+        function viewAllGifts(userId) {
+            const user = allUsers.find(u => u.id === userId && !u.deleted);
+            if (!user || !user.gifts || user.gifts.length === 0) {
+                showNotification('У пользователя нет подарков', 'info');
+                return;
+            }
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 600px; max-height: 80vh;">
+                    <h3>🎁 Все подарки ${user.displayName}</h3>
+                    <div id="allUserGifts" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
+                        <!-- Все подарки будут здесь -->
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn primary" onclick="closeModal(this)">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            loadAllUserGifts(userId);
+        }
+
+        // Функция для загрузки всех подарков пользователя
+        async function loadAllUserGifts(userId) {
+            try {
+                const user = allUsers.find(u => u.id === userId && !u.deleted);
+                if (!user || !user.gifts || user.gifts.length === 0) {
+                    document.getElementById('allUserGifts').innerHTML = `
+                        <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🎁</div>
+                            <div>Нет полученных подарков</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Сортируем подарки по дате (новые сверху)
+                const sortedGifts = user.gifts.slice().reverse();
+                
+                const giftsHTML = await Promise.all(sortedGifts.map(async (userGift) => {
+                    const gift = gifts.find(g => g.id === userGift.giftId && !g.deleted);
+                    if (!gift) return '';
+                    
+                    const fromUser = allUsers.find(u => u.id === userGift.fromUserId && !u.deleted);
+                    const fromName = fromUser ? fromUser.displayName : 'Неизвестный';
+                    const fromAvatar = fromUser ? (fromUser.avatar || fromUser.displayName.charAt(0).toUpperCase()) : '?';
+                    
+                    return `
+                        <div class="gift-item" style="display: flex; align-items: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; margin-bottom: 10px;">
+                            <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden; cursor: pointer;" onclick="previewUserGift('${gift.id}', '${fromName}')">
+                                ${gift.image ? 
+                                    gift.type === 'mp4' ? 
+                                        `<video muted style="width: 100%; height: 100%; object-fit: cover;">
+                                            <source src="${gift.image}" type="video/mp4">
+                                        </video>` :
+                                        `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">`
+                                    : `<span style="font-size: 24px;">🎁</span>`
+                                }
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; margin-bottom: 5px;">${gift.name}</div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">
+                                        ${fromUser && fromUser.avatar ? 
+                                            `<img src="${fromUser.avatar}" alt="${fromName}" style="width: 100%; height: 100%; border-radius: 50%;">` :
+                                            fromName.charAt(0).toUpperCase()
+                                        }
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-secondary);">От: ${fromName}</div>
+                                </div>
+                                <div style="font-size: 11px; color: var(--text-secondary);">
+                                    ${new Date(userGift.timestamp).toLocaleDateString()} в ${new Date(userGift.timestamp).toLocaleTimeString()}
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 600; color: var(--accent-color);">${gift.price} E-COIN</div>
+                            </div>
+                        </div>
+                    `;
+                }));
+                
+                document.getElementById('allUserGifts').innerHTML = giftsHTML.join('');
+                
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                document.getElementById('allUserGifts').innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--error-color);">
+                        <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+                        <div>Ошибка загрузки подарков</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Функция для просмотра подарка пользователя
+        function previewUserGift(giftId, fromName) {
+            const gift = gifts.find(g => g.id === giftId && !g.deleted);
+            if (!gift) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            
+            let content = '';
+            if (gift.type === 'mp4') {
+                content = `
+                    <div style="text-align: center;">
+                        <video controls autoplay loop style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                            <source src="${gift.image}" type="video/mp4">
+                            Ваш браузер не поддерживает видео.
+                        </video>
+                    </div>
+                `;
+            } else {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${gift.image}" alt="${gift.name}" style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="text-align: center;">
+                    <h3>${gift.name}</h3>
+                    ${content}
+                    <div style="margin: 20px 0;">
+                        <div style="font-size: 16px; color: var(--text-secondary);">Подарок от: <strong>${fromName}</strong></div>
+                        <div style="font-size: 18px; font-weight: 600; color: var(--accent-color); margin-top: 8px;">${gift.price} E-COIN</div>
+                        <div style="color: var(--text-secondary); margin-top: 4px;">${gift.type.toUpperCase()} подарок</div>
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn primary" onclick="closeModal(this)">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Функция для отправки подарка из профиля
+        function sendGiftToUser(userId) {
+            closeModal(document.querySelector('.modal-overlay')); // Закрываем профиль
+            showShopModal(); // Открываем магазин
         }
 
         // Админ панель
