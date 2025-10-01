@@ -10,10 +10,12 @@
             --bg-primary: #0f1419;
             --bg-secondary: #1a232c;
             --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
             --text-primary: #e6e6e6;
             --text-secondary: #8a9ba8;
             --accent-color: #0088cc;
             --accent-hover: #0099e6;
+            --success-color: #00b894;
             --error-color: #e17055;
         }
         
@@ -35,7 +37,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             width: 100%;
             max-width: 400px;
-            border: 1px solid var(--bg-tertiary);
+            border: 1px solid var(--border-color);
         }
         
         .logo {
@@ -45,11 +47,11 @@
         
         .logo h1 {
             font-size: 32px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #0088cc, #00a8ff);
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #0088cc, #00b894);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
+            background-clip: text;
         }
         
         .logo p {
@@ -65,15 +67,15 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: var(--text-primary);
+            font-size: 14px;
         }
         
         .form-group input {
             width: 100%;
-            padding: 14px 16px;
-            border: 1px solid var(--bg-tertiary);
+            padding: 14px 18px;
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            background: var(--bg-primary);
+            background: var(--bg-tertiary);
             color: var(--text-primary);
             font-size: 15px;
             transition: all 0.3s;
@@ -82,11 +84,7 @@
         .form-group input:focus {
             outline: none;
             border-color: var(--accent-color);
-            box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
-        }
-        
-        .form-group input::placeholder {
-            color: var(--text-secondary);
+            background: var(--bg-tertiary);
         }
         
         .login-btn {
@@ -100,7 +98,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            margin-bottom: 15px;
+            margin-top: 10px;
         }
         
         .login-btn:hover {
@@ -111,19 +109,18 @@
         .switch-form {
             text-align: center;
             margin-top: 20px;
-        }
-        
-        .switch-btn {
-            background: none;
-            border: none;
-            color: var(--accent-color);
-            cursor: pointer;
             font-size: 14px;
-            text-decoration: underline;
+            color: var(--text-secondary);
         }
         
-        .switch-btn:hover {
-            color: var(--accent-hover);
+        .switch-form a {
+            color: var(--accent-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .switch-form a:hover {
+            text-decoration: underline;
         }
         
         .notification {
@@ -133,148 +130,134 @@
             border-radius: 8px;
             margin-bottom: 20px;
             text-align: center;
+            font-size: 14px;
             display: none;
         }
         
         .notification.success {
-            background: #00b894;
+            background: var(--success-color);
         }
         
         .test-accounts {
-            margin-top: 20px;
+            margin-top: 25px;
             padding: 15px;
             background: var(--bg-tertiary);
             border-radius: 12px;
-            font-size: 12px;
+            font-size: 13px;
+        }
+        
+        .test-accounts h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
             color: var(--text-secondary);
         }
         
-        .test-accounts div {
-            margin: 5px 0;
+        .test-account {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            padding: 5px 0;
         }
-
-        /* Мобильные стили */
-        @media (max-width: 480px) {
-            body {
-                padding: 10px;
-            }
-            
-            .login-container {
-                padding: 30px 20px;
-            }
-            
-            .logo h1 {
-                font-size: 28px;
-            }
-            
-            .form-group input {
-                padding: 12px 14px;
-            }
-            
-            .login-btn {
-                padding: 12px;
-            }
+        
+        .test-account:last-child {
+            margin-bottom: 0;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="logo">
-            <h1>Epic</h1>
-            <p>Мессенджер нового поколения</p>
+            <h1>Epic Messenger</h1>
+            <p>Современный мессенджер для общения</p>
         </div>
         
         <div class="notification" id="notification"></div>
         
-        <form id="loginForm">
+        <div id="loginForm">
             <div class="form-group">
-                <label for="email">Email или юзернейм</label>
-                <input type="text" id="email" placeholder="your@email.com или username" required>
+                <label for="loginEmail">Email или юзернейм</label>
+                <input type="text" id="loginEmail" placeholder="Введите email или юзернейм">
             </div>
             
             <div class="form-group">
-                <label for="password">Пароль</label>
-                <input type="password" id="password" placeholder="Введите пароль" required>
+                <label for="loginPassword">Пароль</label>
+                <input type="password" id="loginPassword" placeholder="Введите пароль">
             </div>
             
-            <button type="submit" class="login-btn">Войти</button>
-        </form>
+            <button class="login-btn" onclick="login()">Войти</button>
+            
+            <div class="switch-form">
+                Нет аккаунта? <a onclick="showRegisterForm()">Зарегистрироваться</a>
+            </div>
+        </div>
         
-        <form id="registerForm" style="display: none;">
+        <div id="registerForm" style="display: none;">
             <div class="form-group">
-                <label for="regEmail">Email</label>
-                <input type="email" id="regEmail" placeholder="your@email.com" required>
+                <label for="registerEmail">Email</label>
+                <input type="email" id="registerEmail" placeholder="Введите email">
             </div>
             
             <div class="form-group">
-                <label for="regUsername">Юзернейм</label>
-                <input type="text" id="regUsername" placeholder="Придумайте юзернейм" required>
+                <label for="registerUsername">Юзернейм</label>
+                <input type="text" id="registerUsername" placeholder="Введите юзернейм">
             </div>
             
             <div class="form-group">
-                <label for="regDisplayName">Имя для отображения</label>
-                <input type="text" id="regDisplayName" placeholder="Ваше имя" required>
+                <label for="registerDisplayName">Имя для отображения</label>
+                <input type="text" id="registerDisplayName" placeholder="Введите ваше имя">
             </div>
             
             <div class="form-group">
-                <label for="regPassword">Пароль</label>
-                <input type="password" id="regPassword" placeholder="Придумайте пароль" required>
+                <label for="registerPassword">Пароль</label>
+                <input type="password" id="registerPassword" placeholder="Введите пароль">
             </div>
             
-            <button type="submit" class="login-btn">Зарегистрироваться</button>
-        </form>
-        
-        <div class="switch-form">
-            <button class="switch-btn" id="switchBtn">Создать аккаунт</button>
+            <button class="login-btn" onclick="register()">Зарегистрироваться</button>
+            
+            <div class="switch-form">
+                Уже есть аккаунт? <a onclick="showLoginForm()">Войти</a>
+            </div>
         </div>
         
         <div class="test-accounts">
-            <div><strong>Тестовые аккаунты:</strong></div>
-            <div>👑 Админ: admin / 123</div>
-            <div>👨‍💻 Разработчик: BayRex / 123</div>
-            <div>👤 Тестовый: testuser / 123</div>
+            <h3>🔑 Тестовый аккаунт:</h3>
+            <div class="test-account">
+                <span>BayRex / 123</span>
+                <span style="color: var(--success-color);">👑 Создатель</span>
+            </div>
         </div>
     </div>
 
     <script>
-        const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
-        const switchBtn = document.getElementById('switchBtn');
-        const notification = document.getElementById('notification');
-
-        let isLogin = true;
-
-        switchBtn.addEventListener('click', function() {
-            isLogin = !isLogin;
-            
-            if (isLogin) {
-                loginForm.style.display = 'block';
-                registerForm.style.display = 'none';
-                switchBtn.textContent = 'Создать аккаунт';
-            } else {
-                loginForm.style.display = 'none';
-                registerForm.style.display = 'block';
-                switchBtn.textContent = 'Уже есть аккаунт';
-            }
-            
-            hideNotification();
-        });
-
-        function showNotification(message, isSuccess = false) {
+        function showNotification(message, type = 'error') {
+            const notification = document.getElementById('notification');
             notification.textContent = message;
-            notification.className = `notification ${isSuccess ? 'success' : ''}`;
+            notification.className = `notification ${type}`;
             notification.style.display = 'block';
-        }
-
-        function hideNotification() {
-            notification.style.display = 'none';
-        }
-
-        loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
             
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showRegisterForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+        
+        function showLoginForm() {
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+        }
+        
+        async function login() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            
+            if (!email || !password) {
+                showNotification('Заполните все поля');
+                return;
+            }
             
             try {
                 const response = await fetch('/api/login', {
@@ -282,7 +265,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
                 });
                 
                 const result = await response.json();
@@ -296,15 +282,23 @@
             } catch (error) {
                 showNotification('Ошибка соединения');
             }
-        });
-
-        registerForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
+        }
+        
+        async function register() {
+            const email = document.getElementById('registerEmail').value.trim();
+            const username = document.getElementById('registerUsername').value.trim();
+            const displayName = document.getElementById('registerDisplayName').value.trim();
+            const password = document.getElementById('registerPassword').value.trim();
             
-            const email = document.getElementById('regEmail').value;
-            const username = document.getElementById('regUsername').value;
-            const displayName = document.getElementById('regDisplayName').value;
-            const password = document.getElementById('regPassword').value;
+            if (!email || !username || !displayName || !password) {
+                showNotification('Заполните все поля');
+                return;
+            }
+            
+            if (password.length < 3) {
+                showNotification('Пароль должен быть не менее 3 символов');
+                return;
+            }
             
             try {
                 const response = await fetch('/api/register', {
@@ -312,47 +306,40 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, username, displayName, password })
+                    body: JSON.stringify({
+                        email: email,
+                        username: username,
+                        displayName: displayName,
+                        password: password
+                    })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification(result.message, true);
-                    // Переключаем на форму входа после успешной регистрации
+                    showNotification('Регистрация успешна! Выполняется вход...', 'success');
                     setTimeout(() => {
-                        isLogin = true;
-                        loginForm.style.display = 'block';
-                        registerForm.style.display = 'none';
-                        switchBtn.textContent = 'Создать аккаунт';
-                        document.getElementById('email').value = email;
-                        hideNotification();
-                    }, 2000);
+                        localStorage.setItem('user', JSON.stringify(result.user));
+                        window.location.href = '/main.html';
+                    }, 1000);
                 } else {
                     showNotification(result.message);
                 }
             } catch (error) {
                 showNotification('Ошибка соединения');
             }
-        });
-
-        // Проверяем если пользователь уже авторизован
-        window.onload = function() {
-            const user = localStorage.getItem('user');
-            if (user) {
-                window.location.href = '/main.html';
-            }
-        };
-
-        // Адаптация для мобильных
-        function handleMobileLayout() {
-            if (window.innerWidth <= 480) {
-                document.body.style.padding = '10px';
-            }
         }
-
-        window.addEventListener('resize', handleMobileLayout);
-        handleMobileLayout();
+        
+        // Enter key support
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                if (document.getElementById('loginForm').style.display !== 'none') {
+                    login();
+                } else {
+                    register();
+                }
+            }
+        });
     </script>
 </body>
 </html>
