@@ -261,12 +261,20 @@ app.get('/api/posts', (req, res) => {
     return {
       ...post,
       user: user ? {
+        id: user.id,
         username: user.username,
         displayName: user.displayName,
         avatar: user.avatar,
         verified: user.verified,
         isDeveloper: user.isDeveloper
-      } : null
+      } : {
+        id: 'deleted',
+        username: 'deleted_user',
+        displayName: 'Удаленный пользователь',
+        avatar: null,
+        verified: false,
+        isDeveloper: false
+      }
     };
   });
   
@@ -304,6 +312,7 @@ app.post('/api/posts', (req, res) => {
     post: {
       ...post,
       user: {
+        id: user.id,
         username: user.username,
         displayName: user.displayName,
         avatar: user.avatar,
@@ -359,6 +368,7 @@ app.post('/api/posts/:id/comment', (req, res) => {
     text,
     timestamp: new Date().toISOString(),
     user: {
+      id: user.id,
       username: user.username,
       displayName: user.displayName,
       avatar: user.avatar,
@@ -456,15 +466,24 @@ app.post('/api/admin/delete-user', (req, res) => {
     return res.json({ success: false, message: 'Нельзя удалить самого себя' });
   }
   
-  users.splice(userIndex, 1);
-  
-  // Удаляем сообщения пользователя
-  messages = messages.filter(msg => msg.userId !== userId && msg.toUserId !== userId);
-  
-  // Удаляем посты пользователя
-  posts = posts.filter(post => post.userId !== userId);
+  // Помечаем пользователя как удаленного вместо полного удаления
+  users[userIndex].deleted = true;
+  users[userIndex].displayName = 'Удаленный пользователь';
+  users[userIndex].username = 'deleted_' + Date.now();
+  users[userIndex].email = 'deleted_' + Date.now() + '@deleted.com';
+  users[userIndex].avatar = null;
+  users[userIndex].description = 'Этот аккаунт был удален';
+  users[userIndex].status = 'offline';
+  users[userIndex].verified = false;
+  users[userIndex].isDeveloper = false;
   
   saveData({ users, messages, posts });
+  
+  // Уведомляем всех онлайн пользователей об удалении
+  io.emit('user_deleted', { 
+    userId: userId,
+    message: 'Пользователь был удален' 
+  });
   
   res.json({ 
     success: true, 
@@ -480,6 +499,13 @@ io.on('connection', (socket) => {
     const user = users.find(u => u.id === userData.userId);
     if (!user) {
       console.log('❌ User not found:', userData.userId);
+      socket.emit('user_not_found', { message: 'Пользователь не найден' });
+      return;
+    }
+    
+    // Если пользователь удален
+    if (user.deleted) {
+      socket.emit('user_deleted', { message: 'Ваш аккаунт был удален' });
       return;
     }
     
@@ -499,6 +525,9 @@ io.on('connection', (socket) => {
     
     onlineUsers.set(socket.id, onlineUser);
     
+    // Уведомляем всех о новом онлайн пользователе
+    socket.broadcast.emit('user_online', onlineUser);
+    
     console.log('👋 User joined:', user.displayName);
   });
 
@@ -516,6 +545,13 @@ io.on('connection', (socket) => {
     const onlineUser = onlineUsers.get(socket.id);
     if (!onlineUser) {
       console.log('❌ Online user not found for socket:', socket.id);
+      return;
+    }
+    
+    // Проверяем существует ли получатель
+    const recipient = users.find(u => u.id === messageData.toUserId);
+    if (!recipient || recipient.deleted) {
+      socket.emit('user_not_found', { message: 'Пользователь не найден или был удален' });
       return;
     }
     
@@ -544,6 +580,9 @@ io.on('connection', (socket) => {
     // Отправляем сообщение отправителю
     socket.emit('new_message', message);
     
+    // Отправляем уведомление отправителю
+    socket.emit('message_sent', { success: true });
+    
     // Отправляем сообщение получателю если он онлайн
     const recipientEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === messageData.toUserId);
@@ -551,6 +590,12 @@ io.on('connection', (socket) => {
     if (recipientEntry) {
       const [recipientSocketId, recipientUser] = recipientEntry;
       io.to(recipientSocketId).emit('new_message', message);
+      // Отправляем уведомление получателю
+      io.to(recipientSocketId).emit('new_message_notification', {
+        from: onlineUser.displayName,
+        message: messageData.text,
+        userId: onlineUser.userId
+      });
       console.log('📨 Сообщение доставлено пользователю:', recipientUser.displayName);
     }
   });
@@ -559,9 +604,12 @@ io.on('connection', (socket) => {
     const onlineUser = onlineUsers.get(socket.id);
     if (onlineUser) {
       const user = users.find(u => u.id === onlineUser.userId);
-      if (user) {
+      if (user && !user.deleted) {
         user.status = 'offline';
         saveData({ users, messages, posts });
+        
+        // Уведомляем всех о выходе пользователя
+        socket.broadcast.emit('user_offline', onlineUser);
       }
       
       onlineUsers.delete(socket.id);
