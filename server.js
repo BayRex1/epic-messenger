@@ -102,9 +102,6 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// УДАЛЕН маршрут /mobile.html - больше не нужен
-// УДАЛЕН маршрут /auto - больше не нужен
-
 // Health check для Render.com
 app.get('/health', (req, res) => {
   res.json({ 
@@ -653,6 +650,12 @@ app.post('/api/admin/delete-user', (req, res) => {
     return res.json({ success: false, message: 'Пользователь не найден' });
   }
   
+  // ЗАЩИТА: BayRex нельзя удалить
+  const userToDelete = users[userIndex];
+  if (userToDelete.username.toLowerCase() === 'bayrex') {
+    return res.json({ success: false, message: 'Нельзя удалить создателя системы BayRex' });
+  }
+  
   if (userId === adminId) {
     return res.json({ success: false, message: 'Нельзя удалить самого себя' });
   }
@@ -839,6 +842,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🔍 User search: ENABLED');
   console.log('📝 Posts system: ENABLED');
   console.log('🎁 Gift shop: ENABLED');
+  console.log('🛡️ BayRex account: PROTECTED FROM DELETION');
   console.log('📱 Mobile version: INTEGRATED IN MAIN APP');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
