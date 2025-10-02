@@ -54,6 +54,33 @@ const saveData = (data) => {
 let data = loadData();
 let { users, messages, posts, gifts } = data;
 
+// Создаем тестовые подарки если нет
+if (gifts.length === 0) {
+  gifts = [
+    {
+      id: '1',
+      name: 'Золотая корона',
+      price: 100,
+      image: null,
+      type: 'image',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      deleted: false
+    },
+    {
+      id: '2', 
+      name: 'Анимация с фейерверком',
+      price: 50,
+      image: null,
+      type: 'video',
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      deleted: false
+    }
+  ];
+  saveData({ users, messages, posts, gifts });
+}
+
 const onlineUsers = new Map();
 
 // Middleware для логирования
@@ -75,22 +102,8 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// Мобильная версия
-app.get('/mobile.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'mobile.html'));
-});
-
-// Автоматическое перенаправление мобильных устройств
-app.get('/auto', (req, res) => {
-  const userAgent = req.headers['user-agent'] || '';
-  const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-  
-  if (isMobile) {
-    res.redirect('/mobile.html');
-  } else {
-    res.redirect('/main.html');
-  }
-});
+// УДАЛЕН маршрут /mobile.html - больше не нужен
+// УДАЛЕН маршрут /auto - больше не нужен
 
 // Health check для Render.com
 app.get('/health', (req, res) => {
@@ -247,25 +260,6 @@ app.get('/api/search-users', (req, res) => {
 });
 
 app.get('/api/users', (req, res) => {
-  const { currentUserId } = req.query;
-  
-  // Получаем пользователей, с которыми есть переписка
-  const userMessages = messages.filter(msg => 
-    msg.userId === currentUserId || msg.toUserId === currentUserId
-  );
-  
-  const chatUserIds = [...new Set(userMessages.map(msg => 
-    msg.userId === currentUserId ? msg.toUserId : msg.userId
-  ))];
-  
-  const chatUsers = users.filter(u => 
-    chatUserIds.includes(u.id) && u.id !== currentUserId && !u.deleted
-  );
-  
-  res.json(chatUsers);
-});
-
-app.get('/api/all-users', (req, res) => {
   const { currentUserId } = req.query;
   
   const filteredUsers = users.filter(u => u.id !== currentUserId && !u.deleted);
@@ -447,7 +441,7 @@ app.get('/api/gifts', (req, res) => {
 });
 
 app.post('/api/gifts', (req, res) => {
-  const { userId, name, price, image, type, maxQuantity } = req.body;
+  const { userId, name, price, image, type } = req.body;
   
   if (!userId || !name || !price || !image || !type) {
     return res.json({ success: false, message: 'Все поля обязательны' });
@@ -471,8 +465,6 @@ app.post('/api/gifts', (req, res) => {
     price: parseInt(price),
     image,
     type: fileType,
-    maxQuantity: maxQuantity || null, // Максимальное количество
-    quantitySold: 0, // Количество проданных
     createdBy: userId,
     createdAt: new Date().toISOString(),
     deleted: false
@@ -499,19 +491,12 @@ app.post('/api/gifts/buy', (req, res) => {
     return res.json({ success: false, message: 'Ошибка покупки подарка' });
   }
   
-  // Проверка максимального количества
-  if (gift.maxQuantity && gift.quantitySold >= gift.maxQuantity) {
-    return res.json({ success: false, message: 'Этот подарок закончился' });
-  }
-  
   // Пока покупка бесплатная (коины добавим позже)
   // if (user.coins < gift.price) {
   //   return res.json({ success: false, message: 'Недостаточно коинов' });
   // }
   
   // user.coins -= gift.price;
-  gift.quantitySold = (gift.quantitySold || 0) + 1;
-  
   toUser.gifts = toUser.gifts || [];
   toUser.gifts.push({
     giftId: gift.id,
@@ -854,14 +839,13 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🔍 User search: ENABLED');
   console.log('📝 Posts system: ENABLED');
   console.log('🎁 Gift shop: ENABLED');
-  console.log('📱 Mobile version: ENABLED');
+  console.log('📱 Mobile version: INTEGRATED IN MAIN APP');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
   console.log('📮 Posts:', posts.length);
   console.log('🎁 Gifts:', gifts.length);
   console.log('🔑 BayRex account: BayRex / 123 (auto-admin)');
-  console.log('🌐 Auto-redirect: /auto');
-  console.log('📱 Mobile: /mobile.html');
-  console.log('💻 Desktop: /main.html');
+  console.log('💻 Main app: /main.html');
+  console.log('🔑 Login: /login.html');
   console.log('=====================================');
 });
