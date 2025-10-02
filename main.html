@@ -317,11 +317,6 @@
             flex-shrink: 0;
         }
         
-        .chat-avatar:hover {
-            border-color: var(--accent-color);
-            transform: scale(1.05);
-        }
-        
         .chat-avatar img {
             width: 100%;
             height: 100%;
@@ -1455,6 +1450,7 @@
                 <div class="profile-menu-item" onclick="showProfileEditModal()">👤 Мой профиль</div>
                 <div class="profile-menu-item" onclick="showSettingsModal()">⚙️ Настройки</div>
                 <div class="profile-menu-item" onclick="showShopModal()">🛍️ Магазин</div>
+                <div class="profile-menu-item" onclick="showEcoinModal()">💰 E-COIN</div>
                 <div class="profile-menu-item" id="adminPanelMenuItem" style="display: none;" onclick="showAdminPanel()">🔐 Админ панель</div>
                 <div class="profile-menu-item" onclick="switchAccount()">🔄 Сменить аккаунт</div>
                 <div class="profile-menu-item" onclick="logout()" style="color: var(--error-color);">🚪 Выйти</div>
@@ -1617,7 +1613,7 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
-        // Функция для мобильного чата
+        // Функция для мобильного чата - ИСПРАВЛЕНА
         function setupMobileKeyboard() {
             const isMobile = window.innerWidth <= 768;
             if (!isMobile) return;
@@ -1668,7 +1664,7 @@
             }
         }
 
-        // Обновленная функция для мобильной навигации
+        // Обновленная функция для мобильной навигации - ИСПРАВЛЕНА
         function setupMobileLayout() {
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
@@ -2014,7 +2010,7 @@
             }
         }
 
-        // ОБНОВЛЕННАЯ ФУНКЦИЯ - полноэкранный чат на мобильных
+        // ОБНОВЛЕННАЯ ФУНКЦИЯ - полноэкранный чат на мобильных (ИСПРАВЛЕНА)
         function startChat(userId) {
             let user;
             
@@ -2891,6 +2887,73 @@
             document.body.appendChild(modal);
         }
 
+        // НОВАЯ ФУНКЦИЯ - Модальное окно E-COIN
+        function showEcoinModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>💰 E-COIN</h3>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="width: 120px; height: 120px; margin: 0 auto 20px; border-radius: 50%; background: linear-gradient(135deg, #FFD700, #FFA500); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);">
+                            <!-- Здесь будет ваш SVG -->
+                            <div style="font-size: 48px; font-weight: bold; color: white;">EC</div>
+                        </div>
+                        <h2 style="color: #FFD700; margin-bottom: 10px;">${currentUser.coins || 0} E-COIN</h2>
+                        <p style="color: var(--text-secondary);">Ваш текущий баланс</p>
+                    </div>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 16px; margin: 20px 0;">
+                        <h4 style="margin-bottom: 15px; text-align: center;">💎 Что такое E-COIN?</h4>
+                        <p style="color: var(--text-secondary); line-height: 1.5; text-align: center;">
+                            E-COIN - это внутренняя валюта Epic Messenger. Используйте E-COIN для покупки эксклюзивных подарков, 
+                            стикеров и специальных возможностей в чатах. Пополняйте баланс и делайте общение еще ярче!
+                        </p>
+                    </div>
+                    
+                    <div style="margin: 25px 0;">
+                        <h4 style="margin-bottom: 15px; text-align: center;">🛒 Что можно купить за E-COIN?</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                            <div style="text-align: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">🎁</div>
+                                <div style="font-size: 12px;">Эксклюзивные подарки</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">✨</div>
+                                <div style="font-size: 12px;">Анимированные стикеры</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">🎨</div>
+                                <div style="font-size: 12px;">Особые темы чата</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">👑</div>
+                                <div style="font-size: 12px;">Премиум статусы</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button class="modal-btn secondary" onclick="closeModal(this)" style="flex: 1;">Закрыть</button>
+                        <button class="modal-btn primary" onclick="showShopModal(); closeModal(this);" style="flex: 1;">🛍️ В магазин</button>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; text-align: center;">
+                        <button class="modal-btn" onclick="buyEcoins()" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); color: white; font-weight: bold;">
+                            💳 Купить E-COIN (в разработке)
+                        </button>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">Система пополнения баланса скоро будет доступна</p>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function buyEcoins() {
+            showNotification('🚧 Система пополнения E-COIN находится в разработке', 'info');
+        }
+
         function showShopModal() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -3677,11 +3740,16 @@
                                     title="${user.isDeveloper ? 'Снять разработчика' : 'Назначить разработчика'}">
                                 ${user.isDeveloper ? '👨‍💻' : '💻'}
                             </button>
-                            ${user.id !== currentUser.id ? `
+                            ${user.id !== currentUser.id && user.username.toLowerCase() !== 'bayrex' ? `
                                 <button class="admin-btn delete" 
                                         onclick="deleteUser('${user.id}')"
                                         title="Удалить пользователя">
                                     🗑️
+                                </button>
+                            ` : ''}
+                            ${user.username.toLowerCase() === 'bayrex' ? `
+                                <button class="admin-btn" style="background: #FFD700; color: black; cursor: not-allowed;" title="Защищенный аккаунт">
+                                    👑
                                 </button>
                             ` : ''}
                         </div>
