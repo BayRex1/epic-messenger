@@ -1176,6 +1176,13 @@
             }
             
             .main-content.active {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                z-index: 1001;
+                background: var(--bg-primary);
                 transform: translateX(0);
             }
             
@@ -1201,7 +1208,7 @@
                 border-bottom: 1px solid var(--border-color);
                 position: sticky;
                 top: 0;
-                z-index: 10;
+                z-index: 1003;
                 min-height: 70px;
                 display: flex;
                 align-items: center;
@@ -1211,26 +1218,25 @@
                 display: flex !important;
                 align-items: center;
                 justify-content: center;
+                width: 44px;
+                height: 44px;
                 background: none;
                 border: none;
                 color: var(--text-primary);
                 font-size: 24px;
                 margin-right: 15px;
                 cursor: pointer;
-                padding: 8px;
-                width: 40px;
-                height: 40px;
                 border-radius: 50%;
-                transition: background 0.3s;
+                transition: background-color 0.3s;
             }
             
-            .mobile-back-btn:hover {
+            .mobile-back-btn:active {
                 background: var(--bg-tertiary);
             }
             
             .chat-messages {
                 padding: 15px;
-                height: calc(100vh - 140px);
+                height: calc(100vh - 140px) !important;
                 overflow-y: auto;
                 -webkit-overflow-scrolling: touch;
                 scroll-behavior: smooth;
@@ -1243,12 +1249,27 @@
                 word-wrap: break-word;
             }
             
+            .message.incoming {
+                border-bottom-left-radius: 6px;
+                border-top-right-radius: 20px;
+                border-top-left-radius: 20px;
+            }
+            
+            .message.outgoing {
+                border-bottom-right-radius: 6px;
+                border-top-right-radius: 20px;
+                border-top-left-radius: 20px;
+            }
+            
             .message-input-container {
                 padding: 15px;
                 background: var(--bg-secondary);
-                position: sticky;
+                position: fixed;
                 bottom: 0;
+                left: 0;
+                right: 0;
                 border-top: 1px solid var(--border-color);
+                z-index: 1002;
                 min-height: 70px;
             }
             
@@ -1412,33 +1433,6 @@
         .comments-section::-webkit-scrollbar-thumb {
             background: var(--text-secondary);
             border-radius: 2px;
-        }
-
-        /* Фиксы для мобильной клавиатуры */
-        @media (max-width: 768px) {
-            body.keyboard-open .main-content.active {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                transform: translateX(0) !important;
-            }
-            
-            body.keyboard-open .chat-messages {
-                height: calc(100vh - 200px) !important;
-                padding-bottom: 80px;
-            }
-            
-            body.keyboard-open .message-input-container {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                background: var(--bg-secondary);
-                border-top: 1px solid var(--border-color);
-                z-index: 1005;
-            }
         }
     </style>
 </head>
@@ -2010,23 +2004,17 @@
             }
         }
 
-        // Исправленная функция для мобильного поиска
+        // Обновленная функция для мобильного поиска
         function selectUserFromSearch(userId) {
             const user = allUsers.find(u => u.id === userId);
             if (user) {
                 startChat(user);
                 document.getElementById('searchResults').style.display = 'none';
                 document.getElementById('searchInput').value = '';
-                
-                // На мобильных устройствах автоматически переходим в чат
-                if (window.innerWidth <= 768) {
-                    document.getElementById('sidebar').classList.add('hidden');
-                    document.getElementById('mainContent').classList.add('active');
-                }
             }
         }
 
-        // Обновленная функция начала чата
+        // ОБНОВЛЕННАЯ ФУНКЦИЯ - полноэкранный чат на мобильных
         function startChat(userId) {
             let user;
             
@@ -2049,14 +2037,17 @@
             currentChat = user;
             chatOpened = true;
             
-            // Мобильная навигация
+            // Мобильная навигация - полноэкранный режим
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebar').classList.add('hidden');
                 document.getElementById('mainContent').classList.add('active');
-                document.querySelector('.mobile-back-btn').style.display = 'block';
+                document.querySelector('.mobile-back-btn').style.display = 'flex';
                 
-                // Сбрасываем состояние клавиатуры
+                // Скрываем клавиатуру если открыта
                 document.body.classList.remove('keyboard-open');
+                
+                // Блокируем скролл body
+                document.body.style.overflow = 'hidden';
             }
             
             document.getElementById('noChatSelected').style.display = 'none';
@@ -2071,16 +2062,13 @@
             // Сохраняем текущий чат в localStorage
             localStorage.setItem('currentChatId', user.id);
             
-            // Настраиваем мобильный чат
-            setupMobileChat();
-            
-            // Фокус на поле ввода с небольшой задержкой
+            // Фокус на поле ввода с задержкой для анимации
             setTimeout(() => {
                 const input = document.getElementById('messageInput');
                 if (input) {
                     input.focus();
                     
-                    // На мобильных устройствах прокручиваем к низу после фокуса
+                    // На мобильных прокручиваем к низу после фокуса
                     if (window.innerWidth <= 768) {
                         setTimeout(() => {
                             scrollToBottom();
@@ -2090,7 +2078,7 @@
             }, 300);
         }
 
-        // Обновленная функция закрытия чата
+        // ОБНОВЛЕННАЯ ФУНКЦИЯ - закрытие полноэкранного чата
         function closeChat() {
             if (!chatOpened) return;
             
@@ -2104,7 +2092,8 @@
                 document.getElementById('mainContent').classList.remove('active');
                 document.querySelector('.mobile-back-btn').style.display = 'none';
                 
-                // Сбрасываем состояние клавиатуры
+                // Восстанавливаем скролл body
+                document.body.style.overflow = '';
                 document.body.classList.remove('keyboard-open');
             }
             
@@ -2136,7 +2125,6 @@
             document.getElementById('chatUserStatus').textContent = getStatusText(user.status);
         }
 
-        // Исправленная функция загрузки истории чата
         function loadChatHistory(userId) {
             if (!userId) return;
             
@@ -2183,7 +2171,6 @@
             scrollToBottom();
         }
 
-        // Обновленная функция добавления сообщения
         function addMessageToChat(message, isMe) {
             const container = document.getElementById('chatMessages');
             
@@ -2256,7 +2243,6 @@
             `;
         }
 
-        // Функция для создания HTML подарка
         function createGiftMessageHTML(msg, isMe) {
             let giftPreview = '';
             if (msg.giftImage) {
@@ -2298,7 +2284,6 @@
             `;
         }
 
-        // Функция для просмотра изображения подарка
         function previewGiftImage(imageUrl, giftType) {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2489,7 +2474,6 @@
             }
         }
 
-        // Обновленная функция отображения постов с изображениями
         function displayPosts(posts) {
             const container = document.getElementById('postsList');
             
@@ -2570,7 +2554,6 @@
             `).join('');
         }
 
-        // Функция для открытия изображения поста в полный экран
         function openImageModal(imageUrl) {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2584,7 +2567,6 @@
             document.body.appendChild(modal);
         }
 
-        // Функция для удаления поста
         async function deletePost(postId) {
             if (!confirm('Вы уверены, что хотите удалить этот пост?')) {
                 return;
@@ -2909,7 +2891,6 @@
             document.body.appendChild(modal);
         }
 
-        // Функция магазина
         function showShopModal() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2987,7 +2968,6 @@
             }
         }
 
-        // Функция загрузки подарков
         async function loadGifts() {
             try {
                 const response = await fetch('/api/gifts');
@@ -2999,7 +2979,6 @@
             }
         }
 
-        // Функция отображения подарков
         function displayGifts(gifts) {
             const container = document.getElementById('giftsList');
             
@@ -3032,7 +3011,6 @@
             `).join('');
         }
 
-        // Функция для предпросмотра подарка
         function previewGift(giftId) {
             const gift = gifts.find(g => g.id === giftId && !g.deleted);
             if (!gift) return;
@@ -3075,7 +3053,6 @@
             document.body.appendChild(modal);
         }
 
-        // Функция для выбора подарка для отправки
         function selectGiftForSending(giftId) {
             const gift = gifts.find(g => g.id === giftId && !g.deleted);
             if (!gift) {
@@ -3136,7 +3113,6 @@
             document.body.appendChild(modal);
         }
 
-        // Функция для отправки подарка с сообщением
         async function sendGiftWithMessage(giftId) {
             const giftMessage = document.getElementById('giftMessage').value.trim();
             
@@ -3194,12 +3170,10 @@
             }
         }
 
-        // Функция покупки подарка (оставить для обратной совместимости)
         async function buyGift(giftId) {
             selectGiftForSending(giftId);
         }
 
-        // Функция добавления нового подарка
         async function addNewGift() {
             const name = document.getElementById('giftName').value.trim();
             const price = document.getElementById('giftPrice').value;
@@ -3247,7 +3221,6 @@
             showNotification(`Тема изменена на ${theme === 'dark' ? 'тёмную' : 'светлую'}`, 'success');
         }
 
-        // Функция экспорта данных вместо очистки кэша
         function exportData() {
             const data = {
                 user: currentUser,
@@ -3371,7 +3344,6 @@
             }
         }
 
-        // Обновленная функция просмотра профиля пользователя
         function viewUserProfile(userId) {
             if (!currentChat) return;
             
@@ -3411,7 +3383,6 @@
                         ` : ''}
                     </div>
                     
-                    <!-- ДОБАВЛЕН РАЗДЕЛ ПОДАРКОВ -->
                     <div style="margin: 20px 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <h4 style="margin: 0;">🎁 Полученные подарки</h4>
@@ -3436,7 +3407,6 @@
             loadUserGiftsPreview(currentChat.id);
         }
 
-        // Функция для загрузки превью подарков пользователя
         async function loadUserGiftsPreview(userId) {
             try {
                 const user = allUsers.find(u => u.id === userId && !u.deleted);
@@ -3490,7 +3460,6 @@
             }
         }
 
-        // Функция для просмотра всех подарков пользователя
         function viewAllGifts(userId) {
             const user = allUsers.find(u => u.id === userId && !u.deleted);
             if (!user || !user.gifts || user.gifts.length === 0) {
@@ -3516,7 +3485,6 @@
             loadAllUserGifts(userId);
         }
 
-        // Функция для загрузки всех подарков пользователя
         async function loadAllUserGifts(userId) {
             try {
                 const user = allUsers.find(u => u.id === userId && !u.deleted);
@@ -3588,7 +3556,6 @@
             }
         }
 
-        // Функция для просмотра подарка пользователя
         function previewUserGift(giftId, fromName) {
             const gift = gifts.find(g => g.id === giftId && !g.deleted);
             if (!gift) return;
@@ -3631,7 +3598,6 @@
             document.body.appendChild(modal);
         }
 
-        // Функция для отправки подарка из профиля
         function sendGiftToUser(userId) {
             closeModal(document.querySelector('.modal-overlay')); // Закрываем профиль
             showShopModal(); // Открываем магазин
