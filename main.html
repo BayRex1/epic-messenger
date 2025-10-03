@@ -1133,7 +1133,7 @@
             background: var(--accent-hover);
         }
 
-        /* Улучшенная мобильная адаптация */
+        /* Улучшенная мобильная адаптация - ИСПРАВЛЕНА ПРОБЛЕМА С КЛАВИАТУРОЙ */
         @media (max-width: 768px) {
             body {
                 flex-direction: column;
@@ -1328,7 +1328,7 @@
                 transform: scale(0.98);
             }
             
-            /* Фикс для мобильной клавиатуры */
+            /* ИСПРАВЛЕННАЯ ПРОБЛЕМА С КЛАВИАТУРОЙ */
             body.keyboard-open .main-content.active {
                 position: fixed;
                 top: 0;
@@ -1351,6 +1351,13 @@
                 background: var(--bg-secondary);
                 border-top: 1px solid var(--border-color);
                 z-index: 1005;
+            }
+            
+            /* ФИКС ДЛЯ КЛАВИАТУРЫ - ПРАВИЛЬНОЕ ОТОБРАЖЕНИЕ ПОЛЯ ВВОДА */
+            @supports (-webkit-touch-callout: none) {
+                .message-input-container {
+                    padding-bottom: max(15px, env(safe-area-inset-bottom));
+                }
             }
         }
 
@@ -1613,7 +1620,7 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
-        // Функция для мобильного чата - ИСПРАВЛЕНА
+        // Функция для мобильного чата - ИСПРАВЛЕНА ПРОБЛЕМА С КЛАВИАТУРОЙ
         function setupMobileKeyboard() {
             const isMobile = window.innerWidth <= 768;
             if (!isMobile) return;
@@ -1647,6 +1654,17 @@
             messageInput.addEventListener('touchmove', function(e) {
                 e.stopPropagation();
             });
+
+            // ФИКС: Обработка изменения высоты viewport при появлении клавиатуры
+            window.addEventListener('resize', function() {
+                if (window.innerHeight < 500) {
+                    // Клавиатура открыта
+                    document.body.classList.add('keyboard-open');
+                } else {
+                    // Клавиатура закрыта
+                    document.body.classList.remove('keyboard-open');
+                }
+            });
         }
 
         function setupMobileChat() {
@@ -1664,7 +1682,7 @@
             }
         }
 
-        // Обновленная функция для мобильной навигации - ИСПРАВЛЕНА
+        // Обновленная функция для мобильной навигации
         function setupMobileLayout() {
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
@@ -2010,7 +2028,7 @@
             }
         }
 
-        // ОБНОВЛЕННАЯ ФУНКЦИЯ - полноэкранный чат на мобильных (ИСПРАВЛЕНА)
+        // ОБНОВЛЕННАЯ ФУНКЦИЯ - полноэкранный чат на мобильных (ИСПРАВЛЕНА ПРОБЛЕМА С КЛАВИАТУРОЙ)
         function startChat(userId) {
             let user;
             
@@ -2209,6 +2227,7 @@
             const isImage = msg.fileName && msg.fileName.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
             const isVideo = msg.fileName && msg.fileName.match(/\.(mp4|avi|mov|webm|mkv|wmv)$/i);
             const isAudio = msg.fileName && msg.fileName.match(/\.(mp3|wav|ogg|m4a|flac|aac)$/i);
+            const isTgs = msg.fileName && msg.fileName.match(/\.tgs$/i);
             
             let previewHTML = '';
             if (isImage) {
@@ -2217,6 +2236,8 @@
                 previewHTML = `<div class="video-player"><video controls style="max-width: 400px;"><source src="${msg.fileData}" type="${msg.fileType || 'video/mp4'}"></video></div>`;
             } else if (isAudio) {
                 previewHTML = `<div class="audio-player"><audio controls><source src="${msg.fileData}" type="${msg.fileType || 'audio/mpeg'}"></audio></div>`;
+            } else if (isTgs) {
+                previewHTML = `<div class="file-preview"><img src="${msg.fileData}" alt="${msg.fileName}" style="max-width: 200px; max-height: 200px;"></div>`;
             }
             
             return `
@@ -2248,6 +2269,12 @@
                             <video controls autoplay loop style="max-width: 200px; max-height: 200px; border-radius: 8px;">
                                 <source src="${msg.giftImage}" type="video/mp4">
                             </video>
+                        </div>
+                    `;
+                } else if (msg.giftType === 'tgs') {
+                    giftPreview = `
+                        <div class="file-preview">
+                            <img src="${msg.giftImage}" alt="${msg.giftName}" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="previewGiftImage('${msg.giftImage}', '${msg.giftType}')">
                         </div>
                     `;
                 } else {
@@ -2293,6 +2320,13 @@
                         </video>
                     </div>
                 `;
+            } else if (giftType === 'tgs') {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${imageUrl}" alt="Анимированный стикер" style="max-width: 80vw; max-height: 80vh; border-radius: 12px;">
+                        <div style="margin-top: 10px; color: var(--text-secondary);">🎭 Анимированный стикер</div>
+                    </div>
+                `;
             } else {
                 content = `
                     <div style="text-align: center;">
@@ -2322,7 +2356,8 @@
                 'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
                 'exe': '⚙️', 'msi': '⚙️', 'dmg': '⚙️',
                 'xls': '📊', 'xlsx': '📊', 'csv': '📊',
-                'ppt': '📽️', 'pptx': '📽️'
+                'ppt': '📽️', 'pptx': '📽️',
+                'tgs': '🎭'
             };
             return icons[ext] || '📎';
         }
@@ -2355,6 +2390,13 @@
                 content = `<video controls style="max-width: 90vw; max-height: 90vh;"><source src="${url}"></video>`;
             } else if (fileName.match(/\.(mp3|wav|ogg|m4a|flac|aac)$/i)) {
                 content = `<audio controls style="width: 300px;"><source src="${url}"></audio>`;
+            } else if (fileName.match(/\.tgs$/i)) {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${url}" style="max-width: 80vw; max-height: 80vh; border-radius: 8px;">
+                        <div style="margin-top: 15px; color: var(--text-secondary);">🎭 Анимированный стикер TGS</div>
+                    </div>
+                `;
             } else {
                 content = `<div style="text-align: center; padding: 40px;">
                     <div style="font-size: 48px; margin-bottom: 20px;">${getFileIcon(fileName)}</div>
@@ -2873,6 +2915,11 @@
                             </div>
                         </div>
                         
+                        <div class="settings-item" onclick="showAboutEpic()">
+                            <div style="font-weight: 600; margin-bottom: 4px;">ℹ️ О Epic Messenger</div>
+                            <div style="font-size: 13px; color: var(--text-secondary);">Узнайте больше о нашем мессенджере</div>
+                        </div>
+                        
                         <div class="settings-item" onclick="exportData()">
                             <div style="font-weight: 600; margin-bottom: 4px;">💾 Экспорт данных</div>
                             <div style="font-size: 13px; color: var(--text-secondary);">Скачать резервную копию данных</div>
@@ -2887,7 +2934,82 @@
             document.body.appendChild(modal);
         }
 
-        // НОВАЯ ФУНКЦИЯ - Модальное окно E-COIN
+        // НОВАЯ ФУНКЦИЯ - О Epic Messenger
+        function showAboutEpic() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                    <h1 style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #0088cc, #00b894); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                        EPIC MESSENGER<br>
+                        <span style="font-size: 18px; color: var(--text-secondary);">НОВАЯ ЭРА ОБЩЕНИЯ</span>
+                    </h1>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 16px; margin: 20px 0; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">🗽</div>
+                        <h3 style="margin-bottom: 15px; color: var(--accent-color);">ПОЛНАЯ СВОБОДА СЛОВА</h3>
+                        <p style="color: var(--text-primary); line-height: 1.6;">
+                            Здесь нет цензуры.<br>
+                            Говори что думаешь.<br>
+                            Делись любым мнением.<br>
+                            Обсуждай любые темы.<br>
+                            <strong>Твои мысли принадлежат только тебе.</strong>
+                        </p>
+                    </div>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 16px; margin: 20px 0; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">🔒</div>
+                        <h3 style="margin-bottom: 15px; color: var(--accent-color);">АБСОЛЮТНАЯ КОНФИДЕНЦИАЛЬНОСТЬ</h3>
+                        <p style="color: var(--text-primary); line-height: 1.6;">
+                            Каждое сообщение в базе данных<br>
+                            превращается в зашифрованный код.<br>
+                            Его невозможно расшифровать.<br>
+                            Даже мы не можем прочитать ваши переписки.<br>
+                            <strong>Ваши секреты остаются вашими секретами.</strong>
+                        </p>
+                    </div>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 16px; margin: 20px 0; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">⚡</div>
+                        <h3 style="margin-bottom: 15px; color: var(--accent-color);">МГНОВЕННАЯ ДОСТАВКА</h3>
+                        <p style="color: var(--text-primary); line-height: 1.6;">
+                            Сообщения прилетают моментально.<br>
+                            Даже при слабом 3G интернете.<br>
+                            Оптимизированные технологии.<br>
+                            Работает там, где другие мессенджеры отключаются.<br>
+                            <strong>Стабильность прежде всего.</strong>
+                        </p>
+                    </div>
+                    
+                    <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 16px; margin: 20px 0; text-align: center;">
+                        <h3 style="margin-bottom: 15px; color: var(--accent-color);">🤔 ПОЧЕМУ EPIC MESSENGER?</h3>
+                        <p style="color: var(--text-primary); line-height: 1.6;">
+                            Это не просто еще один мессенджер.<br>
+                            Это пространство для свободного общения.<br>
+                            <strong>Безопасное.<br>
+                            Быстрое.<br>
+                            Доступное для всех.</strong>
+                        </p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, var(--accent-color), var(--success-color)); padding: 30px; border-radius: 16px; margin: 25px 0; text-align: center;">
+                        <h3 style="margin-bottom: 15px; color: white;">🚀 ПРИСОЕДИНЯЙСЯ К НАМ ПРЯМО СЕЙЧАС</h3>
+                        <p style="color: white; line-height: 1.6; font-size: 16px;">
+                            Испытай настоящую свободу общения.<br>
+                            Там, где твои слова защищены,<br>
+                            а сообщения доходят мгновенно.
+                        </p>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button class="modal-btn primary" onclick="closeModal(this)" style="flex: 1;">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // НОВАЯ ФУНКЦИЯ - Модальное окно E-COIN с SVG
         function showEcoinModal() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2897,8 +3019,9 @@
                     
                     <div style="text-align: center; margin: 30px 0;">
                         <div style="width: 120px; height: 120px; margin: 0 auto 20px; border-radius: 50%; background: linear-gradient(135deg, #FFD700, #FFA500); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);">
-                            <!-- Здесь будет ваш SVG -->
-                            <div style="font-size: 48px; font-weight: bold; color: white;">EC</div>
+                            <!-- Положите файл ecoin.svg в корневую папку проекта -->
+                            <img src="/ecoin.svg" alt="E-COIN" style="width: 80px; height: 80px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div style="font-size: 48px; font-weight: bold; color: white; display: none;">EC</div>
                         </div>
                         <h2 style="color: #FFD700; margin-bottom: 10px;">${currentUser.coins || 0} E-COIN</h2>
                         <p style="color: var(--text-secondary);">Ваш текущий баланс</p>
@@ -2972,13 +3095,14 @@
                                 <option value="png">PNG изображение</option>
                                 <option value="svg">SVG изображение</option>
                                 <option value="mp4">MP4 видео</option>
+                                <option value="tgs">TGS анимированный стикер</option>
                             </select>
                             <div class="avatar-upload">
                                 <div class="avatar-preview" id="giftPreview">
                                     <span>🎁</span>
                                 </div>
-                                <input type="file" id="giftFile" class="file-input" accept=".png,.svg,.mp4">
-                                <label for="giftFile" class="file-label">📁 Выбрать файл (PNG/SVG/MP4)</label>
+                                <input type="file" id="giftFile" class="file-input" accept=".png,.svg,.mp4,.tgs">
+                                <label for="giftFile" class="file-label">📁 Выбрать файл (PNG/SVG/MP4/TGS)</label>
                             </div>
                             <button class="modal-btn primary" onclick="addNewGift()" style="width: 100%; margin-top: 10px;">
                                 Добавить в магазин
@@ -2998,9 +3122,9 @@
                 document.getElementById('giftFile').addEventListener('change', function(e) {
                     const file = e.target.files[0];
                     if (file) {
-                        const allowedTypes = ['image/png', 'image/svg+xml', 'video/mp4'];
-                        if (!allowedTypes.includes(file.type)) {
-                            alert('Разрешены только PNG, SVG и MP4 файлы');
+                        const allowedTypes = ['image/png', 'image/svg+xml', 'video/mp4', 'application/octet-stream'];
+                        if (!allowedTypes.includes(file.type) && !file.name.match(/\.tgs$/i)) {
+                            alert('Разрешены только PNG, SVG, MP4 и TGS файлы');
                             this.value = '';
                             return;
                         }
@@ -3014,7 +3138,7 @@
                         const reader = new FileReader();
                         reader.onload = function(e) {
                             const preview = document.getElementById('giftPreview');
-                            if (file.type.includes('image')) {
+                            if (file.type.includes('image') || file.name.match(/\.tgs$/i)) {
                                 preview.innerHTML = `<img src="${e.target.result}" alt="Gift preview" style="width: 100%; height: 100%; object-fit: cover;">`;
                             } else {
                                 preview.innerHTML = `
@@ -3057,10 +3181,14 @@
             
             container.innerHTML = gifts.map(gift => `
                 <div class="gift-item" style="display: flex; align-items: center; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; margin-bottom: 10px;">
-                    <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden; cursor: pointer;" onclick="previewGift('${gift.id}')">
+                    <div style="width: 60px; height: 60px; border-radius: 8px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; overflow: hidden; cursor: pointer;" onclick="previewGift('${gift.id}')">
                         ${gift.image ? 
-                            `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">` :
-                            `<span style="font-size: 24px;">🎁</span>`
+                            gift.type === 'mp4' ? 
+                                `<video muted style="width: 100%; height: 100%; object-fit: cover;">
+                                    <source src="${gift.image}" type="video/mp4">
+                                </video>` :
+                                `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover;">`
+                            : `<span style="font-size: 24px;">🎁</span>`
                         }
                     </div>
                     <div style="flex: 1;">
@@ -3089,6 +3217,13 @@
                             <source src="${gift.image}" type="video/mp4">
                             Ваш браузер не поддерживает видео.
                         </video>
+                    </div>
+                `;
+            } else if (gift.type === 'tgs') {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${gift.image}" alt="${gift.name}" style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                        <div style="margin-top: 10px; color: var(--text-secondary);">🎭 Анимированный стикер</div>
                     </div>
                 `;
             } else {
@@ -3231,10 +3366,6 @@
             } catch (error) {
                 showNotification('Ошибка отправки подарка', 'error');
             }
-        }
-
-        async function buyGift(giftId) {
-            selectGiftForSending(giftId);
         }
 
         async function addNewGift() {
@@ -3634,6 +3765,13 @@
                             <source src="${gift.image}" type="video/mp4">
                             Ваш браузер не поддерживает видео.
                         </video>
+                    </div>
+                `;
+            } else if (gift.type === 'tgs') {
+                content = `
+                    <div style="text-align: center;">
+                        <img src="${gift.image}" alt="${gift.name}" style="max-width: 300px; max-height: 300px; border-radius: 12px;">
+                        <div style="margin-top: 10px; color: var(--text-secondary);">🎭 Анимированный стикер</div>
                     </div>
                 `;
             } else {
