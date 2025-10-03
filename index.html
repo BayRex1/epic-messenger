@@ -98,6 +98,22 @@
             background: rgba(26, 35, 44, 1);
         }
 
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .remember-me input {
+            margin-right: 10px;
+        }
+
+        .remember-me label {
+            color: #8a9ba8;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
         .btn {
             width: 100%;
             padding: 14px;
@@ -128,6 +144,10 @@
             z-index: 1000;
             animation: slideInRight 0.3s;
             box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .notification.error {
+            background: #e17055;
         }
 
         @keyframes slideInRight {
@@ -166,6 +186,10 @@
             <div class="form-group">
                 <label for="loginPassword">Пароль</label>
                 <input type="password" id="loginPassword" placeholder="Введите пароль">
+            </div>
+            <div class="remember-me">
+                <input type="checkbox" id="rememberMe">
+                <label for="rememberMe">Запомнить меня</label>
             </div>
             <button class="btn" onclick="login()">Войти в аккаунт</button>
         </div>
@@ -207,23 +231,39 @@
             }
         }
 
-        function showNotification(message) {
+        function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
-            notification.className = 'notification';
+            notification.className = `notification ${type === 'error' ? 'error' : ''}`;
             notification.textContent = message;
             document.body.appendChild(notification);
 
             setTimeout(() => {
-                notification.remove();
+                if (notification.parentNode) {
+                    notification.remove();
+                }
             }, 3000);
         }
+
+        // Проверяем сохраненные данные при загрузке
+        window.onload = function() {
+            const savedEmail = localStorage.getItem('rememberedEmail');
+            const savedPassword = localStorage.getItem('rememberedPassword');
+            const rememberMe = localStorage.getItem('rememberMe') === 'true';
+            
+            if (rememberMe && savedEmail) {
+                document.getElementById('loginEmail').value = savedEmail;
+                document.getElementById('loginPassword').value = savedPassword || '';
+                document.getElementById('rememberMe').checked = true;
+            }
+        };
 
         async function login() {
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
 
             if (!email || !password) {
-                showNotification('Заполните все поля');
+                showNotification('Заполните все поля', 'error');
                 return;
             }
 
@@ -237,14 +277,24 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    // Сохраняем данные если выбрано "Запомнить меня"
+                    if (rememberMe) {
+                        localStorage.setItem('rememberedEmail', email);
+                        localStorage.setItem('rememberedPassword', password);
+                        localStorage.setItem('rememberMe', 'true');
+                    } else {
+                        localStorage.removeItem('rememberedEmail');
+                        localStorage.removeItem('rememberedPassword');
+                        localStorage.removeItem('rememberMe');
+                    }
+                    
                     localStorage.setItem('user', JSON.stringify(result.user));
-                    // ПЕРЕНАПРАВЛЯЕМ НАПРЯМУЮ НА MAIN.HTML
                     window.location.href = '/main.html';
                 } else {
-                    showNotification(result.message);
+                    showNotification(result.message, 'error');
                 }
             } catch (error) {
-                showNotification('Ошибка соединения');
+                showNotification('Ошибка соединения', 'error');
             }
         }
 
@@ -255,7 +305,7 @@
             const password = document.getElementById('regPassword').value;
 
             if (!email || !username || !displayName || !password) {
-                showNotification('Заполните все поля');
+                showNotification('Заполните все поля', 'error');
                 return;
             }
 
@@ -274,10 +324,10 @@
                     document.getElementById('loginEmail').value = email;
                     document.getElementById('loginPassword').value = password;
                 } else {
-                    showNotification(result.message);
+                    showNotification(result.message, 'error');
                 }
             } catch (error) {
-                showNotification('Ошибка соединения');
+                showNotification('Ошибка соединения', 'error');
             }
         }
 
