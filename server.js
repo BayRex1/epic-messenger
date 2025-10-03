@@ -450,10 +450,10 @@ app.post('/api/gifts', (req, res) => {
   }
   
   // Проверка типа файла
-  const allowedTypes = ['png', 'svg', 'mp4'];
+  const allowedTypes = ['png', 'svg', 'mp4', 'tgs'];
   const fileType = type.toLowerCase();
   if (!allowedTypes.includes(fileType)) {
-    return res.json({ success: false, message: 'Разрешены только PNG, SVG и MP4 файлы' });
+    return res.json({ success: false, message: 'Разрешены только PNG, SVG, MP4 и TGS файлы' });
   }
   
   const gift = {
@@ -843,7 +843,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('📝 Posts system: ENABLED');
   console.log('🎁 Gift shop: ENABLED');
   console.log('🛡️ BayRex account: PROTECTED FROM DELETION');
-  console.log('📱 Mobile version: INTEGRATED IN MAIN APP');
+  console.log('📱 Mobile version: FIXED KEYBOARD ISSUES');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
   console.log('📮 Posts:', posts.length);
