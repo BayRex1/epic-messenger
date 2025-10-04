@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic Messenger - Регистрация</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .register-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+        
+        .logo .subtitle {
+            color: #666;
+            margin-top: 5px;
+            font-size: 1.1em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .switch-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+        
+        .switch-form a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .switch-form a:hover {
+            text-decoration: underline;
+        }
+        
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .features {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .feature-item {
+            display: inline-block;
+            margin: 0 10px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 480px) {
+            .register-container {
+                margin: 20px;
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="logo">
+            <h1>Epic Messenger</h1>
+            <div class="subtitle">Присоединяйтесь к сообществу</div>
+        </div>
+        
+        <div id="registerMessage" class="message"></div>
+        
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="username">Юзернейм</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="displayName">Имя для отображения</label>
+                <input type="text" id="displayName" name="displayName" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn">Создать аккаунт</button>
+        </form>
+        
+        <div class="switch-form">
+            Уже есть аккаунт? <a href="index.html">Войти</a>
+        </div>
+        
+        <div class="features">
+            <div class="feature-item">🎁 Подарки</div>
+            <div class="feature-item">📱 Онлайн чат</div>
+            <div class="feature-item">👥 Сообщества</div>
+            <div class="feature-item">🔐 Безопасность</div>
+        </div>
+    </div>
+
+    <script>
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('registerMessage');
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const displayName = document.getElementById('displayName').value;
+            const password = document.getElementById('password').value;
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Регистрация...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, username, displayName, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Регистрация успешна! Входим...', 'success');
+                    
+                    // Автоматически логиним пользователя после регистрации
+                    setTimeout(async () => {
+                        const loginResponse = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ email, password })
+                        });
+                        
+                        const loginData = await loginResponse.json();
+                        
+                        if (loginData.success) {
+                            localStorage.setItem('currentUser', JSON.stringify(loginData.user));
+                            window.location.href = 'main.html';
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }, 1500);
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showMessage('Ошибка соединения', 'error');
+            } finally {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Проверяем авторизацию при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentUser = localStorage.getItem('currentUser');
+            if (currentUser) {
+                window.location.href = 'main.html';
+            }
+        });
+    </script>
+</body>
+</html>
