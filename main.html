@@ -252,7 +252,7 @@
         }
         
         .content-area.active {
-            display: block;
+            display: flex;
         }
         
         .section-title {
@@ -1052,7 +1052,7 @@
 </head>
 <body>
     <!-- Основное приложение -->
-    <div id="appContainer">
+    <div id="appContainer" style="display: none;">
         <!-- Компактный сайдбар -->
         <div class="sidebar" id="sidebar">
             <div class="profile-section" onclick="toggleSidebar()">
@@ -1230,6 +1230,10 @@
         let posts = [];
         let currentTheme = 'dark';
         let currentFileUploadType = '';
+        let currentFileUpload = null;
+        let currentAvatarUpload = null;
+        let currentGiftUpload = null;
+        let currentPostUpload = null;
 
         // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {
@@ -1268,6 +1272,12 @@
             if (!currentUser.isDeveloper) {
                 document.getElementById('adminMenuItem').style.display = 'none';
             }
+            
+            // Убедимся, что только мессенджер активен при загрузке
+            document.querySelectorAll('.content-area').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById('chatsContent').classList.add('active');
             
             // Показать приложение
             document.getElementById('appContainer').style.display = 'flex';
@@ -1599,13 +1609,21 @@
             });
             
             // Показать выбранный контент
-            document.getElementById(contentType + 'Content').classList.add('active');
+            const targetContent = document.getElementById(contentType + 'Content');
+            if (targetContent) {
+                targetContent.classList.add('active');
+            }
             
             // Обновить активное меню
             document.querySelectorAll('.menu-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.target.closest('.menu-item').classList.add('active');
+            
+            // Найти и активировать нажатую кнопку меню
+            const clickedButton = event.target.closest('.menu-item');
+            if (clickedButton) {
+                clickedButton.classList.add('active');
+            }
             
             // Загрузить данные для секции
             switch(contentType) {
@@ -2003,10 +2021,6 @@
         }
 
         // Загрузка файлов
-        let currentFileUpload = null;
-        let currentAvatarUpload = null;
-        let currentGiftUpload = null;
-
         function openFileUpload(type) {
             currentFileUploadType = type;
             document.getElementById('fileInput').click();
@@ -2791,6 +2805,14 @@
                 this.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
         });
+
+        function sendGiftToUser() {
+            if (!currentChatUser) {
+                showNotification('Выберите пользователя для отправки подарка', 'error');
+                return;
+            }
+            showGiftShop();
+        }
     </script>
 </body>
 </html>
