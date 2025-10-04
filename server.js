@@ -37,7 +37,8 @@ const loadData = () => {
     users: [],
     messages: [],
     posts: [],
-    gifts: []
+    gifts: [],
+    promocodes: []
   };
 };
 
@@ -52,7 +53,7 @@ const saveData = (data) => {
 
 // Загружаем данные
 let data = loadData();
-let { users, messages, posts, gifts } = data;
+let { users, messages, posts, gifts, promocodes } = data;
 
 // Создаем тестовые подарки если нет
 if (gifts.length === 0) {
@@ -72,13 +73,13 @@ if (gifts.length === 0) {
       name: 'Анимация с фейерверком',
       price: 50,
       image: null,
-      type: 'video',
+      type: 'gif',
       createdBy: 'system',
       createdAt: new Date().toISOString(),
       deleted: false
     }
   ];
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
 }
 
 const onlineUsers = new Map();
@@ -111,6 +112,7 @@ app.get('/health', (req, res) => {
     messages: messages.length,
     posts: posts.length,
     gifts: gifts.length,
+    promocodes: promocodes.length,
     storage: 'JSON file'
   });
 });
@@ -155,12 +157,13 @@ app.post('/api/register', (req, res) => {
     description: 'Новый пользователь Epic Messenger',
     coins: 1000, // Начальные коины
     gifts: [], // Купленные подарки
+    usedPromocodes: [], // Использованные промокоды
     createdAt: new Date().toISOString(),
     deleted: false
   };
   
   users.push(newUser);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -183,7 +186,7 @@ app.post('/api/login', (req, res) => {
   }
   
   user.status = 'online';
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -228,7 +231,7 @@ app.post('/api/update-profile', (req, res) => {
     users[userIndex].avatar = avatarData;
   }
   
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -261,6 +264,32 @@ app.get('/api/users', (req, res) => {
   
   const filteredUsers = users.filter(u => u.id !== currentUserId && !u.deleted);
   res.json(filteredUsers);
+});
+
+app.get('/api/user-chats', (req, res) => {
+  const { currentUserId } = req.query;
+  
+  if (!currentUserId) {
+    return res.json([]);
+  }
+  
+  // Для обычных пользователей показываем только тех, с кем есть переписка
+  const userMessages = messages.filter(msg => 
+    (msg.userId === currentUserId || msg.toUserId === currentUserId) &&
+    !msg.deleted
+  );
+  
+  const chatUserIds = [...new Set(userMessages.map(msg => 
+    msg.userId === currentUserId ? msg.toUserId : msg.userId
+  ))];
+  
+  const chatUsers = users.filter(u => 
+    chatUserIds.includes(u.id) && 
+    u.id !== currentUserId && 
+    !u.deleted
+  );
+  
+  res.json(chatUsers);
 });
 
 app.get('/api/user/:id', (req, res) => {
@@ -325,7 +354,7 @@ app.post('/api/posts', (req, res) => {
   };
   
   posts.push(post);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -360,7 +389,7 @@ app.post('/api/posts/:id/like', (req, res) => {
     posts[postIndex].likes.splice(likeIndex, 1);
   }
   
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -399,7 +428,7 @@ app.post('/api/posts/:id/comment', (req, res) => {
   };
   
   posts[postIndex].comments.push(comment);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -423,7 +452,7 @@ app.delete('/api/posts/:id', (req, res) => {
   }
   
   posts.splice(postIndex, 1);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -450,10 +479,10 @@ app.post('/api/gifts', (req, res) => {
   }
   
   // Проверка типа файла
-  const allowedTypes = ['png', 'svg', 'mp4', 'tgs'];
+  const allowedTypes = ['png', 'svg', 'gif', 'webp'];
   const fileType = type.toLowerCase();
   if (!allowedTypes.includes(fileType)) {
-    return res.json({ success: false, message: 'Разрешены только PNG, SVG, MP4 и TGS файлы' });
+    return res.json({ success: false, message: 'Разрешены только PNG, SVG, GIF и WebP файлы' });
   }
   
   const gift = {
@@ -468,7 +497,7 @@ app.post('/api/gifts', (req, res) => {
   };
   
   gifts.push(gift);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   res.json({ 
     success: true, 
@@ -522,7 +551,7 @@ app.post('/api/gifts/buy', (req, res) => {
   };
   
   messages.push(giftMessage);
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   // Отправляем уведомление получателю если он онлайн
   const recipientEntry = Array.from(onlineUsers.entries())
@@ -574,6 +603,123 @@ app.post('/api/gifts/buy', (req, res) => {
   });
 });
 
+// Промокоды API
+app.get('/api/promocodes', (req, res) => {
+  const { userId } = req.query;
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user || !user.isDeveloper) {
+    return res.json({ success: false, message: 'Недостаточно прав' });
+  }
+  
+  res.json(promocodes);
+});
+
+app.post('/api/promocodes', (req, res) => {
+  const { userId, code, coins, maxUses } = req.body;
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user || !user.isDeveloper) {
+    return res.json({ success: false, message: 'Недостаточно прав' });
+  }
+  
+  if (!code || !coins) {
+    return res.json({ success: false, message: 'Код и количество коинов обязательны' });
+  }
+  
+  const existingPromo = promocodes.find(p => p.code === code && !p.deleted);
+  if (existingPromo) {
+    return res.json({ success: false, message: 'Промокод уже существует' });
+  }
+  
+  const promocode = {
+    id: Date.now().toString(),
+    code: code.toUpperCase(),
+    coins: parseInt(coins),
+    maxUses: maxUses || 1,
+    usedCount: 0,
+    usedBy: [],
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+    deleted: false
+  };
+  
+  promocodes.push(promocode);
+  saveData({ users, messages, posts, gifts, promocodes });
+  
+  res.json({ 
+    success: true, 
+    message: 'Промокод создан',
+    promocode
+  });
+});
+
+app.post('/api/promocodes/use', (req, res) => {
+  const { userId, code } = req.body;
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user) {
+    return res.json({ success: false, message: 'Пользователь не найден' });
+  }
+  
+  const promocode = promocodes.find(p => 
+    p.code === code.toUpperCase() && 
+    !p.deleted && 
+    p.usedCount < p.maxUses
+  );
+  
+  if (!promocode) {
+    return res.json({ success: false, message: 'Промокод не найден или достиг лимита использований' });
+  }
+  
+  if (promocode.usedBy.includes(userId)) {
+    return res.json({ success: false, message: 'Вы уже использовали этот промокод' });
+  }
+  
+  // Начисляем коины
+  user.coins = (user.coins || 0) + promocode.coins;
+  promocode.usedCount += 1;
+  promocode.usedBy.push(userId);
+  
+  user.usedPromocodes = user.usedPromocodes || [];
+  user.usedPromocodes.push({
+    code: promocode.code,
+    coins: promocode.coins,
+    usedAt: new Date().toISOString()
+  });
+  
+  saveData({ users, messages, posts, gifts, promocodes });
+  
+  res.json({ 
+    success: true, 
+    message: `Промокод активирован! Получено ${promocode.coins} E-COIN`,
+    coins: user.coins
+  });
+});
+
+app.delete('/api/promocodes/:id', (req, res) => {
+  const { userId } = req.body;
+  const promocodeId = req.params.id;
+  
+  const user = users.find(u => u.id === userId && !u.deleted);
+  if (!user || !user.isDeveloper) {
+    return res.json({ success: false, message: 'Недостаточно прав' });
+  }
+  
+  const promocodeIndex = promocodes.findIndex(p => p.id === promocodeId && !p.deleted);
+  if (promocodeIndex === -1) {
+    return res.json({ success: false, message: 'Промокод не найден' });
+  }
+  
+  promocodes[promocodeIndex].deleted = true;
+  saveData({ users, messages, posts, gifts, promocodes });
+  
+  res.json({ 
+    success: true, 
+    message: 'Промокод удален'
+  });
+});
+
 // Админ endpoints
 app.get('/api/admin/users', (req, res) => {
   res.json(users);
@@ -588,7 +734,7 @@ app.post('/api/admin/toggle-verify', (req, res) => {
   }
   
   users[userIndex].verified = verified;
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   // Отправляем уведомление пользователю если он онлайн
   const userEntry = Array.from(onlineUsers.entries())
@@ -617,7 +763,7 @@ app.post('/api/admin/toggle-developer', (req, res) => {
   }
   
   users[userIndex].isDeveloper = isDeveloper;
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   // Отправляем уведомление пользователю если он онлайн
   const userEntry = Array.from(onlineUsers.entries())
@@ -671,7 +817,7 @@ app.post('/api/admin/delete-user', (req, res) => {
   users[userIndex].verified = false;
   users[userIndex].isDeveloper = false;
   
-  saveData({ users, messages, posts, gifts });
+  saveData({ users, messages, posts, gifts, promocodes });
   
   // Уведомляем всех онлайн пользователей об удалении
   io.emit('user_deleted', { 
@@ -710,7 +856,7 @@ io.on('connection', (socket) => {
     }
     
     user.status = 'online';
-    saveData({ users, messages, posts, gifts });
+    saveData({ users, messages, posts, gifts, promocodes });
     
     const onlineUser = {
       socketId: socket.id,
@@ -733,8 +879,9 @@ io.on('connection', (socket) => {
 
   socket.on('load_chat_history', (data) => {
     const chatMessages = messages.filter(msg => 
-      (msg.userId === data.userId && msg.toUserId === data.targetId) ||
-      (msg.userId === data.targetId && msg.toUserId === data.userId)
+      ((msg.userId === data.userId && msg.toUserId === data.targetId) ||
+      (msg.userId === data.targetId && msg.toUserId === data.userId)) &&
+      !msg.deleted
     );
     
     // Убираем дубликаты по ID
@@ -777,11 +924,12 @@ io.on('connection', (socket) => {
       fileSize: messageData.fileSize || 0,
       giftId: messageData.giftId || null,
       giftName: messageData.giftName || null,
-      giftPrice: messageData.giftPrice || null
+      giftPrice: messageData.giftPrice || null,
+      deleted: false
     };
     
     messages.push(message);
-    saveData({ users, messages, posts, gifts });
+    saveData({ users, messages, posts, gifts, promocodes });
     
     console.log('💬 Сохранено сообщение от', message.displayName, 'к', messageData.toUserId);
     
@@ -806,13 +954,58 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('delete_message', (data) => {
+    const { messageId, userId } = data;
+    
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex === -1) {
+      socket.emit('message_delete_error', { message: 'Сообщение не найдено' });
+      return;
+    }
+    
+    const message = messages[messageIndex];
+    
+    // Проверяем права на удаление (только отправитель или получатель)
+    if (message.userId !== userId && message.toUserId !== userId) {
+      socket.emit('message_delete_error', { message: 'Вы не можете удалить это сообщение' });
+      return;
+    }
+    
+    // Помечаем сообщение как удаленное
+    messages[messageIndex].deleted = true;
+    saveData({ users, messages, posts, gifts, promocodes });
+    
+    // Уведомляем всех участников чата об удалении
+    const participants = [message.userId, message.toUserId];
+    
+    participants.forEach(participantId => {
+      const participantEntry = Array.from(onlineUsers.entries())
+        .find(([_, u]) => u.userId === participantId);
+      
+      if (participantEntry) {
+        const [participantSocketId] = participantEntry;
+        io.to(participantSocketId).emit('message_deleted', { 
+          messageId: messageId,
+          deletedBy: userId
+        });
+      }
+    });
+    
+    socket.emit('message_deleted', { 
+      messageId: messageId,
+      success: true 
+    });
+    
+    console.log('🗑️ Сообщение удалено:', messageId);
+  });
+
   socket.on('disconnect', () => {
     const onlineUser = onlineUsers.get(socket.id);
     if (onlineUser) {
       const user = users.find(u => u.id === onlineUser.userId && !u.deleted);
       if (user) {
         user.status = 'offline';
-        saveData({ users, messages, posts, gifts });
+        saveData({ users, messages, posts, gifts, promocodes });
         
         // Уведомляем всех о выходе пользователя
         socket.broadcast.emit('user_offline', onlineUser);
@@ -842,14 +1035,31 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🔍 User search: ENABLED');
   console.log('📝 Posts system: ENABLED');
   console.log('🎁 Gift shop: ENABLED');
+  console.log('💰 Promocodes system: ENABLED');
+  console.log('🗑️ Message deletion: ENABLED');
   console.log('🛡️ BayRex account: PROTECTED FROM DELETION');
   console.log('📱 Mobile version: FIXED KEYBOARD ISSUES');
   console.log('👥 Loaded users:', users.length);
   console.log('💬 Messages in history:', messages.length);
-  console.log('📮 Posts:', posts.length);
+  console.log('📰 Posts:', posts.length);
   console.log('🎁 Gifts:', gifts.length);
-  console.log('🔑 BayRex account: BayRex / 123 (auto-admin)');
-  console.log('💻 Main app: /main.html');
-  console.log('🔑 Login: /login.html');
+  console.log('🎫 Promocodes:', promocodes.length);
+  console.log('=====================================');
+  console.log('📋 Available endpoints:');
+  console.log('   GET  /health - Health check');
+  console.log('   POST /api/register - User registration');
+  console.log('   POST /api/login - User login');
+  console.log('   POST /api/update-profile - Update profile');
+  console.log('   GET  /api/users - Get all users');
+  console.log('   GET  /api/user-chats - Get user chats');
+  console.log('   GET  /api/search-users - Search users');
+  console.log('   GET  /api/posts - Get all posts');
+  console.log('   POST /api/posts - Create post');
+  console.log('   GET  /api/gifts - Get all gifts');
+  console.log('   POST /api/gifts - Create gift (developer only)');
+  console.log('   POST /api/gifts/buy - Buy gift');
+  console.log('   GET  /api/promocodes - Get promocodes (developer only)');
+  console.log('   POST /api/promocodes - Create promocode (developer only)');
+  console.log('   POST /api/promocodes/use - Use promocode');
   console.log('=====================================');
 });
