@@ -191,6 +191,25 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// НОВЫЙ МАРШРУТ: Загрузка файлов
+app.post('/api/upload', (req, res) => {
+  const { fileData, fileName, fileType } = req.body;
+  
+  if (!fileData) {
+    return res.json({ success: false, message: 'Нет данных файла' });
+  }
+  
+  // В реальном приложении здесь нужно сохранять файлы на сервер
+  // Пока просто возвращаем данные файла
+  const fileUrl = fileData;
+  
+  res.json({ 
+    success: true, 
+    fileUrl: fileUrl,
+    message: 'Файл загружен'
+  });
+});
+
 app.post('/api/update-profile', (req, res) => {
   const { userId, username, displayName, description, status, avatarData } = req.body;
   
@@ -294,9 +313,15 @@ app.get('/api/user/:id', (req, res) => {
     return res.json({ success: false, message: 'Пользователь не найден' });
   }
   
+  // Скрываем баланс коинов для других пользователей
+  const userResponse = {
+    ...user,
+    coins: undefined // Скрываем баланс
+  };
+  
   res.json({
     success: true,
-    user: user
+    user: userResponse
   });
 });
 
@@ -327,6 +352,7 @@ app.get('/api/posts', (req, res) => {
   res.json(postsWithUsers.reverse());
 });
 
+// ОБНОВЛЕННЫЙ МАРШРУТ: Создание постов с просмотрами
 app.post('/api/posts', (req, res) => {
   const { userId, text, image } = req.body;
   
@@ -346,6 +372,7 @@ app.post('/api/posts', (req, res) => {
     image: image || null,
     likes: [],
     comments: [],
+    views: 0, // Начальное количество просмотров
     timestamp: new Date().toISOString()
   };
   
@@ -366,6 +393,24 @@ app.post('/api/posts', (req, res) => {
         isDeveloper: user.isDeveloper
       }
     }
+  });
+});
+
+// НОВЫЙ МАРШРУТ: Увеличение просмотров
+app.post('/api/posts/:id/view', (req, res) => {
+  const postId = req.params.id;
+  
+  const postIndex = posts.findIndex(p => p.id === postId);
+  if (postIndex === -1) {
+    return res.json({ success: false, message: 'Пост не найден' });
+  }
+  
+  posts[postIndex].views = (posts[postIndex].views || 0) + 1;
+  saveData({ users, messages, posts, gifts, promocodes });
+  
+  res.json({ 
+    success: true, 
+    views: posts[postIndex].views
   });
 });
 
@@ -465,7 +510,7 @@ app.get('/api/gifts', (req, res) => {
 app.post('/api/gifts', (req, res) => {
   const { userId, name, price, image, type } = req.body;
   
-  if (!userId || !name || !price || !image || !type) {
+  if (!userId || !name || !price || !type) {
     return res.json({ success: false, message: 'Все поля обязательны' });
   }
   
@@ -485,7 +530,7 @@ app.post('/api/gifts', (req, res) => {
     id: Date.now().toString(),
     name,
     price: parseInt(price),
-    image,
+    image: image || null,
     type: fileType,
     createdBy: userId,
     createdAt: new Date().toISOString(),
