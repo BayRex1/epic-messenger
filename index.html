@@ -1,347 +1,248 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Epic Messenger - Вход</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic Messenger - Вход</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #0f1419, #1a232c);
-            color: #e6e6e6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
         }
-
-        .container {
-            background: rgba(42, 58, 74, 0.95);
-            padding: 40px;
+        
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 440px;
+            max-width: 400px;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
+        
         .logo {
             text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .logo h1 {
-            font-size: 32px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #0088cc, #00b894);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-
-        .logo p {
-            color: #8a9ba8;
-            font-size: 16px;
-        }
-
-        .tabs {
-            display: flex;
             margin-bottom: 30px;
-            background: rgba(26, 35, 44, 0.8);
-            border-radius: 12px;
-            padding: 4px;
         }
-
-        .tab {
-            flex: 1;
-            padding: 12px;
-            text-align: center;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.3s;
-            font-weight: 600;
+        
+        .logo h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 700;
         }
-
-        .tab.active {
-            background: #0088cc;
-            color: white;
+        
+        .logo .subtitle {
+            color: #666;
+            margin-top: 5px;
+            font-size: 1.1em;
         }
-
+        
         .form-group {
             margin-bottom: 20px;
         }
-
+        
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600;
-            color: #8a9ba8;
+            color: #333;
+            font-weight: 500;
         }
-
+        
         .form-group input {
             width: 100%;
-            padding: 14px 18px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            background: rgba(26, 35, 44, 0.8);
-            color: #e6e6e6;
-            font-size: 15px;
-            transition: all 0.3s;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
-
+        
         .form-group input:focus {
             outline: none;
-            border-color: #0088cc;
-            background: rgba(26, 35, 44, 1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-
-        .remember-me {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .remember-me input {
-            margin-right: 10px;
-        }
-
-        .remember-me label {
-            color: #8a9ba8;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
+        
         .btn {
             width: 100%;
-            padding: 14px;
-            background: #0088cc;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 10px;
+            transition: all 0.3s ease;
         }
-
+        
         .btn:hover {
-            background: #0099e6;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 16px 20px;
-            background: #00b894;
-            color: white;
-            border-radius: 12px;
-            z-index: 1000;
-            animation: slideInRight 0.3s;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        
+        .switch-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
         }
-
-        .notification.error {
-            background: #e17055;
+        
+        .switch-form a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
         }
-
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        
+        .switch-form a:hover {
+            text-decoration: underline;
         }
-
+        
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .features {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .feature-item {
+            display: inline-block;
+            margin: 0 10px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
         @media (max-width: 480px) {
-            .container {
+            .login-container {
+                margin: 20px;
                 padding: 30px 20px;
-            }
-
-            .logo h1 {
-                font-size: 28px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="login-container">
         <div class="logo">
-            <h1>💬 Epic Messenger</h1>
-            <p>Современный мессенджер для общения</p>
+            <h1>Epic Messenger</h1>
+            <div class="subtitle">Общайтесь без границ</div>
         </div>
-
-        <div class="tabs">
-            <div class="tab active" onclick="showTab('login')">Вход</div>
-            <div class="tab" onclick="showTab('register')">Регистрация</div>
+        
+        <div id="loginMessage" class="message"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email или Юзернейм</label>
+                <input type="text" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn">Войти</button>
+        </form>
+        
+        <div class="switch-form">
+            Нет аккаунта? <a href="#" onclick="showRegisterForm()">Зарегистрироваться</a>
         </div>
-
-        <div id="loginForm">
-            <div class="form-group">
-                <label for="loginEmail">Email или Юзернейм</label>
-                <input type="text" id="loginEmail" placeholder="Введите email или юзернейм">
-            </div>
-            <div class="form-group">
-                <label for="loginPassword">Пароль</label>
-                <input type="password" id="loginPassword" placeholder="Введите пароль">
-            </div>
-            <div class="remember-me">
-                <input type="checkbox" id="rememberMe">
-                <label for="rememberMe">Запомнить меня</label>
-            </div>
-            <button class="btn" onclick="login()">Войти в аккаунт</button>
-        </div>
-
-        <div id="registerForm" style="display: none;">
-            <div class="form-group">
-                <label for="regEmail">Email</label>
-                <input type="email" id="regEmail" placeholder="Введите email">
-            </div>
-            <div class="form-group">
-                <label for="regUsername">Юзернейм</label>
-                <input type="text" id="regUsername" placeholder="Введите юзернейм">
-            </div>
-            <div class="form-group">
-                <label for="regDisplayName">Имя для отображения</label>
-                <input type="text" id="regDisplayName" placeholder="Введите ваше имя">
-            </div>
-            <div class="form-group">
-                <label for="regPassword">Пароль</label>
-                <input type="password" id="regPassword" placeholder="Введите пароль">
-            </div>
-            <button class="btn" onclick="register()">Создать аккаунт</button>
+        
+        <div class="features">
+            <div class="feature-item">🎁 Подарки</div>
+            <div class="feature-item">📱 Онлайн чат</div>
+            <div class="feature-item">👥 Сообщества</div>
+            <div class="feature-item">🔐 Безопасность</div>
         </div>
     </div>
 
     <script>
-        function showTab(tabName) {
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target.classList.add('active');
-
-            if (tabName === 'login') {
-                document.getElementById('loginForm').style.display = 'block';
-                document.getElementById('registerForm').style.display = 'none';
-            } else {
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('registerForm').style.display = 'block';
-            }
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type === 'error' ? 'error' : ''}`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 3000);
-        }
-
-        // Проверяем сохраненные данные при загрузке
-        window.onload = function() {
-            const savedEmail = localStorage.getItem('rememberedEmail');
-            const savedPassword = localStorage.getItem('rememberedPassword');
-            const rememberMe = localStorage.getItem('rememberMe') === 'true';
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('loginMessage');
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
             
-            if (rememberMe && savedEmail) {
-                document.getElementById('loginEmail').value = savedEmail;
-                document.getElementById('loginPassword').value = savedPassword || '';
-                document.getElementById('rememberMe').checked = true;
-            }
-        };
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
 
-        async function login() {
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            const rememberMe = document.getElementById('rememberMe').checked;
+        function showRegisterForm() {
+            window.location.href = 'register.html';
+        }
 
-            if (!email || !password) {
-                showNotification('Заполните все поля', 'error');
-                return;
-            }
-
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Вход...';
+            submitBtn.disabled = true;
+            
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({ email, password })
                 });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    // Сохраняем данные если выбрано "Запомнить меня"
-                    if (rememberMe) {
-                        localStorage.setItem('rememberedEmail', email);
-                        localStorage.setItem('rememberedPassword', password);
-                        localStorage.setItem('rememberMe', 'true');
-                    } else {
-                        localStorage.removeItem('rememberedEmail');
-                        localStorage.removeItem('rememberedPassword');
-                        localStorage.removeItem('rememberMe');
-                    }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
+                    showMessage('Вход выполнен! Перенаправление...', 'success');
                     
-                    localStorage.setItem('user', JSON.stringify(result.user));
-                    window.location.href = '/main.html';
+                    setTimeout(() => {
+                        window.location.href = 'main.html';
+                    }, 1000);
                 } else {
-                    showNotification(result.message, 'error');
+                    showMessage(data.message, 'error');
                 }
             } catch (error) {
-                showNotification('Ошибка соединения', 'error');
+                console.error('Login error:', error);
+                showMessage('Ошибка соединения', 'error');
+            } finally {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
             }
-        }
+        });
 
-        async function register() {
-            const email = document.getElementById('regEmail').value.trim();
-            const username = document.getElementById('regUsername').value.trim();
-            const displayName = document.getElementById('regDisplayName').value.trim();
-            const password = document.getElementById('regPassword').value;
-
-            if (!email || !username || !displayName || !password) {
-                showNotification('Заполните все поля', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, username, displayName, password })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showNotification('Регистрация успешна! Выполните вход.');
-                    showTab('login');
-                    document.getElementById('loginEmail').value = email;
-                    document.getElementById('loginPassword').value = password;
-                } else {
-                    showNotification(result.message, 'error');
-                }
-            } catch (error) {
-                showNotification('Ошибка соединения', 'error');
-            }
-        }
-
-        // Авто-фокус на поле ввода
-        document.getElementById('loginEmail').focus();
-
-        // Обработка Enter
-        document.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                if (document.getElementById('loginForm').style.display !== 'none') {
-                    login();
-                } else {
-                    register();
-                }
+        // Проверяем авторизацию при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentUser = localStorage.getItem('currentUser');
+            if (currentUser) {
+                window.location.href = 'main.html';
             }
         });
     </script>
