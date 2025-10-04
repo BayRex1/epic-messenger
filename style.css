@@ -366,3 +366,17 @@ input, textarea {
 .content-area.active.full-height {
     display: flex; /* Для full-height контейнеров */
 }
+
+.menu-icon img {
+    width: 20px;
+    height: 20px;
+    filter: invert(0.8); /* Для темной темы */
+}
+
+.theme-light .menu-icon img {
+    filter: invert(0.3); /* Для светлой темы */
+}
+
+.menu-item.active .menu-icon img {
+    filter: invert(1); /* Белые иконки для активного состояния */
+}
