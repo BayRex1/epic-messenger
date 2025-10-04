@@ -345,3 +345,24 @@ input, textarea {
 
 /* Остальные существующие стили остаются без изменений */
 /* ... существующий CSS код ... */
+.content-area {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: none; /* По умолчанию скрыто */
+    position: relative;
+}
+
+.content-area.full-height {
+    height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+}
+
+.content-area.active {
+    display: block; /* Показываем только активную область */
+}
+
+.content-area.active.full-height {
+    display: flex; /* Для full-height контейнеров */
+}
