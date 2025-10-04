@@ -310,8 +310,159 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Остальные API endpoints нужно аналогично переписать для PostgreSQL
-// Для экономии времени покажу основные, остальные делаются по аналогии:
+app.post('/api/update-profile', async (req, res) => {
+  try {
+    const { userId, username, displayName, description, status, avatarData } = req.body;
+    
+    if (!userId) {
+      return res.json({ success: false, message: 'ID пользователя обязателен' });
+    }
+    
+    // Получаем текущего пользователя
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const currentUser = userResult.rows[0];
+    
+    // Проверяем username на уникальность если он меняется
+    if (username && username !== currentUser.username) {
+      const existingUser = await pool.query(
+        'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND id != $2 AND deleted = false',
+        [username, userId]
+      );
+      
+      if (existingUser.rows.length > 0) {
+        return res.json({ success: false, message: 'Юзернейм уже занят' });
+      }
+    }
+    
+    // Формируем запрос для обновления
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (username) {
+      updates.push(`username = $${paramCount}`);
+      values.push(username);
+      paramCount++;
+    }
+    
+    if (displayName) {
+      updates.push(`display_name = $${paramCount}`);
+      values.push(displayName);
+      paramCount++;
+    }
+    
+    if (description !== undefined) {
+      updates.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+    
+    if (status) {
+      updates.push(`status = $${paramCount}`);
+      values.push(status);
+      paramCount++;
+    }
+    
+    if (avatarData !== undefined) {
+      updates.push(`avatar = $${paramCount}`);
+      values.push(avatarData);
+      paramCount++;
+    }
+    
+    if (updates.length === 0) {
+      return res.json({ success: false, message: 'Нет данных для обновления' });
+    }
+    
+    // Добавляем userId в values
+    values.push(userId);
+    
+    // Выполняем обновление
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+      values
+    );
+    
+    // Получаем обновленного пользователя
+    const updatedUserResult = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    const updatedUser = updatedUserResult.rows[0];
+    
+    res.json({ 
+      success: true, 
+      message: 'Профиль обновлен',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        username: updatedUser.username,
+        displayName: updatedUser.display_name,
+        status: updatedUser.status,
+        verified: updatedUser.verified,
+        isDeveloper: updatedUser.is_developer,
+        avatar: updatedUser.avatar,
+        description: updatedUser.description,
+        coins: updatedUser.coins,
+        gifts: updatedUser.gifts || [],
+        usedPromocodes: updatedUser.used_promocodes || [],
+        createdAt: updatedUser.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.json({ success: false, message: 'Ошибка при обновлении профиля' });
+  }
+});
+
+app.get('/api/search-users', async (req, res) => {
+  try {
+    const { query, currentUserId } = req.query;
+    
+    if (!query || !currentUserId) {
+      return res.json([]);
+    }
+    
+    const searchTerm = `%${query.toLowerCase().trim()}%`;
+    const usersResult = await pool.query(
+      `SELECT * FROM users WHERE 
+       id != $1 AND deleted = false AND
+       (LOWER(username) LIKE $2 OR
+        LOWER(display_name) LIKE $2 OR
+        LOWER(email) LIKE $2)`,
+      [currentUserId, searchTerm]
+    );
+    
+    const usersFormatted = usersResult.rows.map(user => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+      status: user.status,
+      verified: user.verified,
+      isDeveloper: user.is_developer,
+      avatar: user.avatar,
+      description: user.description,
+      coins: user.coins,
+      gifts: user.gifts || [],
+      usedPromocodes: user.used_promocodes || [],
+      createdAt: user.created_at
+    }));
+    
+    res.json(usersFormatted);
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.json([]);
+  }
+});
 
 app.get('/api/users', async (req, res) => {
   try {
@@ -344,21 +495,799 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-app.get('/api/messages/:userId/:targetId', async (req, res) => {
+app.get('/api/user-chats', async (req, res) => {
   try {
-    const { userId, targetId } = req.params;
+    const { currentUserId } = req.query;
     
-    const messages = await pool.query(
-      `SELECT * FROM messages WHERE 
-       ((user_id = $1 AND to_user_id = $2) OR (user_id = $2 AND to_user_id = $1)) 
-       AND deleted = false ORDER BY timestamp ASC`,
-      [userId, targetId]
+    if (!currentUserId) {
+      return res.json([]);
+    }
+    
+    // Находим пользователей, с которыми есть переписка
+    const chatsResult = await pool.query(
+      `SELECT DISTINCT u.* FROM users u
+       JOIN messages m ON (u.id = m.user_id OR u.id = m.to_user_id)
+       WHERE (m.user_id = $1 OR m.to_user_id = $1) 
+       AND u.id != $1 AND u.deleted = false
+       AND m.deleted = false`,
+      [currentUserId]
     );
     
-    res.json(messages.rows);
+    const chatUsers = chatsResult.rows.map(user => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+      status: user.status,
+      verified: user.verified,
+      isDeveloper: user.is_developer,
+      avatar: user.avatar,
+      description: user.description,
+      coins: user.coins,
+      gifts: user.gifts || [],
+      usedPromocodes: user.used_promocodes || [],
+      createdAt: user.created_at
+    }));
+    
+    res.json(chatUsers);
   } catch (error) {
-    console.error('Error getting messages:', error);
+    console.error('Error getting user chats:', error);
     res.json([]);
+  }
+});
+
+app.get('/api/user/:id', async (req, res) => {
+  try {
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [req.params.id]
+    );
+    
+    if (user.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const userData = user.rows[0];
+    
+    res.json({
+      success: true,
+      user: {
+        id: userData.id,
+        email: userData.email,
+        username: userData.username,
+        displayName: userData.display_name,
+        status: userData.status,
+        verified: userData.verified,
+        isDeveloper: userData.is_developer,
+        avatar: userData.avatar,
+        description: userData.description,
+        coins: userData.coins,
+        gifts: userData.gifts || [],
+        usedPromocodes: userData.used_promocodes || [],
+        createdAt: userData.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Error getting user:', error);
+    res.json({ success: false, message: 'Ошибка получения пользователя' });
+  }
+});
+
+// Посты API
+app.get('/api/posts', async (req, res) => {
+  try {
+    const posts = await pool.query(`
+      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
+      FROM posts p 
+      LEFT JOIN users u ON p.user_id = u.id AND u.deleted = false 
+      ORDER BY p.timestamp DESC
+    `);
+    
+    const postsWithUsers = posts.rows.map(post => ({
+      ...post,
+      user: {
+        id: post.user_id,
+        username: post.username,
+        displayName: post.display_name,
+        avatar: post.avatar,
+        verified: post.verified,
+        isDeveloper: post.is_developer
+      }
+    }));
+    
+    res.json(postsWithUsers);
+  } catch (error) {
+    console.error('Error getting posts:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/posts', async (req, res) => {
+  try {
+    const { userId, text, image } = req.body;
+    
+    if (!userId || !text) {
+      return res.json({ success: false, message: 'Текст поста обязателен' });
+    }
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const userData = user.rows[0];
+    const postId = Date.now().toString();
+    
+    await pool.query(
+      'INSERT INTO posts (id, user_id, text, image, likes, comments) VALUES ($1, $2, $3, $4, $5, $6)',
+      [postId, userId, text, image || null, JSON.stringify([]), JSON.stringify([])]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Пост опубликован',
+      post: {
+        id: postId,
+        userId,
+        text,
+        image: image || null,
+        likes: [],
+        comments: [],
+        timestamp: new Date().toISOString(),
+        user: {
+          id: userData.id,
+          username: userData.username,
+          displayName: userData.display_name,
+          avatar: userData.avatar,
+          verified: userData.verified,
+          isDeveloper: userData.is_developer
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error creating post:', error);
+    res.json({ success: false, message: 'Ошибка создания поста' });
+  }
+});
+
+app.post('/api/posts/:id/like', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const postId = req.params.id;
+    
+    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
+    if (post.rows.length === 0) {
+      return res.json({ success: false, message: 'Пост не найден' });
+    }
+    
+    const postData = post.rows[0];
+    const likes = postData.likes || [];
+    const likeIndex = likes.indexOf(userId);
+    
+    if (likeIndex === -1) {
+      likes.push(userId);
+    } else {
+      likes.splice(likeIndex, 1);
+    }
+    
+    await pool.query(
+      'UPDATE posts SET likes = $1 WHERE id = $2',
+      [JSON.stringify(likes), postId]
+    );
+    
+    res.json({ 
+      success: true, 
+      likes: likes.length,
+      isLiked: likeIndex === -1
+    });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/posts/:id/comment', async (req, res) => {
+  try {
+    const { userId, text } = req.body;
+    const postId = req.params.id;
+    
+    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
+    if (post.rows.length === 0) {
+      return res.json({ success: false, message: 'Пост не найден' });
+    }
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const userData = user.rows[0];
+    const postData = post.rows[0];
+    const comments = postData.comments || [];
+    
+    const comment = {
+      id: Date.now().toString(),
+      userId,
+      text,
+      timestamp: new Date().toISOString(),
+      user: {
+        id: userData.id,
+        username: userData.username,
+        displayName: userData.display_name,
+        avatar: userData.avatar,
+        verified: userData.verified,
+        isDeveloper: userData.is_developer
+      }
+    };
+    
+    comments.push(comment);
+    
+    await pool.query(
+      'UPDATE posts SET comments = $1 WHERE id = $2',
+      [JSON.stringify(comments), postId]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Комментарий добавлен',
+      comment
+    });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.delete('/api/posts/:id', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { userId } = req.body;
+    
+    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
+    if (post.rows.length === 0) {
+      return res.json({ success: false, message: 'Пост не найден' });
+    }
+    
+    const postData = post.rows[0];
+    if (postData.user_id !== userId) {
+      return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
+    }
+    
+    await pool.query('DELETE FROM posts WHERE id = $1', [postId]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Пост удален'
+    });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// Подарки API
+app.get('/api/gifts', async (req, res) => {
+  try {
+    const gifts = await pool.query('SELECT * FROM gifts WHERE deleted = false');
+    res.json(gifts.rows);
+  } catch (error) {
+    console.error('Error getting gifts:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/gifts', async (req, res) => {
+  try {
+    const { userId, name, price, image, type } = req.body;
+    
+    if (!userId || !name || !price || !image || !type) {
+      return res.json({ success: false, message: 'Все поля обязательны' });
+    }
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0 || !user.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+    
+    // Проверка типа файла
+    const allowedTypes = ['png', 'svg', 'gif', 'webp'];
+    const fileType = type.toLowerCase();
+    if (!allowedTypes.includes(fileType)) {
+      return res.json({ success: false, message: 'Разрешены только PNG, SVG, GIF и WebP файлы' });
+    }
+    
+    const giftId = Date.now().toString();
+    
+    await pool.query(
+      'INSERT INTO gifts (id, name, price, image, type, created_by) VALUES ($1, $2, $3, $4, $5, $6)',
+      [giftId, name, parseInt(price), image, fileType, userId]
+    );
+    
+    const gift = {
+      id: giftId,
+      name,
+      price: parseInt(price),
+      image,
+      type: fileType,
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+      deleted: false
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Подарок добавлен в магазин',
+      gift
+    });
+  } catch (error) {
+    console.error('Error creating gift:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/gifts/buy', async (req, res) => {
+  try {
+    const { userId, giftId, toUserId, message } = req.body;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    const toUser = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [toUserId]
+    );
+    const gift = await pool.query(
+      'SELECT * FROM gifts WHERE id = $1 AND deleted = false',
+      [giftId]
+    );
+    
+    if (user.rows.length === 0 || toUser.rows.length === 0 || gift.rows.length === 0) {
+      return res.json({ success: false, message: 'Ошибка покупки подарка' });
+    }
+    
+    const userData = user.rows[0];
+    const toUserData = toUser.rows[0];
+    const giftData = gift.rows[0];
+    
+    // Обновляем подарки получателя
+    const toUserGifts = toUserData.gifts || [];
+    toUserGifts.push({
+      giftId: giftData.id,
+      fromUserId: userId,
+      fromUserName: userData.display_name,
+      timestamp: new Date().toISOString()
+    });
+    
+    await pool.query(
+      'UPDATE users SET gifts = $1 WHERE id = $2',
+      [JSON.stringify(toUserGifts), toUserId]
+    );
+    
+    // Создаем сообщение о подарке
+    const messageId = Date.now().toString();
+    const giftMessage = {
+      id: messageId,
+      userId: userId,
+      username: userData.username,
+      displayName: userData.display_name,
+      text: message ? `🎁 Подарил(а) подарок "${giftData.name}": ${message}` : `🎁 Подарил(а) подарок "${giftData.name}"`,
+      toUserId: toUserId,
+      timestamp: new Date().toISOString(),
+      verified: userData.verified,
+      isDeveloper: userData.is_developer,
+      type: 'gift',
+      giftId: giftData.id,
+      giftName: giftData.name,
+      giftPrice: giftData.price,
+      giftImage: giftData.image,
+      giftType: giftData.type
+    };
+    
+    await pool.query(
+      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, 
+       verified, is_developer, type, gift_id, gift_name, gift_price) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [messageId, userId, userData.username, userData.display_name, giftMessage.text, toUserId,
+       userData.verified, userData.is_developer, 'gift', giftData.id, giftData.name, giftData.price]
+    );
+    
+    // Отправляем уведомление получателю если он онлайн
+    const recipientEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === toUserId);
+    
+    if (recipientEntry) {
+      const [recipientSocketId, recipientUser] = recipientEntry;
+      io.to(recipientSocketId).emit('new_message', giftMessage);
+      
+      // Отправляем отдельное уведомление о подарке
+      io.to(recipientSocketId).emit('gift_received', {
+        fromUser: {
+          id: userData.id,
+          username: userData.username,
+          displayName: userData.display_name,
+          avatar: userData.avatar,
+          verified: userData.verified,
+          isDeveloper: userData.is_developer
+        },
+        gift: giftData,
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Отправляем уведомление отправителю
+    const senderEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === userId);
+    
+    if (senderEntry) {
+      const [senderSocketId] = senderEntry;
+      io.to(senderSocketId).emit('gift_sent', {
+        toUser: {
+          id: toUserData.id,
+          username: toUserData.username,
+          displayName: toUserData.display_name,
+          avatar: toUserData.avatar
+        },
+        gift: giftData,
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Подарок успешно отправлен!',
+      gift: giftData
+    });
+  } catch (error) {
+    console.error('Error buying gift:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// Промокоды API
+app.get('/api/promocodes', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0 || !user.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+    
+    const promocodes = await pool.query('SELECT * FROM promocodes WHERE deleted = false');
+    res.json(promocodes.rows);
+  } catch (error) {
+    console.error('Error getting promocodes:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/promocodes', async (req, res) => {
+  try {
+    const { userId, code, coins, maxUses } = req.body;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0 || !user.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+    
+    if (!code || !coins) {
+      return res.json({ success: false, message: 'Код и количество коинов обязательны' });
+    }
+    
+    const existingPromo = await pool.query(
+      'SELECT * FROM promocodes WHERE code = $1 AND deleted = false',
+      [code.toUpperCase()]
+    );
+    
+    if (existingPromo.rows.length > 0) {
+      return res.json({ success: false, message: 'Промокод уже существует' });
+    }
+    
+    const promocodeId = Date.now().toString();
+    
+    await pool.query(
+      'INSERT INTO promocodes (id, code, coins, max_uses, used_count, used_by, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [promocodeId, code.toUpperCase(), parseInt(coins), maxUses || 1, 0, JSON.stringify([]), userId]
+    );
+    
+    const promocode = {
+      id: promocodeId,
+      code: code.toUpperCase(),
+      coins: parseInt(coins),
+      maxUses: maxUses || 1,
+      usedCount: 0,
+      usedBy: [],
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+      deleted: false
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Промокод создан',
+      promocode
+    });
+  } catch (error) {
+    console.error('Error creating promocode:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/promocodes/use', async (req, res) => {
+  try {
+    const { userId, code } = req.body;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const userData = user.rows[0];
+    const promocode = await pool.query(
+      'SELECT * FROM promocodes WHERE code = $1 AND deleted = false AND used_count < max_uses',
+      [code.toUpperCase()]
+    );
+    
+    if (promocode.rows.length === 0) {
+      return res.json({ success: false, message: 'Промокод не найден или достиг лимита использований' });
+    }
+    
+    const promocodeData = promocode.rows[0];
+    const usedBy = promocodeData.used_by || [];
+    
+    if (usedBy.includes(userId)) {
+      return res.json({ success: false, message: 'Вы уже использовали этот промокод' });
+    }
+    
+    // Начисляем коины
+    const newCoins = (userData.coins || 0) + promocodeData.coins;
+    usedBy.push(userId);
+    
+    await pool.query(
+      'UPDATE users SET coins = $1, used_promocodes = $2 WHERE id = $3',
+      [newCoins, JSON.stringify([...(userData.used_promocodes || []), {
+        code: promocodeData.code,
+        coins: promocodeData.coins,
+        usedAt: new Date().toISOString()
+      }]), userId]
+    );
+    
+    await pool.query(
+      'UPDATE promocodes SET used_count = $1, used_by = $2 WHERE id = $3',
+      [promocodeData.used_count + 1, JSON.stringify(usedBy), promocodeData.id]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: `Промокод активирован! Получено ${promocodeData.coins} E-COIN`,
+      coins: newCoins
+    });
+  } catch (error) {
+    console.error('Error using promocode:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.delete('/api/promocodes/:id', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const promocodeId = req.params.id;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (user.rows.length === 0 || !user.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+    
+    await pool.query(
+      'UPDATE promocodes SET deleted = true WHERE id = $1',
+      [promocodeId]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Промокод удален'
+    });
+  } catch (error) {
+    console.error('Error deleting promocode:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// Админ endpoints
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await pool.query('SELECT * FROM users WHERE deleted = false');
+    const usersFormatted = users.rows.map(user => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+      status: user.status,
+      verified: user.verified,
+      isDeveloper: user.is_developer,
+      avatar: user.avatar,
+      description: user.description,
+      coins: user.coins,
+      gifts: user.gifts || [],
+      usedPromocodes: user.used_promocodes || [],
+      createdAt: user.created_at,
+      deleted: user.deleted
+    }));
+    
+    res.json(usersFormatted);
+  } catch (error) {
+    console.error('Error getting admin users:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/admin/toggle-verify', async (req, res) => {
+  try {
+    const { userId, verified } = req.body;
+    
+    await pool.query(
+      'UPDATE users SET verified = $1 WHERE id = $2',
+      [verified, userId]
+    );
+    
+    // Отправляем уведомление пользователю если он онлайн
+    const userEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === userId);
+    
+    if (userEntry) {
+      const [userSocketId] = userEntry;
+      io.to(userSocketId).emit('user_verified', { 
+        userId: userId, 
+        verified: verified 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Аккаунт ${verified ? 'верифицирован' : 'деверифицирован'}` 
+    });
+  } catch (error) {
+    console.error('Error toggling verify:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/admin/toggle-developer', async (req, res) => {
+  try {
+    const { userId, isDeveloper } = req.body;
+    
+    await pool.query(
+      'UPDATE users SET is_developer = $1 WHERE id = $2',
+      [isDeveloper, userId]
+    );
+    
+    // Отправляем уведомление пользователю если он онлайн
+    const userEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === userId);
+    
+    if (userEntry) {
+      const [userSocketId] = userEntry;
+      io.to(userSocketId).emit('user_developer_updated', { 
+        userId: userId, 
+        isDeveloper: isDeveloper 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Роль разработчика ${isDeveloper ? 'назначена' : 'снята'}` 
+    });
+  } catch (error) {
+    console.error('Error toggling developer:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/admin/delete-user', async (req, res) => {
+  try {
+    const { userId, adminId } = req.body;
+    
+    const adminUser = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [adminId]
+    );
+    
+    if (adminUser.rows.length === 0 || !adminUser.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+    
+    const userToDelete = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (userToDelete.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+    
+    const userData = userToDelete.rows[0];
+    
+    // ЗАЩИТА: BayRex нельзя удалить
+    if (userData.username.toLowerCase() === 'bayrex') {
+      return res.json({ success: false, message: 'Нельзя удалить создателя системы BayRex' });
+    }
+    
+    if (userId === adminId) {
+      return res.json({ success: false, message: 'Нельзя удалить самого себя' });
+    }
+    
+    // Помечаем пользователя как удаленного
+    await pool.query(
+      `UPDATE users SET 
+       deleted = true,
+       display_name = 'Удаленный пользователь',
+       username = $1,
+       email = $2,
+       avatar = null,
+       description = 'Этот аккаунт был удален',
+       status = 'offline',
+       verified = false,
+       is_developer = false
+       WHERE id = $3`,
+      ['deleted_' + Date.now(), 'deleted_' + Date.now() + '@deleted.com', userId]
+    );
+    
+    // Уведомляем всех онлайн пользователей об удалении
+    io.emit('user_deleted', { 
+      userId: userId,
+      message: 'Пользователь был удален' 
+    });
+    
+    // Отключаем пользователя если он онлайн
+    const userEntry = Array.from(onlineUsers.entries())
+      .find(([_, u]) => u.userId === userId);
+    
+    if (userEntry) {
+      const [userSocketId] = userEntry;
+      io.to(userSocketId).emit('user_deleted', { 
+        message: 'Ваш аккаунт был удален администратором' 
+      });
+      onlineUsers.delete(userSocketId);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Пользователь удален' 
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.json({ success: false, message: 'Ошибка' });
   }
 });
 
@@ -508,6 +1437,62 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('message_sent', { success: false, error: 'Ошибка отправки сообщения' });
+    }
+  });
+
+  socket.on('delete_message', async (data) => {
+    try {
+      const { messageId, userId } = data;
+      
+      const message = await pool.query(
+        'SELECT * FROM messages WHERE id = $1',
+        [messageId]
+      );
+      
+      if (message.rows.length === 0) {
+        socket.emit('message_delete_error', { message: 'Сообщение не найдено' });
+        return;
+      }
+      
+      const messageData = message.rows[0];
+      
+      // Проверяем права на удаление (только отправитель или получатель)
+      if (messageData.user_id !== userId && messageData.to_user_id !== userId) {
+        socket.emit('message_delete_error', { message: 'Вы не можете удалить это сообщение' });
+        return;
+      }
+      
+      // Помечаем сообщение как удаленное
+      await pool.query(
+        'UPDATE messages SET deleted = true WHERE id = $1',
+        [messageId]
+      );
+      
+      // Уведомляем всех участников чата об удалении
+      const participants = [messageData.user_id, messageData.to_user_id];
+      
+      participants.forEach(participantId => {
+        const participantEntry = Array.from(onlineUsers.entries())
+          .find(([_, u]) => u.userId === participantId);
+        
+        if (participantEntry) {
+          const [participantSocketId] = participantEntry;
+          io.to(participantSocketId).emit('message_deleted', { 
+            messageId: messageId,
+            deletedBy: userId
+          });
+        }
+      });
+      
+      socket.emit('message_deleted', { 
+        messageId: messageId,
+        success: true 
+      });
+      
+      console.log('🗑️ Сообщение удалено:', messageId);
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      socket.emit('message_delete_error', { message: 'Ошибка удаления сообщения' });
     }
   });
 
