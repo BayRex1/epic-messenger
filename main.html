@@ -39,38 +39,6 @@
             --glass-bg: rgba(0, 0, 0, 0.1);
             --glass-border: rgba(0, 0, 0, 0.2);
         }
-
-        .theme-custom1 {
-            --bg-primary: url('assets/tema1.png');
-            --bg-secondary: rgba(26, 35, 44, 0.9);
-            --bg-tertiary: rgba(42, 58, 74, 0.8);
-            --border-color: rgba(42, 58, 74, 0.6);
-            --text-primary: #e6e6e6;
-            --text-secondary: #8a9ba8;
-            --accent-color: #00b4b4;
-            --accent-hover: #00cccc;
-            --success-color: #00b894;
-            --error-color: #e17055;
-            --warning-color: #fdcb6e;
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
-        }
-
-        .theme-custom2 {
-            --bg-primary: url('assets/tema2.png');
-            --bg-secondary: rgba(26, 35, 44, 0.9);
-            --bg-tertiary: rgba(42, 58, 74, 0.8);
-            --border-color: rgba(42, 58, 74, 0.6);
-            --text-primary: #e6e6e6;
-            --text-secondary: #8a9ba8;
-            --accent-color: #00b4b4;
-            --accent-hover: #00cccc;
-            --success-color: #00b894;
-            --error-color: #e17055;
-            --warning-color: #fdcb6e;
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
-        }
         
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
@@ -80,10 +48,6 @@
             height: 100vh;
             overflow: hidden;
             transition: all 0.3s ease;
-        }
-
-        .theme-custom1 body, .theme-custom2 body {
-            background: var(--bg-primary) center/cover no-repeat fixed;
         }
         
         /* Сайдбар */
@@ -232,23 +196,19 @@
             transition: all 0.3s ease;
             position: relative;
         }
-
-        .theme-custom1 .main-content, .theme-custom2 .main-content {
-            background: transparent;
-        }
         
         .content-area {
             flex: 1;
-            padding: 20px;
+            padding: 0;
             overflow-y: auto;
             display: none;
             position: relative;
-            height: calc(100vh - 40px);
-            flex-direction: column;
+            height: 100vh;
         }
         
         .content-area.active {
             display: flex;
+            flex-direction: column;
         }
         
         .section-title {
@@ -257,7 +217,7 @@
             color: var(--text-primary);
         }
         
-        /* Чат */
+        /* Чат - ОСОБЫЕ СТИЛИ ДЛЯ ЧАТА */
         .chat-container {
             display: flex;
             flex: 1;
@@ -477,6 +437,12 @@
         }
         
         /* Посты */
+        .posts-container {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
         .post {
             background: var(--bg-secondary);
             border-radius: 12px;
@@ -625,6 +591,12 @@
         }
         
         /* Настройки */
+        .settings-container {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
         .theme-selector {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -652,24 +624,6 @@
             transform: translateY(-2px);
         }
         
-        .custom-theme-option {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .custom-theme-option img {
-            width: 100%;
-            height: 60px;
-            object-fit: cover;
-            border-radius: 4px;
-            margin-bottom: 8px;
-        }
-        
-        .custom-theme-name {
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
         /* Уведомления */
         .notification {
             position: fixed;
@@ -692,6 +646,12 @@
         }
         
         /* Админ панель */
+        .admin-container {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
         .admin-btn {
             padding: 6px 12px;
             border: 1px solid var(--border-color);
@@ -884,6 +844,12 @@
         }
 
         /* Профиль пользователя */
+        .profile-container {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
         .user-profile {
             background: var(--bg-secondary);
             border-radius: 12px;
@@ -1005,9 +971,11 @@
             border-radius: 8px;
         }
 
-        /* Эмодзи бирюзовые */
-        .emoji {
-            color: #00b4b4;
+        /* E-COIN */
+        .ecoins-container {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
         }
 
         /* Мобильная адаптация */
@@ -1064,44 +1032,45 @@
             <!-- Компактное меню -->
             <div class="compact-menu">
                 <button class="menu-item active" onclick="showContent('chats')">
-                    <div class="menu-icon" style="color: #00b4b4;">💬</div>
+                    <div class="menu-icon">💬</div>
                     <div class="menu-text">Мессенджер</div>
                 </button>
                 
-                <button class="menu-item" onclick="showContent('feed')">
-                    <div class="menu-icon" style="color: #00b4b4;">📰</div>
-                    <div class="menu-text">Лента</div>
+                
+                 <button class="menu-item" onclick="showContent('feed')">
+                     <div class="menu-icon"><img src="assets/icons/feed.svg" alt="Лента"></div>
+                     <div class="menu-text">Лента</div>
                 </button>
                 
                 <button class="menu-item" onclick="showContent('profile')">
-                    <div class="menu-icon" style="color: #00b4b4;">👤</div>
+                    <div class="menu-icon"><img src="assets/icons/profile.svg" alt="Профиль"></div>
                     <div class="menu-text">Мой профиль</div>
                 </button>
                 
                 <button class="menu-item" onclick="showContent('ecoins')">
-                    <div class="menu-icon" style="color: #00b4b4;">🪙</div>
+                    <div class="menu-icon">🪙</div>
                     <div class="menu-text">E-COIN</div>
                 </button>
-                
+
                 <button class="menu-item" onclick="showContent('settings')">
-                    <div class="menu-icon" style="color: #00b4b4;">⚙️</div>
+                    <div class="menu-icon"><img src="assets/icons/settings.svg" alt="Настройки"></div>
                     <div class="menu-text">Настройки</div>
                 </button>
                 
                 <div class="menu-divider"></div>
                 
                 <button class="menu-item" id="adminMenuItem" onclick="showContent('admin')">
-                    <div class="menu-icon" style="color: #00b4b4;">🔧</div>
+                    <div class="menu-icon"><img src="assets/icons/admin.svg" alt="Админ"></div>
                     <div class="menu-text">Админ панель</div>
                 </button>
                 
                 <button class="menu-item" onclick="switchAccount()">
-                    <div class="menu-icon" style="color: #00b4b4;">🔄</div>
-                    <div class="menu-text">Сменить аккаунт</div>
+                     <div class="menu-icon"><img src="assets/icons/switch.svg" alt="Сменить"></div>
+                     <div class="menu-text">Сменить аккаунт</div>
                 </button>
                 
                 <button class="menu-item" onclick="logout()">
-                    <div class="menu-icon" style="color: #00b4b4;">🚪</div>
+                    <div class="menu-icon">🚪</div>
                     <div class="menu-text">Выйти</div>
                 </button>
             </div>
@@ -1130,7 +1099,7 @@
                                 </div>
                             </div>
                             <div class="chat-actions" id="chatActions" style="display: none;">
-                                <button class="admin-btn" onclick="viewCurrentUserProfile()">👁️ Профиль</button>
+                                <button class="admin-btn" onclick="viewCurrentUserProfile()">Профиль</button>
                                 <button class="admin-btn" onclick="sendGiftToCurrentUser()">🎁 Подарок</button>
                             </div>
                         </div>
@@ -1141,7 +1110,7 @@
                         </div>
                         <div class="message-input-container">
                             <button class="file-upload-btn" onclick="openFileUpload('chat')" title="Прикрепить файл">
-                                <span style="color: #00b4b4;">📎</span>
+                                <span>📎</span>
                             </button>
                             <div class="message-input-wrapper">
                                 <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleKeyPress(event)">
@@ -1154,44 +1123,54 @@
             
             <!-- Лента -->
             <div class="content-area" id="feedContent">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 class="section-title">Лента</h2>
-                    <button class="admin-btn" onclick="showCreatePostModal()">+ Создать пост</button>
-                </div>
-                <div id="postsFeed" style="flex: 1; overflow-y: auto;">
-                    <!-- Посты будут здесь -->
+                <div class="posts-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="section-title">Лента</h2>
+                        <button class="admin-btn" onclick="showCreatePostModal()">+ Создать пост</button>
+                    </div>
+                    <div id="postsFeed">
+                        <!-- Посты будут здесь -->
+                    </div>
                 </div>
             </div>
             
             <!-- Мой профиль -->
             <div class="content-area" id="profileContent">
-                <h2 class="section-title">Мой профиль</h2>
-                <div id="profileInfo" style="flex: 1; overflow-y: auto;">
-                    <!-- Информация профиля будет здесь -->
+                <div class="profile-container">
+                    <h2 class="section-title">Мой профиль</h2>
+                    <div id="profileInfo">
+                        <!-- Информация профиля будет здесь -->
+                    </div>
                 </div>
             </div>
             
             <!-- E-COIN -->
             <div class="content-area" id="ecoinsContent">
-                <h2 class="section-title">E-COIN</h2>
-                <div id="ecoinsInfo" style="flex: 1; overflow-y: auto;">
-                    <!-- Информация о E-COIN будет здесь -->
+                <div class="ecoins-container">
+                    <h2 class="section-title">E-COIN</h2>
+                    <div id="ecoinsInfo">
+                        <!-- Информация о E-COIN будет здесь -->
+                    </div>
                 </div>
             </div>
             
             <!-- Настройки -->
             <div class="content-area" id="settingsContent">
-                <h2 class="section-title">Настройки</h2>
-                <div id="settingsInfo" style="flex: 1; overflow-y: auto;">
-                    <!-- Настройки будут здесь -->
+                <div class="settings-container">
+                    <h2 class="section-title">Настройки</h2>
+                    <div id="settingsInfo">
+                        <!-- Настройки будут здесь -->
+                    </div>
                 </div>
             </div>
             
             <!-- Админ панель -->
             <div class="content-area" id="adminContent">
-                <h2 class="section-title">Админ панель</h2>
-                <div id="adminInfo" style="flex: 1; overflow-y: auto;">
-                    <!-- Админ панель будет здесь -->
+                <div class="admin-container">
+                    <h2 class="section-title">Админ панель</h2>
+                    <div id="adminInfo">
+                        <!-- Админ панель будет здесь -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1503,7 +1482,7 @@
             if (message.type === 'gift') {
                 messageContent = `
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <div style="font-size: 24px; color: #00b4b4;">🎁</div>
+                        <div style="font-size: 24px;">🎁</div>
                         <div>
                             <div>${message.text}</div>
                             ${message.giftImage ? 
@@ -1713,7 +1692,7 @@
                                             <div class="my-gift-preview">
                                                 ${giftData.image ? 
                                                     `<img src="${giftData.image}" alt="${giftData.name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                                    '<span style="color: #00b4b4;">🎁</span>'
+                                                    '🎁'
                                                 }
                                             </div>
                                             <div class="my-gift-name">${giftData.name}</div>
@@ -1733,7 +1712,7 @@
             const ecoinsInfo = document.getElementById('ecoinsInfo');
             ecoinsInfo.innerHTML = `
                 <div style="text-align: center; margin-bottom: 30px;">
-                    <div style="font-size: 72px; color: #00b4b4; font-weight: bold; margin-bottom: 10px;">
+                    <div style="font-size: 72px; color: var(--accent-color); font-weight: bold; margin-bottom: 10px;">
                         ${currentUser.coins || 0}
                     </div>
                     <div style="color: var(--text-secondary); font-size: 18px;">Ваш баланс E-COIN</div>
@@ -1771,14 +1750,6 @@
                         <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
                             Светлая
                         </div>
-                        <div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
-                            <img src="assets/tema1.png" alt="Тема 1" onerror="this.style.display='none'">
-                            <div class="custom-theme-name">Тема 1</div>
-                        </div>
-                        <div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
-                            <img src="assets/tema2.png" alt="Тема 2" onerror="this.style.display='none'">
-                            <div class="custom-theme-name">Тема 2</div>
-                        </div>
                     </div>
                 </div>
                 
@@ -1792,7 +1763,7 @@
                         <div>
                             <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Аватарка</label>
                             <div class="file-upload-area" onclick="openFileUpload('avatar')">
-                                <div style="font-size: 48px; color: #00b4b4; margin-bottom: 10px;">📷</div>
+                                <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
                                 <div>Нажмите для загрузки аватарки</div>
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, SVG</div>
                             </div>
@@ -1810,7 +1781,7 @@
             if (!currentUser.isDeveloper) {
                 document.getElementById('adminInfo').innerHTML = `
                     <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                        <div style="font-size: 48px; margin-bottom: 20px; color: #00b4b4;">🔒</div>
+                        <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
                         <h3>Доступ запрещен</h3>
                         <p>У вас нет прав для доступа к админ панели</p>
                     </div>
@@ -1822,15 +1793,15 @@
             adminInfo.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
                     <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px; text-align: center;">
-                        <div style="font-size: 32px; font-weight: bold; color: #00b4b4;">${allUsers.length}</div>
+                        <div style="font-size: 32px; font-weight: bold; color: var(--accent-color);">${allUsers.length}</div>
                         <div style="color: var(--text-secondary);">Пользователи</div>
                     </div>
                     <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px; text-align: center;">
-                        <div style="font-size: 32px; font-weight: bold; color: #00b4b4;">${posts.length}</div>
+                        <div style="font-size: 32px; font-weight: bold; color: var(--accent-color);">${posts.length}</div>
                         <div style="color: var(--text-secondary);">Посты</div>
                     </div>
                     <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px; text-align: center;">
-                        <div style="font-size: 32px; font-weight: bold; color: #00b4b4;">${gifts.length}</div>
+                        <div style="font-size: 32px; font-weight: bold; color: var(--accent-color);">${gifts.length}</div>
                         <div style="color: var(--text-secondary);">Подарки</div>
                     </div>
                 </div>
@@ -1855,7 +1826,7 @@
                                         </div>
                                         <div style="font-size: 14px; color: var(--text-secondary);">@${user.username}</div>
                                         <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-                                            Coins: ${user.coins} | Статус: ${user.status}
+                                            Статус: ${user.status}
                                         </div>
                                     </div>
                                 </div>
@@ -1885,7 +1856,7 @@
                             <div>
                                 <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Изображение подарка</label>
                                 <div class="file-upload-area" onclick="openFileUpload('gift')">
-                                    <div style="font-size: 48px; color: #00b4b4; margin-bottom: 10px;">🎁</div>
+                                    <div style="font-size: 48px; margin-bottom: 10px;">🎁</div>
                                     <div>Нажмите для загрузки изображения</div>
                                     <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, SVG, GIF, WebP</div>
                                 </div>
@@ -1914,7 +1885,7 @@
             postsFeed.innerHTML = posts.map(post => {
                 const isLiked = post.likes.includes(currentUser.id);
                 return `
-                    <div class="post">
+                    <div class="post" onmouseenter="incrementPostViews('${post.id}')">
                         <div class="post-header">
                             <div class="post-user">
                                 <div class="post-avatar">
@@ -1943,26 +1914,21 @@
                                     <img src="${post.image}" alt="Изображение поста">
                                 </div>
                             ` : ''}
-                            ${post.video ? `
-                                <div class="post-media">
-                                    <video controls>
-                                        <source src="${post.video}" type="video/mp4">
-                                    </video>
-                                </div>
-                            ` : ''}
                         </div>
                         <div class="post-actions">
                             <button class="post-action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
-                                <span style="color: ${isLiked ? '#e17055' : '#00b4b4'};">❤️</span> ${post.likes.length}
+                                <span style="color: ${isLiked ? 'var(--error-color)' : 'var(--accent-color)'};">
+                                    <img src="assets/icons/like.svg" alt="Лайк" style="width: 16px; height: 16px;">
+                                </span>
                             </button>
                             <button class="post-action" onclick="focusComment('${post.id}')">
-                                <span style="color: #00b4b4;">💬</span> ${post.comments.length}
+                                <span style="color: var(--accent-color);">💬</span> ${post.comments.length}
                             </button>
                             <div class="post-views">
-                                <span style="color: #00b4b4;">👁️</span> ${post.views || 0}
+                                <span style="color: var(--accent-color);">👁️</span> ${post.views || 0}
                             </div>
                             <button class="post-share" onclick="sharePost('${post.id}')">
-                                <span style="color: #00b4b4;">↗️</span> Поделиться
+                                <span style="color: var(--accent-color);">↗️</span> Поделиться
                             </button>
                         </div>
                         <div class="post-comments" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
@@ -1978,12 +1944,28 @@
                             ` : ''}
                             <div style="display: flex; gap: 10px; margin-top: 10px;">
                                 <input type="text" id="comment-${post.id}" placeholder="Добавить комментарий..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
-                                <button class="admin-btn" onclick="addComment('${post.id}')" style="background: #00b4b4;">Отправить</button>
+                                <button class="admin-btn" onclick="addComment('${post.id}')" style="background: var(--accent-color);">Отправить</button>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        // Увеличить просмотры поста
+        async function incrementPostViews(postId) {
+            try {
+                await fetch(`/api/posts/${postId}/view`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                // Обновляем посты чтобы отобразить новые просмотры
+                loadPosts();
+            } catch (error) {
+                console.error('Error incrementing post views:', error);
+            }
         }
 
         // Вспомогательные функции
@@ -2075,7 +2057,7 @@
                     <div>
                         <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Медиафайл (опционально)</label>
                         <div class="file-upload-area" onclick="openFileUpload('post')">
-                            <div style="font-size: 48px; color: #00b4b4; margin-bottom: 10px;">📷</div>
+                            <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
                             <div>Нажмите для загрузки фото или видео</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, MP4</div>
                         </div>
@@ -2084,7 +2066,7 @@
                     
                     <div class="modal-buttons">
                         <button class="modal-btn secondary" onclick="closeModal()">Отмена</button>
-                        <button class="modal-btn primary" onclick="createPost()" style="background: #00b4b4;">📝 Опубликовать</button>
+                        <button class="modal-btn primary" onclick="createPost()">📝 Опубликовать</button>
                     </div>
                 </div>
             `;
@@ -2099,7 +2081,6 @@
             }
 
             let imageUrl = null;
-            let videoUrl = null;
 
             // Если есть загруженный файл
             if (currentPostUpload) {
@@ -2118,11 +2099,7 @@
 
                     const data = await response.json();
                     if (data.success) {
-                        if (currentPostUpload.startsWith('data:image')) {
-                            imageUrl = data.fileUrl;
-                        } else if (currentPostUpload.startsWith('data:video')) {
-                            videoUrl = data.fileUrl;
-                        }
+                        imageUrl = data.fileUrl;
                     }
                 } catch (error) {
                     console.error('Error uploading post media:', error);
@@ -2138,8 +2115,7 @@
                     body: JSON.stringify({
                         userId: currentUser.id,
                         text: text,
-                        image: imageUrl,
-                        video: videoUrl
+                        image: imageUrl
                     })
                 });
 
@@ -2172,7 +2148,7 @@
                                 <div class="gift-shop-preview">
                                     ${gift.image ? 
                                         `<img src="${gift.image}" alt="${gift.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">` : 
-                                        '<span style="color: #00b4b4; font-size: 32px;">🎁</span>'
+                                        '🎁'
                                     }
                                 </div>
                                 <div class="gift-shop-name">${gift.name}</div>
@@ -2186,7 +2162,7 @@
                             <input type="text" id="newGiftName" class="modal-input" placeholder="Название подарка">
                             <input type="number" id="newGiftPrice" class="modal-input" placeholder="Цена">
                             <div class="file-upload-area" onclick="openFileUpload('gift')" style="margin: 15px 0;">
-                                <div style="font-size: 32px; color: #00b4b4; margin-bottom: 10px;">🎁</div>
+                                <div style="font-size: 32px; margin-bottom: 10px;">🎁</div>
                                 <div>Загрузить изображение подарка</div>
                             </div>
                             <button class="btn-large" onclick="addNewGift()" style="width: 100%; margin-top: 10px;">➕ Добавить подарок</button>
@@ -2263,7 +2239,8 @@
                         userId: currentUser.id,
                         name: name,
                         price: price,
-                        image: currentGiftUpload
+                        image: currentGiftUpload,
+                        type: 'image'
                     })
                 });
 
@@ -2444,7 +2421,7 @@
                                         <div class="stat-label">Посты</div>
                                     </div>
                                     <div class="stat-item">
-                                        <div class="stat-value">${user.coins || 0}</div>
+                                        <div class="stat-value">-</div>
                                         <div class="stat-label">E-COIN</div>
                                     </div>
                                     <div class="stat-item">
@@ -2477,7 +2454,7 @@
                                                         <div class="my-gift-preview">
                                                             ${giftData.image ? 
                                                                 `<img src="${giftData.image}" alt="${giftData.name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                                                '<span style="color: #00b4b4;">🎁</span>'
+                                                                '🎁'
                                                             }
                                                         </div>
                                                         <div class="my-gift-name">${giftData.name}</div>
@@ -2511,12 +2488,10 @@
         }
 
         function showEditProfileModal() {
-            // Просто переключаем на настройки
             showContent('settings');
         }
 
         function showMyGiftsModal() {
-            // Уже отображается в профиле
             showContent('profile');
         }
 
@@ -2711,7 +2686,8 @@
                         userId: currentUser.id,
                         name: name,
                         price: price,
-                        image: currentGiftUpload
+                        image: currentGiftUpload,
+                        type: 'image'
                     })
                 });
 
@@ -2795,13 +2771,6 @@
             }
         }
 
-        // Mobile keyboard fixes
-        document.getElementById('messageInput').addEventListener('focus', function() {
-            setTimeout(() => {
-                this.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 300);
-        });
-
         function sendGiftToUser() {
             if (!currentChatUser) {
                 showNotification('Выберите пользователя для отправки подарка', 'error');
@@ -2809,6 +2778,25 @@
             }
             showGiftShop();
         }
+
+        // Mobile keyboard fixes
+        document.getElementById('messageInput').addEventListener('focus', function() {
+            setTimeout(() => {
+                this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        });
+
+        // Для иконок: создайте папку assets/icons/ и добавьте туда SVG файлы:
+        // - message.svg (для мессенджера)
+        // - feed.svg (для ленты)
+        // - profile.svg (для профиля)
+        // - coin.svg (для E-COIN)
+        // - settings.svg (для настроек)
+        // - admin.svg (для админки)
+        // - switch.svg (для смены аккаунта)
+        // - logout.svg (для выхода)
+        // - like.svg (для лайков)
+        // Потом замените эмодзи в menu-icon на: <img src="assets/icons/message.svg" alt="Мессенджер">
     </script>
 </body>
 </html>
