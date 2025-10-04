@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Messenger</title>
-    <style>
+  <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         /* Темы */
@@ -39,6 +39,38 @@
             --glass-bg: rgba(0, 0, 0, 0.1);
             --glass-border: rgba(0, 0, 0, 0.2);
         }
+
+        .theme-custom1 {
+            --bg-primary: url('assets/tema1.png');
+            --bg-secondary: rgba(26, 35, 44, 0.9);
+            --bg-tertiary: rgba(42, 58, 74, 0.8);
+            --border-color: rgba(42, 58, 74, 0.6);
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+
+        .theme-custom2 {
+            --bg-primary: url('assets/tema2.png');
+            --bg-secondary: rgba(26, 35, 44, 0.9);
+            --bg-tertiary: rgba(42, 58, 74, 0.8);
+            --border-color: rgba(42, 58, 74, 0.6);
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
         
         body { 
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
@@ -48,6 +80,10 @@
             height: 100vh;
             overflow: hidden;
             transition: all 0.3s ease;
+        }
+
+        .theme-custom1 body, .theme-custom2 body {
+            background: var(--bg-primary) center/cover no-repeat fixed;
         }
         
         /* Сайдбар */
@@ -171,6 +207,15 @@
             flex-shrink: 0;
         }
         
+        .menu-icon img {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .menu-item.active .menu-icon img {
+            filter: brightness(0) invert(1);
+        }
+        
         .menu-text {
             margin-left: 15px;
             opacity: 0;
@@ -222,6 +267,13 @@
             display: flex;
             flex: 1;
             height: 100%;
+        }
+        
+        .theme-custom1 .chat-container,
+        .theme-custom2 .chat-container,
+        .theme-custom1 .chats-sidebar, 
+        .theme-custom2 .chats-sidebar {
+            background: var(--bg-secondary) !important;
         }
         
         .chats-sidebar {
@@ -622,6 +674,24 @@
         
         .theme-option:hover {
             transform: translateY(-2px);
+        }
+        
+        .custom-theme-option {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .custom-theme-option img {
+            width: 100%;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        
+        .custom-theme-name {
+            font-size: 12px;
+            font-weight: 600;
         }
         
         /* Уведомления */
@@ -1741,16 +1811,22 @@
             settingsInfo.innerHTML = `
                 <div style="margin-bottom: 30px;">
                     <h3 style="margin-bottom: 15px;">Тема оформления</h3>
-                    <div class="theme-selector">
-                        <div class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
-                            Темная
-                        </div>
-                        <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
-                            Светлая
-                        </div>
+                   <div class="theme-selector">
+    <div class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
+        Темная
+    </div>
+    <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
+        Светлая
+    </div>
+    <div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
+        <img src="assets/tema1.png" alt="Тема 1" onerror="this.style.display='none'">
+        <div class="custom-theme-name">Кастомная тема 1</div>
+    </div>
+  <div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
+            <img src="assets/tema2.png" alt="" onerror="this.style.display='none'">
+                      <div class="custom-theme-name">Кастомная тема 2</div>
                     </div>
-                </div>
-                
+                  </div>
                 <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px;">
                     <h4 style="margin-bottom: 15px;">Редактировать профиль</h4>
                     <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -2798,6 +2874,7 @@
     </script>
 </body>
 </html>
+
 
 
 
