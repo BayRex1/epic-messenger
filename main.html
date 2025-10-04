@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Messenger</title>
-  <style>
+    <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         /* Темы */
@@ -41,7 +41,7 @@
         }
 
         .theme-custom1 {
-            --bg-primary: url('assets/tema1.png');
+            --bg-primary: #1a1f2e;
             --bg-secondary: rgba(26, 35, 44, 0.9);
             --bg-tertiary: rgba(42, 58, 74, 0.8);
             --border-color: rgba(42, 58, 74, 0.6);
@@ -57,7 +57,7 @@
         }
 
         .theme-custom2 {
-            --bg-primary: url('assets/tema2.png');
+            --bg-primary: #2d1b2e;
             --bg-secondary: rgba(26, 35, 44, 0.9);
             --bg-tertiary: rgba(42, 58, 74, 0.8);
             --border-color: rgba(42, 58, 74, 0.6);
@@ -82,10 +82,6 @@
             transition: all 0.3s ease;
         }
 
-        .theme-custom1 body, .theme-custom2 body {
-            background: var(--bg-primary) center/cover no-repeat fixed;
-        }
-        
         /* Сайдбар */
         .sidebar {
             width: 80px;
@@ -207,15 +203,6 @@
             flex-shrink: 0;
         }
         
-        .menu-icon img {
-            width: 20px;
-            height: 20px;
-        }
-        
-        .menu-item.active .menu-icon img {
-            filter: brightness(0) invert(1);
-        }
-        
         .menu-text {
             margin-left: 15px;
             opacity: 0;
@@ -262,18 +249,11 @@
             color: var(--text-primary);
         }
         
-        /* Чат - ОСОБЫЕ СТИЛИ ДЛЯ ЧАТА */
+        /* Чат */
         .chat-container {
             display: flex;
             flex: 1;
             height: 100%;
-        }
-        
-        .theme-custom1 .chat-container,
-        .theme-custom2 .chat-container,
-        .theme-custom1 .chats-sidebar, 
-        .theme-custom2 .chats-sidebar {
-            background: var(--bg-secondary) !important;
         }
         
         .chats-sidebar {
@@ -1100,46 +1080,47 @@
             </div>
             
             <!-- Компактное меню -->
-            <button class="menu-item active" onclick="showContent('chats')">
-                <div class="menu-icon"><img src="assets/message.svg" alt="Мессенджер"></div>
-                <div class="menu-text">Мессенджер</div>
-               </button>
-            
-                 <button class="menu-item" onclick="showContent('feed')">
-                     <div class="menu-icon"><img src="assets/feed.svg" alt="Лента"></div>
-                     <div class="menu-text">Лента</div>
+            <div class="compact-menu">
+                <button class="menu-item active" onclick="showContent('chats')">
+                    <div class="menu-icon">💬</div>
+                    <div class="menu-text">Мессенджер</div>
+                </button>
+                
+                <button class="menu-item" onclick="showContent('feed')">
+                    <div class="menu-icon">📰</div>
+                    <div class="menu-text">Лента</div>
                 </button>
                 
                 <button class="menu-item" onclick="showContent('profile')">
-                    <div class="menu-icon"><img src="assets/profile.svg" alt="Профиль"></div>
+                    <div class="menu-icon">👤</div>
                     <div class="menu-text">Мой профиль</div>
                 </button>
                 
                 <button class="menu-item" onclick="showContent('ecoins')">
-                    <div class="menu-icon"><img src="assets/coin.svg" alt="E-COIN"></div>
+                    <div class="menu-icon">💰</div>
                     <div class="menu-text">E-COIN</div>
                 </button>
                 
                 <button class="menu-item" onclick="showContent('settings')">
-                    <div class="menu-icon"><img src="assets/settings.svg" alt="Настройки"></div>
+                    <div class="menu-icon">⚙️</div>
                     <div class="menu-text">Настройки</div>
                 </button>
                 
                 <div class="menu-divider"></div>
                 
                 <button class="menu-item" id="adminMenuItem" onclick="showContent('admin')">
-                    <div class="menu-icon"><img src="assets/admin.png" alt="Админ"></div>
+                    <div class="menu-icon">🛡️</div>
                     <div class="menu-text">Админ панель</div>
                 </button>
                 
                 <button class="menu-item" onclick="switchAccount()">
-                     <div class="menu-icon"><img src="assets/switch.png" alt="Сменить"></div>
-                     <div class="menu-text">Сменить аккаунт</div>
+                    <div class="menu-icon">🔄</div>
+                    <div class="menu-text">Сменить аккаунт</div>
                 </button>
                 
-               <button class="menu-item" onclick="logout()">
-                <div class="menu-icon"><img src="assets/logout.svg" alt="Выйти"></div>
-                   <div class="menu-text">Выйти</div>
+                <button class="menu-item" onclick="logout()">
+                    <div class="menu-icon">🚪</div>
+                    <div class="menu-text">Выйти</div>
                 </button>
             </div>
         </div>
@@ -1332,11 +1313,13 @@
 
             socket.on('connect', () => {
                 console.log('✅ Connected to server');
-                socket.emit('user_join', {
-                    userId: currentUser.id,
-                    username: currentUser.username,
-                    displayName: currentUser.displayName
-                });
+                if (currentUser) {
+                    socket.emit('user_join', {
+                        userId: currentUser.id,
+                        username: currentUser.username,
+                        displayName: currentUser.displayName
+                    });
+                }
             });
 
             socket.on('new_message', (message) => {
@@ -1366,6 +1349,16 @@
             socket.on('user_offline', (user) => {
                 updateUserStatus(user.userId, 'offline');
             });
+
+            socket.on('message_sent', (data) => {
+                if (data.success) {
+                    console.log('✅ Message sent successfully');
+                }
+            });
+
+            socket.on('user_not_found', (data) => {
+                showNotification(data.message, 'error');
+            });
         }
 
         // Обновление интерфейса пользователя
@@ -1379,10 +1372,11 @@
             
             const avatarElement = document.getElementById('userAvatar');
             if (currentUser.avatar) {
-                avatarElement.innerHTML = `<img src="${currentUser.avatar}" alt="Avatar">`;
+                avatarElement.innerHTML = `<img src="${currentUser.avatar}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
             } else {
                 const initials = currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || currentUser.username.charAt(0).toUpperCase();
                 avatarElement.textContent = initials;
+                avatarElement.style.background = 'linear-gradient(135deg, var(--accent-color), var(--accent-hover))';
             }
         }
 
@@ -1423,10 +1417,12 @@
         async function loadPosts() {
             try {
                 const response = await fetch('/api/posts');
-                posts = await response.json();
+                const data = await response.json();
+                posts = data || [];
                 updatePostsFeed();
             } catch (error) {
                 console.error('Error loading posts:', error);
+                posts = [];
             }
         }
 
@@ -1436,13 +1432,14 @@
             chatsList.innerHTML = usersList
                 .filter(user => user.id !== currentUser.id)
                 .map(user => {
+                    const avatarContent = user.avatar ? 
+                        `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                        user.displayName.charAt(0).toUpperCase();
+                    
                     return `
                         <div class="chat-item" onclick="openChat(${JSON.stringify(user).replace(/"/g, '&quot;')})">
                             <div class="chat-avatar">
-                                ${user.avatar ? 
-                                    `<img src="${user.avatar}" alt="${user.displayName}">` : 
-                                    user.displayName.charAt(0).toUpperCase()
-                                }
+                                ${avatarContent}
                             </div>
                             <div class="chat-info">
                                 <h4>
@@ -1462,13 +1459,14 @@
             const chatsList = document.getElementById('chatsList');
             chatsList.innerHTML = chats
                 .map(user => {
+                    const avatarContent = user.avatar ? 
+                        `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                        user.displayName.charAt(0).toUpperCase();
+                    
                     return `
                         <div class="chat-item" onclick="openChat(${JSON.stringify(user).replace(/"/g, '&quot;')})">
                             <div class="chat-avatar">
-                                ${user.avatar ? 
-                                    `<img src="${user.avatar}" alt="${user.displayName}">` : 
-                                    user.displayName.charAt(0).toUpperCase()
-                                }
+                                ${avatarContent}
                             </div>
                             <div class="chat-info">
                                 <h4>
@@ -1503,9 +1501,13 @@
         function openChat(user) {
             currentChatUser = user;
             
-            document.getElementById('chatUserAvatar').innerHTML = user.avatar ? 
-                `<img src="${user.avatar}" alt="${user.displayName}">` : 
-                user.displayName.charAt(0).toUpperCase();
+            const chatUserAvatar = document.getElementById('chatUserAvatar');
+            if (user.avatar) {
+                chatUserAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                chatUserAvatar.textContent = user.displayName.charAt(0).toUpperCase();
+                chatUserAvatar.style.background = 'linear-gradient(135deg, var(--accent-color), var(--accent-hover))';
+            }
             
             document.getElementById('chatUserName').innerHTML = `
                 ${user.displayName}
@@ -1543,7 +1545,7 @@
             const messageDiv = document.createElement('div');
             
             const isCurrentUser = message.userId === currentUser.id;
-            messageDiv.className = `message ${isCurrentUser ? 'outgoing' : 'incoming'} ${message.fileUrl ? 'message-file' : ''}`;
+            messageDiv.className = `message ${isCurrentUser ? 'outgoing' : 'incoming'} ${message.fileData ? 'message-file' : ''}`;
             
             let messageContent = '';
             
@@ -1560,7 +1562,7 @@
                         </div>
                     </div>
                 `;
-            } else if (message.fileUrl) {
+            } else if (message.fileData) {
                 const isImage = message.fileType && message.fileType.startsWith('image');
                 const isVideo = message.fileType && message.fileType.startsWith('video');
                 const isAudio = message.fileType && message.fileType.startsWith('audio');
@@ -1568,9 +1570,9 @@
                 messageContent = `
                     <div>${message.text || ''}</div>
                     <div class="message-file-content">
-                        ${isImage ? `<img src="${message.fileUrl}" alt="Файл">` : ''}
-                        ${isVideo ? `<video controls><source src="${message.fileUrl}" type="${message.fileType}"></video>` : ''}
-                        ${isAudio ? `<audio controls><source src="${message.fileUrl}" type="${message.fileType}"></audio>` : ''}
+                        ${isImage ? `<img src="${message.fileData}" alt="Файл">` : ''}
+                        ${isVideo ? `<video controls><source src="${message.fileData}" type="${message.fileType}"></video>` : ''}
+                        ${isAudio ? `<audio controls><source src="${message.fileData}" type="${message.fileType}"></audio>` : ''}
                         <div class="message-file-info">
                             📎 ${message.fileName || 'Файл'}
                         </div>
@@ -1704,14 +1706,15 @@
             const userGifts = currentUser.gifts || [];
             const userPosts = posts.filter(p => p.userId === currentUser.id).length;
             
+            const avatarLargeContent = currentUser.avatar ? 
+                `<img src="${currentUser.avatar}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">` :
+                currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || currentUser.username.charAt(0).toUpperCase();
+            
             profileInfo.innerHTML = `
                 <div class="user-profile">
                     <div class="profile-header-large">
                         <div class="avatar-large" id="profileAvatarLarge">
-                            ${currentUser.avatar ? 
-                                `<img src="${currentUser.avatar}" alt="Avatar">` : 
-                                currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || currentUser.username.charAt(0).toUpperCase()
-                            }
+                            ${avatarLargeContent}
                         </div>
                         <div class="profile-info-large">
                             <h2>
@@ -1811,22 +1814,24 @@
             settingsInfo.innerHTML = `
                 <div style="margin-bottom: 30px;">
                     <h3 style="margin-bottom: 15px;">Тема оформления</h3>
-                   <div class="theme-selector">
-    <div class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
-        Темная
-    </div>
-    <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
-        Светлая
-    </div>
-    <div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
-        <img src="assets/tema1.png" alt="Тема 1" onerror="this.style.display='none'">
-        <div class="custom-theme-name">Кастомная тема 1</div>
-    </div>
-  <div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
-            <img src="assets/tema2.png" alt="" onerror="this.style.display='none'">
-                      <div class="custom-theme-name">Кастомная тема 2</div>
+                    <div class="theme-selector">
+                        <div class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
+                            Темная
+                        </div>
+                        <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
+                            Светлая
+                        </div>
+                        <div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
+                            <div style="width: 100%; height: 60px; background: #1a1f2e; border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div class="custom-theme-name">Фиолетовая</div>
+                        </div>
+                        <div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
+                            <div style="width: 100%; height: 60px; background: #2d1b2e; border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div class="custom-theme-name">Темно-фиолетовая</div>
+                        </div>
                     </div>
-                  </div>
+                </div>
+                
                 <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px;">
                     <h4 style="margin-bottom: 15px;">Редактировать профиль</h4>
                     <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -1888,7 +1893,7 @@
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="chat-avatar">
                                         ${user.avatar ? 
-                                            `<img src="${user.avatar}" alt="${user.displayName}">` : 
+                                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
                                             user.displayName.charAt(0).toUpperCase()
                                         }
                                     </div>
@@ -1957,22 +1962,25 @@
             }
             
             postsFeed.innerHTML = posts.map(post => {
-                const isLiked = post.likes.includes(currentUser.id);
+                const isLiked = post.likes && post.likes.includes(currentUser.id);
+                const postUser = post.user || { displayName: 'Неизвестный', username: 'unknown', verified: false, isDeveloper: false };
+                
+                const postAvatarContent = postUser.avatar ? 
+                    `<img src="${postUser.avatar}" alt="${postUser.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` :
+                    postUser.displayName.charAt(0).toUpperCase();
+                
                 return `
                     <div class="post" onmouseenter="incrementPostViews('${post.id}')">
                         <div class="post-header">
                             <div class="post-user">
                                 <div class="post-avatar">
-                                    ${post.user.avatar ? 
-                                        `<img src="${post.user.avatar}" alt="${post.user.displayName}">` : 
-                                        post.user.displayName.charAt(0).toUpperCase()
-                                    }
+                                    ${postAvatarContent}
                                 </div>
                                 <div class="post-user-info">
                                     <h4>
-                                        ${post.user.displayName}
-                                        ${post.user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
-                                        ${post.user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
+                                        ${postUser.displayName}
+                                        ${postUser.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
+                                        ${postUser.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
                                     </h4>
                                     <div class="post-time">${formatTime(post.timestamp)}</div>
                                 </div>
@@ -1991,27 +1999,28 @@
                         </div>
                         <div class="post-actions">
                             <button class="post-action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
-                                <span style="color: ${isLiked ? 'var(--error-color)' : 'var(--accent-color)'};">
-                                    <img src="assets/like.svg" alt="Лайк" style="width: 16px; height: 16px;">
-                                </span>
+                                <span>❤️</span> ${post.likes ? post.likes.length : 0}
                             </button>
                             <button class="post-action" onclick="focusComment('${post.id}')">
-                                <span style="color: var(--accent-color);">💬</span> ${post.comments.length}
+                                <span>💬</span> ${post.comments ? post.comments.length : 0}
                             </button>
                             <div class="post-views">
-                                <span style="color: var(--accent-color);">👁️</span> ${post.views || 0}
+                                <span>👁️</span> ${post.views || 0}
                             </div>
                             <button class="post-share" onclick="sharePost('${post.id}')">
-                                <span style="color: var(--accent-color);">↗️</span> Поделиться
+                                <span>↗️</span> Поделиться
                             </button>
                         </div>
                         <div class="post-comments" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                            ${post.comments.slice(0, 2).map(comment => `
-                                <div style="margin-bottom: 8px; font-size: 14px;">
-                                    <strong>${comment.user.displayName}:</strong> ${comment.text}
-                                </div>
-                            `).join('')}
-                            ${post.comments.length > 2 ? `
+                            ${post.comments && post.comments.slice(0, 2).map(comment => {
+                                const commentUser = comment.user || { displayName: 'Неизвестный' };
+                                return `
+                                    <div style="margin-bottom: 8px; font-size: 14px;">
+                                        <strong>${commentUser.displayName}:</strong> ${comment.text}
+                                    </div>
+                                `;
+                            }).join('')}
+                            ${post.comments && post.comments.length > 2 ? `
                                 <button class="admin-btn" onclick="showAllComments('${post.id}')" style="margin-top: 5px;">
                                     Показать все комментарии (${post.comments.length})
                                 </button>
@@ -2024,22 +2033,6 @@
                     </div>
                 `;
             }).join('');
-        }
-
-        // Увеличить просмотры поста
-        async function incrementPostViews(postId) {
-            try {
-                await fetch(`/api/posts/${postId}/view`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-                // Обновляем посты чтобы отобразить новые просмотры
-                loadPosts();
-            } catch (error) {
-                console.error('Error incrementing post views:', error);
-            }
         }
 
         // Вспомогательные функции
@@ -2154,30 +2147,11 @@
                 return;
             }
 
-            let imageUrl = null;
-
+            let imageData = null;
+            
             // Если есть загруженный файл
             if (currentPostUpload) {
-                try {
-                    const response = await fetch('/api/upload', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            fileData: currentPostUpload,
-                            fileName: 'post_media.jpg',
-                            fileType: 'image/jpeg'
-                        })
-                    });
-
-                    const data = await response.json();
-                    if (data.success) {
-                        imageUrl = data.fileUrl;
-                    }
-                } catch (error) {
-                    console.error('Error uploading post media:', error);
-                }
+                imageData = currentPostUpload;
             }
 
             try {
@@ -2189,7 +2163,7 @@
                     body: JSON.stringify({
                         userId: currentUser.id,
                         text: text,
-                        image: imageUrl
+                        image: imageData
                     })
                 });
 
@@ -2198,7 +2172,8 @@
                 if (data.success) {
                     closeModal();
                     showNotification('Пост опубликован!', 'success');
-                    loadPosts();
+                    await loadPosts();
+                    updatePostsFeed();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2282,6 +2257,7 @@
                     if (userData.success) {
                         currentUser = userData.user;
                         localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        updateUserInterface();
                     }
                 } else {
                     showNotification(data.message, 'error');
@@ -2393,30 +2369,11 @@
                 return;
             }
 
-            let avatarUrl = currentUser.avatar;
+            let avatarData = currentUser.avatar;
             
             // Если есть новая аватарка
             if (currentAvatarUpload) {
-                try {
-                    const response = await fetch('/api/upload', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            fileData: currentAvatarUpload,
-                            fileName: 'avatar.jpg',
-                            fileType: 'image/jpeg'
-                        })
-                    });
-
-                    const data = await response.json();
-                    if (data.success) {
-                        avatarUrl = data.fileUrl;
-                    }
-                } catch (error) {
-                    console.error('Error uploading avatar:', error);
-                }
+                avatarData = currentAvatarUpload;
             }
 
             try {
@@ -2430,7 +2387,7 @@
                         displayName: displayName,
                         username: username,
                         description: description,
-                        avatarData: avatarUrl
+                        avatarData: avatarData
                     })
                 });
 
@@ -2442,6 +2399,9 @@
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     updateUserInterface();
                     updateProfileSection();
+                    // Очищаем превью аватарки
+                    document.getElementById('avatarPreview').innerHTML = '';
+                    currentAvatarUpload = null;
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2473,7 +2433,7 @@
                                 <div class="profile-header-large">
                                     <div class="avatar-large">
                                         ${user.avatar ? 
-                                            `<img src="${user.avatar}" alt="${user.displayName}">` : 
+                                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
                                             user.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || user.username.charAt(0).toUpperCase()
                                         }
                                     </div>
@@ -2584,10 +2544,14 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    loadPosts();
+                    await loadPosts();
+                    updatePostsFeed();
+                } else {
+                    showNotification(data.message, 'error');
                 }
             } catch (error) {
                 console.error('Error toggling like:', error);
+                showNotification('Ошибка при лайке', 'error');
             }
         }
 
@@ -2595,7 +2559,10 @@
             const commentInput = document.getElementById(`comment-${postId}`);
             const text = commentInput.value.trim();
             
-            if (!text) return;
+            if (!text) {
+                showNotification('Введите текст комментария', 'error');
+                return;
+            }
 
             try {
                 const response = await fetch(`/api/posts/${postId}/comment`, {
@@ -2612,11 +2579,16 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    showNotification('Комментарий добавлен', 'success');
                     commentInput.value = '';
-                    loadPosts();
+                    await loadPosts();
+                    updatePostsFeed();
+                } else {
+                    showNotification(data.message, 'error');
                 }
             } catch (error) {
                 console.error('Error adding comment:', error);
+                showNotification('Ошибка при добавлении комментария', 'error');
             }
         }
 
@@ -2638,7 +2610,8 @@
                 
                 if (data.success) {
                     showNotification('Пост удален', 'success');
-                    loadPosts();
+                    await loadPosts();
+                    updatePostsFeed();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2665,7 +2638,7 @@
                 
                 if (data.success) {
                     showNotification(data.message, 'success');
-                    loadAllUsers();
+                    await loadAllUsers();
                     updateAdminSection();
                 } else {
                     showNotification(data.message, 'error');
@@ -2693,7 +2666,7 @@
                 
                 if (data.success) {
                     showNotification(data.message, 'success');
-                    loadAllUsers();
+                    await loadAllUsers();
                     updateAdminSection();
                     // Если изменили текущего пользователя, обновляем данные
                     if (userId === currentUser.id) {
@@ -2729,9 +2702,9 @@
                 
                 if (data.success) {
                     showNotification('Пользователь удален', 'success');
-                    loadAllUsers();
+                    await loadAllUsers();
                     updateAdminSection();
-                    loadChats();
+                    await loadChats();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2772,7 +2745,7 @@
                     document.getElementById('adminGiftName').value = '';
                     document.getElementById('adminGiftPrice').value = '';
                     document.getElementById('giftPreview').innerHTML = '';
-                    loadGifts();
+                    await loadGifts();
                     updateAdminSection();
                 } else {
                     showNotification(data.message, 'error');
@@ -2792,7 +2765,7 @@
 
         function showAllComments(postId) {
             const post = posts.find(p => p.id === postId);
-            if (post) {
+            if (post && post.comments) {
                 const modalOverlay = document.getElementById('modalOverlay');
                 modalOverlay.innerHTML = `
                     <div class="modal-content">
@@ -2801,19 +2774,22 @@
                             <span class="close" onclick="closeModal()">×</span>
                         </div>
                         <div style="max-height: 400px; overflow-y: auto;">
-                            ${post.comments.map(comment => `
-                                <div style="padding: 15px; border-bottom: 1px solid var(--border-color);">
-                                    <div style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                                        ${comment.user.displayName}
-                                        ${comment.user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
-                                        ${comment.user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
+                            ${post.comments.map(comment => {
+                                const commentUser = comment.user || { displayName: 'Неизвестный', verified: false, isDeveloper: false };
+                                return `
+                                    <div style="padding: 15px; border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                                            ${commentUser.displayName}
+                                            ${commentUser.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
+                                            ${commentUser.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
+                                        </div>
+                                        <div style="margin-bottom: 5px;">${comment.text}</div>
+                                        <div style="font-size: 12px; color: var(--text-secondary);">
+                                            ${new Date(comment.timestamp).toLocaleString()}
+                                        </div>
                                     </div>
-                                    <div style="margin-bottom: 5px;">${comment.text}</div>
-                                    <div style="font-size: 12px; color: var(--text-secondary);">
-                                        ${new Date(comment.timestamp).toLocaleString()}
-                                    </div>
-                                </div>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                 `;
@@ -2828,6 +2804,21 @@
                 navigator.clipboard.writeText(shareUrl).then(() => {
                     showNotification('Ссылка на пост скопирована!', 'success');
                 });
+            }
+        }
+
+        async function incrementPostViews(postId) {
+            try {
+                await fetch(`/api/posts/${postId}/view`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                // Обновляем посты чтобы отобразить новые просмотры
+                await loadPosts();
+            } catch (error) {
+                console.error('Error incrementing post views:', error);
             }
         }
 
@@ -2859,22 +2850,6 @@
                 this.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
         });
-
-        // Для иконок: создайте папку assets/icons/ и добавьте туда SVG файлы:
-        // - message.svg (для мессенджера)
-        // - feed.svg (для ленты)
-        // - profile.svg (для профиля)
-        // - coin.svg (для E-COIN)
-        // - settings.svg (для настроек)
-        // - admin.svg (для админки)
-        // - switch.svg (для смены аккаунта)
-        // - logout.svg (для выхода)
-        // - like.svg (для лайков)
-        // Потом замените эмодзи в menu-icon на: <img src="assets/icons/message.svg" alt="Мессенджер">
     </script>
 </body>
 </html>
-
-
-
-
