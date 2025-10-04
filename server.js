@@ -131,8 +131,52 @@ async function initDatabase() {
   }
 }
 
+// Функция для проверки и исправления структуры базы данных
+async function checkAndFixDatabase() {
+  try {
+    console.log('🔍 Проверка структуры базы данных...');
+    
+    // Проверяем есть ли колонка views в posts
+    const checkViews = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='posts' and column_name='views'
+    `);
+    
+    if (checkViews.rows.length === 0) {
+      console.log('🔄 Добавляем колонку views в таблицу posts...');
+      await pool.query('ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0');
+      console.log('✅ Колонка views добавлена');
+    }
+    
+    // Проверяем другие возможные отсутствующие колонки
+    const postsColumns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='posts'
+    `);
+    
+    console.log('📊 Колонки в таблице posts:', postsColumns.rows.map(r => r.column_name));
+    
+    // Проверяем колонки в users
+    const usersColumns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='users'
+    `);
+    
+    console.log('📊 Колонки в таблице users:', usersColumns.rows.map(r => r.column_name));
+    
+    console.log('✅ Структура базы данных проверена');
+  } catch (error) {
+    console.error('❌ Ошибка проверки базы данных:', error);
+  }
+}
+
 // Запускаем инициализацию
-initDatabase();
+initDatabase().then(() => {
+  checkAndFixDatabase();
+});
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -775,7 +819,7 @@ app.post('/api/posts/:id/view', async (req, res) => {
     
     // Увеличиваем счетчик просмотров
     await pool.query(
-      'UPDATE posts SET views = views + 1 WHERE id = $1',
+      'UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = $1',
       [postId]
     );
     
