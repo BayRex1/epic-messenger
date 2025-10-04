@@ -81,6 +81,7 @@ async function initDatabase() {
         image TEXT,
         likes JSONB DEFAULT '[]',
         comments JSONB DEFAULT '[]',
+        views INTEGER DEFAULT 0,
         timestamp TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -584,14 +585,21 @@ app.get('/api/posts', async (req, res) => {
     `);
     
     const postsWithUsers = posts.rows.map(post => ({
-      ...post,
+      id: post.id,
+      userId: post.user_id,
+      text: post.text,
+      image: post.image,
+      likes: post.likes || [],
+      comments: post.comments || [],
+      views: post.views || 0,
+      timestamp: post.timestamp,
       user: {
         id: post.user_id,
-        username: post.username,
-        displayName: post.display_name,
+        username: post.username || 'deleted_user',
+        displayName: post.display_name || 'Удаленный пользователь',
         avatar: post.avatar,
-        verified: post.verified,
-        isDeveloper: post.is_developer
+        verified: post.verified || false,
+        isDeveloper: post.is_developer || false
       }
     }));
     
@@ -623,28 +631,39 @@ app.post('/api/posts', async (req, res) => {
     const postId = Date.now().toString();
     
     await pool.query(
-      'INSERT INTO posts (id, user_id, text, image, likes, comments) VALUES ($1, $2, $3, $4, $5, $6)',
-      [postId, userId, text, image || null, JSON.stringify([]), JSON.stringify([])]
+      'INSERT INTO posts (id, user_id, text, image, likes, comments, views) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [postId, userId, text, image || null, JSON.stringify([]), JSON.stringify([]), 0]
     );
+    
+    // Получаем только что созданный пост с информацией о пользователе
+    const newPost = await pool.query(`
+      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
+      FROM posts p 
+      LEFT JOIN users u ON p.user_id = u.id 
+      WHERE p.id = $1
+    `, [postId]);
+    
+    const postData = newPost.rows[0];
     
     res.json({ 
       success: true, 
       message: 'Пост опубликован',
       post: {
-        id: postId,
-        userId,
-        text,
-        image: image || null,
-        likes: [],
-        comments: [],
-        timestamp: new Date().toISOString(),
+        id: postData.id,
+        userId: postData.user_id,
+        text: postData.text,
+        image: postData.image,
+        likes: postData.likes || [],
+        comments: postData.comments || [],
+        views: postData.views || 0,
+        timestamp: postData.timestamp,
         user: {
-          id: userData.id,
-          username: userData.username,
-          displayName: userData.display_name,
-          avatar: userData.avatar,
-          verified: userData.verified,
-          isDeveloper: userData.is_developer
+          id: postData.user_id,
+          username: postData.username,
+          displayName: postData.display_name,
+          avatar: postData.avatar,
+          verified: postData.verified,
+          isDeveloper: postData.is_developer
         }
       }
     });
@@ -695,6 +714,10 @@ app.post('/api/posts/:id/comment', async (req, res) => {
     const { userId, text } = req.body;
     const postId = req.params.id;
     
+    if (!userId || !text) {
+      return res.json({ success: false, message: 'Текст комментария обязателен' });
+    }
+    
     const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
     if (post.rows.length === 0) {
       return res.json({ success: false, message: 'Пост не найден' });
@@ -738,10 +761,34 @@ app.post('/api/posts/:id/comment', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Комментарий добавлен',
-      comment
+      comment: comment
     });
   } catch (error) {
     console.error('Error adding comment:', error);
+    res.json({ success: false, message: 'Ошибка добавления комментария' });
+  }
+});
+
+app.post('/api/posts/:id/view', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    
+    // Увеличиваем счетчик просмотров
+    await pool.query(
+      'UPDATE posts SET views = views + 1 WHERE id = $1',
+      [postId]
+    );
+    
+    // Получаем обновленное количество просмотров
+    const post = await pool.query('SELECT views FROM posts WHERE id = $1', [postId]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Просмотр засчитан',
+      views: post.rows[0]?.views || 0
+    });
+  } catch (error) {
+    console.error('Error counting view:', error);
     res.json({ success: false, message: 'Ошибка' });
   }
 });
