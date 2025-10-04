@@ -99,10 +99,6 @@ app.get('/main.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'main.html'));
 });
 
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
 // Health check для Render.com
 app.get('/health', (req, res) => {
   res.json({ 
@@ -1043,23 +1039,18 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('💬 Messages in history:', messages.length);
   console.log('📰 Posts:', posts.length);
   console.log('🎁 Gifts:', gifts.length);
-  console.log('🎫 Promocodes:', promocodes.length);
+  console.log('🏷️ Promocodes:', promocodes.length);
   console.log('=====================================');
-  console.log('📋 Available endpoints:');
-  console.log('   GET  /health - Health check');
-  console.log('   POST /api/register - User registration');
-  console.log('   POST /api/login - User login');
-  console.log('   POST /api/update-profile - Update profile');
-  console.log('   GET  /api/users - Get all users');
-  console.log('   GET  /api/user-chats - Get user chats');
-  console.log('   GET  /api/search-users - Search users');
-  console.log('   GET  /api/posts - Get all posts');
-  console.log('   POST /api/posts - Create post');
-  console.log('   GET  /api/gifts - Get all gifts');
-  console.log('   POST /api/gifts - Create gift (developer only)');
-  console.log('   POST /api/gifts/buy - Buy gift');
-  console.log('   GET  /api/promocodes - Get promocodes (developer only)');
-  console.log('   POST /api/promocodes - Create promocode (developer only)');
-  console.log('   POST /api/promocodes/use - Use promocode');
-  console.log('=====================================');
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('🛑 Shutting down gracefully...');
+  
+  // Сохраняем данные перед выходом
+  saveData({ users, messages, posts, gifts, promocodes });
+  
+  console.log('💾 All data saved');
+  console.log('👋 Goodbye!');
+  process.exit(0);
 });
