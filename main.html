@@ -2684,6 +2684,47 @@
     <div id="notificationsContainer"></div>
 
     <script>
+        // Проверка авторизации при загрузке
+async function checkAuth() {
+    try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        
+        if (!data.authenticated) {
+            console.log('❌ Пользователь не авторизован, перенаправление...');
+            window.location.href = '/login.html';
+            return false;
+        }
+        
+        console.log('✅ Пользователь авторизован');
+        return true;
+    } catch (error) {
+        console.error('Ошибка проверки авторизации:', error);
+        window.location.href = '/login.html';
+        return false;
+    }
+}
+
+// Обновленная функция initializeApp
+async function initializeApp() {
+    // Сначала проверяем авторизацию
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) {
+        return;
+    }
+    
+    // Затем загружаем данные пользователя
+    await loadUserData();
+    
+    // Инициализируем интерфейс
+    initializeUI();
+    
+    // Загружаем начальные данные
+    await loadInitialData();
+    
+    // Запускаем периодическое обновление
+    startPeriodicUpdates();
+}
         // Глобальные переменные
         let currentUser = null;
         let currentChat = null;
