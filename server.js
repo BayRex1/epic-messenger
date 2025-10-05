@@ -1,1755 +1,1042 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
 const path = require('path');
-const { Pool } = require('pg');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
-const server = http.createServer(app);
-
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
-// Подключение к PostgreSQL
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-// Простая функция хеширования пароля (для демонстрации)
-function simpleHash(password) {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return hash.toString();
-}
-
-// Улучшенная функция санитизации
-function sanitizeInput(input) {
-  if (typeof input !== 'string') return input;
-  
-  // Удаляем опасные теги и атрибуты
-  const dangerousTags = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>|<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>|<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>|<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>|<link\b[^<]*(?:(?!<\/link>)<[^<]*)*<\/link>/gi;
-  input = input.replace(dangerousTags, '');
-  
-  // Экранируем HTML символы
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    "/": '&#x2F;',
-    "`": '&#x60;',
-    "=": '&#x3D;'
-  };
-  
-  const reg = /[&<>"'/`=]/ig;
-  return input.replace(reg, (match) => map[match]);
-}
-
-// Проверка длины входных данных
-function validateInputLength(input, maxLength = 1000) {
-  if (typeof input === 'string' && input.length > maxLength) {
-    return { valid: false, message: `Слишком длинный текст. Максимум ${maxLength} символов` };
-  }
-  return { valid: true };
-}
-
-// Улучшенная валидация файлов
-function validateFile(fileData, fileType, maxSize = 10 * 1024 * 1024) {
-  // Проверка размера файла (10MB максимум)
-  if (fileData.length > maxSize) {
-    return { valid: false, message: 'Файл слишком большой. Максимум 10MB' };
-  }
-
-  // Блокировка SVG для аватарки и постов
-  if (fileType === 'image/svg+xml') {
-    return { valid: false, message: 'SVG файлы запрещены для загрузки' };
-  }
-
-  // Разрешенные типы для аватарок и постов
-  const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-  const allowedVideoTypes = ['video/mp4', 'video/webm'];
-  
-  if (!allowedImageTypes.includes(fileType) && !allowedVideoTypes.includes(fileType)) {
-    return { valid: false, message: 'Неподдерживаемый тип файла' };
-  }
-
-  return { valid: true };
-}
-
-// Функции валидации
-function validateEmail(email) {
-  const emailRegex = /^[a-z0-9]+@gmail\.com$/;
-  const forbiddenWords = ['test', 'user', 'admin', 'temp', 'fake'];
-  
-  if (!emailRegex.test(email)) {
-    return { valid: false, message: 'Только Gmail адреса разрешены (example@gmail.com)' };
-  }
-  
-  const username = email.split('@')[0];
-  if (forbiddenWords.some(word => username.includes(word))) {
-    return { valid: false, message: 'Email содержит запрещенные слова' };
-  }
-  
-  return { valid: true };
-}
-
-function validateUsername(username) {
-  const forbiddenChars = ['?', '*', '%', '!', '@', '>', '<'];
-  const forbiddenWords = ['admin', 'root', 'system', 'test', 'user'];
-  
-  if (username.length < 3 || username.length > 20) {
-    return { valid: false, message: 'Юзернейм должен быть от 3 до 20 символов' };
-  }
-  
-  if (forbiddenChars.some(char => username.includes(char))) {
-    return { valid: false, message: 'Юзернейм содержит запрещенные символы' };
-  }
-  
-  if (forbiddenWords.some(word => username.toLowerCase().includes(word))) {
-    return { valid: false, message: 'Юзернейм содержит запрещенные слова' };
-  }
-  
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    return { valid: false, message: 'Юзернейм может содержать только буквы, цифры и подчеркивания' };
-  }
-  
-  return { valid: true };
-}
-
-// Инициализация базы данных
-async function initDatabase() {
-  try {
-    console.log('🔄 Инициализация базы данных...');
-
-    // Создаем таблицу пользователей
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id VARCHAR(50) PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        status VARCHAR(20) DEFAULT 'online',
-        verified BOOLEAN DEFAULT false,
-        is_developer BOOLEAN DEFAULT false,
-        avatar TEXT,
-        description TEXT DEFAULT 'Новый пользователь Epic Messenger',
-        coins INTEGER DEFAULT 1000,
-        gifts JSONB DEFAULT '[]',
-        used_promocodes JSONB DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Создаем таблицу сообщений
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id VARCHAR(50) PRIMARY KEY,
-        user_id VARCHAR(50) REFERENCES users(id),
-        username VARCHAR(50) NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        text TEXT NOT NULL,
-        to_user_id VARCHAR(50) REFERENCES users(id),
-        timestamp TIMESTAMP DEFAULT NOW(),
-        verified BOOLEAN DEFAULT false,
-        is_developer BOOLEAN DEFAULT false,
-        type VARCHAR(20) DEFAULT 'text',
-        file_data TEXT,
-        file_name VARCHAR(255),
-        file_type VARCHAR(50),
-        file_size INTEGER DEFAULT 0,
-        gift_id VARCHAR(50),
-        gift_name VARCHAR(255),
-        gift_price INTEGER,
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Создаем таблицу постов
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS posts (
-        id VARCHAR(50) PRIMARY KEY,
-        user_id VARCHAR(50) REFERENCES users(id),
-        text TEXT NOT NULL,
-        image TEXT,
-        likes JSONB DEFAULT '[]',
-        comments JSONB DEFAULT '[]',
-        views INTEGER DEFAULT 0,
-        timestamp TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    // Создаем таблицу подарков
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gifts (
-        id VARCHAR(50) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        price INTEGER NOT NULL,
-        image TEXT,
-        type VARCHAR(20) NOT NULL,
-        created_by VARCHAR(50) REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Создаем таблицу промокодов
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS promocodes (
-        id VARCHAR(50) PRIMARY KEY,
-        code VARCHAR(100) UNIQUE NOT NULL,
-        coins INTEGER NOT NULL,
-        max_uses INTEGER DEFAULT 1,
-        used_count INTEGER DEFAULT 0,
-        used_by JSONB DEFAULT '[]',
-        created_by VARCHAR(50) REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Таблица для множественных юзернеймов BayRex
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS bayrex_usernames (
-        id VARCHAR(50) PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        assigned_to VARCHAR(50) REFERENCES users(id),
-        created_by VARCHAR(50) REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Создаем тестовые подарки если их нет
-    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
-    if (parseInt(giftsCount.rows[0].count) === 0) {
-      await pool.query(`
-        INSERT INTO gifts (id, name, price, image, type, created_by, created_at) VALUES
-        ('1', 'Золотая корона', 100, null, 'image', 'system', NOW()),
-        ('2', 'Анимация с фейерверком', 50, null, 'gif', 'system', NOW())
-      `);
-    }
-
-    console.log('✅ База данных инициализирована');
-  } catch (error) {
-    console.error('❌ Ошибка инициализации базы данных:', error);
-  }
-}
-
-// Функция для проверки и исправления структуры базы данных
-async function checkAndFixDatabase() {
-  try {
-    console.log('🔍 Проверка структуры базы данных...');
-
-    // Проверяем есть ли колонка views в posts
-    const checkViews = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name='posts' and column_name='views'
-    `);
-
-    if (checkViews.rows.length === 0) {
-      console.log('🔄 Добавляем колонку views в таблицу posts...');
-      await pool.query('ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0');
-      console.log('✅ Колонка views добавлена');
-    }
-
-    console.log('✅ Структура базы данных проверена');
-  } catch (error) {
-    console.error('❌ Ошибка проверки базы данных:', error);
-  }
-}
-
-// Запускаем инициализацию
-initDatabase().then(() => {
-  checkAndFixDatabase();
-});
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static(__dirname));
-
-const onlineUsers = new Map();
-
-// Middleware для логирования
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
-
-// Базовые маршруты
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.get('/main.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'main.html'));
-});
-
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// Health check для Render.com
-app.get('/health', async (req, res) => {
-  try {
-    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
-    const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
-    const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
-    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
-    const promocodesCount = await pool.query('SELECT COUNT(*) FROM promocodes WHERE deleted = false');
-
-    res.json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      users: parseInt(usersCount.rows[0].count),
-      messages: parseInt(messagesCount.rows[0].count),
-      posts: parseInt(postsCount.rows[0].count),
-      gifts: parseInt(giftsCount.rows[0].count),
-      promocodes: parseInt(promocodesCount.rows[0].count),
-      storage: 'PostgreSQL'
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'ERROR', error: error.message });
-  }
-});
-
-// API routes
-app.post('/api/register', async (req, res) => {
-  try {
-    let { email, username, displayName, password } = req.body;
-
-    // Санитизация входных данных
-    email = sanitizeInput(email?.trim().toLowerCase());
-    username = sanitizeInput(username?.trim());
-    displayName = sanitizeInput(displayName?.trim());
-
-    if (!email || !username || !displayName || !password) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    // Проверка длины
-    const emailValidation = validateInputLength(email, 255);
-    const usernameValidation = validateInputLength(username, 50);
-    const displayNameValidation = validateInputLength(displayName, 100);
-    
-    if (!emailValidation.valid) return res.json({ success: false, message: emailValidation.message });
-    if (!usernameValidation.valid) return res.json({ success: false, message: usernameValidation.message });
-    if (!displayNameValidation.valid) return res.json({ success: false, message: displayNameValidation.message });
-
-    // Валидация email
-    const emailValidationResult = validateEmail(email);
-    if (!emailValidationResult.valid) {
-      return res.json({ success: false, message: emailValidationResult.message });
-    }
-
-    // Валидация username
-    const usernameValidationResult = validateUsername(username);
-    if (!usernameValidationResult.valid) {
-      return res.json({ success: false, message: usernameValidationResult.message });
-    }
-
-    // Проверка на существующий username (case insensitive)
-    const existingUser = await pool.query(
-      'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND deleted = false',
-      [username]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.json({ success: false, message: 'Юзернейм уже занят' });
-    }
-
-    // Проверка на существующий email
-    const existingEmail = await pool.query(
-      'SELECT * FROM users WHERE email = $1 AND deleted = false',
-      [email]
-    );
-
-    if (existingEmail.rows.length > 0) {
-      return res.json({ success: false, message: 'Email уже занят' });
-    }
-
-    // Хеширование пароля
-    const hashedPassword = simpleHash(password);
-
-    const userId = Date.now().toString();
-
-    // Автоматически даем права если username BayRex (case insensitive)
-    const isBayRex = username.toLowerCase() === 'bayrex';
-
-    const newUser = {
-      id: userId,
-      email,
-      username,
-      display_name: displayName,
-      password: hashedPassword,
-      verified: isBayRex,
-      is_developer: isBayRex,
-      coins: 1000,
-      gifts: [],
-      used_promocodes: []
-    };
-
-    await pool.query(
-      `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins, gifts, used_promocodes) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [newUser.id, newUser.email, newUser.username, newUser.display_name, newUser.password, 
-       newUser.verified, newUser.is_developer, newUser.coins, JSON.stringify(newUser.gifts), 
-       JSON.stringify(newUser.used_promocodes)]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Регистрация успешна!', 
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        username: newUser.username,
-        displayName: newUser.display_name,
-        verified: newUser.verified,
-        isDeveloper: newUser.is_developer,
-        coins: newUser.coins,
-        gifts: newUser.gifts,
-        usedPromocodes: newUser.used_promocodes,
-        status: 'online',
-        avatar: null,
-        description: 'Новый пользователь Epic Messenger',
-        createdAt: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error in register:', error);
-    res.json({ success: false, message: 'Ошибка регистрации' });
-  }
-});
-
-app.post('/api/login', async (req, res) => {
-  try {
-    let { email, password } = req.body;
-
-    // Санитизация входных данных
-    email = sanitizeInput(email?.trim());
-    password = sanitizeInput(password);
-
-    const user = await pool.query(
-      `SELECT * FROM users WHERE 
-       (email = $1 OR LOWER(username) = LOWER($1)) AND 
-       deleted = false`,
-      [email]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
-    }
-
-    const userData = user.rows[0];
-
-    // Проверка пароля
-    const isPasswordValid = simpleHash(password) === userData.password;
-    if (!isPasswordValid) {
-      return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
-    }
-
-    // Обновляем статус на онлайн
-    await pool.query(
-      'UPDATE users SET status = $1 WHERE id = $2',
-      ['online', userData.id]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Вход выполнен!', 
-      user: {
-        id: userData.id,
-        email: userData.email,
-        username: userData.username,
-        displayName: userData.display_name,
-        status: 'online',
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        avatar: userData.avatar,
-        description: userData.description,
-        coins: userData.coins,
-        gifts: userData.gifts || [],
-        usedPromocodes: userData.used_promocodes || [],
-        createdAt: userData.created_at
-      }
-    });
-  } catch (error) {
-    console.error('Error in login:', error);
-    res.json({ success: false, message: 'Ошибка входа' });
-  }
-});
-
-app.post('/api/update-profile', async (req, res) => {
-  try {
-    let { userId, username, displayName, description, status, avatarData } = req.body;
-
-    // Санитизация входных данных
-    username = sanitizeInput(username?.trim());
-    displayName = sanitizeInput(displayName?.trim());
-    description = sanitizeInput(description?.trim());
-
-    if (!userId) {
-      return res.json({ success: false, message: 'ID пользователя обязателен' });
-    }
-
-    // Валидация аватарки
-    if (avatarData) {
-      const avatarValidation = validateFile(avatarData, 'image');
-      if (!avatarValidation.valid) {
-        return res.json({ success: false, message: avatarValidation.message });
-      }
-    }
-
-    // Получаем текущего пользователя
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const currentUser = userResult.rows[0];
-
-    // Проверяем username на уникальность если он меняется
-    if (username && username !== currentUser.username) {
-      const usernameValidation = validateUsername(username);
-      if (!usernameValidation.valid) {
-        return res.json({ success: false, message: usernameValidation.message });
-      }
-
-      const existingUser = await pool.query(
-        'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND id != $2 AND deleted = false',
-        [username, userId]
-      );
-
-      if (existingUser.rows.length > 0) {
-        return res.json({ success: false, message: 'Юзернейм уже занят' });
-      }
-    }
-
-    // Формируем запрос для обновления
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
-
-    if (username) {
-      updates.push(`username = $${paramCount}`);
-      values.push(username);
-      paramCount++;
-    }
-
-    if (displayName) {
-      updates.push(`display_name = $${paramCount}`);
-      values.push(displayName);
-      paramCount++;
-    }
-
-    if (description !== undefined) {
-      updates.push(`description = $${paramCount}`);
-      values.push(description);
-      paramCount++;
-    }
-
-    if (status) {
-      updates.push(`status = $${paramCount}`);
-      values.push(status);
-      paramCount++;
-    }
-
-    if (avatarData !== undefined) {
-      updates.push(`avatar = $${paramCount}`);
-      values.push(avatarData);
-      paramCount++;
-    }
-
-    if (updates.length === 0) {
-      return res.json({ success: false, message: 'Нет данных для обновления' });
-    }
-
-    // Добавляем userId в values
-    values.push(userId);
-
-    // Выполняем обновление
-    await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
-      values
-    );
-
-    // Получаем обновленного пользователя
-    const updatedUserResult = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    const updatedUser = updatedUserResult.rows[0];
-
-    res.json({ 
-      success: true, 
-      message: 'Профиль обновлен',
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        username: updatedUser.username,
-        displayName: updatedUser.display_name,
-        status: updatedUser.status,
-        verified: updatedUser.verified,
-        isDeveloper: updatedUser.is_developer,
-        avatar: updatedUser.avatar,
-        description: updatedUser.description,
-        coins: updatedUser.coins,
-        gifts: updatedUser.gifts || [],
-        usedPromocodes: updatedUser.used_promocodes || [],
-        createdAt: updatedUser.created_at
-      }
-    });
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    res.json({ success: false, message: 'Ошибка при обновлении профиля' });
-  }
-});
-
-app.get('/api/search-users', async (req, res) => {
-  try {
-    const { query, currentUserId } = req.query;
-
-    if (!query || !currentUserId) {
-      return res.json([]);
-    }
-
-    const searchTerm = `%${sanitizeInput(query.toLowerCase().trim())}%`;
-    const usersResult = await pool.query(
-      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins FROM users WHERE 
-       id != $1 AND deleted = false AND
-       (LOWER(username) LIKE $2 OR
-        LOWER(display_name) LIKE $2)`,
-      [currentUserId, searchTerm]
-    );
-
-    const usersFormatted = usersResult.rows.map(user => ({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      status: user.status,
-      verified: user.verified,
-      isDeveloper: user.is_developer,
-      avatar: user.avatar,
-      description: user.description,
-      coins: user.coins
-    }));
-
-    res.json(usersFormatted);
-  } catch (error) {
-    console.error('Error searching users:', error);
-    res.json([]);
-  }
-});
-
-app.get('/api/users', async (req, res) => {
-  try {
-    const { currentUserId } = req.query;
-    
-    if (!currentUserId) {
-      return res.status(400).json({ error: 'Требуется currentUserId' });
-    }
-
-    const users = await pool.query(
-      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, created_at 
-       FROM users WHERE id != $1 AND deleted = false`,
-      [currentUserId]
-    );
-
-    const usersFormatted = users.rows.map(user => ({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      status: user.status,
-      verified: user.verified,
-      isDeveloper: user.is_developer,
-      avatar: user.avatar,
-      description: user.description,
-      coins: user.coins,
-      createdAt: user.created_at
-    }));
-
-    res.json(usersFormatted);
-  } catch (error) {
-    console.error('Error getting users:', error);
-    res.json([]);
-  }
-});
-
-app.get('/api/user-chats', async (req, res) => {
-  try {
-    const { currentUserId } = req.query;
-
-    if (!currentUserId) {
-      return res.json([]);
-    }
-
-    // Находим пользователей, с которыми есть переписка
-    const chatsResult = await pool.query(
-      `SELECT DISTINCT u.id, u.username, u.display_name, u.status, u.verified, u.is_developer, u.avatar, u.description, u.coins
-       FROM users u
-       JOIN messages m ON (u.id = m.user_id OR u.id = m.to_user_id)
-       WHERE (m.user_id = $1 OR m.to_user_id = $1) 
-       AND u.id != $1 AND u.deleted = false
-       AND m.deleted = false`,
-      [currentUserId]
-    );
-
-    const chatUsers = chatsResult.rows.map(user => ({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      status: user.status,
-      verified: user.verified,
-      isDeveloper: user.is_developer,
-      avatar: user.avatar,
-      description: user.description,
-      coins: user.coins
-    }));
-
-    res.json(chatUsers);
-  } catch (error) {
-    console.error('Error getting user chats:', error);
-    res.json([]);
-  }
-});
-
-app.get('/api/user/:id', async (req, res) => {
-  try {
-    const user = await pool.query(
-      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, created_at 
-       FROM users WHERE id = $1 AND deleted = false`,
-      [req.params.id]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-
-    res.json({
-      success: true,
-      user: {
-        id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name,
-        status: userData.status,
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        avatar: userData.avatar,
-        description: userData.description,
-        coins: userData.coins,
-        createdAt: userData.created_at
-      }
-    });
-  } catch (error) {
-    console.error('Error getting user:', error);
-    res.json({ success: false, message: 'Ошибка получения пользователя' });
-  }
-});
-
-// Посты API
-app.get('/api/posts', async (req, res) => {
-  try {
-    const posts = await pool.query(`
-      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
-      FROM posts p 
-      LEFT JOIN users u ON p.user_id = u.id AND u.deleted = false 
-      ORDER BY p.timestamp DESC
-    `);
-
-    const postsWithUsers = posts.rows.map(post => ({
-      id: post.id,
-      userId: post.user_id,
-      text: sanitizeInput(post.text),
-      image: post.image,
-      likes: post.likes || [],
-      comments: (post.comments || []).map(comment => ({
-        ...comment,
-        text: sanitizeInput(comment.text)
-      })),
-      views: post.views || 0,
-      timestamp: post.timestamp,
-      user: {
-        id: post.user_id,
-        username: post.username || 'deleted_user',
-        displayName: post.display_name || 'Удаленный пользователь',
-        avatar: post.avatar,
-        verified: post.verified || false,
-        isDeveloper: post.is_developer || false
-      }
-    }));
-
-    res.json(postsWithUsers);
-  } catch (error) {
-    console.error('Error getting posts:', error);
-    res.json([]);
-  }
-});
-
-app.post('/api/posts', async (req, res) => {
-  try {
-    const { userId, text, image } = req.body;
-
-    if (!userId || !text) {
-      return res.json({ success: false, message: 'Текст поста обязателен' });
-    }
-
-    // Валидация изображения поста
-    if (image) {
-      const imageValidation = validateFile(image, 'image');
-      if (!imageValidation.valid) {
-        return res.json({ success: false, message: imageValidation.message });
-      }
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-    const postId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO posts (id, user_id, text, image, likes, comments, views) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [postId, userId, sanitizeInput(text), image || null, JSON.stringify([]), JSON.stringify([]), 0]
-    );
-
-    // Получаем только что созданный пост с информацией о пользователе
-    const newPost = await pool.query(`
-      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
-      FROM posts p 
-      LEFT JOIN users u ON p.user_id = u.id 
-      WHERE p.id = $1
-    `, [postId]);
-
-    const postData = newPost.rows[0];
-
-    res.json({ 
-      success: true, 
-      message: 'Пост опубликован',
-      post: {
-        id: postData.id,
-        userId: postData.user_id,
-        text: sanitizeInput(postData.text),
-        image: postData.image,
-        likes: postData.likes || [],
-        comments: postData.comments || [],
-        views: postData.views || 0,
-        timestamp: postData.timestamp,
-        user: {
-          id: postData.user_id,
-          username: postData.username,
-          displayName: postData.display_name,
-          avatar: postData.avatar,
-          verified: postData.verified,
-          isDeveloper: postData.is_developer
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error creating post:', error);
-    res.json({ success: false, message: 'Ошибка создания поста' });
-  }
-});
-
-app.post('/api/posts/:id/like', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const postId = req.params.id;
-
-    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
-    if (post.rows.length === 0) {
-      return res.json({ success: false, message: 'Пост не найден' });
-    }
-
-    const postData = post.rows[0];
-    const likes = postData.likes || [];
-    const likeIndex = likes.indexOf(userId);
-
-    if (likeIndex === -1) {
-      likes.push(userId);
-    } else {
-      likes.splice(likeIndex, 1);
-    }
-
-    await pool.query(
-      'UPDATE posts SET likes = $1 WHERE id = $2',
-      [JSON.stringify(likes), postId]
-    );
-
-    res.json({ 
-      success: true, 
-      likes: likes.length,
-      isLiked: likeIndex === -1
-    });
-  } catch (error) {
-    console.error('Error liking post:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.post('/api/posts/:id/comment', async (req, res) => {
-  try {
-    const { userId, text } = req.body;
-    const postId = req.params.id;
-
-    if (!userId || !text) {
-      return res.json({ success: false, message: 'Текст комментария обязателен' });
-    }
-
-    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
-    if (post.rows.length === 0) {
-      return res.json({ success: false, message: 'Пост не найден' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-    const postData = post.rows[0];
-    const comments = postData.comments || [];
-
-    const comment = {
-      id: Date.now().toString(),
-      userId,
-      text: sanitizeInput(text),
-      timestamp: new Date().toISOString(),
-      user: {
-        id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name,
-        avatar: userData.avatar,
-        verified: userData.verified,
-        isDeveloper: userData.is_developer
-      }
-    };
-
-    comments.push(comment);
-
-    await pool.query(
-      'UPDATE posts SET comments = $1 WHERE id = $2',
-      [JSON.stringify(comments), postId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Комментарий добавлен',
-      comment: comment
-    });
-  } catch (error) {
-    console.error('Error adding comment:', error);
-    res.json({ success: false, message: 'Ошибка добавления комментария' });
-  }
-});
-
-app.post('/api/posts/:id/view', async (req, res) => {
-  try {
-    const postId = req.params.id;
-
-    // Увеличиваем счетчик просмотров
-    await pool.query(
-      'UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = $1',
-      [postId]
-    );
-
-    // Получаем обновленное количество просмотров
-    const post = await pool.query('SELECT views FROM posts WHERE id = $1', [postId]);
-
-    res.json({ 
-      success: true, 
-      message: 'Просмотр засчитан',
-      views: post.rows[0]?.views || 0
-    });
-  } catch (error) {
-    console.error('Error counting view:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.delete('/api/posts/:id', async (req, res) => {
-  try {
-    const postId = req.params.id;
-    const { userId } = req.body;
-
-    const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
-    if (post.rows.length === 0) {
-      return res.json({ success: false, message: 'Пост не найден' });
-    }
-
-    const postData = post.rows[0];
-    if (postData.user_id !== userId) {
-      return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
-    }
-
-    await pool.query('DELETE FROM posts WHERE id = $1', [postId]);
-
-    res.json({ 
-      success: true, 
-      message: 'Пост удален'
-    });
-  } catch (error) {
-    console.error('Error deleting post:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-// Подарки API
-app.get('/api/gifts', async (req, res) => {
-  try {
-    const gifts = await pool.query('SELECT * FROM gifts WHERE deleted = false');
-    res.json(gifts.rows);
-  } catch (error) {
-    console.error('Error getting gifts:', error);
-    res.json([]);
-  }
-});
-
-app.post('/api/gifts', async (req, res) => {
-  try {
-    const { userId, name, price, image, type } = req.body;
-
-    if (!userId || !name || !price || !type) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || !user.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    // Проверка типа файла для подарков
-    const allowedGiftTypes = ['png', 'svg', 'gif', 'webp'];
-    const fileType = type.toLowerCase();
-    if (!allowedGiftTypes.includes(fileType)) {
-      return res.json({ success: false, message: 'Разрешены только PNG, SVG, GIF и WebP файлы' });
-    }
-
-    // Валидация изображения подарка
-    if (image) {
-      const fileValidation = validateFile(image, `image/${fileType}`, 5 * 1024 * 1024);
-      if (!fileValidation.valid) {
-        return res.json({ success: false, message: fileValidation.message });
-      }
-    }
-
-    const giftId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO gifts (id, name, price, image, type, created_by) VALUES ($1, $2, $3, $4, $5, $6)',
-      [giftId, sanitizeInput(name), parseInt(price), image, fileType, userId]
-    );
-
-    const gift = {
-      id: giftId,
-      name: sanitizeInput(name),
-      price: parseInt(price),
-      image,
-      type: fileType,
-      createdBy: userId,
-      createdAt: new Date().toISOString(),
-      deleted: false
-    };
-
-    res.json({ 
-      success: true, 
-      message: 'Подарок добавлен в магазин',
-      gift
-    });
-  } catch (error) {
-    console.error('Error creating gift:', error);
-    res.json({ success: false, message: 'Ошибка создания подарка' });
-  }
-});
-
-app.post('/api/gifts/buy', async (req, res) => {
-  try {
-    const { userId, giftId, toUserId, message } = req.body;
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-    const toUser = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [toUserId]
-    );
-    const gift = await pool.query(
-      'SELECT * FROM gifts WHERE id = $1 AND deleted = false',
-      [giftId]
-    );
-
-    if (user.rows.length === 0 || toUser.rows.length === 0 || gift.rows.length === 0) {
-      return res.json({ success: false, message: 'Ошибка покупки подарка' });
-    }
-
-    const userData = user.rows[0];
-    const toUserData = toUser.rows[0];
-    const giftData = gift.rows[0];
-
-    // Обновляем подарки получателя
-    const toUserGifts = toUserData.gifts || [];
-    toUserGifts.push({
-      giftId: giftData.id,
-      fromUserId: userId,
-      fromUserName: userData.display_name,
-      timestamp: new Date().toISOString()
-    });
-
-    await pool.query(
-      'UPDATE users SET gifts = $1 WHERE id = $2',
-      [JSON.stringify(toUserGifts), toUserId]
-    );
-
-    // Создаем сообщение о подарке
-    const messageId = Date.now().toString();
-    await pool.query(
-      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type, gift_id, gift_name, gift_price) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [messageId, userId, userData.username, userData.display_name, 
-       sanitizeInput(message || 'Подарок!'), toUserId, userData.verified, 
-       userData.is_developer, 'gift', giftData.id, giftData.name, giftData.price]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Подарок отправлен!'
-    });
-  } catch (error) {
-    console.error('Error buying gift:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.delete('/api/gifts/:id', async (req, res) => {
-  try {
-    const giftId = req.params.id;
-    const { userId } = req.body;
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || !user.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    await pool.query(
-      'UPDATE gifts SET deleted = true WHERE id = $1',
-      [giftId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Подарок удален'
-    });
-  } catch (error) {
-    console.error('Error deleting gift:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-// Промокоды API
-app.get('/api/promocodes', async (req, res) => {
-  try {
-    const promocodes = await pool.query('SELECT * FROM promocodes WHERE deleted = false');
-    res.json(promocodes.rows);
-  } catch (error) {
-    console.error('Error getting promocodes:', error);
-    res.json([]);
-  }
-});
-
-app.post('/api/promocodes', async (req, res) => {
-  try {
-    const { userId, code, coins } = req.body;
-
-    if (!userId || !code || !coins) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || !user.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    // Проверяем на существующий промокод
-    const existingPromo = await pool.query(
-      'SELECT * FROM promocodes WHERE LOWER(code) = LOWER($1) AND deleted = false',
-      [code]
-    );
-
-    if (existingPromo.rows.length > 0) {
-      return res.json({ success: false, message: 'Промокод уже существует' });
-    }
-
-    const promocodeId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO promocodes (id, code, coins, max_uses, used_count, used_by, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [promocodeId, sanitizeInput(code.toUpperCase()), parseInt(coins), 1, 0, JSON.stringify([]), userId]
-    );
-
-    const promocode = {
-      id: promocodeId,
-      code: sanitizeInput(code.toUpperCase()),
-      coins: parseInt(coins),
-      maxUses: 1,
-      usedCount: 0,
-      usedBy: [],
-      createdBy: userId,
-      createdAt: new Date().toISOString(),
-      deleted: false
-    };
-
-    res.json({ 
-      success: true, 
-      message: 'Промокод создан',
-      promocode
-    });
-  } catch (error) {
-    console.error('Error creating promocode:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.post('/api/promocodes/use', async (req, res) => {
-  try {
-    const { userId, code } = req.body;
-
-    if (!userId || !code) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-    const promocode = await pool.query(
-      'SELECT * FROM promocodes WHERE LOWER(code) = LOWER($1) AND deleted = false',
-      [code]
-    );
-
-    if (promocode.rows.length === 0) {
-      return res.json({ success: false, message: 'Промокод не найден' });
-    }
-
-    const promocodeData = promocode.rows[0];
-
-    // Проверяем использовал ли уже пользователь этот промокод
-    const usedPromocodes = userData.used_promocodes || [];
-    if (usedPromocodes.includes(promocodeData.code)) {
-      return res.json({ success: false, message: 'Вы уже использовали этот промокод' });
-    }
-
-    // Проверяем лимит использования
-    if (promocodeData.used_count >= promocodeData.max_uses) {
-      return res.json({ success: false, message: 'Промокод уже использован' });
-    }
-
-    // Обновляем данные промокода
-    const usedBy = promocodeData.used_by || [];
-    usedBy.push({
-      userId,
-      username: userData.username,
-      timestamp: new Date().toISOString()
-    });
-
-    await pool.query(
-      'UPDATE promocodes SET used_count = $1, used_by = $2 WHERE id = $3',
-      [promocodeData.used_count + 1, JSON.stringify(usedBy), promocodeData.id]
-    );
-
-    // Обновляем данные пользователя
-    usedPromocodes.push(promocodeData.code);
-    const newCoins = (userData.coins || 0) + promocodeData.coins;
-
-    await pool.query(
-      'UPDATE users SET coins = $1, used_promocodes = $2 WHERE id = $3',
-      [newCoins, JSON.stringify(usedPromocodes), userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: `Промокод активирован! Получено ${promocodeData.coins} монет`,
-      coins: newCoins
-    });
-  } catch (error) {
-    console.error('Error using promocode:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.delete('/api/promocodes/:id', async (req, res) => {
-  try {
-    const promocodeId = req.params.id;
-    const { userId } = req.body;
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || !user.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    await pool.query(
-      'UPDATE promocodes SET deleted = true WHERE id = $1',
-      [promocodeId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Промокод удален'
-    });
-  } catch (error) {
-    console.error('Error deleting promocode:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-// BayRex юзернеймы API
-app.get('/api/bayrex-usernames', async (req, res) => {
-  try {
-    const usernames = await pool.query(`
-      SELECT * FROM bayrex_usernames WHERE deleted = false
-    `);
-    res.json(usernames.rows);
-  } catch (error) {
-    console.error('Error getting bayrex usernames:', error);
-    res.json([]);
-  }
-});
-
-app.post('/api/bayrex-usernames', async (req, res) => {
-  try {
-    const { userId, username, displayName } = req.body;
-
-    if (!userId || !username || !displayName) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
-      return res.json({ success: false, message: 'Только BayRex может создавать юзернеймы' });
-    }
-
-    // Проверяем лимит в 30 юзернеймов
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM bayrex_usernames WHERE created_by = $1 AND deleted = false',
-      [userId]
-    );
-    
-    if (parseInt(countResult.rows[0].count) >= 30) {
-      return res.json({ success: false, message: 'Достигнут лимит в 30 юзернеймов' });
-    }
-
-    // Валидация username
-    const usernameValidation = validateUsername(username);
-    if (!usernameValidation.valid) {
-      return res.json({ success: false, message: usernameValidation.message });
-    }
-
-    const usernameId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO bayrex_usernames (id, username, display_name, created_by) VALUES ($1, $2, $3, $4)',
-      [usernameId, username, displayName, userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Юзернейм создан'
-    });
-  } catch (error) {
-    console.error('Error creating bayrex username:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.post('/api/bayrex-usernames/assign', async (req, res) => {
-  try {
-    const { userId, usernameId, targetUserId } = req.body;
-
-    if (!userId || !usernameId) {
-      return res.json({ success: false, message: 'Недостаточно данных' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
-      return res.json({ success: false, message: 'Только BayRex может назначать юзернеймы' });
-    }
-
-    await pool.query(
-      'UPDATE bayrex_usernames SET assigned_to = $1 WHERE id = $2',
-      [targetUserId, usernameId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Юзернейм назначен'
-    });
-  } catch (error) {
-    console.error('Error assigning bayrex username:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.delete('/api/bayrex-usernames/:id', async (req, res) => {
-  try {
-    const usernameId = req.params.id;
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.json({ success: false, message: 'Недостаточно данных' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
-      return res.json({ success: false, message: 'Только BayRex может удалять юзернеймы' });
-    }
-
-    await pool.query(
-      'UPDATE bayrex_usernames SET deleted = true WHERE id = $1',
-      [usernameId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Юзернейм удален'
-    });
-  } catch (error) {
-    console.error('Error deleting bayrex username:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-// Админ API
-app.post('/api/admin/toggle-verify', async (req, res) => {
-  try {
-    const { userId, verified } = req.body;
-    const adminId = req.body.adminId || req.body.userId;
-
-    if (!adminId || !userId) {
-      return res.json({ success: false, message: 'Недостаточно данных' });
-    }
-
-    const admin = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [adminId]
-    );
-
-    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    await pool.query(
-      'UPDATE users SET verified = $1 WHERE id = $2',
-      [verified, userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: verified ? 'Пользователь верифицирован' : 'Верификация снята'
-    });
-  } catch (error) {
-    console.error('Error toggling verify:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.post('/api/admin/toggle-developer', async (req, res) => {
-  try {
-    const { userId, isDeveloper } = req.body;
-    const adminId = req.body.adminId || req.body.userId;
-
-    if (!adminId || !userId) {
-      return res.json({ success: false, message: 'Недостаточно данных' });
-    }
-
-    const admin = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [adminId]
-    );
-
-    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    await pool.query(
-      'UPDATE users SET is_developer = $1 WHERE id = $2',
-      [isDeveloper, userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: isDeveloper ? 'Права разработчика выданы' : 'Права разработчика сняты'
-    });
-  } catch (error) {
-    console.error('Error toggling developer:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-app.post('/api/admin/delete-user', async (req, res) => {
-  try {
-    const { userId, adminId } = req.body;
-
-    if (!adminId || !userId) {
-      return res.json({ success: false, message: 'Недостаточно данных' });
-    }
-
-    const admin = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [adminId]
-    );
-
-    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
-      return res.json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    // Нельзя удалить самого себя или BayRex
-    const targetUser = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (targetUser.rows.length === 0) {
-      return res.json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    if (targetUser.rows[0].username.toLowerCase() === 'bayrex') {
-      return res.json({ success: false, message: 'Нельзя удалить BayRex' });
-    }
-
-    if (userId === adminId) {
-      return res.json({ success: false, message: 'Нельзя удалить себя' });
-    }
-
-    await pool.query(
-      'UPDATE users SET deleted = true WHERE id = $1',
-      [userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Пользователь удален'
-    });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.json({ success: false, message: 'Ошибка' });
-  }
-});
-
-// Сообщения API
-app.get('/api/messages', async (req, res) => {
-  try {
-    const { userId, toUserId } = req.query;
-
-    if (!userId || !toUserId) {
-      return res.json([]);
-    }
-
-    const messages = await pool.query(`
-      SELECT m.*, u.verified, u.is_developer 
-      FROM messages m 
-      LEFT JOIN users u ON m.user_id = u.id AND u.deleted = false 
-      WHERE m.deleted = false AND 
-      ((m.user_id = $1 AND m.to_user_id = $2) OR 
-       (m.user_id = $2 AND m.to_user_id = $1)) 
-      ORDER BY m.timestamp ASC
-    `, [userId, toUserId]);
-
-    const messagesFormatted = messages.rows.map(msg => ({
-      id: msg.id,
-      userId: msg.user_id,
-      username: msg.username,
-      displayName: msg.display_name,
-      text: msg.text,
-      toUserId: msg.to_user_id,
-      timestamp: msg.timestamp,
-      verified: msg.verified,
-      isDeveloper: msg.is_developer,
-      type: msg.type || 'text',
-      fileData: msg.file_data,
-      fileName: msg.file_name,
-      fileType: msg.file_type,
-      fileSize: msg.file_size,
-      giftId: msg.gift_id,
-      giftName: msg.gift_name,
-      giftPrice: msg.gift_price
-    }));
-
-    res.json(messagesFormatted);
-  } catch (error) {
-    console.error('Error getting messages:', error);
-    res.json([]);
-  }
-});
-
-// Socket.IO соединения
-io.on('connection', (socket) => {
-  console.log('🔌 Новое подключение:', socket.id);
-
-  socket.on('user_online', async (userId) => {
-    try {
-      onlineUsers.set(socket.id, userId);
-      
-      await pool.query(
-        'UPDATE users SET status = $1 WHERE id = $2',
-        ['online', userId]
-      );
-
-      socket.broadcast.emit('user_status_changed', {
-        userId,
-        status: 'online'
-      });
-    } catch (error) {
-      console.error('Error setting user online:', error);
-    }
-  });
-
-  socket.on('send_message', async (data) => {
-    try {
-      const { userId, toUserId, text, type = 'text', fileData, fileName, fileType, fileSize } = data;
-
-      const user = await pool.query(
-        'SELECT * FROM users WHERE id = $1 AND deleted = false',
-        [userId]
-      );
-
-      if (user.rows.length === 0) {
-        return;
-      }
-
-      const userData = user.rows[0];
-      const messageId = Date.now().toString();
-
-      await pool.query(
-        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type, file_data, file_name, file_type, file_size) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [messageId, userId, userData.username, userData.display_name, 
-         sanitizeInput(text), toUserId, userData.verified, 
-         userData.is_developer, type, fileData, fileName, fileType, fileSize]
-      );
-
-      const message = {
-        id: messageId,
-        userId,
-        username: userData.username,
-        displayName: userData.display_name,
-        text: sanitizeInput(text),
-        toUserId,
-        timestamp: new Date().toISOString(),
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        type,
-        fileData,
-        fileName,
-        fileType,
-        fileSize
-      };
-
-      // Отправляем сообщение отправителю и получателю
-      socket.emit('new_message', message);
-      socket.to(toUserId).emit('new_message', message);
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  });
-
-  socket.on('user_typing', (data) => {
-    socket.to(data.toUserId).emit('user_typing', {
-      userId: data.userId,
-      isTyping: data.isTyping
-    });
-  });
-
-  socket.on('disconnect', async () => {
-    try {
-      const userId = onlineUsers.get(socket.id);
-      if (userId) {
-        onlineUsers.delete(socket.id);
-        
-        await pool.query(
-          'UPDATE users SET status = $1 WHERE id = $2',
-          ['offline', userId]
-        );
-
-        socket.broadcast.emit('user_status_changed', {
-          userId,
-          status: 'offline'
-        });
-      }
-      console.log('🔌 Отключение:', socket.id);
-    } catch (error) {
-      console.error('Error handling disconnect:', error);
-    }
-  });
-});
-
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`📊 Панель мониторинга: http://localhost:${PORT}/health`);
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// Настройка multer для загрузки файлов
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = 'uploads/';
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
 });
+
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        // Разрешаем все типы файлов для подарков
+        if (req.path.includes('/gifts') || req.path.includes('/upload-gift')) {
+            cb(null, true);
+        } else if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image and video files are allowed!'), false);
+        }
+    }
+});
+
+// Подключение к MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/epic-messenger', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+});
+
+// Схемы MongoDB
+const userSchema = new mongoose.Schema({
+    name: String,
+    username: { type: String, unique: true },
+    email: { type: String, unique: true },
+    password: String,
+    avatar: String,
+    bio: String,
+    verified: { type: Boolean, default: false },
+    developer: { type: Boolean, default: false },
+    ecoins: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const postSchema = new mongoose.Schema({
+    userId: mongoose.Schema.Types.ObjectId,
+    text: String,
+    media: {
+        type: { type: String },
+        url: String
+    },
+    likes: [{ type: mongoose.Schema.Types.ObjectId }],
+    comments: [{
+        userId: mongoose.Schema.Types.ObjectId,
+        text: String,
+        createdAt: { type: Date, default: Date.now }
+    }],
+    views: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const messageSchema = new mongoose.Schema({
+    senderId: mongoose.Schema.Types.ObjectId,
+    receiverId: mongoose.Schema.Types.ObjectId,
+    text: String,
+    type: { type: String, default: 'text' },
+    fileUrl: String,
+    fileName: String,
+    fileSize: Number,
+    fileType: String,
+    timestamp: { type: Date, default: Date.now }
+});
+
+const chatSchema = new mongoose.Schema({
+    participants: [{ type: mongoose.Schema.Types.ObjectId }],
+    lastMessage: String,
+    lastMessageTime: { type: Date, default: Date.now },
+    unreadCount: { type: Map, of: Number }
+});
+
+const giftSchema = new mongoose.Schema({
+    name: String,
+    description: String,
+    price: Number,
+    preview: String, // SVG, PNG, GIF - любой формат
+    fileUrl: String, // URL файла подарка
+    fileType: String, // Тип файла
+    ownerId: mongoose.Schema.Types.ObjectId,
+    fromUserId: mongoose.Schema.Types.ObjectId,
+    createdAt: { type: Date, default: Date.now }
+});
+
+const promoCodeSchema = new mongoose.Schema({
+    code: { type: String, unique: true },
+    type: String, // 'ecoins', 'gift', 'badge'
+    value: Number,
+    maxUses: { type: Number, default: 0 },
+    usedCount: { type: Number, default: 0 },
+    usedBy: [{ type: mongoose.Schema.Types.ObjectId }],
+    createdAt: { type: Date, default: Date.now },
+    expiresAt: Date
+});
+
+const transactionSchema = new mongoose.Schema({
+    userId: mongoose.Schema.Types.ObjectId,
+    type: String, // 'deposit', 'purchase', 'reward'
+    amount: Number,
+    description: String,
+    date: { type: Date, default: Date.now }
+});
+
+// Модели
+const User = mongoose.model('User', userSchema);
+const Post = mongoose.model('Post', postSchema);
+const Message = mongoose.model('Message', messageSchema);
+const Chat = mongoose.model('Chat', chatSchema);
+const Gift = mongoose.model('Gift', giftSchema);
+const PromoCode = mongoose.model('PromoCode', promoCodeSchema);
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
+// Middleware для проверки JWT токена
+const authenticateToken = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: 'Токен не предоставлен' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(401).json({ message: 'Пользователь не найден' });
+        }
+        req.user = user;
+        next();
+    } catch (error) {
+        return res.status(403).json({ message: 'Неверный токен' });
+    }
+};
+
+// Проверка прав разработчика
+const requireDeveloper = (req, res, next) => {
+    if (!req.user.developer) {
+        return res.status(403).json({ message: 'Требуются права разработчика' });
+    }
+    next();
+};
+
+// Routes
+
+// Регистрация
+app.post('/api/register', async (req, res) => {
+    try {
+        const { name, username, email, password } = req.body;
+
+        // Проверяем, существует ли пользователь
+        const existingUser = await User.findOne({ 
+            $or: [{ email }, { username }] 
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ 
+                message: 'Пользователь с таким email или username уже существует' 
+            });
+        }
+
+        // Хешируем пароль
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Создаем пользователя
+        const user = new User({
+            name,
+            username,
+            email,
+            password: hashedPassword
+        });
+
+        await user.save();
+
+        // Создаем JWT токен
+        const token = jwt.sign({ id: user._id }, JWT_SECRET);
+
+        res.status(201).json({
+            message: 'Пользователь создан успешно',
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                verified: user.verified,
+                developer: user.developer,
+                ecoins: user.ecoins
+            }
+        });
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Авторизация
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Находим пользователя
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: 'Неверный email или пароль' });
+        }
+
+        // Проверяем пароль
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(400).json({ message: 'Неверный email или пароль' });
+        }
+
+        // Создаем JWT токен
+        const token = jwt.sign({ id: user._id }, JWT_SECRET);
+
+        res.json({
+            message: 'Вход выполнен успешно',
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                bio: user.bio,
+                verified: user.verified,
+                developer: user.developer,
+                ecoins: user.ecoins
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Проверка токена
+app.get('/api/verify-token', authenticateToken, (req, res) => {
+    res.json({
+        user: {
+            id: req.user._id,
+            name: req.user.name,
+            username: req.user.username,
+            email: req.user.email,
+            avatar: req.user.avatar,
+            bio: req.user.bio,
+            verified: req.user.verified,
+            developer: req.user.developer,
+            ecoins: req.user.ecoins
+        }
+    });
+});
+
+// Получение пользователя по ID
+app.get('/api/user/:id', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+        res.json(user);
+    } catch (error) {
+        console.error('Get user error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Обновление пользователя
+app.put('/api/user/:id', authenticateToken, async (req, res) => {
+    try {
+        const { name, username, bio } = req.body;
+
+        // Проверяем, что пользователь обновляет свой профиль
+        if (req.user._id.toString() !== req.params.id) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        // Проверяем, не занят ли username другим пользователем
+        if (username) {
+            const existingUser = await User.findOne({ 
+                username, 
+                _id: { $ne: req.params.id } 
+            });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Username уже занят' });
+            }
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            req.params.id,
+            { name, username, bio },
+            { new: true }
+        ).select('-password');
+
+        res.json(updatedUser);
+    } catch (error) {
+        console.error('Update user error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Загрузка аватара
+app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'Файл не загружен' });
+        }
+
+        const avatarUrl = `/uploads/${req.file.filename}`;
+        
+        await User.findByIdAndUpdate(req.user._id, { avatar: avatarUrl });
+
+        res.json({ message: 'Аватар обновлен', avatar: avatarUrl });
+    } catch (error) {
+        console.error('Avatar upload error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки аватара' });
+    }
+});
+
+// Получение всех пользователей
+app.get('/api/users', authenticateToken, async (req, res) => {
+    try {
+        const users = await User.find().select('-password');
+        res.json(users);
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Получение сообщений
+app.get('/api/messages', authenticateToken, async (req, res) => {
+    try {
+        const { userId, toUserId } = req.query;
+
+        // ЗАПРЕТ ДОСТУПА К ЗАПРЕЩЕННЫМ ID
+        const forbiddenIds = ['1759599444816', '1759656247835'];
+        if (forbiddenIds.includes(userId) || forbiddenIds.includes(toUserId)) {
+            return res.status(403).json({ message: 'Доступ запрещен' });
+        }
+
+        // Проверяем, что пользователь запрашивает свои сообщения
+        if (req.user._id.toString() !== userId && req.user._id.toString() !== toUserId) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        const messages = await Message.find({
+            $or: [
+                { senderId: userId, receiverId: toUserId },
+                { senderId: toUserId, receiverId: userId }
+            ]
+        }).sort({ timestamp: 1 });
+
+        res.json(messages);
+    } catch (error) {
+        console.error('Get messages error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Отправка сообщения
+app.post('/api/messages', authenticateToken, async (req, res) => {
+    try {
+        const { senderId, receiverId, text, type, fileUrl, fileName, fileSize, fileType } = req.body;
+
+        // Проверяем, что отправитель - текущий пользователь
+        if (req.user._id.toString() !== senderId) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        // ЗАПРЕТ ОТПРАВКИ СООБЩЕНИЙ С ЗАПРЕЩЕННЫМИ ID
+        const forbiddenIds = ['1759599444816', '1759656247835'];
+        if (forbiddenIds.includes(senderId) || forbiddenIds.includes(receiverId)) {
+            return res.status(403).json({ message: 'Отправка сообщений запрещена' });
+        }
+
+        const message = new Message({
+            senderId,
+            receiverId,
+            text,
+            type: type || 'text',
+            fileUrl,
+            fileName,
+            fileSize,
+            fileType
+        });
+
+        await message.save();
+
+        // Обновляем чат
+        await updateChat(senderId, receiverId, text);
+
+        res.status(201).json(message);
+    } catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({ message: 'Ошибка отправки сообщения' });
+    }
+});
+
+// Функция обновления чата
+async function updateChat(userId1, userId2, lastMessage) {
+    try {
+        const participants = [userId1, userId2].sort();
+        
+        let chat = await Chat.findOne({ participants });
+        
+        if (chat) {
+            chat.lastMessage = lastMessage;
+            chat.lastMessageTime = new Date();
+            
+            // Обновляем счетчик непрочитанных
+            const otherUserId = userId1 === participants[0] ? participants[1] : participants[0];
+            const currentCount = chat.unreadCount.get(otherUserId) || 0;
+            chat.unreadCount.set(otherUserId, currentCount + 1);
+        } else {
+            chat = new Chat({
+                participants,
+                lastMessage,
+                unreadCount: new Map()
+            });
+            chat.unreadCount.set(participants[1], 1);
+        }
+        
+        await chat.save();
+    } catch (error) {
+        console.error('Update chat error:', error);
+    }
+}
+
+// Получение чатов пользователя
+app.get('/api/chats', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const chats = await Chat.find({ participants: userId })
+            .populate('participants', 'name username avatar verified developer')
+            .sort({ lastMessageTime: -1 });
+
+        const formattedChats = await Promise.all(chats.map(async (chat) => {
+            const otherParticipant = chat.participants.find(p => p._id.toString() !== userId.toString());
+            const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+
+            // Сбрасываем счетчик непрочитанных при запросе чатов
+            if (unreadCount > 0) {
+                chat.unreadCount.set(userId.toString(), 0);
+                await chat.save();
+            }
+
+            return {
+                id: otherParticipant._id,
+                name: otherParticipant.name,
+                username: otherParticipant.username,
+                avatar: otherParticipant.avatar,
+                verified: otherParticipant.verified,
+                developer: otherParticipant.developer,
+                lastMessage: chat.lastMessage,
+                lastMessageTime: chat.lastMessageTime,
+                unreadCount: unreadCount
+            };
+        }));
+
+        res.json(formattedChats);
+    } catch (error) {
+        console.error('Get chats error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки чатов' });
+    }
+});
+
+// Получение постов
+app.get('/api/posts', authenticateToken, async (req, res) => {
+    try {
+        const posts = await Post.find()
+            .populate('userId', 'name username avatar verified developer')
+            .sort({ createdAt: -1 });
+
+        res.json(posts);
+    } catch (error) {
+        console.error('Get posts error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки постов' });
+    }
+});
+
+// Создание поста
+app.post('/api/posts', authenticateToken, async (req, res) => {
+    try {
+        const { text, media } = req.body;
+
+        const post = new Post({
+            userId: req.user._id,
+            text,
+            media
+        });
+
+        await post.save();
+        await post.populate('userId', 'name username avatar verified developer');
+
+        res.status(201).json(post);
+    } catch (error) {
+        console.error('Create post error:', error);
+        res.status(500).json({ message: 'Ошибка создания поста' });
+    }
+});
+
+// Лайк поста
+app.post('/api/posts/:id/like', authenticateToken, async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ message: 'Пост не найден' });
+        }
+
+        const userId = req.user._id;
+        const likeIndex = post.likes.indexOf(userId);
+
+        if (likeIndex > -1) {
+            // Убираем лайк
+            post.likes.splice(likeIndex, 1);
+        } else {
+            // Добавляем лайк
+            post.likes.push(userId);
+        }
+
+        await post.save();
+        res.json({ likes: post.likes.length });
+    } catch (error) {
+        console.error('Like post error:', error);
+        res.status(500).json({ message: 'Ошибка при установке лайка' });
+    }
+});
+
+// Получение постов пользователя
+app.get('/api/user/:id/posts', authenticateToken, async (req, res) => {
+    try {
+        const posts = await Post.find({ userId: req.params.id })
+            .populate('userId', 'name username avatar verified developer')
+            .sort({ createdAt: -1 });
+
+        res.json(posts);
+    } catch (error) {
+        console.error('Get user posts error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки постов' });
+    }
+});
+
+// Получение подарков
+app.get('/api/gifts', authenticateToken, async (req, res) => {
+    try {
+        const gifts = await Gift.find()
+            .populate('ownerId', 'name username')
+            .populate('fromUserId', 'name username');
+
+        res.json(gifts);
+    } catch (error) {
+        console.error('Get gifts error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки подарков' });
+    }
+});
+
+// Покупка подарка
+app.post('/api/gifts/:id/buy', authenticateToken, async (req, res) => {
+    try {
+        const gift = await Gift.findById(req.params.id);
+        if (!gift) {
+            return res.status(404).json({ message: 'Подарок не найден' });
+        }
+
+        if (gift.ownerId) {
+            return res.status(400).json({ message: 'Подарок уже куплен' });
+        }
+
+        // Проверяем баланс пользователя
+        if (req.user.ecoins < gift.price) {
+            return res.status(400).json({ message: 'Недостаточно E-COIN' });
+        }
+
+        // Списываем средства
+        req.user.ecoins -= gift.price;
+        await req.user.save();
+
+        // Назначаем подарок пользователю
+        gift.ownerId = req.user._id;
+        await gift.save();
+
+        // Создаем транзакцию
+        const transaction = new Transaction({
+            userId: req.user._id,
+            type: 'purchase',
+            amount: -gift.price,
+            description: `Покупка подарка: ${gift.name}`
+        });
+        await transaction.save();
+
+        res.json({ 
+            message: 'Подарок успешно куплен', 
+            giftName: gift.name,
+            newBalance: req.user.ecoins
+        });
+    } catch (error) {
+        console.error('Buy gift error:', error);
+        res.status(500).json({ message: 'Ошибка покупки подарка' });
+    }
+});
+
+// Загрузка подарка (для разработчиков)
+app.post('/api/upload-gift', authenticateToken, requireDeveloper, upload.single('gift'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'Файл не загружен' });
+        }
+
+        const { name, description, price } = req.body;
+
+        const gift = new Gift({
+            name,
+            description,
+            price: parseInt(price),
+            preview: `/uploads/${req.file.filename}`,
+            fileUrl: `/uploads/${req.file.filename}`,
+            fileType: req.file.mimetype
+        });
+
+        await gift.save();
+
+        res.json({ message: 'Подарок загружен успешно', gift });
+    } catch (error) {
+        console.error('Upload gift error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки подарка' });
+    }
+});
+
+// Получение промокодов
+app.get('/api/promo-codes', authenticateToken, async (req, res) => {
+    try {
+        const promoCodes = await PromoCode.find();
+        res.json(promoCodes);
+    } catch (error) {
+        console.error('Get promo codes error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки промокодов' });
+    }
+});
+
+// Создание промокода (только для разработчиков)
+app.post('/api/promo-codes', authenticateToken, requireDeveloper, async (req, res) => {
+    try {
+        const { code, type, value, maxUses } = req.body;
+
+        // Проверяем, существует ли промокод
+        const existingPromo = await PromoCode.findOne({ code });
+        if (existingPromo) {
+            return res.status(400).json({ message: 'Промокод уже существует' });
+        }
+
+        const promoCode = new PromoCode({
+            code,
+            type,
+            value: parseInt(value),
+            maxUses: parseInt(maxUses) || 0
+        });
+
+        await promoCode.save();
+
+        res.status(201).json({ message: 'Промокод создан успешно', promoCode });
+    } catch (error) {
+        console.error('Create promo code error:', error);
+        res.status(500).json({ message: 'Ошибка создания промокода' });
+    }
+});
+
+// Активация промокода
+app.post('/api/promo-codes/activate', authenticateToken, async (req, res) => {
+    try {
+        const { code, userId } = req.body;
+
+        // Проверяем, что пользователь активирует промокод для себя
+        if (req.user._id.toString() !== userId) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        const promoCode = await PromoCode.findOne({ code });
+        if (!promoCode) {
+            return res.status(404).json({ message: 'Промокод не найден' });
+        }
+
+        // Проверяем срок действия
+        if (promoCode.expiresAt && promoCode.expiresAt < new Date()) {
+            return res.status(400).json({ message: 'Промокод истек' });
+        }
+
+        // Проверяем лимит использований
+        if (promoCode.maxUses > 0 && promoCode.usedCount >= promoCode.maxUses) {
+            return res.status(400).json({ message: 'Промокод уже использован максимальное количество раз' });
+        }
+
+        // Проверяем, использовал ли пользователь уже этот промокод
+        if (promoCode.usedBy.includes(userId)) {
+            return res.status(400).json({ message: 'Вы уже использовали этот промокод' });
+        }
+
+        // Активируем промокод
+        let rewardMessage = '';
+        
+        switch (promoCode.type) {
+            case 'ecoins':
+                req.user.ecoins += promoCode.value;
+                await req.user.save();
+                
+                // Создаем транзакцию
+                const transaction = new Transaction({
+                    userId: req.user._id,
+                    type: 'reward',
+                    amount: promoCode.value,
+                    description: `Активация промокода: ${code}`
+                });
+                await transaction.save();
+                
+                rewardMessage = `Начислено ${promoCode.value} E-COIN`;
+                break;
+                
+            case 'gift':
+                // Создаем подарок для пользователя
+                const gift = new Gift({
+                    name: `Подарок из промокода`,
+                    description: `Получено по промокоду: ${code}`,
+                    price: 0,
+                    preview: '🎁',
+                    ownerId: userId,
+                    fromUserId: null
+                });
+                await gift.save();
+                rewardMessage = `Получен специальный подарок!`;
+                break;
+                
+            case 'badge':
+                // Здесь можно добавить логику для выдачи бейджей
+                rewardMessage = `Получен специальный бейдж!`;
+                break;
+        }
+
+        // Обновляем данные промокода
+        promoCode.usedCount += 1;
+        promoCode.usedBy.push(userId);
+        await promoCode.save();
+
+        res.json({ 
+            message: `Промокод активирован успешно! ${rewardMessage}`,
+            type: promoCode.type,
+            value: promoCode.value
+        });
+    } catch (error) {
+        console.error('Activate promo code error:', error);
+        res.status(500).json({ message: 'Ошибка активации промокода' });
+    }
+});
+
+// Удаление промокода (только для разработчиков)
+app.delete('/api/promo-codes/:code', authenticateToken, requireDeveloper, async (req, res) => {
+    try {
+        const promoCode = await PromoCode.findOneAndDelete({ code: req.params.code });
+        if (!promoCode) {
+            return res.status(404).json({ message: 'Промокод не найден' });
+        }
+
+        res.json({ message: 'Промокод удален' });
+    } catch (error) {
+        console.error('Delete promo code error:', error);
+        res.status(500).json({ message: 'Ошибка удаления промокода' });
+    }
+});
+
+// Пополнение E-COIN баланса
+app.post('/api/user/add-ecoins', authenticateToken, async (req, res) => {
+    try {
+        const { userId, amount } = req.body;
+
+        // Проверяем, что пользователь пополняет свой баланс
+        if (req.user._id.toString() !== userId) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        req.user.ecoins += parseInt(amount);
+        await req.user.save();
+
+        // Создаем транзакцию
+        const transaction = new Transaction({
+            userId: req.user._id,
+            type: 'deposit',
+            amount: parseInt(amount),
+            description: `Пополнение баланса`
+        });
+        await transaction.save();
+
+        res.json({ 
+            message: 'Баланс пополнен успешно',
+            newBalance: req.user.ecoins
+        });
+    } catch (error) {
+        console.error('Add ecoins error:', error);
+        res.status(500).json({ message: 'Ошибка пополнения баланса' });
+    }
+});
+
+// Получение истории транзакций
+app.get('/api/user/:id/transactions', authenticateToken, async (req, res) => {
+    try {
+        // Проверяем, что пользователь запрашивает свою историю
+        if (req.user._id.toString() !== req.params.id) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        const transactions = await Transaction.find({ userId: req.params.id })
+            .sort({ date: -1 });
+
+        res.json(transactions);
+    } catch (error) {
+        console.error('Get transactions error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки истории транзакций' });
+    }
+});
+
+// Админ: получение статистики
+app.get('/api/admin/stats', authenticateToken, requireDeveloper, async (req, res) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        const totalMessages = await Message.countDocuments();
+        const totalPosts = await Post.countDocuments();
+        const totalGifts = await Gift.countDocuments();
+        const totalTransactions = await Transaction.countDocuments();
+
+        res.json({
+            totalUsers,
+            totalMessages,
+            totalPosts,
+            totalGifts,
+            totalTransactions
+        });
+    } catch (error) {
+        console.error('Get admin stats error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки статистики' });
+    }
+});
+
+// Админ: получение всех пользователей
+app.get('/api/admin/users', authenticateToken, requireDeveloper, async (req, res) => {
+    try {
+        const users = await User.find().select('-password');
+        res.json(users);
+    } catch (error) {
+        console.error('Get admin users error:', error);
+        res.status(500).json({ message: 'Ошибка загрузки пользователей' });
+    }
+});
+
+// Админ: удаление пользователя
+app.delete('/api/user/:id', authenticateToken, async (req, res) => {
+    try {
+        // Только разработчики или сам пользователь могут удалить аккаунт
+        if (!req.user.developer && req.user._id.toString() !== req.params.id) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        // Удаляем связанные данные
+        await Post.deleteMany({ userId: req.params.id });
+        await Message.deleteMany({ 
+            $or: [
+                { senderId: req.params.id },
+                { receiverId: req.params.id }
+            ]
+        });
+        await Gift.updateMany(
+            { ownerId: req.params.id },
+            { $unset: { ownerId: 1 } }
+        );
+        await Transaction.deleteMany({ userId: req.params.id });
+
+        res.json({ message: 'Пользователь удален' });
+    } catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ message: 'Ошибка удаления пользователя' });
+    }
+});
+
+// API для bayrex-usernames (защищенный)
+app.get('/api/bayrex-usernames', authenticateToken, async (req, res) => {
+    try {
+        // ЗАПРЕТ ДОСТУПА ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ
+        if (!req.user.developer) {
+            return res.status(403).json({ message: 'Доступ запрещен' });
+        }
+
+        const users = await User.find({}, 'username name verified developer');
+        res.json(users);
+    } catch (error) {
+        console.error('Get bayrex usernames error:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Обслуживание статических файлов из папки uploads
+app.use('/uploads', express.static('uploads'));
+
+// Обслуживание статических файлов из папки public
+app.use(express.static('public'));
+
+// Маршрут для главной страницы
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Обработка ошибок multer
+app.use((error, req, res, next) => {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ message: 'Файл слишком большой' });
+        }
+    }
+    res.status(500).json({ message: error.message });
+});
+
+// Запуск сервера
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
+
+// Создание тестовых данных при первом запуске
+async function createTestData() {
+    try {
+        const userCount = await User.countDocuments();
+        if (userCount === 0) {
+            // Создаем тестового пользователя-разработчика
+            const hashedPassword = await bcrypt.hash('developer123', 10);
+            const developer = new User({
+                name: 'Developer',
+                username: 'developer',
+                email: 'developer@example.com',
+                password: hashedPassword,
+                verified: true,
+                developer: true,
+                ecoins: 1000
+            });
+            await developer.save();
+
+            // Создаем тестовые подарки
+            const gifts = [
+                {
+                    name: 'Золотая корона',
+                    description: 'Роскошная золотая корона для настоящих королей',
+                    price: 500,
+                    preview: '👑'
+                },
+                {
+                    name: 'Волшебный шар',
+                    description: 'Магический шар, предсказывающий будущее',
+                    price: 300,
+                    preview: '🔮'
+                },
+                {
+                    name: 'Сердце',
+                    description: 'Подарите любовь и заботу своим друзьям',
+                    price: 100,
+                    preview: '💖'
+                },
+                {
+                    name: 'Звезда',
+                    description: 'Сияющая звезда для особенных достижений',
+                    price: 200,
+                    preview: '⭐'
+                }
+            ];
+
+            for (const giftData of gifts) {
+                const gift = new Gift(giftData);
+                await gift.save();
+            }
+
+            // Создаем тестовые промокоды
+            const promoCodes = [
+                {
+                    code: 'WELCOME100',
+                    type: 'ecoins',
+                    value: 100,
+                    maxUses: 100
+                },
+                {
+                    code: 'FIRSTGIFT',
+                    type: 'gift',
+                    value: 1, // ID первого подарка
+                    maxUses: 50
+                }
+            ];
+
+            for (const promoData of promoCodes) {
+                const promoCode = new PromoCode(promoData);
+                await promoCode.save();
+            }
+
+            console.log('Тестовые данные созданы');
+        }
+    } catch (error) {
+        console.error('Error creating test data:', error);
+    }
+}
+
+// Вызываем создание тестовых данных при запуске
+createTestData();
