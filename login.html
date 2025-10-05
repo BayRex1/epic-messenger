@@ -465,14 +465,15 @@
 
                     const data = await response.json();
 
-                    if (data.success) {
-                        showNotification('Регистрация выполнена успешно!', 'success');
-                        localStorage.setItem('currentUser', JSON.stringify(data.user));
-                        
-                        // Перенаправляем на главную страницу через 1 секунду
-                        setTimeout(() => {
-                            window.location.href = 'main.html';
-                        }, 1000);
+                    // После успешной регистрации/входа
+if (data.success) {
+    showNotification('Регистрация выполнена успешно!', 'success');
+    
+                  // Ждем сохранения сессии и затем перенаправляем
+                         setTimeout(() => {
+                      window.location.href = '/main.html';
+                     }, 500);
+                     }   
                     } else {
                         showNotification(data.message, 'error');
                     }
