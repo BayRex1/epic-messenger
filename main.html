@@ -2502,7 +2502,7 @@
                                         <div class="file-upload-area" onclick="openFileUpload('avatar')">
                                             <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
                                             <div>Нажмите для загрузки аватарки</div>
-                                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, SVG</div>
+                                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, WebP</div>
                                         </div>
                                         <div id="avatarPreview" class="file-preview"></div>
                                     </div>
@@ -2705,7 +2705,7 @@
                             <div class="file-upload-area" onclick="openFileUpload('avatar')">
                                 <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
                                 <div>Нажмите для загрузки аватарки</div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, SVG</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, WebP</div>
                             </div>
                             <div id="avatarPreview" class="file-preview"></div>
                         </div>
@@ -2858,6 +2858,22 @@
                     </div>
                 </div>
                 
+                ${currentUser.username.toLowerCase() === 'bayrex' ? `
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="margin-bottom: 15px;">Управление юзернеймами BayRex</h3>
+                        <div style="background: var(--bg-secondary); border-radius: 12px; padding: 20px;">
+                            <div class="add-username-form">
+                                <input type="text" id="newUsername" placeholder="Новый юзернейм" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
+                                <input type="text" id="newDisplayName" placeholder="Отображаемое имя" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
+                                <button class="admin-btn" onclick="createBayrexUsername()">➕ Добавить</button>
+                            </div>
+                            <div id="bayrexUsernamesList">
+                                <!-- Юзернеймы будут здесь -->
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+                
                 <div style="margin-bottom: 30px;">
                     <h3 style="margin-bottom: 15px;">Создать подарок</h3>
                     <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px;">
@@ -2882,113 +2898,94 @@
             `;
 
             loadPromoCodes();
-        }
-
-        // Загрузка промокодов
-        async function loadPromoCodes() {
-            try {
-                const response = await fetch('/api/promocodes');
-                const promoCodes = await response.json();
-                renderPromoCodesList(promoCodes);
-            } catch (error) {
-                console.error('Error loading promocodes:', error);
+            
+            // Загружаем юзернеймы BayRex если пользователь BayRex
+            if (currentUser.username.toLowerCase() === 'bayrex') {
+                loadBayrexUsernames();
             }
         }
 
-        // Рендер списка промокодов
-        function renderPromoCodesList(promoCodes) {
-            const promoCodesList = document.getElementById('promoCodesList');
+        // Функции для работы с юзернеймами BayRex
+        async function loadBayrexUsernames() {
+            try {
+                const response = await fetch('/api/bayrex-usernames');
+                const usernames = await response.json();
+                renderBayrexUsernamesList(usernames);
+            } catch (error) {
+                console.error('Error loading bayrex usernames:', error);
+            }
+        }
 
-            if (!promoCodes || promoCodes.length === 0) {
-                promoCodesList.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">Промокоды не созданы</div>';
+        function renderBayrexUsernamesList(usernames) {
+            const list = document.getElementById('bayrexUsernamesList');
+            
+            if (!usernames || usernames.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">Юзернеймы не созданы</div>';
                 return;
             }
 
-            promoCodesList.innerHTML = promoCodes.map(promo => `
-                <div style="padding: 15px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 10px; background: var(--bg-tertiary);">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: bold; font-size: 16px;">${promo.code}</div>
-                            <div style="font-size: 14px; color: var(--text-secondary);">
-                                ${promo.coins} E-COIN • Использован: ${promo.used_count || 0} раз
-                                ${promo.max_uses ? `• Макс: ${promo.max_uses} раз` : ''}
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="admin-btn delete" onclick="deletePromoCode('${promo.id}')">🗑️ Удалить</button>
-                        </div>
+            list.innerHTML = usernames.map(username => `
+                <div class="username-item">
+                    <div class="username-info">
+                        <div class="username-name">@${username.username}</div>
+                        <div class="username-display-name">${username.display_name}</div>
+                        ${username.assigned_to ? `
+                            <div style="font-size: 11px; color: var(--accent-color);">Назначен пользователю</div>
+                        ` : ''}
+                    </div>
+                    <div class="username-actions">
+                        ${!username.assigned_to ? `
+                            <button class="username-btn assign" onclick="assignUsername('${username.id}')">Назначить</button>
+                        ` : ''}
+                        <button class="username-btn delete" onclick="deleteBayrexUsername('${username.id}')">Удалить</button>
                     </div>
                 </div>
             `).join('');
         }
 
-        // Показать модальное окно создания промокода
-        function showCreatePromoCodeModal() {
-            const modalOverlay = document.getElementById('modalOverlay');
-            modalOverlay.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Создать промокод</h3>
-                        <span class="close" onclick="closeModal()">×</span>
-                    </div>
-                    <input type="text" id="newPromoCode" class="modal-input" placeholder="Код промокода (например: SUMMER2024)">
-                    <input type="number" id="newPromoCoins" class="modal-input" placeholder="Количество E-COIN">
-                    <input type="number" id="newPromoMaxUses" class="modal-input" placeholder="Максимум использований (0 = без ограничений)">
-                    <div class="modal-buttons">
-                        <button class="modal-btn secondary" onclick="closeModal()">Отмена</button>
-                        <button class="modal-btn primary" onclick="createPromoCode()">Создать</button>
-                    </div>
-                </div>
-            `;
-            modalOverlay.style.display = 'flex';
-        }
+        async function createBayrexUsername() {
+            const username = document.getElementById('newUsername').value.trim();
+            const displayName = document.getElementById('newDisplayName').value.trim();
 
-        // Создать промокод
-        async function createPromoCode() {
-            const code = document.getElementById('newPromoCode').value.trim();
-            const coins = parseInt(document.getElementById('newPromoCoins').value);
-            const maxUses = parseInt(document.getElementById('newPromoMaxUses').value) || 0;
-
-            if (!code || !coins) {
-                showNotification('Заполните все обязательные поля', 'error');
+            if (!username || !displayName) {
+                showNotification('Заполните все поля', 'error');
                 return;
             }
 
             try {
-                const response = await fetch('/api/promocodes', {
+                const response = await fetch('/api/bayrex-usernames', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
                         userId: currentUser.id,
-                        code: code,
-                        coins: coins,
-                        maxUses: maxUses
+                        username: username,
+                        displayName: displayName
                     })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    closeModal();
-                    showNotification('Промокод создан успешно', 'success');
-                    loadPromoCodes();
+                    showNotification('Юзернейм создан', 'success');
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newDisplayName').value = '';
+                    loadBayrexUsernames();
                 } else {
                     showNotification(data.message, 'error');
                 }
             } catch (error) {
-                console.error('Error creating promocode:', error);
-                showNotification('Ошибка при создании промокода', 'error');
+                console.error('Error creating bayrex username:', error);
+                showNotification('Ошибка при создании юзернейма', 'error');
             }
         }
 
-        // Удалить промокод
-        async function deletePromoCode(promoId) {
-            if (!confirm('Вы уверены, что хотите удалить этот промокод?')) return;
+        async function deleteBayrexUsername(usernameId) {
+            if (!confirm('Вы уверены, что хотите удалить этот юзернейм?')) return;
 
             try {
-                const response = await fetch('/api/promocodes/' + promoId, {
+                const response = await fetch('/api/bayrex-usernames/' + usernameId, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
@@ -3001,159 +2998,20 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showNotification('Промокод удален', 'success');
-                    loadPromoCodes();
+                    showNotification('Юзернейм удален', 'success');
+                    loadBayrexUsernames();
                 } else {
                     showNotification(data.message, 'error');
                 }
             } catch (error) {
-                console.error('Error deleting promocode:', error);
-                showNotification('Ошибка при удалении промокода', 'error');
+                console.error('Error deleting bayrex username:', error);
+                showNotification('Ошибка при удалении юзернейма', 'error');
             }
         }
 
-        // Обновление ленты постов
-        function updatePostsFeed() {
-            const postsFeed = document.getElementById('postsFeed');
-            if (posts.length === 0) {
-                postsFeed.innerHTML = `
-                    <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
-                        Пока нет постов. Будьте первым!
-                    </div>
-                `;
-                return;
-            }
-
-            postsFeed.innerHTML = posts.map(post => {
-                const isLiked = post.likes && post.likes.includes(currentUser.id);
-                const postUser = post.user || { displayName: 'Неизвестный', username: 'unknown', verified: false, isDeveloper: false };
-
-                const postAvatarContent = postUser.avatar ? 
-                    `<img src="${postUser.avatar}" alt="${postUser.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` :
-                    postUser.displayName.charAt(0).toUpperCase();
-
-                return `
-                    <div class="post" onmouseenter="incrementPostViews('${post.id}')">
-                        <div class="post-header">
-                            <div class="post-user" onclick="viewUserProfile('${post.userId}')" style="cursor: pointer;">
-                                <div class="post-avatar">
-                                    ${postAvatarContent}
-                                </div>
-                                <div class="post-user-info">
-                                    <h4>
-                                        ${postUser.displayName}
-                                        ${postUser.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
-                                        ${postUser.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
-                                    </h4>
-                                    <div class="post-time">${formatTime(post.timestamp)}</div>
-                                </div>
-                            </div>
-                            ${post.userId === currentUser.id || currentUser.isDeveloper ? `
-                                <button class="admin-btn delete" onclick="deletePost('${post.id}')">🗑️ Удалить</button>
-                            ` : ''}
-                        </div>
-                        <div class="post-content">
-                            <div class="post-text">${post.text}</div>
-                            ${post.image ? `
-                                <div class="post-media">
-                                    <img src="${post.image}" alt="Изображение поста">
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="post-actions">
-                            <button class="post-action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
-                                <span>❤️</span> ${post.likes ? post.likes.length : 0}
-                            </button>
-                            <button class="post-action" onclick="focusComment('${post.id}')">
-                                <span>💬</span> ${post.comments ? post.comments.length : 0}
-                            </button>
-                            <div class="post-views">
-                                <span>👁️</span> ${post.views || 0}
-                            </div>
-                            <button class="post-share" onclick="sharePost('${post.id}')">
-                                <span>↗️</span> Поделиться
-                            </button>
-                        </div>
-                        <div class="post-comments" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                            ${post.comments && post.comments.slice(0, 2).map(comment => {
-                                const commentUser = comment.user || { displayName: 'Неизвестный' };
-                                return `
-                                    <div style="margin-bottom: 8px; font-size: 14px;">
-                                        <strong>${commentUser.displayName}:</strong> ${comment.text}
-                                    </div>
-                                `;
-                            }).join('')}
-                            ${post.comments && post.comments.length > 2 ? `
-                                <button class="admin-btn" onclick="showAllComments('${post.id}')" style="margin-top: 5px;">
-                                    Показать все комментарии (${post.comments.length})
-                                </button>
-                            ` : ''}
-                            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                                <input type="text" id="comment-${post.id}" placeholder="Добавить комментарий..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
-                                <button class="admin-btn" onclick="addComment('${post.id}')" style="background: var(--accent-color);">Отправить</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Вспомогательные функции
-        function formatTime(timestamp) {
-            const now = new Date();
-            const time = new Date(timestamp);
-            const diff = now - time;
-
-            if (diff < 60000) return 'только что';
-            if (diff < 3600000) return Math.floor(diff / 60000) + ' мин назад';
-            if (diff < 86400000) return Math.floor(diff / 3600000) + ' ч назад';
-            return time.toLocaleDateString();
-        }
-
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }
-
-        function showPushNotification(title, message, avatar = null) {
-            const notification = document.createElement('div');
-            notification.className = 'push-notification';
-            notification.innerHTML = `
-                ${avatar ? `
-                    <div class="push-avatar">
-                        <img src="${avatar}" alt="${title}" style="width: 100%; height: 100%; object-fit: cover;">
-                    </div>
-                ` : `
-                    <div class="push-avatar">${title.charAt(0)}</div>
-                `}
-                <div class="push-content">
-                    <div class="push-title">${title}</div>
-                    <div class="push-message">${message}</div>
-                </div>
-                <button class="push-close" onclick="this.parentElement.remove()">×</button>
-            `;
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                if (notification.parentElement) {
-                    notification.remove();
-                }
-            }, 5000);
-        }
-
-        function showBrowserNotification(title, message) {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, {
-                    body: message,
-                    icon: '/assets/icon.png'
-                });
-            }
+        async function assignUsername(usernameId) {
+            // Здесь можно добавить модальное окно для выбора пользователя
+            showNotification('Функция назначения в разработке', 'info');
         }
 
         // Загрузка файлов
@@ -3179,16 +3037,32 @@
                     };
                     showNotification(`Файл "${file.name}" готов к отправке`, 'success');
                 } else if (currentFileUploadType === 'avatar') {
+                    // Блокируем SVG для аватарки
+                    if (file.type === 'image/svg+xml') {
+                        showNotification('SVG файлы запрещены для аватарки', 'error');
+                        return;
+                    }
                     currentAvatarUpload = fileData;
                     document.getElementById('avatarPreview').innerHTML = `
                         <img src="${fileData}" alt="Предпросмотр аватарки" style="max-width: 150px; border-radius: 8px;">
                     `;
                 } else if (currentFileUploadType === 'gift') {
+                    // Разрешаем только определенные типы для подарков
+                    const allowedGiftTypes = ['image/png', 'image/svg+xml', 'image/gif', 'image/webp'];
+                    if (!allowedGiftTypes.includes(file.type)) {
+                        showNotification('Для подарков разрешены только PNG, SVG, GIF и WebP', 'error');
+                        return;
+                    }
                     currentGiftUpload = fileData;
                     document.getElementById('giftPreview').innerHTML = `
                         <img src="${fileData}" alt="Предпросмотр подарка" style="max-width: 150px; border-radius: 8px;">
                     `;
                 } else if (currentFileUploadType === 'post') {
+                    // Блокируем SVG для постов
+                    if (file.type === 'image/svg+xml') {
+                        showNotification('SVG файлы запрещены для постов', 'error');
+                        return;
+                    }
                     currentPostUpload = fileData;
                     document.getElementById('postMediaPreview').innerHTML = file.type.startsWith('image') ? 
                         `<img src="${fileData}" alt="Предпросмотр" style="max-width: 100%; border-radius: 8px;">` :
@@ -3824,6 +3698,64 @@
                 return;
             }
             showGiftShop();
+        }
+
+        // Вспомогательные функции
+        function formatTime(timestamp) {
+            const now = new Date();
+            const time = new Date(timestamp);
+            const diff = now - time;
+
+            if (diff < 60000) return 'только что';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' мин назад';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' ч назад';
+            return time.toLocaleDateString();
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function showPushNotification(title, message, avatar = null) {
+            const notification = document.createElement('div');
+            notification.className = 'push-notification';
+            notification.innerHTML = `
+                ${avatar ? `
+                    <div class="push-avatar">
+                        <img src="${avatar}" alt="${title}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                ` : `
+                    <div class="push-avatar">${title.charAt(0)}</div>
+                `}
+                <div class="push-content">
+                    <div class="push-title">${title}</div>
+                    <div class="push-message">${message}</div>
+                </div>
+                <button class="push-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function showBrowserNotification(title, message) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/assets/icon.png'
+                });
+            }
         }
 
         // Mobile keyboard fixes
