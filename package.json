@@ -1,7 +1,7 @@
 {
   "name": "epic-messenger",
   "version": "1.0.0",
-  "description": "Epic Messenger - современный мессенджер с подарками и социальными функциями",
+  "description": "Modern messaging platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,18 +9,16 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "pg": "^8.11.3"
+    "socket.io": "^4.7.5",
+    "pg": "^8.11.3",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cors": "^2.8.5",
+    "path": "^0.12.7",
+    "fs": "0.0.1-security"
   },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "keywords": [
-    "messenger",
-    "chat",
-    "real-time",
-    "socket.io"
-  ],
-  "author": "BayRex",
+  "keywords": ["messenger", "chat", "real-time"],
+  "author": "Epic Messenger Team",
   "license": "MIT"
 }
