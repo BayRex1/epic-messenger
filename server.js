@@ -26,7 +26,7 @@ const pool = new Pool({
 async function initDatabase() {
   try {
     console.log('🔄 Инициализация базы данных...');
-    
+
     // Создаем таблицу пользователей
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -135,38 +135,38 @@ async function initDatabase() {
 async function checkAndFixDatabase() {
   try {
     console.log('🔍 Проверка структуры базы данных...');
-    
+
     // Проверяем есть ли колонка views в posts
     const checkViews = await pool.query(`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name='posts' and column_name='views'
     `);
-    
+
     if (checkViews.rows.length === 0) {
       console.log('🔄 Добавляем колонку views в таблицу posts...');
       await pool.query('ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0');
       console.log('✅ Колонка views добавлена');
     }
-    
+
     // Проверяем другие возможные отсутствующие колонки
     const postsColumns = await pool.query(`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name='posts'
     `);
-    
+
     console.log('📊 Колонки в таблице posts:', postsColumns.rows.map(r => r.column_name));
-    
+
     // Проверяем колонки в users
     const usersColumns = await pool.query(`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name='users'
     `);
-    
+
     console.log('📊 Колонки в таблице users:', usersColumns.rows.map(r => r.column_name));
-    
+
     console.log('✅ Структура базы данных проверена');
   } catch (error) {
     console.error('❌ Ошибка проверки базы данных:', error);
@@ -211,7 +211,7 @@ app.get('/health', async (req, res) => {
     const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
     const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
     const promocodesCount = await pool.query('SELECT COUNT(*) FROM promocodes WHERE deleted = false');
-    
+
     res.json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
@@ -231,36 +231,36 @@ app.get('/health', async (req, res) => {
 app.post('/api/register', async (req, res) => {
   try {
     const { email, username, displayName, password } = req.body;
-    
+
     if (!email || !username || !displayName || !password) {
       return res.json({ success: false, message: 'Все поля обязательны' });
     }
-    
+
     // Проверка на существующий username (case insensitive)
     const existingUser = await pool.query(
       'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND deleted = false',
       [username]
     );
-    
+
     if (existingUser.rows.length > 0) {
       return res.json({ success: false, message: 'Юзернейм уже занят' });
     }
-    
+
     // Проверка на существующий email
     const existingEmail = await pool.query(
       'SELECT * FROM users WHERE email = $1 AND deleted = false',
       [email]
     );
-    
+
     if (existingEmail.rows.length > 0) {
       return res.json({ success: false, message: 'Email уже занят' });
     }
-    
+
     const userId = Date.now().toString();
-    
+
     // Автоматически даем права если username BayRex (case insensitive)
     const isBayRex = username.toLowerCase() === 'bayrex';
-    
+
     const newUser = {
       id: userId,
       email,
@@ -273,7 +273,7 @@ app.post('/api/register', async (req, res) => {
       gifts: [],
       used_promocodes: []
     };
-    
+
     await pool.query(
       `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins, gifts, used_promocodes) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -281,7 +281,7 @@ app.post('/api/register', async (req, res) => {
        newUser.verified, newUser.is_developer, newUser.coins, JSON.stringify(newUser.gifts), 
        JSON.stringify(newUser.used_promocodes)]
     );
-    
+
     res.json({ 
       success: true, 
       message: 'Регистрация успешна!', 
@@ -310,26 +310,26 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     const user = await pool.query(
       `SELECT * FROM users WHERE 
        (email = $1 OR LOWER(username) = LOWER($1)) AND 
        password = $2 AND deleted = false`,
       [email, password]
     );
-    
+
     if (user.rows.length === 0) {
       return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
     }
-    
+
     const userData = user.rows[0];
-    
+
     // Обновляем статус на онлайн
     await pool.query(
       'UPDATE users SET status = $1 WHERE id = $2',
       ['online', userData.id]
     );
-    
+
     res.json({ 
       success: true, 
       message: 'Вход выполнен!', 
@@ -358,91 +358,91 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/update-profile', async (req, res) => {
   try {
     const { userId, username, displayName, description, status, avatarData } = req.body;
-    
+
     if (!userId) {
       return res.json({ success: false, message: 'ID пользователя обязателен' });
     }
-    
+
     // Получаем текущего пользователя
     const userResult = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const currentUser = userResult.rows[0];
-    
+
     // Проверяем username на уникальность если он меняется
     if (username && username !== currentUser.username) {
       const existingUser = await pool.query(
         'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND id != $2 AND deleted = false',
         [username, userId]
       );
-      
+
       if (existingUser.rows.length > 0) {
         return res.json({ success: false, message: 'Юзернейм уже занят' });
       }
     }
-    
+
     // Формируем запрос для обновления
     const updates = [];
     const values = [];
     let paramCount = 1;
-    
+
     if (username) {
       updates.push(`username = $${paramCount}`);
       values.push(username);
       paramCount++;
     }
-    
+
     if (displayName) {
       updates.push(`display_name = $${paramCount}`);
       values.push(displayName);
       paramCount++;
     }
-    
+
     if (description !== undefined) {
       updates.push(`description = $${paramCount}`);
       values.push(description);
       paramCount++;
     }
-    
+
     if (status) {
       updates.push(`status = $${paramCount}`);
       values.push(status);
       paramCount++;
     }
-    
+
     if (avatarData !== undefined) {
       updates.push(`avatar = $${paramCount}`);
       values.push(avatarData);
       paramCount++;
     }
-    
+
     if (updates.length === 0) {
       return res.json({ success: false, message: 'Нет данных для обновления' });
     }
-    
+
     // Добавляем userId в values
     values.push(userId);
-    
+
     // Выполняем обновление
     await pool.query(
       `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
       values
     );
-    
+
     // Получаем обновленного пользователя
     const updatedUserResult = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     const updatedUser = updatedUserResult.rows[0];
-    
+
     res.json({ 
       success: true, 
       message: 'Профиль обновлен',
@@ -471,11 +471,11 @@ app.post('/api/update-profile', async (req, res) => {
 app.get('/api/search-users', async (req, res) => {
   try {
     const { query, currentUserId } = req.query;
-    
+
     if (!query || !currentUserId) {
       return res.json([]);
     }
-    
+
     const searchTerm = `%${query.toLowerCase().trim()}%`;
     const usersResult = await pool.query(
       `SELECT * FROM users WHERE 
@@ -485,7 +485,7 @@ app.get('/api/search-users', async (req, res) => {
         LOWER(email) LIKE $2)`,
       [currentUserId, searchTerm]
     );
-    
+
     const usersFormatted = usersResult.rows.map(user => ({
       id: user.id,
       email: user.email,
@@ -501,7 +501,7 @@ app.get('/api/search-users', async (req, res) => {
       usedPromocodes: user.used_promocodes || [],
       createdAt: user.created_at
     }));
-    
+
     res.json(usersFormatted);
   } catch (error) {
     console.error('Error searching users:', error);
@@ -516,7 +516,7 @@ app.get('/api/users', async (req, res) => {
       'SELECT * FROM users WHERE id != $1 AND deleted = false',
       [currentUserId]
     );
-    
+
     const usersFormatted = users.rows.map(user => ({
       id: user.id,
       email: user.email,
@@ -532,7 +532,7 @@ app.get('/api/users', async (req, res) => {
       usedPromocodes: user.used_promocodes || [],
       createdAt: user.created_at
     }));
-    
+
     res.json(usersFormatted);
   } catch (error) {
     console.error('Error getting users:', error);
@@ -543,11 +543,11 @@ app.get('/api/users', async (req, res) => {
 app.get('/api/user-chats', async (req, res) => {
   try {
     const { currentUserId } = req.query;
-    
+
     if (!currentUserId) {
       return res.json([]);
     }
-    
+
     // Находим пользователей, с которыми есть переписка
     const chatsResult = await pool.query(
       `SELECT DISTINCT u.* FROM users u
@@ -557,7 +557,7 @@ app.get('/api/user-chats', async (req, res) => {
        AND m.deleted = false`,
       [currentUserId]
     );
-    
+
     const chatUsers = chatsResult.rows.map(user => ({
       id: user.id,
       email: user.email,
@@ -573,7 +573,7 @@ app.get('/api/user-chats', async (req, res) => {
       usedPromocodes: user.used_promocodes || [],
       createdAt: user.created_at
     }));
-    
+
     res.json(chatUsers);
   } catch (error) {
     console.error('Error getting user chats:', error);
@@ -587,13 +587,13 @@ app.get('/api/user/:id', async (req, res) => {
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [req.params.id]
     );
-    
+
     if (user.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const userData = user.rows[0];
-    
+
     res.json({
       success: true,
       user: {
@@ -627,7 +627,7 @@ app.get('/api/posts', async (req, res) => {
       LEFT JOIN users u ON p.user_id = u.id AND u.deleted = false 
       ORDER BY p.timestamp DESC
     `);
-    
+
     const postsWithUsers = posts.rows.map(post => ({
       id: post.id,
       userId: post.user_id,
@@ -646,7 +646,7 @@ app.get('/api/posts', async (req, res) => {
         isDeveloper: post.is_developer || false
       }
     }));
-    
+
     res.json(postsWithUsers);
   } catch (error) {
     console.error('Error getting posts:', error);
@@ -657,28 +657,28 @@ app.get('/api/posts', async (req, res) => {
 app.post('/api/posts', async (req, res) => {
   try {
     const { userId, text, image } = req.body;
-    
+
     if (!userId || !text) {
       return res.json({ success: false, message: 'Текст поста обязателен' });
     }
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const userData = user.rows[0];
     const postId = Date.now().toString();
-    
+
     await pool.query(
       'INSERT INTO posts (id, user_id, text, image, likes, comments, views) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [postId, userId, text, image || null, JSON.stringify([]), JSON.stringify([]), 0]
     );
-    
+
     // Получаем только что созданный пост с информацией о пользователе
     const newPost = await pool.query(`
       SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
@@ -686,9 +686,9 @@ app.post('/api/posts', async (req, res) => {
       LEFT JOIN users u ON p.user_id = u.id 
       WHERE p.id = $1
     `, [postId]);
-    
+
     const postData = newPost.rows[0];
-    
+
     res.json({ 
       success: true, 
       message: 'Пост опубликован',
@@ -721,27 +721,27 @@ app.post('/api/posts/:id/like', async (req, res) => {
   try {
     const { userId } = req.body;
     const postId = req.params.id;
-    
+
     const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
     if (post.rows.length === 0) {
       return res.json({ success: false, message: 'Пост не найден' });
     }
-    
+
     const postData = post.rows[0];
     const likes = postData.likes || [];
     const likeIndex = likes.indexOf(userId);
-    
+
     if (likeIndex === -1) {
       likes.push(userId);
     } else {
       likes.splice(likeIndex, 1);
     }
-    
+
     await pool.query(
       'UPDATE posts SET likes = $1 WHERE id = $2',
       [JSON.stringify(likes), postId]
     );
-    
+
     res.json({ 
       success: true, 
       likes: likes.length,
@@ -757,29 +757,29 @@ app.post('/api/posts/:id/comment', async (req, res) => {
   try {
     const { userId, text } = req.body;
     const postId = req.params.id;
-    
+
     if (!userId || !text) {
       return res.json({ success: false, message: 'Текст комментария обязателен' });
     }
-    
+
     const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
     if (post.rows.length === 0) {
       return res.json({ success: false, message: 'Пост не найден' });
     }
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const userData = user.rows[0];
     const postData = post.rows[0];
     const comments = postData.comments || [];
-    
+
     const comment = {
       id: Date.now().toString(),
       userId,
@@ -794,14 +794,14 @@ app.post('/api/posts/:id/comment', async (req, res) => {
         isDeveloper: userData.is_developer
       }
     };
-    
+
     comments.push(comment);
-    
+
     await pool.query(
       'UPDATE posts SET comments = $1 WHERE id = $2',
       [JSON.stringify(comments), postId]
     );
-    
+
     res.json({ 
       success: true, 
       message: 'Комментарий добавлен',
@@ -816,16 +816,16 @@ app.post('/api/posts/:id/comment', async (req, res) => {
 app.post('/api/posts/:id/view', async (req, res) => {
   try {
     const postId = req.params.id;
-    
+
     // Увеличиваем счетчик просмотров
     await pool.query(
       'UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = $1',
       [postId]
     );
-    
+
     // Получаем обновленное количество просмотров
     const post = await pool.query('SELECT views FROM posts WHERE id = $1', [postId]);
-    
+
     res.json({ 
       success: true, 
       message: 'Просмотр засчитан',
@@ -841,19 +841,19 @@ app.delete('/api/posts/:id', async (req, res) => {
   try {
     const postId = req.params.id;
     const { userId } = req.body;
-    
+
     const post = await pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
     if (post.rows.length === 0) {
       return res.json({ success: false, message: 'Пост не найден' });
     }
-    
+
     const postData = post.rows[0];
     if (postData.user_id !== userId) {
       return res.json({ success: false, message: 'Вы можете удалять только свои посты' });
     }
-    
+
     await pool.query('DELETE FROM posts WHERE id = $1', [postId]);
-    
+
     res.json({ 
       success: true, 
       message: 'Пост удален'
@@ -878,34 +878,34 @@ app.get('/api/gifts', async (req, res) => {
 app.post('/api/gifts', async (req, res) => {
   try {
     const { userId, name, price, image, type } = req.body;
-    
+
     if (!userId || !name || !price || !image || !type) {
       return res.json({ success: false, message: 'Все поля обязательны' });
     }
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0 || !user.rows[0].is_developer) {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
-    
+
     // Проверка типа файла
     const allowedTypes = ['png', 'svg', 'gif', 'webp'];
     const fileType = type.toLowerCase();
     if (!allowedTypes.includes(fileType)) {
       return res.json({ success: false, message: 'Разрешены только PNG, SVG, GIF и WebP файлы' });
     }
-    
+
     const giftId = Date.now().toString();
-    
+
     await pool.query(
       'INSERT INTO gifts (id, name, price, image, type, created_by) VALUES ($1, $2, $3, $4, $5, $6)',
       [giftId, name, parseInt(price), image, fileType, userId]
     );
-    
+
     const gift = {
       id: giftId,
       name,
@@ -916,7 +916,7 @@ app.post('/api/gifts', async (req, res) => {
       createdAt: new Date().toISOString(),
       deleted: false
     };
-    
+
     res.json({ 
       success: true, 
       message: 'Подарок добавлен в магазин',
@@ -931,7 +931,7 @@ app.post('/api/gifts', async (req, res) => {
 app.post('/api/gifts/buy', async (req, res) => {
   try {
     const { userId, giftId, toUserId, message } = req.body;
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
@@ -944,15 +944,15 @@ app.post('/api/gifts/buy', async (req, res) => {
       'SELECT * FROM gifts WHERE id = $1 AND deleted = false',
       [giftId]
     );
-    
+
     if (user.rows.length === 0 || toUser.rows.length === 0 || gift.rows.length === 0) {
       return res.json({ success: false, message: 'Ошибка покупки подарка' });
     }
-    
+
     const userData = user.rows[0];
     const toUserData = toUser.rows[0];
     const giftData = gift.rows[0];
-    
+
     // Обновляем подарки получателя
     const toUserGifts = toUserData.gifts || [];
     toUserGifts.push({
@@ -961,12 +961,12 @@ app.post('/api/gifts/buy', async (req, res) => {
       fromUserName: userData.display_name,
       timestamp: new Date().toISOString()
     });
-    
+
     await pool.query(
       'UPDATE users SET gifts = $1 WHERE id = $2',
       [JSON.stringify(toUserGifts), toUserId]
     );
-    
+
     // Создаем сообщение о подарке
     const messageId = Date.now().toString();
     const giftMessage = {
@@ -986,7 +986,7 @@ app.post('/api/gifts/buy', async (req, res) => {
       giftImage: giftData.image,
       giftType: giftData.type
     };
-    
+
     await pool.query(
       `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, 
        verified, is_developer, type, gift_id, gift_name, gift_price) 
@@ -994,15 +994,15 @@ app.post('/api/gifts/buy', async (req, res) => {
       [messageId, userId, userData.username, userData.display_name, giftMessage.text, toUserId,
        userData.verified, userData.is_developer, 'gift', giftData.id, giftData.name, giftData.price]
     );
-    
+
     // Отправляем уведомление получателю если он онлайн
     const recipientEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === toUserId);
-    
+
     if (recipientEntry) {
       const [recipientSocketId, recipientUser] = recipientEntry;
       io.to(recipientSocketId).emit('new_message', giftMessage);
-      
+
       // Отправляем отдельное уведомление о подарке
       io.to(recipientSocketId).emit('gift_received', {
         fromUser: {
@@ -1018,11 +1018,11 @@ app.post('/api/gifts/buy', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     // Отправляем уведомление отправителю
     const senderEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === userId);
-    
+
     if (senderEntry) {
       const [senderSocketId] = senderEntry;
       io.to(senderSocketId).emit('gift_sent', {
@@ -1037,7 +1037,7 @@ app.post('/api/gifts/buy', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     res.json({ 
       success: true, 
       message: 'Подарок успешно отправлен!',
@@ -1053,16 +1053,16 @@ app.post('/api/gifts/buy', async (req, res) => {
 app.get('/api/promocodes', async (req, res) => {
   try {
     const { userId } = req.query;
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0 || !user.rows[0].is_developer) {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
-    
+
     const promocodes = await pool.query('SELECT * FROM promocodes WHERE deleted = false');
     res.json(promocodes.rows);
   } catch (error) {
@@ -1074,36 +1074,36 @@ app.get('/api/promocodes', async (req, res) => {
 app.post('/api/promocodes', async (req, res) => {
   try {
     const { userId, code, coins, maxUses } = req.body;
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0 || !user.rows[0].is_developer) {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
-    
+
     if (!code || !coins) {
       return res.json({ success: false, message: 'Код и количество коинов обязательны' });
     }
-    
+
     const existingPromo = await pool.query(
       'SELECT * FROM promocodes WHERE code = $1 AND deleted = false',
       [code.toUpperCase()]
     );
-    
+
     if (existingPromo.rows.length > 0) {
       return res.json({ success: false, message: 'Промокод уже существует' });
     }
-    
+
     const promocodeId = Date.now().toString();
-    
+
     await pool.query(
       'INSERT INTO promocodes (id, code, coins, max_uses, used_count, used_by, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [promocodeId, code.toUpperCase(), parseInt(coins), maxUses || 1, 0, JSON.stringify([]), userId]
     );
-    
+
     const promocode = {
       id: promocodeId,
       code: code.toUpperCase(),
@@ -1115,7 +1115,7 @@ app.post('/api/promocodes', async (req, res) => {
       createdAt: new Date().toISOString(),
       deleted: false
     };
-    
+
     res.json({ 
       success: true, 
       message: 'Промокод создан',
@@ -1130,37 +1130,37 @@ app.post('/api/promocodes', async (req, res) => {
 app.post('/api/promocodes/use', async (req, res) => {
   try {
     const { userId, code } = req.body;
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const userData = user.rows[0];
     const promocode = await pool.query(
       'SELECT * FROM promocodes WHERE code = $1 AND deleted = false AND used_count < max_uses',
       [code.toUpperCase()]
     );
-    
+
     if (promocode.rows.length === 0) {
       return res.json({ success: false, message: 'Промокод не найден или достиг лимита использований' });
     }
-    
+
     const promocodeData = promocode.rows[0];
     const usedBy = promocodeData.used_by || [];
-    
+
     if (usedBy.includes(userId)) {
       return res.json({ success: false, message: 'Вы уже использовали этот промокод' });
     }
-    
+
     // Начисляем коины
     const newCoins = (userData.coins || 0) + promocodeData.coins;
     usedBy.push(userId);
-    
+
     await pool.query(
       'UPDATE users SET coins = $1, used_promocodes = $2 WHERE id = $3',
       [newCoins, JSON.stringify([...(userData.used_promocodes || []), {
@@ -1169,12 +1169,12 @@ app.post('/api/promocodes/use', async (req, res) => {
         usedAt: new Date().toISOString()
       }]), userId]
     );
-    
+
     await pool.query(
       'UPDATE promocodes SET used_count = $1, used_by = $2 WHERE id = $3',
       [promocodeData.used_count + 1, JSON.stringify(usedBy), promocodeData.id]
     );
-    
+
     res.json({ 
       success: true, 
       message: `Промокод активирован! Получено ${promocodeData.coins} E-COIN`,
@@ -1190,21 +1190,21 @@ app.delete('/api/promocodes/:id', async (req, res) => {
   try {
     const { userId } = req.body;
     const promocodeId = req.params.id;
-    
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (user.rows.length === 0 || !user.rows[0].is_developer) {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
-    
+
     await pool.query(
       'UPDATE promocodes SET deleted = true WHERE id = $1',
       [promocodeId]
     );
-    
+
     res.json({ 
       success: true, 
       message: 'Промокод удален'
@@ -1235,7 +1235,7 @@ app.get('/api/admin/users', async (req, res) => {
       createdAt: user.created_at,
       deleted: user.deleted
     }));
-    
+
     res.json(usersFormatted);
   } catch (error) {
     console.error('Error getting admin users:', error);
@@ -1246,16 +1246,16 @@ app.get('/api/admin/users', async (req, res) => {
 app.post('/api/admin/toggle-verify', async (req, res) => {
   try {
     const { userId, verified } = req.body;
-    
+
     await pool.query(
       'UPDATE users SET verified = $1 WHERE id = $2',
       [verified, userId]
     );
-    
+
     // Отправляем уведомление пользователю если он онлайн
     const userEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === userId);
-    
+
     if (userEntry) {
       const [userSocketId] = userEntry;
       io.to(userSocketId).emit('user_verified', { 
@@ -1263,7 +1263,7 @@ app.post('/api/admin/toggle-verify', async (req, res) => {
         verified: verified 
       });
     }
-    
+
     res.json({ 
       success: true, 
       message: `Аккаунт ${verified ? 'верифицирован' : 'деверифицирован'}` 
@@ -1277,16 +1277,16 @@ app.post('/api/admin/toggle-verify', async (req, res) => {
 app.post('/api/admin/toggle-developer', async (req, res) => {
   try {
     const { userId, isDeveloper } = req.body;
-    
+
     await pool.query(
       'UPDATE users SET is_developer = $1 WHERE id = $2',
       [isDeveloper, userId]
     );
-    
+
     // Отправляем уведомление пользователю если он онлайн
     const userEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === userId);
-    
+
     if (userEntry) {
       const [userSocketId] = userEntry;
       io.to(userSocketId).emit('user_developer_updated', { 
@@ -1294,7 +1294,7 @@ app.post('/api/admin/toggle-developer', async (req, res) => {
         isDeveloper: isDeveloper 
       });
     }
-    
+
     res.json({ 
       success: true, 
       message: `Роль разработчика ${isDeveloper ? 'назначена' : 'снята'}` 
@@ -1308,36 +1308,36 @@ app.post('/api/admin/toggle-developer', async (req, res) => {
 app.post('/api/admin/delete-user', async (req, res) => {
   try {
     const { userId, adminId } = req.body;
-    
+
     const adminUser = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [adminId]
     );
-    
+
     if (adminUser.rows.length === 0 || !adminUser.rows[0].is_developer) {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
-    
+
     const userToDelete = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
     );
-    
+
     if (userToDelete.rows.length === 0) {
       return res.json({ success: false, message: 'Пользователь не найден' });
     }
-    
+
     const userData = userToDelete.rows[0];
-    
+
     // ЗАЩИТА: BayRex нельзя удалить
     if (userData.username.toLowerCase() === 'bayrex') {
       return res.json({ success: false, message: 'Нельзя удалить создателя системы BayRex' });
     }
-    
+
     if (userId === adminId) {
       return res.json({ success: false, message: 'Нельзя удалить самого себя' });
     }
-    
+
     // Помечаем пользователя как удаленного
     await pool.query(
       `UPDATE users SET 
@@ -1353,17 +1353,17 @@ app.post('/api/admin/delete-user', async (req, res) => {
        WHERE id = $3`,
       ['deleted_' + Date.now(), 'deleted_' + Date.now() + '@deleted.com', userId]
     );
-    
+
     // Уведомляем всех онлайн пользователей об удалении
     io.emit('user_deleted', { 
       userId: userId,
       message: 'Пользователь был удален' 
     });
-    
+
     // Отключаем пользователя если он онлайн
     const userEntry = Array.from(onlineUsers.entries())
       .find(([_, u]) => u.userId === userId);
-    
+
     if (userEntry) {
       const [userSocketId] = userEntry;
       io.to(userSocketId).emit('user_deleted', { 
@@ -1371,7 +1371,7 @@ app.post('/api/admin/delete-user', async (req, res) => {
       });
       onlineUsers.delete(userSocketId);
     }
-    
+
     res.json({ 
       success: true, 
       message: 'Пользователь удален' 
@@ -1392,20 +1392,20 @@ io.on('connection', (socket) => {
         'SELECT * FROM users WHERE id = $1 AND deleted = false',
         [userData.userId]
       );
-      
+
       if (user.rows.length === 0) {
         console.log('❌ User not found:', userData.userId);
         socket.emit('user_not_found', { message: 'Пользователь не найден' });
         return;
       }
-      
+
       const userRow = user.rows[0];
-      
+
       await pool.query(
         'UPDATE users SET status = $1 WHERE id = $2',
         ['online', userData.userId]
       );
-      
+
       const onlineUser = {
         socketId: socket.id,
         username: userRow.username,
@@ -1416,12 +1416,12 @@ io.on('connection', (socket) => {
         isDeveloper: userRow.is_developer,
         avatar: userRow.avatar
       };
-      
+
       onlineUsers.set(socket.id, onlineUser);
-      
+
       // Уведомляем всех о новом онлайн пользователе
       socket.broadcast.emit('user_online', onlineUser);
-      
+
       console.log('👋 User joined:', userRow.display_name);
     } catch (error) {
       console.error('Error in user_join:', error);
@@ -1436,7 +1436,7 @@ io.on('connection', (socket) => {
          AND deleted = false ORDER BY timestamp ASC`,
         [data.userId, data.targetId]
       );
-      
+
       socket.emit('chat_history_loaded', { 
         targetId: data.targetId, 
         messages: messages.rows 
@@ -1455,22 +1455,23 @@ io.on('connection', (socket) => {
       const onlineUser = onlineUsers.get(socket.id);
       if (!onlineUser) {
         console.log('❌ Online user not found for socket:', socket.id);
+        socket.emit('user_not_found', { message: 'Пользователь не найден' });
         return;
       }
-      
+
       // Проверяем существует ли получатель и не удален ли он
       const recipient = await pool.query(
         'SELECT * FROM users WHERE id = $1 AND deleted = false',
         [messageData.toUserId]
       );
-      
+
       if (recipient.rows.length === 0) {
         socket.emit('user_not_found', { message: 'Пользователь не найден или был удален' });
         return;
       }
-      
+
       const messageId = Date.now().toString();
-      
+
       await pool.query(
         `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, 
          verified, is_developer, type, file_data, file_name, file_type, file_size, 
@@ -1482,7 +1483,7 @@ io.on('connection', (socket) => {
          messageData.fileType || null, messageData.fileSize || 0, messageData.giftId || null,
          messageData.giftName || null, messageData.giftPrice || null]
       );
-      
+
       const message = {
         id: messageId,
         userId: onlineUser.userId,
@@ -1501,19 +1502,20 @@ io.on('connection', (socket) => {
         giftId: messageData.giftId || null,
         giftName: messageData.giftName || null,
         giftPrice: messageData.giftPrice || null,
-        deleted: false
+        deleted: false,
+        avatar: onlineUser.avatar
       };
-      
+
       console.log('💬 Сохранено сообщение от', message.displayName, 'к', messageData.toUserId);
-      
+
       // Отправляем сообщение отправителю
       socket.emit('new_message', message);
       socket.emit('message_sent', { success: true });
-      
+
       // Отправляем сообщение получателю если он онлайн
       const recipientEntry = Array.from(onlineUsers.entries())
         .find(([_, u]) => u.userId === messageData.toUserId);
-      
+
       if (recipientEntry) {
         const [recipientSocketId, recipientUser] = recipientEntry;
         io.to(recipientSocketId).emit('new_message', message);
@@ -1521,10 +1523,13 @@ io.on('connection', (socket) => {
         io.to(recipientSocketId).emit('new_message_notification', {
           from: onlineUser.displayName,
           message: messageData.text,
-          userId: onlineUser.userId
+          userId: onlineUser.userId,
+          avatar: onlineUser.avatar
         });
         console.log('📨 Сообщение доставлено пользователю:', recipientUser.displayName);
       }
+
+      console.log('✅ Message sent successfully to database and recipients');
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('message_sent', { success: false, error: 'Ошибка отправки сообщения' });
@@ -1534,38 +1539,38 @@ io.on('connection', (socket) => {
   socket.on('delete_message', async (data) => {
     try {
       const { messageId, userId } = data;
-      
+
       const message = await pool.query(
         'SELECT * FROM messages WHERE id = $1',
         [messageId]
       );
-      
+
       if (message.rows.length === 0) {
         socket.emit('message_delete_error', { message: 'Сообщение не найдено' });
         return;
       }
-      
+
       const messageData = message.rows[0];
-      
+
       // Проверяем права на удаление (только отправитель или получатель)
       if (messageData.user_id !== userId && messageData.to_user_id !== userId) {
         socket.emit('message_delete_error', { message: 'Вы не можете удалить это сообщение' });
         return;
       }
-      
+
       // Помечаем сообщение как удаленное
       await pool.query(
         'UPDATE messages SET deleted = true WHERE id = $1',
         [messageId]
       );
-      
+
       // Уведомляем всех участников чата об удалении
       const participants = [messageData.user_id, messageData.to_user_id];
-      
+
       participants.forEach(participantId => {
         const participantEntry = Array.from(onlineUsers.entries())
           .find(([_, u]) => u.userId === participantId);
-        
+
         if (participantEntry) {
           const [participantSocketId] = participantEntry;
           io.to(participantSocketId).emit('message_deleted', { 
@@ -1574,12 +1579,12 @@ io.on('connection', (socket) => {
           });
         }
       });
-      
+
       socket.emit('message_deleted', { 
         messageId: messageId,
         success: true 
       });
-      
+
       console.log('🗑️ Сообщение удалено:', messageId);
     } catch (error) {
       console.error('Error deleting message:', error);
@@ -1595,12 +1600,12 @@ io.on('connection', (socket) => {
           'UPDATE users SET status = $1 WHERE id = $2',
           ['offline', onlineUser.userId]
         );
-        
+
         // Уведомляем всех о выходе пользователя
         socket.broadcast.emit('user_offline', onlineUser);
-        
+
         onlineUsers.delete(socket.id);
-        
+
         console.log('👋 User disconnected:', onlineUser.displayName);
       } catch (error) {
         console.error('Error updating user status on disconnect:', error);
@@ -1628,7 +1633,10 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🎁 Gift shop: ENABLED');
   console.log('💰 Promocodes system: ENABLED');
   console.log('🗑️ Message deletion: ENABLED');
+  console.log('🎤 Voice messages: ENABLED');
+  console.log('🔔 Push notifications: ENABLED');
   console.log('🛡️ BayRex account: PROTECTED FROM DELETION');
   console.log('📱 Mobile version: FIXED KEYBOARD ISSUES');
+  console.log('🎨 Custom themes: FIXED');
   console.log('=====================================');
 });
