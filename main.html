@@ -42,34 +42,34 @@
 
         .theme-custom1 {
             --bg-primary: #1a1f2e;
-            --bg-secondary: rgba(26, 35, 44, 0.9);
-            --bg-tertiary: rgba(42, 58, 74, 0.8);
-            --border-color: rgba(42, 58, 74, 0.6);
+            --bg-secondary: #252a3a;
+            --bg-tertiary: #2f3548;
+            --border-color: #3a4157;
             --text-primary: #e6e6e6;
             --text-secondary: #8a9ba8;
-            --accent-color: #00b4b4;
-            --accent-hover: #00cccc;
+            --accent-color: #8a2be2;
+            --accent-hover: #9b45f0;
             --success-color: #00b894;
             --error-color: #e17055;
             --warning-color: #fdcb6e;
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-bg: rgba(138, 43, 226, 0.1);
+            --glass-border: rgba(138, 43, 226, 0.2);
         }
 
         .theme-custom2 {
             --bg-primary: #2d1b2e;
-            --bg-secondary: rgba(26, 35, 44, 0.9);
-            --bg-tertiary: rgba(42, 58, 74, 0.8);
-            --border-color: rgba(42, 58, 74, 0.6);
+            --bg-secondary: #3a2540;
+            --bg-tertiary: #472e4d;
+            --border-color: #54375a;
             --text-primary: #e6e6e6;
-            --text-secondary: #8a9ba8;
-            --accent-color: #00b4b4;
-            --accent-hover: #00cccc;
+            --text-secondary: #b8a9c9;
+            --accent-color: #ff6b6b;
+            --accent-hover: #ff8585;
             --success-color: #00b894;
             --error-color: #e17055;
             --warning-color: #fdcb6e;
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-bg: rgba(255, 107, 107, 0.1);
+            --glass-border: rgba(255, 107, 107, 0.2);
         }
 
         body { 
@@ -707,10 +707,64 @@
 
         .notification.success { background: var(--success-color); }
         .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
 
         @keyframes slideInRight {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Push уведомления */
+        .push-notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            max-width: 300px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 999;
+            animation: slideInRight 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .push-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .push-content {
+            flex: 1;
+        }
+
+        .push-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .push-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .push-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
         }
 
         /* Админ панель */
@@ -1049,6 +1103,69 @@
             width: 100%;
         }
 
+        /* Стили для записи голосовых сообщений */
+        .voice-recorder {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+            margin-right: 10px;
+        }
+
+        .record-btn {
+            background: var(--error-color);
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .record-btn.recording {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .recording-timer {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .voice-message {
+            background: var(--bg-secondary);
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 250px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .voice-waveform {
+            flex: 1;
+            height: 30px;
+            background: linear-gradient(90deg, var(--accent-color) 50%, transparent 50%);
+            background-size: 4px 100%;
+            border-radius: 15px;
+        }
+
+        .voice-duration {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
         /* Мобильная адаптация */
         @media (max-width: 768px) {
             .sidebar {
@@ -1207,6 +1324,16 @@
                             <button class="file-upload-btn" onclick="openFileUpload('chat')" title="Прикрепить файл">
                                 <span>📎</span>
                             </button>
+                            <button class="file-upload-btn" onclick="toggleVoiceRecording()" title="Голосовое сообщение" id="voiceRecordBtn">
+                                <span>🎤</span>
+                            </button>
+                            <div class="voice-recorder" id="voiceRecorder" style="display: none;">
+                                <button class="record-btn" id="recordBtn">
+                                    <span>●</span>
+                                </button>
+                                <div class="recording-timer" id="recordingTimer">0:00</div>
+                                <button class="send-btn" onclick="stopVoiceRecording()">Отправить</button>
+                            </div>
                             <div class="message-input-wrapper">
                                 <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleKeyPress(event)">
                             </div>
@@ -1305,6 +1432,16 @@
         let currentGiftUpload = null;
         let currentPostUpload = null;
 
+        // Переменные для записи голоса
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimer = null;
+
+        // Переменные для уведомлений
+        let notificationPermission = 'default';
+
         // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {
             // Проверка авторизации
@@ -1315,7 +1452,53 @@
             } else {
                 window.location.href = 'index.html';
             }
+
+            // Запрос разрешения на уведомления
+            requestNotificationPermission();
         });
+
+        // Запрос разрешения на уведомления
+        async function requestNotificationPermission() {
+            if ('Notification' in window) {
+                notificationPermission = await Notification.requestPermission();
+            }
+        }
+
+        // Показать push уведомление
+        function showPushNotification(title, message, avatar = null) {
+            // Создаем HTML уведомление
+            const notification = document.createElement('div');
+            notification.className = 'push-notification';
+            notification.innerHTML = `
+                <div class="push-avatar">
+                    ${avatar ? `<img src="${avatar}" alt="${title}" style="width: 100%; height: 100%; border-radius: 50%;">` : '👤'}
+                </div>
+                <div class="push-content">
+                    <div class="push-title">${title}</div>
+                    <div class="push-message">${message}</div>
+                </div>
+                <button class="push-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Автоматическое удаление через 5 секунд
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        // Показать браузерное уведомление
+        function showBrowserNotification(title, message) {
+            if (notificationPermission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/assets/logo.png'
+                });
+            }
+        }
 
         // Инициализация приложения после авторизации
         async function initializeApp() {
@@ -1369,13 +1552,26 @@
             });
 
             socket.on('new_message', (message) => {
+                console.log('📨 New message received:', message);
                 if (currentChatUser && (message.userId === currentChatUser.id || message.toUserId === currentChatUser.id)) {
                     displayMessage(message);
+                } else {
+                    // Показать уведомление о новом сообщении
+                    showPushNotification(
+                        message.displayName, 
+                        message.text || 'Новое сообщение',
+                        message.avatar
+                    );
+                    showBrowserNotification(
+                        `Новое сообщение от ${message.displayName}`,
+                        message.text || 'Нажмите чтобы открыть'
+                    );
                 }
                 loadChats();
             });
 
             socket.on('chat_history_loaded', (data) => {
+                console.log('📜 Chat history loaded:', data.messages.length, 'messages');
                 if (currentChatUser && data.targetId === currentChatUser.id) {
                     const chatMessages = document.getElementById('chatMessages');
                     chatMessages.innerHTML = '';
@@ -1390,6 +1586,7 @@
 
             socket.on('user_online', (user) => {
                 updateUserStatus(user.userId, 'online');
+                showPushNotification('Пользователь онлайн', `${user.displayName} теперь в сети`);
             });
 
             socket.on('user_offline', (user) => {
@@ -1399,11 +1596,39 @@
             socket.on('message_sent', (data) => {
                 if (data.success) {
                     console.log('✅ Message sent successfully');
+                } else {
+                    showNotification('Ошибка отправки сообщения', 'error');
                 }
             });
 
             socket.on('user_not_found', (data) => {
                 showNotification(data.message, 'error');
+            });
+
+            socket.on('gift_received', (data) => {
+                showPushNotification(
+                    '🎁 Новый подарок!', 
+                    `${data.fromUser.displayName} подарил(а) вам подарок`,
+                    data.fromUser.avatar
+                );
+                showBrowserNotification(
+                    '🎁 Новый подарок!',
+                    `${data.fromUser.displayName} подарил(а) вам ${data.gift.name}`
+                );
+            });
+
+            // Обработка ошибок соединения
+            socket.on('connect_error', (error) => {
+                console.error('❌ Connection error:', error);
+                showNotification('Ошибка соединения с сервером', 'error');
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('🔌 Disconnected:', reason);
+                if (reason === 'io server disconnect') {
+                    // Сервер отключил сокет, нужно переподключиться вручную
+                    socket.connect();
+                }
             });
         }
 
@@ -1608,6 +1833,16 @@
                         </div>
                     </div>
                 `;
+            } else if (message.type === 'voice') {
+                messageContent = `
+                    <div class="voice-message">
+                        <button onclick="playVoiceMessage('${message.fileData}')" style="background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 20px;">
+                            ▶️
+                        </button>
+                        <div class="voice-waveform"></div>
+                        <div class="voice-duration">${message.duration || '0:00'}</div>
+                    </div>
+                `;
             } else if (message.fileData) {
                 const isImage = message.fileType && message.fileType.startsWith('image');
                 const isVideo = message.fileType && message.fileType.startsWith('video');
@@ -1637,6 +1872,12 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+        // Воспроизведение голосового сообщения
+        function playVoiceMessage(audioData) {
+            const audio = new Audio(audioData);
+            audio.play();
+        }
+
         // Отправка сообщения
         function sendMessage() {
             const messageInput = document.getElementById('messageInput');
@@ -1663,34 +1904,17 @@
                 messageData.fileData = currentFileUpload.data;
                 messageData.fileName = currentFileUpload.name;
                 messageData.fileType = currentFileUpload.type;
+                messageData.fileSize = currentFileUpload.size;
             }
 
+            // Отправка через WebSocket
             if (socket && socket.connected) {
-    socket.emit('send_message', messageData);
-} else {
-    // Если WebSocket не подключен, создаем локальное сообщение
-    const message = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        username: currentUser.username,
-        displayName: currentUser.displayName,
-        text: text,
-        toUserId: currentChatUser.id,
-        timestamp: new Date().toISOString(),
-        verified: currentUser.verified,
-        isDeveloper: currentUser.isDeveloper,
-        type: 'text'
-    };
-    
-    if (currentFileUpload) {
-        message.fileData = currentFileUpload.data;
-        message.fileName = currentFileUpload.name;
-        message.fileType = currentFileUpload.type;
-    }
-    
-    displayMessage(message);
-    showNotification('Сообщение отправлено (локально)', 'success');
-}
+                socket.emit('send_message', messageData);
+                console.log('📤 Sending message:', messageData);
+            } else {
+                showNotification('Нет соединения с сервером', 'error');
+                return;
+            }
 
             messageInput.value = '';
             currentFileUpload = null;
@@ -1700,6 +1924,113 @@
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
                 sendMessage();
+            }
+        }
+
+        // Функции для записи голосовых сообщений
+        async function toggleVoiceRecording() {
+            const voiceRecorder = document.getElementById('voiceRecorder');
+            const messageInputWrapper = document.querySelector('.message-input-wrapper');
+            
+            if (voiceRecorder.style.display === 'none') {
+                // Показать рекордер
+                voiceRecorder.style.display = 'flex';
+                messageInputWrapper.style.display = 'none';
+                
+                // Запросить доступ к микрофону
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    startVoiceRecording(stream);
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    showNotification('Не удалось получить доступ к микрофону', 'error');
+                    hideVoiceRecorder();
+                }
+            } else {
+                hideVoiceRecorder();
+                stopVoiceRecording();
+            }
+        }
+
+        function startVoiceRecording(stream) {
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            isRecording = true;
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                // Преобразуем в base64 для отправки
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Audio = reader.result;
+                    sendVoiceMessage(base64Audio);
+                };
+                reader.readAsDataURL(audioBlob);
+            };
+
+            mediaRecorder.start();
+            recordingStartTime = Date.now();
+            updateRecordingTimer();
+
+            // Обновляем UI
+            document.getElementById('recordBtn').classList.add('recording');
+        }
+
+        function stopVoiceRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                clearInterval(recordingTimer);
+                
+                // Останавливаем все треки
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                document.getElementById('recordBtn').classList.remove('recording');
+            }
+            hideVoiceRecorder();
+        }
+
+        function updateRecordingTimer() {
+            recordingTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('recordingTimer').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function hideVoiceRecorder() {
+            document.getElementById('voiceRecorder').style.display = 'none';
+            document.querySelector('.message-input-wrapper').style.display = 'flex';
+        }
+
+        function sendVoiceMessage(audioData) {
+            if (!currentChatUser) {
+                showNotification('Выберите пользователя для отправки сообщения', 'error');
+                return;
+            }
+
+            const messageData = {
+                text: 'Голосовое сообщение',
+                toUserId: currentChatUser.id,
+                type: 'voice',
+                fileData: audioData,
+                fileName: 'voice_message.wav',
+                fileType: 'audio/wav'
+            };
+
+            if (socket && socket.connected) {
+                socket.emit('send_message', messageData);
+                console.log('📤 Sending voice message');
+            } else {
+                showNotification('Нет соединения с сервером', 'error');
             }
         }
 
@@ -1887,19 +2218,21 @@
                     <h3 style="margin-bottom: 15px;">Тема оформления</h3>
                     <div class="theme-selector">
                         <div class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" onclick="changeTheme('dark')">
-                            Темная
+                            <div style="width: 100%; height: 60px; background: #0f1419; border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div class="custom-theme-name">Темная</div>
                         </div>
                         <div class="theme-option ${currentTheme === 'light' ? 'active' : ''}" onclick="changeTheme('light')">
-                            Светлая
+                            <div style="width: 100%; height: 60px; background: #ffffff; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px;"></div>
+                            <div class="custom-theme-name">Светлая</div>
                         </div>
-<div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
-    <div style="width: 100%; height: 60px; background: #1a1f2e; border-radius: 4px; margin-bottom: 8px;"></div>
-    <div class="custom-theme-name">Фиолетовая</div>
-</div>
-<div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
-    <div style="width: 100%; height: 60px; background: #2d1b2e; border-radius: 4px; margin-bottom: 8px;"></div>
-    <div class="custom-theme-name">Темно-фиолетовая</div>
-</div>
+                        <div class="theme-option custom-theme-option ${currentTheme === 'custom1' ? 'active' : ''}" onclick="changeTheme('custom1')">
+                            <img src="assets/tema1.png" alt="Фиолетовая тема" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 100%; height: 60px; background: #1a1f2e; border-radius: 4px; margin-bottom: 8px;\\'></div><div class=\\'custom-theme-name\\'>Фиолетовая</div>';">
+                            <div class="custom-theme-name">Фиолетовая</div>
+                        </div>
+                        <div class="theme-option custom-theme-option ${currentTheme === 'custom2' ? 'active' : ''}" onclick="changeTheme('custom2')">
+                            <img src="assets/tema2.png" alt="Темно-фиолетовая тема" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 100%; height: 60px; background: #2d1b2e; border-radius: 4px; margin-bottom: 8px;\\'></div><div class=\\'custom-theme-name\\'>Темно-фиолетовая</div>';">
+                            <div class="custom-theme-name">Темно-фиолетовая</div>
+                        </div>
                     </div>
                 </div>
                 
@@ -1923,7 +2256,47 @@
                         <button class="btn-large" onclick="updateProfile()">💾 Сохранить изменения</button>
                     </div>
                 </div>
+                
+                <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px; margin-top: 20px;">
+                    <h4 style="margin-bottom: 15px;">Уведомления</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="pushNotifications" ${notificationPermission === 'granted' ? 'checked' : ''} onchange="togglePushNotifications()">
+                            <span>Push-уведомления</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="soundNotifications" checked onchange="toggleSoundNotifications()">
+                            <span>Звуковые уведомления</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="browserNotifications" ${notificationPermission === 'granted' ? 'checked' : ''} onchange="toggleBrowserNotifications()">
+                            <span>Браузерные уведомления</span>
+                        </label>
+                    </div>
+                </div>
             `;
+        }
+
+        // Переключение уведомлений
+        function togglePushNotifications() {
+            const enabled = document.getElementById('pushNotifications').checked;
+            if (enabled) {
+                requestNotificationPermission();
+            }
+            showNotification(`Push-уведомления ${enabled ? 'включены' : 'выключены'}`, 'success');
+        }
+
+        function toggleSoundNotifications() {
+            const enabled = document.getElementById('soundNotifications').checked;
+            showNotification(`Звуковые уведомления ${enabled ? 'включены' : 'выключены'}`, 'success');
+        }
+
+        function toggleBrowserNotifications() {
+            const enabled = document.getElementById('browserNotifications').checked;
+            if (enabled) {
+                requestNotificationPermission();
+            }
+            showNotification(`Браузерные уведомления ${enabled ? 'включены' : 'выключены'}`, 'success');
         }
 
         // Обновление админ панели
@@ -2294,7 +2667,8 @@
                     currentFileUpload = {
                         data: fileData,
                         name: file.name,
-                        type: file.type
+                        type: file.type,
+                        size: file.size
                     };
                     showNotification(`Файл "${file.name}" готов к отправке`, 'success');
                 } else if (currentFileUploadType === 'avatar') {
@@ -3024,7 +3398,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                    }
+                        }
                 });
                 // Обновляем посты чтобы отобразить новые просмотры
                 await loadPosts();
