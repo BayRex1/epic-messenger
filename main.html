@@ -1237,6 +1237,210 @@
             color: var(--text-secondary);
         }
 
+        /* Стили для профиля */
+        .profile-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .profile-tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .profile-tab.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+
+        .profile-tab:hover {
+            color: var(--accent-color);
+        }
+
+        .profile-tab-content {
+            display: none;
+        }
+
+        .profile-tab-content.active {
+            display: block;
+        }
+
+        .user-posts-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .user-post {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .user-post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .user-post-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            margin-right: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .user-post-info {
+            flex: 1;
+        }
+
+        .user-post-name {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .user-post-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .user-post-content {
+            margin-bottom: 12px;
+        }
+
+        .user-post-text {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .user-post-media {
+            margin-top: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .user-post-media img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: cover;
+        }
+
+        .user-post-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .user-post-action {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .user-post-action:hover {
+            color: var(--text-primary);
+        }
+
+        .user-post-action.liked {
+            color: var(--error-color);
+        }
+
+        /* BayRex usernames */
+        .bayrex-usernames-container {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .add-username-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .add-username-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .username-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .username-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .username-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .username-display-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .username-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .username-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .username-btn.assign {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .username-btn.delete {
+            background: var(--error-color);
+            color: white;
+        }
+
         /* Мобильная адаптация */
         @media (max-width: 768px) {
             .sidebar {
@@ -1282,6 +1486,20 @@
 
             .message {
                 max-width: 85%;
+            }
+
+            .profile-tabs {
+                flex-wrap: wrap;
+            }
+
+            .profile-tab {
+                flex: 1;
+                min-width: 120px;
+                text-align: center;
+            }
+
+            .add-username-form {
+                flex-direction: column;
             }
         }
 
@@ -1348,9 +1566,10 @@
                     <div class="menu-text">Лента</div>
                 </button>
 
+                <!-- НОВАЯ КНОПКА: Мой профиль -->
                 <button class="menu-item" onclick="showContent('profile')">
                     <div class="menu-icon">
-                        <img src="assets/profile.svg" alt="Профиль" onerror="this.style.display='none'; this.parentElement.innerHTML='👤';">
+                        <img src="assets/profile.svg" alt="Мой профиль" onerror="this.style.display='none'; this.parentElement.innerHTML='👤';">
                     </div>
                     <div class="menu-text">Мой профиль</div>
                 </button>
@@ -1462,7 +1681,7 @@
                 </div>
             </div>
 
-            <!-- Мой профиль -->
+            <!-- НОВЫЙ РАЗДЕЛ: Мой профиль -->
             <div class="content-area" id="profileContent">
                 <div class="profile-container">
                     <h2 class="section-title">Мой профиль</h2>
@@ -1537,6 +1756,7 @@
         let currentAvatarUpload = null;
         let currentGiftUpload = null;
         let currentPostUpload = null;
+        let viewingProfileUserId = null; // ID пользователя, чей профиль просматриваем
 
         // Переменные для записи голоса
         let mediaRecorder = null;
@@ -1790,7 +2010,7 @@
                                 ${avatarContent}
                             </div>
                             <div class="chat-info">
-                                <h4>
+                                <h4 onclick="viewUserProfile('${user.id}')" style="cursor: pointer;">
                                     ${user.displayName}
                                     ${user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
                                     ${user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
@@ -1817,7 +2037,7 @@
                                 ${avatarContent}
                             </div>
                             <div class="chat-info">
-                                <h4>
+                                <h4 onclick="viewUserProfile('${user.id}')" style="cursor: pointer;">
                                     ${user.displayName}
                                     ${user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
                                     ${user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
@@ -1960,6 +2180,7 @@
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
 
+            // ИСПРАВЛЕНИЕ: проверка на пустое сообщение
             if (!text && !currentFileUpload) {
                 showNotification('Введите сообщение или прикрепите файл', 'error');
                 return;
@@ -2193,6 +2414,7 @@
             // Загрузить данные для секции
             switch(contentType) {
                 case 'profile':
+                    viewingProfileUserId = null; // Сбрасываем просмотр чужого профиля
                     updateProfileSection();
                     break;
                 case 'ecoins':
@@ -2220,15 +2442,24 @@
             document.getElementById('sidebar').classList.toggle('expanded');
         }
 
-        // Обновление секции профиля
+        // НОВАЯ ФУНКЦИЯ: Обновление секции профиля
         function updateProfileSection() {
             const profileInfo = document.getElementById('profileInfo');
-            const userGifts = currentUser.gifts || [];
-            const userPosts = posts.filter(p => p.userId === currentUser.id).length;
+            const userToShow = viewingProfileUserId ? allUsers.find(u => u.id === viewingProfileUserId) : currentUser;
+            
+            if (!userToShow) {
+                profileInfo.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">Пользователь не найден</div>';
+                return;
+            }
 
-            const avatarLargeContent = currentUser.avatar ? 
-                `<img src="${currentUser.avatar}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">` :
-                currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || currentUser.username.charAt(0).toUpperCase();
+            const userGifts = userToShow.gifts || [];
+            const userPosts = posts.filter(p => p.userId === userToShow.id);
+
+            const avatarLargeContent = userToShow.avatar ? 
+                `<img src="${userToShow.avatar}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">` :
+                userToShow.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || userToShow.username.charAt(0).toUpperCase();
+
+            const isOwnProfile = userToShow.id === currentUser.id;
 
             profileInfo.innerHTML = `
                 <div class="user-profile">
@@ -2238,23 +2469,26 @@
                         </div>
                         <div class="profile-info-large">
                             <h2>
-                                ${currentUser.displayName}
-                                ${currentUser.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
-                                ${currentUser.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
+                                ${userToShow.displayName}
+                                ${userToShow.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
+                                ${userToShow.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
                             </h2>
-                            <p style="color: var(--text-secondary); margin-bottom: 8px; font-size: 18px;">@${currentUser.username}</p>
-                            <p style="color: var(--text-secondary); font-size: 14px;">${currentUser.description || 'Нет описания'}</p>
-                            <p style="color: var(--text-secondary); font-size: 14px;">Зарегистрирован: ${new Date(currentUser.createdAt).toLocaleDateString()}</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 8px; font-size: 18px;">@${userToShow.username}</p>
+                            <p style="color: var(--text-secondary); font-size: 14px;">${userToShow.description || 'Нет описания'}</p>
+                            <p style="color: var(--text-secondary); font-size: 14px;">Статус: ${userToShow.status || 'offline'}</p>
+                            ${!isOwnProfile ? `
+                                <p style="color: var(--text-secondary); font-size: 14px;">Зарегистрирован: ${new Date(userToShow.createdAt).toLocaleDateString()}</p>
+                            ` : ''}
                         </div>
                     </div>
                     
                     <div class="profile-stats">
                         <div class="stat-item">
-                            <div class="stat-value">${userPosts}</div>
+                            <div class="stat-value">${userPosts.length}</div>
                             <div class="stat-label">Посты</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-value">${currentUser.coins || 0}</div>
+                            <div class="stat-value">${isOwnProfile ? (userToShow.coins || 0) : '-'}</div>
                             <div class="stat-label">E-COIN</div>
                         </div>
                         <div class="stat-item">
@@ -2264,38 +2498,373 @@
                     </div>
                     
                     <div class="profile-actions">
-                        <button class="btn-large" onclick="showEditProfileModal()">✏️ Редактировать профиль</button>
-                        <button class="btn-large" onclick="showMyGiftsModal()">🎁 Мои подарки</button>
-                    </div>
-                    
-                    <div style="margin-top: 30px;">
-                        <h3 style="margin-bottom: 15px;">Мои подарки</h3>
-                        ${userGifts.length === 0 ? `
-                            <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
-                                У вас пока нет подарков
-                            </div>
+                        ${!isOwnProfile ? `
+                            <button class="btn-large" onclick="openChat(${JSON.stringify(userToShow).replace(/"/g, '&quot;')}); showContent('chats');">
+                                💬 Написать сообщение
+                            </button>
+                            <button class="btn-large" onclick="sendGiftToUserFromProfile('${userToShow.id}')">
+                                🎁 Отправить подарок
+                            </button>
                         ` : `
-                            <div class="my-gifts-grid">
-                                ${userGifts.map(gift => {
-                                    const giftData = gifts.find(g => g.id === gift.giftId);
-                                    return giftData ? `
-                                        <div class="my-gift-item">
-                                            <div class="my-gift-preview">
-                                                ${giftData.image ? 
-                                                    `<img src="${giftData.image}" alt="${giftData.name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                                    '🎁'
-                                                }
-                                            </div>
-                                            <div class="my-gift-name">${giftData.name}</div>
-                                            <div class="my-gift-from">От: ${gift.fromUserName}</div>
-                                        </div>
-                                    ` : '';
-                                }).join('')}
-                            </div>
+                            <button class="btn-large" onclick="switchProfileTab('edit')">✏️ Редактировать профиль</button>
+                            <button class="btn-large" onclick="switchProfileTab('gifts')">🎁 Мои подарки</button>
                         `}
                     </div>
+                    
+                    <div class="profile-tabs">
+                        <button class="profile-tab active" onclick="switchProfileTab('posts')">Посты</button>
+                        <button class="profile-tab" onclick="switchProfileTab('gifts')">Подарки</button>
+                        ${isOwnProfile ? `
+                            <button class="profile-tab" onclick="switchProfileTab('edit')">Редактировать</button>
+                            ${currentUser.username.toLowerCase() === 'bayrex' ? `
+                                <button class="profile-tab" onclick="switchProfileTab('bayrex')">BayRex Usernames</button>
+                            ` : ''}
+                        ` : ''}
+                    </div>
+                    
+                    <div id="profile-posts-tab" class="profile-tab-content active">
+                        <div class="user-posts-grid" id="userPostsContainer">
+                            <!-- Посты пользователя будут здесь -->
+                        </div>
+                    </div>
+                    
+                    <div id="profile-gifts-tab" class="profile-tab-content">
+                        <div class="my-gifts-grid">
+                            ${userGifts.length === 0 ? `
+                                <div style="text-align: center; color: var(--text-secondary); padding: 40px; grid-column: 1 / -1;">
+                                    ${isOwnProfile ? 'У вас пока нет подарков' : 'У пользователя пока нет подарков'}
+                                </div>
+                            ` : userGifts.map(gift => {
+                                const giftData = gifts.find(g => g.id === gift.giftId);
+                                return giftData ? `
+                                    <div class="my-gift-item">
+                                        <div class="my-gift-preview">
+                                            ${giftData.image ? 
+                                                `<img src="${giftData.image}" alt="${giftData.name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                                                '🎁'
+                                            }
+                                        </div>
+                                        <div class="my-gift-name">${giftData.name}</div>
+                                        <div class="my-gift-from">От: ${gift.fromUserName}</div>
+                                    </div>
+                                ` : '';
+                            }).join('')}
+                        </div>
+                    </div>
+                    
+                    ${isOwnProfile ? `
+                        <div id="profile-edit-tab" class="profile-tab-content">
+                            <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 12px;">
+                                <h4 style="margin-bottom: 15px;">Редактировать профиль</h4>
+                                <div style="display: flex; flex-direction: column; gap: 15px;">
+                                    <input type="text" id="editDisplayName" placeholder="Имя для отображения" value="${userToShow.displayName}" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 16px;">
+                                    <input type="text" id="editUsername" placeholder="Юзернейм" value="${userToShow.username}" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 16px;">
+                                    <textarea id="editDescription" placeholder="Описание профиля" style="padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); min-height: 100px; font-size: 16px;">${userToShow.description || ''}</textarea>
+                                    
+                                    <div>
+                                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Аватарка</label>
+                                        <div class="file-upload-area" onclick="openFileUpload('avatar')">
+                                            <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
+                                            <div>Нажмите для загрузки аватарки</div>
+                                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Поддерживаются: PNG, JPG, GIF, SVG</div>
+                                        </div>
+                                        <div id="avatarPreview" class="file-preview"></div>
+                                    </div>
+                                    
+                                    <button class="btn-large" onclick="updateProfile()">💾 Сохранить изменения</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${currentUser.username.toLowerCase() === 'bayrex' ? `
+                            <div id="profile-bayrex-tab" class="profile-tab-content">
+                                <div class="bayrex-usernames-container">
+                                    <h3 style="margin-bottom: 15px;">Управление юзернеймами BayRex</h3>
+                                    <div class="add-username-form">
+                                        <input type="text" id="newUsername" placeholder="Новый юзернейм" style="padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                                        <input type="text" id="newDisplayName" placeholder="Отображаемое имя" style="padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                                        <button class="username-btn assign" onclick="addBayRexUsername()">Добавить</button>
+                                    </div>
+                                    <div id="bayrexUsernamesList">
+                                        <!-- Список юзернеймов будет здесь -->
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    ` : ''}
                 </div>
             `;
+
+            // Загружаем посты пользователя
+            loadUserPosts(userToShow.id);
+            
+            // Если это BayRex, загружаем список юзернеймов
+            if (isOwnProfile && currentUser.username.toLowerCase() === 'bayrex') {
+                loadBayRexUsernames();
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Загрузка постов пользователя
+        async function loadUserPosts(userId) {
+            try {
+                const response = await fetch(`/api/user-posts/${userId}`);
+                const userPosts = await response.json();
+                
+                const container = document.getElementById('userPostsContainer');
+                container.innerHTML = '';
+                
+                if (userPosts.length === 0) {
+                    const isOwnProfile = userId === currentUser.id;
+                    container.innerHTML = `
+                        <div style="text-align: center; color: var(--text-secondary); padding: 40px; grid-column: 1 / -1;">
+                            ${isOwnProfile ? 'У вас пока нет постов' : 'У пользователя пока нет постов'}
+                        </div>
+                    `;
+                    return;
+                }
+                
+                userPosts.forEach(post => {
+                    const postElement = createUserPostElement(post);
+                    container.appendChild(postElement);
+                });
+            } catch (error) {
+                console.error('Error loading user posts:', error);
+                document.getElementById('userPostsContainer').innerHTML = `
+                    <div style="text-align: center; color: var(--text-secondary); padding: 40px; grid-column: 1 / -1;">
+                        Ошибка загрузки постов
+                    </div>
+                `;
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Создание элемента поста для профиля
+        function createUserPostElement(post) {
+            const postElement = document.createElement('div');
+            postElement.className = 'user-post';
+            
+            const isLiked = post.likes && post.likes.includes(currentUser.id);
+            const isOwnPost = post.userId === currentUser.id;
+            
+            postElement.innerHTML = `
+                <div class="user-post-header">
+                    <div class="user-post-avatar">
+                        ${post.user.avatar ? 
+                            `<img src="${post.user.avatar}" alt="${post.user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                            post.user.displayName.charAt(0).toUpperCase()
+                        }
+                    </div>
+                    <div class="user-post-info">
+                        <div class="user-post-name">
+                            ${post.user.displayName}
+                            ${post.user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
+                            ${post.user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
+                        </div>
+                        <div class="user-post-time">${formatTime(post.timestamp)}</div>
+                    </div>
+                    ${isOwnPost ? `
+                        <button class="admin-btn delete" onclick="deletePost('${post.id}')">🗑️ Удалить</button>
+                    ` : ''}
+                </div>
+                <div class="user-post-content">
+                    <div class="user-post-text">${post.text}</div>
+                    ${post.image ? `
+                        <div class="user-post-media">
+                            <img src="${post.image}" alt="Изображение поста">
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="user-post-actions">
+                    <button class="user-post-action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
+                        <span>❤️</span> ${post.likes ? post.likes.length : 0}
+                    </button>
+                    <button class="user-post-action">
+                        <span>💬</span> ${post.comments ? post.comments.length : 0}
+                    </button>
+                    <button class="user-post-action">
+                        <span>👁️</span> ${post.views || 0}
+                    </button>
+                </div>
+            `;
+            
+            return postElement;
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Переключение вкладок профиля
+        function switchProfileTab(tabName) {
+            // Скрываем все вкладки
+            document.querySelectorAll('.profile-tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Убираем активный класс со всех кнопок
+            document.querySelectorAll('.profile-tab').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Показываем выбранную вкладку
+            document.getElementById(`profile-${tabName}-tab`).classList.add('active');
+            
+            // Активируем кнопку
+            event.target.classList.add('active');
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Просмотр профиля пользователя
+        function viewUserProfile(userId) {
+            viewingProfileUserId = userId;
+            showContent('profile');
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Отправка подарка из профиля
+        function sendGiftToUserFromProfile(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (user) {
+                currentChatUser = user;
+                sendGiftToUser();
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Загрузка BayRex usernames
+        async function loadBayRexUsernames() {
+            try {
+                const response = await fetch(`/api/bayrex-usernames?userId=${currentUser.id}`);
+                const usernames = await response.json();
+                
+                const container = document.getElementById('bayrexUsernamesList');
+                container.innerHTML = '';
+                
+                if (!usernames || usernames.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">Нет дополнительных юзернеймов</div>';
+                    return;
+                }
+                
+                usernames.forEach(username => {
+                    const usernameElement = document.createElement('div');
+                    usernameElement.className = 'username-item';
+                    usernameElement.innerHTML = `
+                        <div class="username-info">
+                            <div class="username-name">${username.username}</div>
+                            <div class="username-display-name">${username.display_name}</div>
+                        </div>
+                        <div class="username-actions">
+                            <button class="username-btn assign" onclick="assignBayRexUsername('${username.id}')">Передать</button>
+                            <button class="username-btn delete" onclick="deleteBayRexUsername('${username.id}')">Удалить</button>
+                        </div>
+                    `;
+                    container.appendChild(usernameElement);
+                });
+            } catch (error) {
+                console.error('Error loading bayrex usernames:', error);
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Добавление BayRex username
+        async function addBayRexUsername() {
+            const username = document.getElementById('newUsername').value.trim();
+            const displayName = document.getElementById('newDisplayName').value.trim();
+            
+            if (!username || !displayName) {
+                showNotification('Заполните все поля', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/bayrex-usernames', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        username: username,
+                        displayName: displayName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Юзернейм добавлен', 'success');
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newDisplayName').value = '';
+                    loadBayRexUsernames();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error adding bayrex username:', error);
+                showNotification('Ошибка добавления юзернейма', 'error');
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Удаление BayRex username
+        async function deleteBayRexUsername(usernameId) {
+            if (!confirm('Вы уверены, что хотите удалить этот юзернейм?')) return;
+            
+            try {
+                const response = await fetch(`/api/bayrex-usernames/${usernameId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: currentUser.id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Юзернейм удален', 'success');
+                    loadBayRexUsernames();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting bayrex username:', error);
+                showNotification('Ошибка удаления юзернейма', 'error');
+            }
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Передача BayRex username
+        async function assignBayRexUsername(usernameId) {
+            const targetUsername = prompt('Введите юзернейм пользователя, которому хотите передать этот юзернейм:');
+            
+            if (!targetUsername) {
+                return;
+            }
+            
+            // Находим пользователя по юзернейму
+            const targetUser = allUsers.find(u => u.username.toLowerCase() === targetUsername.toLowerCase());
+            
+            if (!targetUser) {
+                showNotification('Пользователь не найден', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/bayrex-usernames/${usernameId}/assign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        targetUserId: targetUser.id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Юзернейм передан пользователю', 'success');
+                    loadBayRexUsernames();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error assigning bayrex username:', error);
+                showNotification('Ошибка передачи юзернейма', 'error');
+            }
         }
 
         // Обновление секции E-COIN
@@ -2485,7 +3054,7 @@
                         ${allUsers.map(user => `
                             <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div class="chat-avatar">
+                                    <div class="chat-avatar" onclick="viewUserProfile('${user.id}')" style="cursor: pointer;">
                                         ${user.avatar ? 
                                             `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
                                             user.displayName.charAt(0).toUpperCase()
@@ -2696,7 +3265,7 @@
                 return `
                     <div class="post" onmouseenter="incrementPostViews('${post.id}')">
                         <div class="post-header">
-                            <div class="post-user">
+                            <div class="post-user" onclick="viewUserProfile('${post.userId}')" style="cursor: pointer;">
                                 <div class="post-avatar">
                                     ${postAvatarContent}
                                 </div>
@@ -2780,6 +3349,41 @@
             setTimeout(() => {
                 notification.remove();
             }, 3000);
+        }
+
+        function showPushNotification(title, message, avatar = null) {
+            const notification = document.createElement('div');
+            notification.className = 'push-notification';
+            notification.innerHTML = `
+                ${avatar ? `
+                    <div class="push-avatar">
+                        <img src="${avatar}" alt="${title}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                ` : `
+                    <div class="push-avatar">${title.charAt(0)}</div>
+                `}
+                <div class="push-content">
+                    <div class="push-title">${title}</div>
+                    <div class="push-message">${message}</div>
+                </div>
+                <button class="push-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function showBrowserNotification(title, message) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/assets/icon.png'
+                });
+            }
         }
 
         // Загрузка файлов
@@ -3129,124 +3733,6 @@
             }
         }
 
-        // Просмотр профиля пользователя
-        async function viewUserProfile(userId) {
-            try {
-                const response = await fetch(`/api/user/${userId}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    const user = data.user;
-                    const userGifts = user.gifts || [];
-                    const userPosts = posts.filter(p => p.userId === user.id).length;
-
-                    const modalOverlay = document.getElementById('modalOverlay');
-                    modalOverlay.innerHTML = `
-                        <div class="modal-content large">
-                            <div class="modal-header">
-                                <h3>Профиль пользователя</h3>
-                                <span class="close" onclick="closeModal()">×</span>
-                            </div>
-                            <div class="user-profile">
-                                <div class="profile-header-large">
-                                    <div class="avatar-large">
-                                        ${user.avatar ? 
-                                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                            user.displayName.split(' ').map(n => n[0]).join('').toUpperCase() || user.username.charAt(0).toUpperCase()
-                                        }
-                                    </div>
-                                    <div class="profile-info-large">
-                                        <h2>
-                                            ${user.displayName}
-                                            ${user.verified ? '<div class="verified-badge"><svg><use href="#verified-icon"/></svg></div>' : ''}
-                                            ${user.isDeveloper ? '<div class="developer-badge"><svg><use href="#developer-icon"/></svg></div>' : ''}
-                                        </h2>
-                                        <p style="color: var(--text-secondary); margin-bottom: 8px; font-size: 18px;">@${user.username}</p>
-                                        <p style="color: var(--text-secondary); font-size: 14px;">${user.description || 'Нет описания'}</p>
-                                        <p style="color: var(--text-secondary); font-size: 14px;">Статус: ${user.status || 'offline'}</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="profile-stats">
-                                    <div class="stat-item">
-                                        <div class="stat-value">${userPosts}</div>
-                                        <div class="stat-label">Посты</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">-</div>
-                                        <div class="stat-label">E-COIN</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">${userGifts.length}</div>
-                                        <div class="stat-label">Подарки</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="profile-actions">
-                                    <button class="btn-large" onclick="openChat(${JSON.stringify(user).replace(/"/g, '&quot;')}); closeModal();">
-                                        💬 Написать сообщение
-                                    </button>
-                                    <button class="btn-large" onclick="sendGiftToUserFromProfile('${user.id}')">
-                                        🎁 Отправить подарок
-                                    </button>
-                                </div>
-                                
-                                <div style="margin-top: 30px;">
-                                    <h3 style="margin-bottom: 15px;">Подарки пользователя</h3>
-                                    ${userGifts.length === 0 ? `
-                                        <div style="text-align: center; color: var(--text-secondary); padding: 40px;">
-                                            У пользователя пока нет подарков
-                                        </div>
-                                    ` : `
-                                        <div class="my-gifts-grid">
-                                            ${userGifts.map(gift => {
-                                                const giftData = gifts.find(g => g.id === gift.giftId);
-                                                return giftData ? `
-                                                    <div class="my-gift-item">
-                                                        <div class="my-gift-preview">
-                                                            ${giftData.image ? 
-                                                                `<img src="${giftData.image}" alt="${giftData.name}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                                                '🎁'
-                                                            }
-                                                        </div>
-                                                        <div class="my-gift-name">${giftData.name}</div>
-                                                        <div class="my-gift-from">От: ${gift.fromUserName}</div>
-                                                    </div>
-                                                ` : '';
-                                            }).join('')}
-                                        </div>
-                                    `}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    modalOverlay.style.display = 'flex';
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Error loading user profile:', error);
-                showNotification('Ошибка загрузки профиля', 'error');
-            }
-        }
-
-        function sendGiftToUserFromProfile(userId) {
-            const user = allUsers.find(u => u.id === userId);
-            if (user) {
-                currentChatUser = user;
-                sendGiftToUser();
-                closeModal();
-            }
-        }
-
-        function showEditProfileModal() {
-            showContent('settings');
-        }
-
-        function showMyGiftsModal() {
-            showContent('profile');
-        }
-
         async function toggleLike(postId) {
             try {
                 const response = await fetch(`/api/posts/${postId}/like`, {
@@ -3264,6 +3750,10 @@
                 if (data.success) {
                     await loadPosts();
                     updatePostsFeed();
+                    // Обновляем профиль если открыт
+                    if (document.getElementById('profileContent').classList.contains('active')) {
+                        updateProfileSection();
+                    }
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -3330,6 +3820,10 @@
                     showNotification('Пост удален', 'success');
                     await loadPosts();
                     updatePostsFeed();
+                    // Обновляем профиль если открыт
+                    if (document.getElementById('profileContent').classList.contains('active')) {
+                        updateProfileSection();
+                    }
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -3567,6 +4061,27 @@
             setTimeout(() => {
                 this.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
+        });
+
+        // ИСПРАВЛЕНИЕ: предотвращение сдвига сообщений при перезагрузке
+        window.addEventListener('beforeunload', function() {
+            // Сохраняем текущее состояние чата
+            if (currentChatUser) {
+                localStorage.setItem('lastChatUser', JSON.stringify(currentChatUser));
+            }
+        });
+
+        window.addEventListener('load', function() {
+            // Восстанавливаем последний чат если есть
+            const lastChatUser = localStorage.getItem('lastChatUser');
+            if (lastChatUser) {
+                try {
+                    const user = JSON.parse(lastChatUser);
+                    openChat(user);
+                } catch (e) {
+                    console.error('Error restoring last chat:', e);
+                }
+            }
         });
     </script>
 </body>
