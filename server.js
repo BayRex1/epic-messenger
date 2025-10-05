@@ -33,6 +33,101 @@ function simpleHash(password) {
   return hash.toString();
 }
 
+// Улучшенная функция санитизации
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  
+  // Удаляем опасные теги и атрибуты
+  const dangerousTags = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>|<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>|<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>|<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>|<link\b[^<]*(?:(?!<\/link>)<[^<]*)*<\/link>/gi;
+  input = input.replace(dangerousTags, '');
+  
+  // Экранируем HTML символы
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    "/": '&#x2F;',
+    "`": '&#x60;',
+    "=": '&#x3D;'
+  };
+  
+  const reg = /[&<>"'/`=]/ig;
+  return input.replace(reg, (match) => map[match]);
+}
+
+// Проверка длины входных данных
+function validateInputLength(input, maxLength = 1000) {
+  if (typeof input === 'string' && input.length > maxLength) {
+    return { valid: false, message: `Слишком длинный текст. Максимум ${maxLength} символов` };
+  }
+  return { valid: true };
+}
+
+// Улучшенная валидация файлов
+function validateFile(fileData, fileType, maxSize = 10 * 1024 * 1024) {
+  // Проверка размера файла (10MB максимум)
+  if (fileData.length > maxSize) {
+    return { valid: false, message: 'Файл слишком большой. Максимум 10MB' };
+  }
+
+  // Блокировка SVG для аватарки и постов
+  if (fileType === 'image/svg+xml') {
+    return { valid: false, message: 'SVG файлы запрещены для загрузки' };
+  }
+
+  // Разрешенные типы для аватарок и постов
+  const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  const allowedVideoTypes = ['video/mp4', 'video/webm'];
+  
+  if (!allowedImageTypes.includes(fileType) && !allowedVideoTypes.includes(fileType)) {
+    return { valid: false, message: 'Неподдерживаемый тип файла' };
+  }
+
+  return { valid: true };
+}
+
+// Функции валидации
+function validateEmail(email) {
+  const emailRegex = /^[a-z0-9]+@gmail\.com$/;
+  const forbiddenWords = ['test', 'user', 'admin', 'temp', 'fake'];
+  
+  if (!emailRegex.test(email)) {
+    return { valid: false, message: 'Только Gmail адреса разрешены (example@gmail.com)' };
+  }
+  
+  const username = email.split('@')[0];
+  if (forbiddenWords.some(word => username.includes(word))) {
+    return { valid: false, message: 'Email содержит запрещенные слова' };
+  }
+  
+  return { valid: true };
+}
+
+function validateUsername(username) {
+  const forbiddenChars = ['?', '*', '%', '!', '@', '>', '<'];
+  const forbiddenWords = ['admin', 'root', 'system', 'test', 'user'];
+  
+  if (username.length < 3 || username.length > 20) {
+    return { valid: false, message: 'Юзернейм должен быть от 3 до 20 символов' };
+  }
+  
+  if (forbiddenChars.some(char => username.includes(char))) {
+    return { valid: false, message: 'Юзернейм содержит запрещенные символы' };
+  }
+  
+  if (forbiddenWords.some(word => username.toLowerCase().includes(word))) {
+    return { valid: false, message: 'Юзернейм содержит запрещенные слова' };
+  }
+  
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return { valid: false, message: 'Юзернейм может содержать только буквы, цифры и подчеркивания' };
+  }
+  
+  return { valid: true };
+}
+
 // Инициализация базы данных
 async function initDatabase() {
   try {
@@ -126,6 +221,19 @@ async function initDatabase() {
       )
     `);
 
+    // Таблица для множественных юзернеймов BayRex
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bayrex_usernames (
+        id VARCHAR(50) PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        display_name VARCHAR(100) NOT NULL,
+        assigned_to VARCHAR(50) REFERENCES users(id),
+        created_by VARCHAR(50) REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        deleted BOOLEAN DEFAULT false
+      )
+    `);
+
     // Создаем тестовые подарки если их нет
     const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
     if (parseInt(giftsCount.rows[0].count) === 0) {
@@ -183,62 +291,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Функции валидации
-function validateEmail(email) {
-  const emailRegex = /^[a-z0-9]+@gmail\.com$/;
-  const forbiddenWords = ['test', 'user', 'admin', 'temp', 'fake'];
-  
-  if (!emailRegex.test(email)) {
-    return { valid: false, message: 'Только Gmail адреса разрешены (example@gmail.com)' };
-  }
-  
-  const username = email.split('@')[0];
-  if (forbiddenWords.some(word => username.includes(word))) {
-    return { valid: false, message: 'Email содержит запрещенные слова' };
-  }
-  
-  return { valid: true };
-}
-
-function validateUsername(username) {
-  const forbiddenChars = ['?', '*', '%', '!', '@', '>', '<'];
-  const forbiddenWords = ['admin', 'root', 'system', 'test', 'user'];
-  
-  if (username.length < 3 || username.length > 20) {
-    return { valid: false, message: 'Юзернейм должен быть от 3 до 20 символов' };
-  }
-  
-  if (forbiddenChars.some(char => username.includes(char))) {
-    return { valid: false, message: 'Юзернейм содержит запрещенные символы' };
-  }
-  
-  if (forbiddenWords.some(word => username.toLowerCase().includes(word))) {
-    return { valid: false, message: 'Юзернейм содержит запрещенные слова' };
-  }
-  
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    return { valid: false, message: 'Юзернейм может содержать только буквы, цифры и подчеркивания' };
-  }
-  
-  return { valid: true };
-}
-
-function sanitizeInput(input) {
-  if (typeof input !== 'string') return input;
-  
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    "/": '&#x2F;'
-  };
-  
-  const reg = /[&<>"'/]/ig;
-  return input.replace(reg, (match) => map[match]);
-}
-
 // Базовые маршруты
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -290,16 +342,25 @@ app.post('/api/register', async (req, res) => {
       return res.json({ success: false, message: 'Все поля обязательны' });
     }
 
+    // Проверка длины
+    const emailValidation = validateInputLength(email, 255);
+    const usernameValidation = validateInputLength(username, 50);
+    const displayNameValidation = validateInputLength(displayName, 100);
+    
+    if (!emailValidation.valid) return res.json({ success: false, message: emailValidation.message });
+    if (!usernameValidation.valid) return res.json({ success: false, message: usernameValidation.message });
+    if (!displayNameValidation.valid) return res.json({ success: false, message: displayNameValidation.message });
+
     // Валидация email
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      return res.json({ success: false, message: emailValidation.message });
+    const emailValidationResult = validateEmail(email);
+    if (!emailValidationResult.valid) {
+      return res.json({ success: false, message: emailValidationResult.message });
     }
 
     // Валидация username
-    const usernameValidation = validateUsername(username);
-    if (!usernameValidation.valid) {
-      return res.json({ success: false, message: usernameValidation.message });
+    const usernameValidationResult = validateUsername(username);
+    if (!usernameValidationResult.valid) {
+      return res.json({ success: false, message: usernameValidationResult.message });
     }
 
     // Проверка на существующий username (case insensitive)
@@ -445,6 +506,14 @@ app.post('/api/update-profile', async (req, res) => {
 
     if (!userId) {
       return res.json({ success: false, message: 'ID пользователя обязателен' });
+    }
+
+    // Валидация аватарки
+    if (avatarData) {
+      const avatarValidation = validateFile(avatarData, 'image');
+      if (!avatarValidation.valid) {
+        return res.json({ success: false, message: avatarValidation.message });
+      }
     }
 
     // Получаем текущего пользователя
@@ -747,6 +816,14 @@ app.post('/api/posts', async (req, res) => {
       return res.json({ success: false, message: 'Текст поста обязателен' });
     }
 
+    // Валидация изображения поста
+    if (image) {
+      const imageValidation = validateFile(image, 'image');
+      if (!imageValidation.valid) {
+        return res.json({ success: false, message: imageValidation.message });
+      }
+    }
+
     const user = await pool.query(
       'SELECT * FROM users WHERE id = $1 AND deleted = false',
       [userId]
@@ -964,7 +1041,7 @@ app.post('/api/gifts', async (req, res) => {
   try {
     const { userId, name, price, image, type } = req.body;
 
-    if (!userId || !name || !price || !image || !type) {
+    if (!userId || !name || !price || !type) {
       return res.json({ success: false, message: 'Все поля обязательны' });
     }
 
@@ -977,11 +1054,19 @@ app.post('/api/gifts', async (req, res) => {
       return res.json({ success: false, message: 'Недостаточно прав' });
     }
 
-    // Проверка типа файла
-    const allowedTypes = ['png', 'svg', 'gif', 'webp'];
+    // Проверка типа файла для подарков
+    const allowedGiftTypes = ['png', 'svg', 'gif', 'webp'];
     const fileType = type.toLowerCase();
-    if (!allowedTypes.includes(fileType)) {
+    if (!allowedGiftTypes.includes(fileType)) {
       return res.json({ success: false, message: 'Разрешены только PNG, SVG, GIF и WebP файлы' });
+    }
+
+    // Валидация изображения подарка
+    if (image) {
+      const fileValidation = validateFile(image, `image/${fileType}`, 5 * 1024 * 1024);
+      if (!fileValidation.valid) {
+        return res.json({ success: false, message: fileValidation.message });
+      }
     }
 
     const giftId = Date.now().toString();
@@ -1009,7 +1094,7 @@ app.post('/api/gifts', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating gift:', error);
-    res.json({ success: false, message: 'Ошибка' });
+    res.json({ success: false, message: 'Ошибка создания подарка' });
   }
 });
 
@@ -1267,6 +1352,251 @@ app.delete('/api/promocodes/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting promocode:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// BayRex юзернеймы API
+app.get('/api/bayrex-usernames', async (req, res) => {
+  try {
+    const usernames = await pool.query(`
+      SELECT * FROM bayrex_usernames WHERE deleted = false
+    `);
+    res.json(usernames.rows);
+  } catch (error) {
+    console.error('Error getting bayrex usernames:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/bayrex-usernames', async (req, res) => {
+  try {
+    const { userId, username, displayName } = req.body;
+
+    if (!userId || !username || !displayName) {
+      return res.json({ success: false, message: 'Все поля обязательны' });
+    }
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Только BayRex может создавать юзернеймы' });
+    }
+
+    // Проверяем лимит в 30 юзернеймов
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM bayrex_usernames WHERE created_by = $1 AND deleted = false',
+      [userId]
+    );
+    
+    if (parseInt(countResult.rows[0].count) >= 30) {
+      return res.json({ success: false, message: 'Достигнут лимит в 30 юзернеймов' });
+    }
+
+    // Валидация username
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      return res.json({ success: false, message: usernameValidation.message });
+    }
+
+    const usernameId = Date.now().toString();
+
+    await pool.query(
+      'INSERT INTO bayrex_usernames (id, username, display_name, created_by) VALUES ($1, $2, $3, $4)',
+      [usernameId, username, displayName, userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм создан'
+    });
+  } catch (error) {
+    console.error('Error creating bayrex username:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/bayrex-usernames/assign', async (req, res) => {
+  try {
+    const { userId, usernameId, targetUserId } = req.body;
+
+    if (!userId || !usernameId) {
+      return res.json({ success: false, message: 'Недостаточно данных' });
+    }
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Только BayRex может назначать юзернеймы' });
+    }
+
+    await pool.query(
+      'UPDATE bayrex_usernames SET assigned_to = $1 WHERE id = $2',
+      [targetUserId, usernameId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм назначен'
+    });
+  } catch (error) {
+    console.error('Error assigning bayrex username:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.delete('/api/bayrex-usernames/:id', async (req, res) => {
+  try {
+    const usernameId = req.params.id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Недостаточно данных' });
+    }
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Только BayRex может удалять юзернеймы' });
+    }
+
+    await pool.query(
+      'UPDATE bayrex_usernames SET deleted = true WHERE id = $1',
+      [usernameId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм удален'
+    });
+  } catch (error) {
+    console.error('Error deleting bayrex username:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// Админ API
+app.post('/api/admin/toggle-verify', async (req, res) => {
+  try {
+    const { userId, verified } = req.body;
+    const adminId = req.body.adminId || req.body.userId;
+
+    if (!adminId || !userId) {
+      return res.json({ success: false, message: 'Недостаточно данных' });
+    }
+
+    const admin = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [adminId]
+    );
+
+    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    await pool.query(
+      'UPDATE users SET verified = $1 WHERE id = $2',
+      [verified, userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: verified ? 'Пользователь верифицирован' : 'Верификация снята'
+    });
+  } catch (error) {
+    console.error('Error toggling verify:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/admin/toggle-developer', async (req, res) => {
+  try {
+    const { userId, isDeveloper } = req.body;
+    const adminId = req.body.adminId || req.body.userId;
+
+    if (!adminId || !userId) {
+      return res.json({ success: false, message: 'Недостаточно данных' });
+    }
+
+    const admin = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [adminId]
+    );
+
+    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    await pool.query(
+      'UPDATE users SET is_developer = $1 WHERE id = $2',
+      [isDeveloper, userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: isDeveloper ? 'Права разработчика выданы' : 'Права разработчика сняты'
+    });
+  } catch (error) {
+    console.error('Error toggling developer:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/admin/delete-user', async (req, res) => {
+  try {
+    const { userId, adminId } = req.body;
+
+    if (!adminId || !userId) {
+      return res.json({ success: false, message: 'Недостаточно данных' });
+    }
+
+    const admin = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [adminId]
+    );
+
+    if (admin.rows.length === 0 || !admin.rows[0].is_developer) {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    // Нельзя удалить самого себя или BayRex
+    const targetUser = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (targetUser.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    if (targetUser.rows[0].username.toLowerCase() === 'bayrex') {
+      return res.json({ success: false, message: 'Нельзя удалить BayRex' });
+    }
+
+    if (userId === adminId) {
+      return res.json({ success: false, message: 'Нельзя удалить себя' });
+    }
+
+    await pool.query(
+      'UPDATE users SET deleted = true WHERE id = $1',
+      [userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Пользователь удален'
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
     res.json({ success: false, message: 'Ошибка' });
   }
 });
