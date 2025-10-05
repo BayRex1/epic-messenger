@@ -3,7 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { Pool } = require('pg');
-const multer = require('multer');
 const fs = require('fs');
 
 const app = express();
@@ -21,27 +20,6 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
-  }
-});
-
-// Настройка multer для загрузки файлов
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
   }
 });
 
@@ -91,12 +69,12 @@ function validateInputLength(input, maxLength = 1000) {
 // Улучшенная валидация файлов
 function validateFile(fileData, fileType, maxSize = 10 * 1024 * 1024) {
   // Проверка размера файла (10MB максимум)
-  if (fileData.length > maxSize) {
+  if (fileData && fileData.length > maxSize) {
     return { valid: false, message: 'Файл слишком большой. Максимум 10MB' };
   }
 
   // Блокировка SVG для аватарки и постов
-  if (fileType === 'image/svg+xml' && (!req.path.includes('/gifts') && !req.path.includes('/upload-gift'))) {
+  if (fileType === 'image/svg+xml') {
     return { valid: false, message: 'SVG файлы запрещены для загрузки' };
   }
 
@@ -104,8 +82,7 @@ function validateFile(fileData, fileType, maxSize = 10 * 1024 * 1024) {
   const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
   const allowedVideoTypes = ['video/mp4', 'video/webm'];
   
-  if (!allowedImageTypes.includes(fileType) && !allowedVideoTypes.includes(fileType) && 
-      (!req.path.includes('/gifts') && !req.path.includes('/upload-gift'))) {
+  if (fileType && !allowedImageTypes.includes(fileType) && !allowedVideoTypes.includes(fileType)) {
     return { valid: false, message: 'Неподдерживаемый тип файла' };
   }
 
@@ -309,9 +286,6 @@ initDatabase().then(() => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(__dirname));
-
-// Обслуживание загруженных файлов
-app.use('/uploads', express.static('uploads'));
 
 const onlineUsers = new Map();
 
@@ -1123,43 +1097,6 @@ app.post('/api/gifts', async (req, res) => {
   } catch (error) {
     console.error('Error creating gift:', error);
     res.json({ success: false, message: 'Ошибка создания подарка' });
-  }
-});
-
-// Загрузка файла подарка
-app.post('/api/upload-gift', upload.single('gift'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Файл не загружен' });
-    }
-
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'ID пользователя обязателен' });
-    }
-
-    const user = await pool.query(
-      'SELECT * FROM users WHERE id = $1 AND deleted = false',
-      [userId]
-    );
-
-    if (user.rows.length === 0 || !user.rows[0].is_developer) {
-      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    const fileUrl = `/uploads/${req.file.filename}`;
-
-    res.json({
-      success: true,
-      message: 'Файл подарка загружен',
-      fileUrl: fileUrl,
-      fileName: req.file.originalname,
-      fileType: req.file.mimetype
-    });
-  } catch (error) {
-    console.error('Error uploading gift file:', error);
-    res.status(500).json({ success: false, message: 'Ошибка загрузки файла' });
   }
 });
 
