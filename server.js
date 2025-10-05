@@ -3,8 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,14 +22,16 @@ const pool = new Pool({
   }
 });
 
-// Rate limiting для защиты от брутфорса
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100, // максимум 100 запросов с одного IP
-  message: 'Слишком много запросов с вашего IP, попробуйте позже'
-});
-
-app.use(limiter);
+// Простая функция хеширования пароля (для демонстрации)
+function simpleHash(password) {
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString();
+}
 
 // Инициализация базы данных
 async function initDatabase() {
@@ -323,7 +323,7 @@ app.post('/api/register', async (req, res) => {
     }
 
     // Хеширование пароля
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = simpleHash(password);
 
     const userId = Date.now().toString();
 
@@ -398,7 +398,7 @@ app.post('/api/login', async (req, res) => {
     const userData = user.rows[0];
 
     // Проверка пароля
-    const isPasswordValid = await bcrypt.compare(password, userData.password);
+    const isPasswordValid = simpleHash(password) === userData.password;
     if (!isPasswordValid) {
       return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
     }
