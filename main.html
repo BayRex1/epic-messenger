@@ -1840,11 +1840,7 @@
             socket.on('connect', () => {
                 console.log('✅ Connected to server');
                 if (currentUser) {
-                    socket.emit('user_join', {
-                        userId: currentUser.id,
-                        username: currentUser.username,
-                        displayName: currentUser.displayName
-                    });
+                    socket.emit('user_online', currentUser.id);
                 }
             });
 
@@ -1867,51 +1863,18 @@
                 loadChats();
             });
 
-            socket.on('chat_history_loaded', (data) => {
-                console.log('📜 Chat history loaded:', data.messages.length, 'messages');
-                if (currentChatUser && data.targetId === currentChatUser.id) {
-                    const chatMessages = document.getElementById('chatMessages');
-                    chatMessages.innerHTML = '';
+            socket.on('user_status_changed', (data) => {
+                updateUserStatus(data.userId, data.status);
+            });
 
-                    data.messages.forEach(message => {
-                        displayMessage(message);
-                    });
-
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+            socket.on('user_typing', (data) => {
+                if (currentChatUser && data.userId === currentChatUser.id) {
+                    // Показать индикатор набора текста
+                    const typingIndicator = document.getElementById('typingIndicator');
+                    if (typingIndicator) {
+                        typingIndicator.style.display = data.isTyping ? 'block' : 'none';
+                    }
                 }
-            });
-
-            socket.on('user_online', (user) => {
-                updateUserStatus(user.userId, 'online');
-                showPushNotification('Пользователь онлайн', `${user.displayName} теперь в сети`);
-            });
-
-            socket.on('user_offline', (user) => {
-                updateUserStatus(user.userId, 'offline');
-            });
-
-            socket.on('message_sent', (data) => {
-                if (data.success) {
-                    console.log('✅ Message sent successfully');
-                } else {
-                    showNotification('Ошибка отправки сообщения', 'error');
-                }
-            });
-
-            socket.on('user_not_found', (data) => {
-                showNotification(data.message, 'error');
-            });
-
-            socket.on('gift_received', (data) => {
-                showPushNotification(
-                    '🎁 Новый подарок!', 
-                    `${data.fromUser.displayName} подарил(а) вам подарок`,
-                    data.fromUser.avatar
-                );
-                showBrowserNotification(
-                    '🎁 Новый подарок!',
-                    `${data.fromUser.displayName} подарил(а) вам ${data.gift.name}`
-                );
             });
 
             // Обработка ошибок соединения
@@ -2087,10 +2050,26 @@
             document.getElementById('chatActions').style.display = 'flex';
 
             // Загружаем историю чата
-            socket.emit('load_chat_history', {
-                userId: currentUser.id,
-                targetId: user.id
-            });
+            loadChatHistory(user.id);
+        }
+
+        // Загрузка истории чата
+        async function loadChatHistory(targetUserId) {
+            try {
+                const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${targetUserId}`);
+                const messages = await response.json();
+                
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = '';
+
+                messages.forEach(message => {
+                    displayMessage(message);
+                });
+
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Error loading chat history:', error);
+            }
         }
 
         // Просмотр профиля текущего пользователя в чате
@@ -2192,8 +2171,9 @@
             }
 
             const messageData = {
-                text: text,
+                userId: currentUser.id,
                 toUserId: currentChatUser.id,
+                text: text,
                 type: 'text'
             };
 
@@ -2213,27 +2193,6 @@
                 // Очищаем поле ввода сразу после отправки
                 messageInput.value = '';
                 currentFileUpload = null;
-                
-                // Показываем сообщение сразу в интерфейсе (оптимистичное обновление)
-                const optimisticMessage = {
-                    id: 'temp_' + Date.now(),
-                    userId: currentUser.id,
-                    username: currentUser.username,
-                    displayName: currentUser.displayName,
-                    text: text,
-                    toUserId: currentChatUser.id,
-                    timestamp: new Date().toISOString(),
-                    verified: currentUser.verified,
-                    isDeveloper: currentUser.isDeveloper,
-                    type: messageData.type || 'text',
-                    fileData: messageData.fileData,
-                    fileName: messageData.fileName,
-                    fileType: messageData.fileType,
-                    fileSize: messageData.fileSize,
-                    avatar: currentUser.avatar
-                };
-                
-                displayMessage(optimisticMessage);
             } else {
                 showNotification('Нет соединения с сервером', 'error');
             }
@@ -2337,8 +2296,9 @@
             }
 
             const messageData = {
-                text: 'Голосовое сообщение',
+                userId: currentUser.id,
                 toUserId: currentChatUser.id,
+                text: 'Голосовое сообщение',
                 type: 'voice',
                 fileData: audioData,
                 fileName: 'voice_message.wav',
@@ -2348,26 +2308,6 @@
             if (socket && socket.connected) {
                 socket.emit('send_message', messageData);
                 console.log('📤 Sending voice message');
-                
-                // Оптимистичное обновление для голосового сообщения
-                const optimisticMessage = {
-                    id: 'temp_' + Date.now(),
-                    userId: currentUser.id,
-                    username: currentUser.username,
-                    displayName: currentUser.displayName,
-                    text: 'Голосовое сообщение',
-                    toUserId: currentChatUser.id,
-                    timestamp: new Date().toISOString(),
-                    verified: currentUser.verified,
-                    isDeveloper: currentUser.isDeveloper,
-                    type: 'voice',
-                    fileData: audioData,
-                    fileName: 'voice_message.wav',
-                    fileType: 'audio/wav',
-                    avatar: currentUser.avatar
-                };
-                
-                displayMessage(optimisticMessage);
             } else {
                 showNotification('Нет соединения с сервером', 'error');
             }
@@ -2414,7 +2354,6 @@
             // Загрузить данные для секции
             switch(contentType) {
                 case 'profile':
-                    viewingProfileUserId = null; // Сбрасываем просмотр чужого профиля
                     updateProfileSection();
                     break;
                 case 'ecoins':
@@ -2516,9 +2455,6 @@
                         <button class="profile-tab" onclick="switchProfileTab('gifts')">Подарки</button>
                         ${isOwnProfile ? `
                             <button class="profile-tab" onclick="switchProfileTab('edit')">Редактировать</button>
-                            ${currentUser.username.toLowerCase() === 'bayrex' ? `
-                                <button class="profile-tab" onclick="switchProfileTab('bayrex')">BayRex Usernames</button>
-                            ` : ''}
                         ` : ''}
                     </div>
                     
@@ -2575,40 +2511,18 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        ${currentUser.username.toLowerCase() === 'bayrex' ? `
-                            <div id="profile-bayrex-tab" class="profile-tab-content">
-                                <div class="bayrex-usernames-container">
-                                    <h3 style="margin-bottom: 15px;">Управление юзернеймами BayRex</h3>
-                                    <div class="add-username-form">
-                                        <input type="text" id="newUsername" placeholder="Новый юзернейм" style="padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
-                                        <input type="text" id="newDisplayName" placeholder="Отображаемое имя" style="padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
-                                        <button class="username-btn assign" onclick="addBayRexUsername()">Добавить</button>
-                                    </div>
-                                    <div id="bayrexUsernamesList">
-                                        <!-- Список юзернеймов будет здесь -->
-                                    </div>
-                                </div>
-                            </div>
-                        ` : ''}
                     ` : ''}
                 </div>
             `;
 
             // Загружаем посты пользователя
             loadUserPosts(userToShow.id);
-            
-            // Если это BayRex, загружаем список юзернеймов
-            if (isOwnProfile && currentUser.username.toLowerCase() === 'bayrex') {
-                loadBayRexUsernames();
-            }
         }
 
         // НОВАЯ ФУНКЦИЯ: Загрузка постов пользователя
         async function loadUserPosts(userId) {
             try {
-                const response = await fetch(`/api/user-posts/${userId}`);
-                const userPosts = await response.json();
+                const userPosts = posts.filter(post => post.userId === userId);
                 
                 const container = document.getElementById('userPostsContainer');
                 container.innerHTML = '';
@@ -2720,150 +2634,6 @@
             if (user) {
                 currentChatUser = user;
                 sendGiftToUser();
-            }
-        }
-
-        // НОВАЯ ФУНКЦИЯ: Загрузка BayRex usernames
-        async function loadBayRexUsernames() {
-            try {
-                const response = await fetch(`/api/bayrex-usernames?userId=${currentUser.id}`);
-                const usernames = await response.json();
-                
-                const container = document.getElementById('bayrexUsernamesList');
-                container.innerHTML = '';
-                
-                if (!usernames || usernames.length === 0) {
-                    container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">Нет дополнительных юзернеймов</div>';
-                    return;
-                }
-                
-                usernames.forEach(username => {
-                    const usernameElement = document.createElement('div');
-                    usernameElement.className = 'username-item';
-                    usernameElement.innerHTML = `
-                        <div class="username-info">
-                            <div class="username-name">${username.username}</div>
-                            <div class="username-display-name">${username.display_name}</div>
-                        </div>
-                        <div class="username-actions">
-                            <button class="username-btn assign" onclick="assignBayRexUsername('${username.id}')">Передать</button>
-                            <button class="username-btn delete" onclick="deleteBayRexUsername('${username.id}')">Удалить</button>
-                        </div>
-                    `;
-                    container.appendChild(usernameElement);
-                });
-            } catch (error) {
-                console.error('Error loading bayrex usernames:', error);
-            }
-        }
-
-        // НОВАЯ ФУНКЦИЯ: Добавление BayRex username
-        async function addBayRexUsername() {
-            const username = document.getElementById('newUsername').value.trim();
-            const displayName = document.getElementById('newDisplayName').value.trim();
-            
-            if (!username || !displayName) {
-                showNotification('Заполните все поля', 'error');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/bayrex-usernames', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: currentUser.id,
-                        username: username,
-                        displayName: displayName
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Юзернейм добавлен', 'success');
-                    document.getElementById('newUsername').value = '';
-                    document.getElementById('newDisplayName').value = '';
-                    loadBayRexUsernames();
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Error adding bayrex username:', error);
-                showNotification('Ошибка добавления юзернейма', 'error');
-            }
-        }
-
-        // НОВАЯ ФУНКЦИЯ: Удаление BayRex username
-        async function deleteBayRexUsername(usernameId) {
-            if (!confirm('Вы уверены, что хотите удалить этот юзернейм?')) return;
-            
-            try {
-                const response = await fetch(`/api/bayrex-usernames/${usernameId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: currentUser.id
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Юзернейм удален', 'success');
-                    loadBayRexUsernames();
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting bayrex username:', error);
-                showNotification('Ошибка удаления юзернейма', 'error');
-            }
-        }
-
-        // НОВАЯ ФУНКЦИЯ: Передача BayRex username
-        async function assignBayRexUsername(usernameId) {
-            const targetUsername = prompt('Введите юзернейм пользователя, которому хотите передать этот юзернейм:');
-            
-            if (!targetUsername) {
-                return;
-            }
-            
-            // Находим пользователя по юзернейму
-            const targetUser = allUsers.find(u => u.username.toLowerCase() === targetUsername.toLowerCase());
-            
-            if (!targetUser) {
-                showNotification('Пользователь не найден', 'error');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/bayrex-usernames/${usernameId}/assign`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: currentUser.id,
-                        targetUserId: targetUser.id
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Юзернейм передан пользователю', 'success');
-                    loadBayRexUsernames();
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Error assigning bayrex username:', error);
-                showNotification('Ошибка передачи юзернейма', 'error');
             }
         }
 
@@ -3117,7 +2887,7 @@
         // Загрузка промокодов
         async function loadPromoCodes() {
             try {
-                const response = await fetch('/api/promocodes?userId=' + currentUser.id);
+                const response = await fetch('/api/promocodes');
                 const promoCodes = await response.json();
                 renderPromoCodesList(promoCodes);
             } catch (error) {
