@@ -72,6 +72,41 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
+        .input-error {
+            border-color: #e74c3c !important;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1) !important;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        .requirements {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .requirements h4 {
+            margin: 0 0 8px 0;
+            color: #333;
+        }
+        
+        .requirements ul {
+            margin: 0;
+            padding-left: 15px;
+        }
+        
+        .requirements li {
+            margin-bottom: 4px;
+        }
+        
         .btn {
             width: 100%;
             padding: 12px;
@@ -88,6 +123,13 @@
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
         
         .switch-form {
@@ -155,28 +197,45 @@
         
         <div id="registerMessage" class="message"></div>
         
+        <div class="requirements">
+            <h4>Требования к регистрации:</h4>
+            <ul>
+                <li>Email: только @gmail.com, только английские буквы и цифры</li>
+                <li>Юзернейм: запрещены символы ? * % ! @ > <</li>
+                <li>Запрещены слова: test, user, admin в email и username</li>
+            </ul>
+        </div>
+        
         <form id="registerForm">
             <div class="form-group">
                 <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" required 
+                       placeholder="example@gmail.com">
+                <div class="error-message" id="emailError"></div>
             </div>
             
             <div class="form-group">
                 <label for="username">Юзернейм</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" required 
+                       placeholder="только буквы, цифры и _">
+                <div class="error-message" id="usernameError"></div>
             </div>
             
             <div class="form-group">
                 <label for="displayName">Имя для отображения</label>
-                <input type="text" id="displayName" name="displayName" required>
+                <input type="text" id="displayName" name="displayName" required 
+                       placeholder="ваше отображаемое имя">
+                <div class="error-message" id="displayNameError"></div>
             </div>
             
             <div class="form-group">
                 <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required 
+                       placeholder="минимум 6 символов">
+                <div class="error-message" id="passwordError"></div>
             </div>
             
-            <button type="submit" class="btn">Создать аккаунт</button>
+            <button type="submit" class="btn" id="submitBtn">Создать аккаунт</button>
         </form>
         
         <div class="switch-form">
@@ -192,6 +251,126 @@
     </div>
 
     <script>
+        // Функции валидации
+        function validateEmail(email) {
+            const emailRegex = /^[a-z0-9]+@gmail\.com$/;
+            const forbiddenWords = ['test', 'user', 'admin', 'temp', 'fake'];
+            
+            if (!emailRegex.test(email)) {
+                return { valid: false, message: 'Только Gmail адреса разрешены (example@gmail.com)' };
+            }
+            
+            const username = email.split('@')[0];
+            if (forbiddenWords.some(word => username.includes(word))) {
+                return { valid: false, message: 'Email содержит запрещенные слова' };
+            }
+            
+            return { valid: true };
+        }
+
+        function validateUsername(username) {
+            const forbiddenChars = ['?', '*', '%', '!', '@', '>', '<'];
+            const forbiddenWords = ['admin', 'root', 'system', 'test', 'user'];
+            
+            if (username.length < 3 || username.length > 20) {
+                return { valid: false, message: 'Юзернейм должен быть от 3 до 20 символов' };
+            }
+            
+            if (forbiddenChars.some(char => username.includes(char))) {
+                return { valid: false, message: 'Юзернейм содержит запрещенные символы' };
+            }
+            
+            if (forbiddenWords.some(word => username.toLowerCase().includes(word))) {
+                return { valid: false, message: 'Юзернейм содержит запрещенные слова' };
+            }
+            
+            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                return { valid: false, message: 'Юзернейм может содержать только буквы, цифры и подчеркивания' };
+            }
+            
+            return { valid: true };
+        }
+
+        function validateDisplayName(displayName) {
+            if (displayName.length < 2 || displayName.length > 30) {
+                return { valid: false, message: 'Имя должно быть от 2 до 30 символов' };
+            }
+            
+            return { valid: true };
+        }
+
+        function validatePassword(password) {
+            if (password.length < 6) {
+                return { valid: false, message: 'Пароль должен быть не менее 6 символов' };
+            }
+            
+            return { valid: true };
+        }
+
+        function showError(inputId, message) {
+            const input = document.getElementById(inputId);
+            const errorDiv = document.getElementById(inputId + 'Error');
+            
+            input.classList.add('input-error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError(inputId) {
+            const input = document.getElementById(inputId);
+            const errorDiv = document.getElementById(inputId + 'Error');
+            
+            input.classList.remove('input-error');
+            errorDiv.style.display = 'none';
+        }
+
+        function validateForm() {
+            const email = document.getElementById('email').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const displayName = document.getElementById('displayName').value.trim();
+            const password = document.getElementById('password').value;
+            
+            let isValid = true;
+
+            // Валидация email
+            const emailValidation = validateEmail(email.toLowerCase());
+            if (!emailValidation.valid) {
+                showError('email', emailValidation.message);
+                isValid = false;
+            } else {
+                hideError('email');
+            }
+
+            // Валидация username
+            const usernameValidation = validateUsername(username);
+            if (!usernameValidation.valid) {
+                showError('username', usernameValidation.message);
+                isValid = false;
+            } else {
+                hideError('username');
+            }
+
+            // Валидация displayName
+            const displayNameValidation = validateDisplayName(displayName);
+            if (!displayNameValidation.valid) {
+                showError('displayName', displayNameValidation.message);
+                isValid = false;
+            } else {
+                hideError('displayName');
+            }
+
+            // Валидация password
+            const passwordValidation = validatePassword(password);
+            if (!passwordValidation.valid) {
+                showError('password', passwordValidation.message);
+                isValid = false;
+            } else {
+                hideError('password');
+            }
+
+            return isValid;
+        }
+
         function showMessage(text, type) {
             const messageDiv = document.getElementById('registerMessage');
             messageDiv.textContent = text;
@@ -203,15 +382,69 @@
             }, 5000);
         }
 
+        // Валидация в реальном времени
+        document.getElementById('email').addEventListener('blur', function() {
+            const email = this.value.trim().toLowerCase();
+            if (email) {
+                const validation = validateEmail(email);
+                if (!validation.valid) {
+                    showError('email', validation.message);
+                } else {
+                    hideError('email');
+                }
+            }
+        });
+
+        document.getElementById('username').addEventListener('blur', function() {
+            const username = this.value.trim();
+            if (username) {
+                const validation = validateUsername(username);
+                if (!validation.valid) {
+                    showError('username', validation.message);
+                } else {
+                    hideError('username');
+                }
+            }
+        });
+
+        document.getElementById('displayName').addEventListener('blur', function() {
+            const displayName = this.value.trim();
+            if (displayName) {
+                const validation = validateDisplayName(displayName);
+                if (!validation.valid) {
+                    showError('displayName', validation.message);
+                } else {
+                    hideError('displayName');
+                }
+            }
+        });
+
+        document.getElementById('password').addEventListener('blur', function() {
+            const password = this.value;
+            if (password) {
+                const validation = validatePassword(password);
+                if (!validation.valid) {
+                    showError('password', validation.message);
+                } else {
+                    hideError('password');
+                }
+            }
+        });
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const email = document.getElementById('email').value;
-            const username = document.getElementById('username').value;
-            const displayName = document.getElementById('displayName').value;
+            if (!validateForm()) {
+                showMessage('Пожалуйста, исправьте ошибки в форме', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('email').value.trim().toLowerCase();
+            const username = document.getElementById('username').value.trim();
+            const displayName = document.getElementById('displayName').value.trim();
             const password = document.getElementById('password').value;
             
-            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const submitBtn = document.getElementById('submitBtn');
             const originalText = submitBtn.textContent;
             submitBtn.textContent = 'Регистрация...';
             submitBtn.disabled = true;
