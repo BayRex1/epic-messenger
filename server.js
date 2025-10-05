@@ -115,6 +115,18 @@ async function initDatabase() {
       )
     `);
 
+    // Создаем таблицу для множественных юзернеймов BayRex
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bayrex_usernames (
+        id VARCHAR(50) PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        display_name VARCHAR(100) NOT NULL,
+        assigned_to VARCHAR(50) REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        deleted BOOLEAN DEFAULT false
+      )
+    `);
+
     // Создаем тестовые подарки если их нет
     const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
     if (parseInt(giftsCount.rows[0].count) === 0) {
@@ -149,23 +161,27 @@ async function checkAndFixDatabase() {
       console.log('✅ Колонка views добавлена');
     }
 
-    // Проверяем другие возможные отсутствующие колонки
-    const postsColumns = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name='posts'
+    // Проверяем таблицу bayrex_usernames
+    const checkBayrexUsernames = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_name='bayrex_usernames'
     `);
 
-    console.log('📊 Колонки в таблице posts:', postsColumns.rows.map(r => r.column_name));
-
-    // Проверяем колонки в users
-    const usersColumns = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name='users'
-    `);
-
-    console.log('📊 Колонки в таблице users:', usersColumns.rows.map(r => r.column_name));
+    if (checkBayrexUsernames.rows.length === 0) {
+      console.log('🔄 Создаем таблицу bayrex_usernames...');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS bayrex_usernames (
+          id VARCHAR(50) PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          display_name VARCHAR(100) NOT NULL,
+          assigned_to VARCHAR(50) REFERENCES users(id),
+          created_at TIMESTAMP DEFAULT NOW(),
+          deleted BOOLEAN DEFAULT false
+        )
+      `);
+      console.log('✅ Таблица bayrex_usernames создана');
+    }
 
     console.log('✅ Структура базы данных проверена');
   } catch (error) {
@@ -654,6 +670,44 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
+app.get('/api/user-posts/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    const posts = await pool.query(`
+      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
+      FROM posts p 
+      LEFT JOIN users u ON p.user_id = u.id AND u.deleted = false 
+      WHERE p.user_id = $1
+      ORDER BY p.timestamp DESC
+    `, [userId]);
+
+    const postsWithUsers = posts.rows.map(post => ({
+      id: post.id,
+      userId: post.user_id,
+      text: post.text,
+      image: post.image,
+      likes: post.likes || [],
+      comments: post.comments || [],
+      views: post.views || 0,
+      timestamp: post.timestamp,
+      user: {
+        id: post.user_id,
+        username: post.username || 'deleted_user',
+        displayName: post.display_name || 'Удаленный пользователь',
+        avatar: post.avatar,
+        verified: post.verified || false,
+        isDeveloper: post.is_developer || false
+      }
+    }));
+
+    res.json(postsWithUsers);
+  } catch (error) {
+    console.error('Error getting user posts:', error);
+    res.json([]);
+  }
+});
+
 app.post('/api/posts', async (req, res) => {
   try {
     const { userId, text, image } = req.body;
@@ -860,6 +914,148 @@ app.delete('/api/posts/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting post:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+// BayRex usernames API
+app.get('/api/bayrex-usernames', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    const usernames = await pool.query(`
+      SELECT * FROM bayrex_usernames WHERE deleted = false
+    `);
+
+    res.json(usernames.rows);
+  } catch (error) {
+    console.error('Error getting bayrex usernames:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/bayrex-usernames', async (req, res) => {
+  try {
+    const { userId, username, displayName } = req.body;
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    if (!username || !displayName) {
+      return res.json({ success: false, message: 'Юзернейм и имя обязательны' });
+    }
+
+    // Проверяем лимит в 30 юзернеймов
+    const existingCount = await pool.query(`
+      SELECT COUNT(*) FROM bayrex_usernames WHERE deleted = false
+    `);
+
+    if (parseInt(existingCount.rows[0].count) >= 30) {
+      return res.json({ success: false, message: 'Достигнут лимит в 30 юзернеймов' });
+    }
+
+    // Проверяем уникальность юзернейма
+    const existingUsername = await pool.query(`
+      SELECT * FROM bayrex_usernames WHERE username = $1 AND deleted = false
+    `, [username]);
+
+    if (existingUsername.rows.length > 0) {
+      return res.json({ success: false, message: 'Юзернейм уже существует' });
+    }
+
+    const usernameId = Date.now().toString();
+
+    await pool.query(`
+      INSERT INTO bayrex_usernames (id, username, display_name, assigned_to) 
+      VALUES ($1, $2, $3, $4)
+    `, [usernameId, username, displayName, userId]);
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм добавлен'
+    });
+  } catch (error) {
+    console.error('Error creating bayrex username:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.delete('/api/bayrex-usernames/:id', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const usernameId = req.params.id;
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    await pool.query(`
+      UPDATE bayrex_usernames SET deleted = true WHERE id = $1
+    `, [usernameId]);
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм удален'
+    });
+  } catch (error) {
+    console.error('Error deleting bayrex username:', error);
+    res.json({ success: false, message: 'Ошибка' });
+  }
+});
+
+app.post('/api/bayrex-usernames/:id/assign', async (req, res) => {
+  try {
+    const { userId, targetUserId } = req.body;
+    const usernameId = req.params.id;
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0 || user.rows[0].username.toLowerCase() !== 'bayrex') {
+      return res.json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    const targetUser = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [targetUserId]
+    );
+
+    if (targetUser.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    await pool.query(`
+      UPDATE bayrex_usernames SET assigned_to = $1 WHERE id = $2
+    `, [targetUserId, usernameId]);
+
+    res.json({ 
+      success: true, 
+      message: 'Юзернейм передан пользователю'
+    });
+  } catch (error) {
+    console.error('Error assigning bayrex username:', error);
     res.json({ success: false, message: 'Ошибка' });
   }
 });
@@ -1422,7 +1618,7 @@ io.on('connection', (socket) => {
       // Уведомляем всех о новом онлайн пользователе
       socket.broadcast.emit('user_online', onlineUser);
 
-      console.log('👋 User joined:', userRow.display_name);
+      console.log('👋 User joined:', userRow.displayName);
     } catch (error) {
       console.error('Error in user_join:', error);
     }
@@ -1470,6 +1666,12 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Исправление: проверка на пустое сообщение
+      if (!messageData.text && !messageData.fileData && !messageData.giftId) {
+        socket.emit('message_sent', { success: false, message: 'Сообщение не может быть пустым' });
+        return;
+      }
+
       const messageId = Date.now().toString();
 
       await pool.query(
@@ -1478,7 +1680,7 @@ io.on('connection', (socket) => {
          gift_id, gift_name, gift_price) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [messageId, onlineUser.userId, onlineUser.username, onlineUser.displayName, 
-         messageData.text, messageData.toUserId, onlineUser.verified, onlineUser.isDeveloper,
+         messageData.text || '', messageData.toUserId, onlineUser.verified, onlineUser.isDeveloper,
          messageData.type || 'text', messageData.fileData || null, messageData.fileName || null,
          messageData.fileType || null, messageData.fileSize || 0, messageData.giftId || null,
          messageData.giftName || null, messageData.giftPrice || null]
@@ -1489,7 +1691,7 @@ io.on('connection', (socket) => {
         userId: onlineUser.userId,
         username: onlineUser.username,
         displayName: onlineUser.displayName,
-        text: messageData.text,
+        text: messageData.text || '',
         toUserId: messageData.toUserId,
         timestamp: new Date().toISOString(),
         verified: onlineUser.verified,
@@ -1636,6 +1838,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🎤 Voice messages: ENABLED');
   console.log('🔔 Push notifications: ENABLED');
   console.log('🛡️ BayRex account: PROTECTED FROM DELETION');
+  console.log('👤 Profile system: ENABLED');
+  console.log('🔢 BayRex usernames: ENABLED (30 max)');
   console.log('📱 Mobile version: FIXED KEYBOARD ISSUES');
   console.log('🎨 Custom themes: FIXED');
   console.log('=====================================');
