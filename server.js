@@ -21,13 +21,13 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Упрощенная настройка сессий для Render.com
+// Настройка сессий
 app.use(session({
   secret: process.env.SESSION_SECRET || 'epic-messenger-secret-key-2024',
   resave: false,
   saveUninitialized: true,
   cookie: {
-    secure: false, // На Render.com обычно не требуется HTTPS для сессий
+    secure: false,
     maxAge: 24 * 60 * 60 * 1000 // 24 часа
   }
 }));
@@ -224,6 +224,26 @@ async function initDatabase() {
       `);
     }
 
+    // Создаем тестовых пользователей если их нет
+    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
+    if (parseInt(usersCount.rows[0].count) === 0) {
+      const testUsers = [
+        { id: '1', email: 'admin@gmail.com', username: 'admin', displayName: 'Администратор', password: '123', isDeveloper: true, verified: true },
+        { id: '2', email: 'bayrex@gmail.com', username: 'BayRex', displayName: 'BayRex Developer', password: '123', isDeveloper: true, verified: true },
+        { id: '3', email: 'testuser@gmail.com', username: 'testuser', displayName: 'Тестовый Пользователь', password: '123' }
+      ];
+
+      for (const user of testUsers) {
+        const hashedPassword = simpleHash(user.password);
+        await pool.query(
+          `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [user.id, user.email, user.username, user.displayName, hashedPassword, 
+           user.verified || false, user.isDeveloper || false, 1000]
+        );
+      }
+    }
+
     console.log('✅ База данных инициализирована');
   } catch (error) {
     console.error('❌ Ошибка инициализации базы данных:', error);
@@ -263,6 +283,10 @@ app.get('/main.html', (req, res) => {
 
 app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/register.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'register.html'));
 });
 
 // Health check
@@ -536,11 +560,49 @@ app.get('/api/current-user', requireAuth, async (req, res) => {
   }
 });
 
-// Получение пользователей
+// Получение пользователя по ID
+app.get('/api/user/:id', requireAuth, async (req, res) => {
+  try {
+    const user = await pool.query(
+      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, gifts, used_promocodes, created_at 
+       FROM users WHERE id = $1 AND deleted = false`,
+      [req.params.id]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    const userData = user.rows[0];
+
+    res.json({
+      success: true,
+      user: {
+        id: userData.id,
+        username: userData.username,
+        displayName: userData.display_name,
+        status: userData.status,
+        verified: userData.verified,
+        isDeveloper: userData.is_developer,
+        avatar: userData.avatar,
+        description: userData.description,
+        coins: userData.coins,
+        gifts: userData.gifts || [],
+        usedPromocodes: userData.used_promocodes || [],
+        createdAt: userData.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Error getting user:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения пользователя' });
+  }
+});
+
+// Получение всех пользователей
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const users = await pool.query(
-      'SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins FROM users WHERE deleted = false AND id != $1',
+      'SELECT id, username, display_name as name, status, verified, is_developer, avatar, description, coins FROM users WHERE deleted = false AND id != $1',
       [req.session.userId]
     );
 
@@ -551,8 +613,33 @@ app.get('/api/users', requireAuth, async (req, res) => {
   }
 });
 
+// Поиск пользователей
+app.get('/api/search-users', requireAuth, async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    const users = await pool.query(
+      `SELECT id, username, display_name as name, avatar, verified, is_developer 
+       FROM users 
+       WHERE (LOWER(username) LIKE LOWER($1) OR LOWER(display_name) LIKE LOWER($1)) 
+       AND deleted = false AND id != $2
+       LIMIT 10`,
+      [`%${query}%`, req.session.userId]
+    );
+
+    res.json(users.rows);
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({ success: false, message: 'Ошибка поиска пользователей' });
+  }
+});
+
 // Получение чатов пользователя
-app.get('/api/user-chats', requireAuth, async (req, res) => {
+app.get('/api/chats', requireAuth, async (req, res) => {
   try {
     const chats = await pool.query(`
       SELECT DISTINCT 
@@ -675,6 +762,77 @@ app.get('/api/posts', requireAuth, async (req, res) => {
   }
 });
 
+// Создание поста
+app.post('/api/posts', requireAuth, async (req, res) => {
+  try {
+    const { text, image } = req.body;
+    const userId = req.session.userId;
+
+    if (!text) {
+      return res.status(400).json({ success: false, message: 'Текст поста обязателен' });
+    }
+
+    const postId = Date.now().toString();
+
+    await pool.query(
+      'INSERT INTO posts (id, user_id, text, image) VALUES ($1, $2, $3, $4)',
+      [postId, userId, sanitizeInput(text), image]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Пост создан',
+      post: {
+        id: postId,
+        text: sanitizeInput(text),
+        image: image,
+        likes: [],
+        comments: [],
+        views: 0,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error creating post:', error);
+    res.status(500).json({ success: false, message: 'Ошибка создания поста' });
+  }
+});
+
+// Лайк поста
+app.post('/api/posts/:id/like', requireAuth, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.session.userId;
+
+    const post = await pool.query('SELECT likes FROM posts WHERE id = $1', [postId]);
+    
+    if (post.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Пост не найден' });
+    }
+
+    let likes = post.rows[0].likes || [];
+    const likeIndex = likes.indexOf(userId);
+
+    if (likeIndex > -1) {
+      // Убираем лайк
+      likes.splice(likeIndex, 1);
+    } else {
+      // Добавляем лайк
+      likes.push(userId);
+    }
+
+    await pool.query('UPDATE posts SET likes = $1 WHERE id = $2', [JSON.stringify(likes), postId]);
+
+    res.json({ 
+      success: true, 
+      likes: likes.length
+    });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ success: false, message: 'Ошибка при установке лайка' });
+  }
+});
+
 // Получение подарков
 app.get('/api/gifts', requireAuth, async (req, res) => {
   try {
@@ -682,10 +840,261 @@ app.get('/api/gifts', requireAuth, async (req, res) => {
       SELECT * FROM gifts WHERE deleted = false
     `);
 
-    res.json(gifts.rows);
+    res.json(gifts.rows.map(gift => ({
+      id: gift.id,
+      name: gift.name,
+      price: gift.price,
+      image: gift.image,
+      type: gift.type,
+      preview: gift.image || '🎁'
+    })));
   } catch (error) {
     console.error('Error getting gifts:', error);
     res.status(500).json({ success: false, message: 'Ошибка получения подарков' });
+  }
+});
+
+// Покупка подарка
+app.post('/api/gifts/:id/buy', requireAuth, async (req, res) => {
+  try {
+    const giftId = req.params.id;
+    const userId = req.session.userId;
+
+    // Получаем подарок
+    const gift = await pool.query('SELECT * FROM gifts WHERE id = $1 AND deleted = false', [giftId]);
+    
+    if (gift.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Подарок не найден' });
+    }
+
+    const giftData = gift.rows[0];
+
+    // Получаем пользователя
+    const user = await pool.query('SELECT coins, gifts FROM users WHERE id = $1', [userId]);
+    
+    if (user.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    const userData = user.rows[0];
+
+    // Проверяем баланс
+    if (userData.coins < giftData.price) {
+      return res.status(400).json({ success: false, message: 'Недостаточно E-COIN' });
+    }
+
+    // Обновляем баланс и добавляем подарок
+    const newCoins = userData.coins - giftData.price;
+    const userGifts = userData.gifts || [];
+    userGifts.push({
+      id: giftData.id,
+      name: giftData.name,
+      price: giftData.price,
+      purchasedAt: new Date().toISOString()
+    });
+
+    await pool.query(
+      'UPDATE users SET coins = $1, gifts = $2 WHERE id = $3',
+      [newCoins, JSON.stringify(userGifts), userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Подарок успешно куплен!',
+      giftName: giftData.name,
+      newBalance: newCoins
+    });
+  } catch (error) {
+    console.error('Error buying gift:', error);
+    res.status(500).json({ success: false, message: 'Ошибка покупки подарка' });
+  }
+});
+
+// Получение промокодов
+app.get('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const promoCodes = await pool.query(`
+      SELECT * FROM promocodes WHERE deleted = false
+    `);
+
+    res.json(promoCodes.rows);
+  } catch (error) {
+    console.error('Error getting promo codes:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения промокодов' });
+  }
+});
+
+// Создание промокода (только для разработчиков)
+app.post('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const { code, type, value, maxUses = 1 } = req.body;
+    const userId = req.session.userId;
+
+    // Проверяем права разработчика
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [userId]);
+    
+    if (!user.rows[0]?.is_developer) {
+      return res.status(403).json({ success: false, message: 'Только разработчики могут создавать промокоды' });
+    }
+
+    if (!code || !type || !value) {
+      return res.status(400).json({ success: false, message: 'Все поля обязательны' });
+    }
+
+    const promoId = Date.now().toString();
+
+    await pool.query(
+      'INSERT INTO promocodes (id, code, coins, max_uses, created_by) VALUES ($1, $2, $3, $4, $5)',
+      [promoId, code.toUpperCase(), parseInt(value), parseInt(maxUses), userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Промокод создан'
+    });
+  } catch (error) {
+    console.error('Error creating promo code:', error);
+    res.status(500).json({ success: false, message: 'Ошибка создания промокода' });
+  }
+});
+
+// Активация промокода
+app.post('/api/promo-codes/activate', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const userId = req.session.userId;
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Введите промокод' });
+    }
+
+    // Ищем промокод
+    const promo = await pool.query('SELECT * FROM promocodes WHERE code = $1 AND deleted = false', [code.toUpperCase()]);
+    
+    if (promo.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Промокод не найден' });
+    }
+
+    const promoData = promo.rows[0];
+
+    // Проверяем лимит использований
+    if (promoData.max_uses > 0 && promoData.used_count >= promoData.max_uses) {
+      return res.status(400).json({ success: false, message: 'Промокод уже использован' });
+    }
+
+    // Проверяем, не использовал ли пользователь уже этот промокод
+    const usedBy = promoData.used_by || [];
+    if (usedBy.includes(userId)) {
+      return res.status(400).json({ success: false, message: 'Вы уже использовали этот промокод' });
+    }
+
+    // Начисляем монеты
+    const user = await pool.query('SELECT coins, used_promocodes FROM users WHERE id = $1', [userId]);
+    const userData = user.rows[0];
+
+    const newCoins = userData.coins + promoData.coins;
+    const newUsedPromocodes = userData.used_promocodes || [];
+    newUsedPromocodes.push(promoData.code);
+
+    // Обновляем баланс пользователя
+    await pool.query(
+      'UPDATE users SET coins = $1, used_promocodes = $2 WHERE id = $3',
+      [newCoins, JSON.stringify(newUsedPromocodes), userId]
+    );
+
+    // Обновляем статистику промокода
+    usedBy.push(userId);
+    await pool.query(
+      'UPDATE promocodes SET used_count = $1, used_by = $2 WHERE id = $3',
+      [promoData.used_count + 1, JSON.stringify(usedBy), promoData.id]
+    );
+
+    res.json({ 
+      success: true, 
+      message: `Промокод активирован! Начислено ${promoData.coins} E-COIN`,
+      coins: promoData.coins,
+      newBalance: newCoins
+    });
+  } catch (error) {
+    console.error('Error activating promo code:', error);
+    res.status(500).json({ success: false, message: 'Ошибка активации промокода' });
+  }
+});
+
+// Обновление профиля
+app.put('/api/user/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, username, bio } = req.body;
+    const userId = req.params.id;
+
+    // Проверяем, что пользователь обновляет свой профиль
+    if (userId !== req.session.userId) {
+      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    await pool.query(
+      'UPDATE users SET display_name = $1, username = $2, description = $3 WHERE id = $4',
+      [sanitizeInput(name), sanitizeInput(username), sanitizeInput(bio), userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Профиль обновлен'
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ success: false, message: 'Ошибка обновления профиля' });
+  }
+});
+
+// Админ endpoints
+app.get('/api/admin/stats', requireAuth, async (req, res) => {
+  try {
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
+    
+    if (!user.rows[0]?.is_developer) {
+      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
+    const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
+    const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
+    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
+    const promocodesCount = await pool.query('SELECT COUNT(*) FROM promocodes WHERE deleted = false');
+
+    res.json({
+      totalUsers: parseInt(usersCount.rows[0].count),
+      totalMessages: parseInt(messagesCount.rows[0].count),
+      totalPosts: parseInt(postsCount.rows[0].count),
+      totalGifts: parseInt(giftsCount.rows[0].count),
+      totalPromocodes: parseInt(promocodesCount.rows[0].count)
+    });
+  } catch (error) {
+    console.error('Error getting admin stats:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения статистики' });
+  }
+});
+
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  try {
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
+    
+    if (!user.rows[0]?.is_developer) {
+      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
+    }
+
+    const users = await pool.query(`
+      SELECT id, username, display_name, email, status, verified, is_developer, coins, created_at,
+             (SELECT COUNT(*) FROM posts WHERE user_id = users.id) as posts_count
+      FROM users 
+      WHERE deleted = false
+      ORDER BY created_at DESC
+    `);
+
+    res.json(users.rows);
+  } catch (error) {
+    console.error('Error getting admin users:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения пользователей' });
   }
 });
 
