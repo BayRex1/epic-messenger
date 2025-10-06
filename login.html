@@ -24,9 +24,7 @@
 
         .login-container {
             background: rgba(255, 255, 255, 0.1);
-            /* Исправлено для поддержки Safari */
             backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
             width: 100%;
@@ -324,10 +322,6 @@
                 hideNotification();
             }
 
-            // Глобальные функции для HTML-атрибутов
-            window.switchToRegister = switchToRegister;
-            window.switchToLogin = switchToLogin;
-
             // Обработчики для табов
             loginTab.addEventListener('click', switchToLogin);
             registerTab.addEventListener('click', switchToRegister);
@@ -384,50 +378,37 @@
                 btn.disabled = true;
 
                 try {
-                    const userData = {
-                        email: email,
-                        password: password
-                    };
-
-                    console.log('Sending login data:', userData);
-
                     const response = await fetch('/api/login', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
+                            'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(userData)
+                        body: JSON.stringify({ email, password })
                     });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
 
                     const data = await response.json();
 
                     if (data.success) {
-                        if (data.token) {
-                            localStorage.setItem('authToken', data.token);
-                        }
-                        localStorage.setItem('currentUser', JSON.stringify(data.user));
                         showNotification('Вход выполнен успешно!', 'success');
+                        localStorage.setItem('currentUser', JSON.stringify(data.user));
+                        
+                        // Перенаправляем на главную страницу через 1 секунду
                         setTimeout(() => {
                             window.location.href = 'main.html';
                         }, 1000);
                     } else {
-                        showNotification(data.message || 'Ошибка входа', 'error');
+                        showNotification(data.message, 'error');
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    showNotification('Ошибка соединения с сервером: ' + error.message, 'error');
+                    showNotification('Ошибка соединения с сервером', 'error');
                 } finally {
                     btnText.textContent = originalText;
                     btn.disabled = false;
                 }
             });
 
-            // Регистрация (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+            // Регистрация
             document.getElementById('registerBtn').addEventListener('click', async function() {
                 const name = document.getElementById('registerName').value.trim();
                 const username = document.getElementById('registerUsername').value.trim();
@@ -435,6 +416,7 @@
                 const password = document.getElementById('registerPassword').value.trim();
                 const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
 
+                // Валидация
                 if (!name || !username || !email || !password || !confirmPassword) {
                     showNotification('Заполните все поля', 'error');
                     return;
@@ -468,71 +450,76 @@
                 btn.disabled = true;
 
                 try {
-                    const userData = {
-                        email: email,
-                        username: username,
-                        displayName: name,
-                        password: password
-                    };
-
-                    console.log('Sending registration data:', userData);
-
                     const response = await fetch('/api/register', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
+                            'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(userData)
+                        body: JSON.stringify({ 
+                            email, 
+                            username, 
+                            displayName: name, 
+                            password 
+                        })
                     });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
 
                     const data = await response.json();
 
-                    if (data.success) {
-                        if (data.token) {
-                            localStorage.setItem('authToken', data.token);
-                        }
-                        localStorage.setItem('currentUser', JSON.stringify(data.user));
-                        showNotification('Регистрация выполнена успешно!', 'success');
-                        setTimeout(() => {
-                            window.location.href = 'main.html';
-                        }, 1000);
+                    // После успешной регистрации/входа
+if (data.success) {
+    showNotification('Регистрация выполнена успешно!', 'success');
+    
+                  // Ждем сохранения сессии и затем перенаправляем
+                         setTimeout(() => {
+                      window.location.href = '/main.html';
+                     }, 500);
+                     }   
                     } else {
-                        showNotification(data.message || 'Ошибка регистрации', 'error');
+                        showNotification(data.message, 'error');
                     }
                 } catch (error) {
                     console.error('Registration error:', error);
-                    showNotification('Ошибка соединения с сервером: ' + error.message, 'error');
+                    showNotification('Ошибка соединения с сервером', 'error');
                 } finally {
                     btnText.textContent = originalText;
                     btn.disabled = false;
                 }
             });
 
-            // Enter для отправки
+            // Ввод по нажатию Enter
             document.getElementById('loginPassword').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') document.getElementById('loginBtn').click();
-            });
-            document.getElementById('registerConfirmPassword').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') document.getElementById('registerBtn').click();
+                if (e.key === 'Enter') {
+                    document.getElementById('loginBtn').click();
+                }
             });
 
-            // Автозаполнение для локальной разработки
-            if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-                const f = document.getElementById;
-                f('loginEmail').value = 'test@gmail.com';
-                f('loginPassword').value = 'password123';
-                f('registerName').value = 'Тест';
-                f('registerUsername').value = 'testuser';
-                f('registerEmail').value = 'test@gmail.com';
-                f('registerPassword').value = 'password123';
-                f('registerConfirmPassword').value = 'password123';
+            document.getElementById('registerConfirmPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('registerBtn').click();
+                }
+            });
+
+            // Автозаполнение для тестирования
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                document.getElementById('loginEmail').value = 'test@gmail.com';
+                document.getElementById('loginPassword').value = 'password123';
+                
+                document.getElementById('registerName').value = 'Тестовый Пользователь';
+                document.getElementById('registerUsername').value = 'testuser';
+                document.getElementById('registerEmail').value = 'test@gmail.com';
+                document.getElementById('registerPassword').value = 'password123';
+                document.getElementById('registerConfirmPassword').value = 'password123';
             }
         });
+
+        // Глобальные функции для переключения форм
+        function switchToRegister() {
+            document.querySelector('[data-tab="register"]').click();
+        }
+
+        function switchToLogin() {
+            document.querySelector('[data-tab="login"]').click();
+        }
     </script>
 </body>
 </html>
