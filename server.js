@@ -1,956 +1,801 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const path = require('path');
-const { Pool } = require('pg');
-const session = require('express-session');
+const fs = require('fs').promises;
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
-const server = http.createServer(app);
+const PORT = process.env.PORT || 10000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+// Middleware для парсинга JSON - ДОБАВЬТЕ ЭТО!
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Подключение к PostgreSQL
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Serve static files
+app.use(express.static(path.join(__dirname, '../public')));
 
-// Настройка сессий
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'epic-messenger-secret-key-2024',
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    secure: false,
-    maxAge: 24 * 60 * 60 * 1000
-  }
-}));
-
-// Middleware для проверки авторизации
-function requireAuth(req, res, next) {
-  if (req.session.userId) {
-    next();
-  } else {
-    res.status(401).json({ success: false, message: 'Требуется авторизация' });
-  }
-}
-
-// Простая функция хеширования пароля
-function simpleHash(password) {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString();
-}
-
-// Функции санитизации
-function sanitizeInput(input) {
-  if (typeof input !== 'string') return input;
-  const dangerousTags = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>|<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi;
-  input = input.replace(dangerousTags, '');
-  const map = {
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;',
-    "/": '&#x2F;', "`": '&#x60;', "=": '&#x3D;'
-  };
-  const reg = /[&<>"'/`=]/ig;
-  return input.replace(reg, (match) => map[match]);
-}
-
-// Улучшенное middleware для логирования (игнорирует статические файлы и favicon)
+// Basic logging middleware
 app.use((req, res, next) => {
-  // Игнорируем запросы к статическим файлам и favicon
-  if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|ttf)$/) || req.path === '/favicon.ico') {
-    return next();
-  }
-  
-  // Логируем только основные маршруты
-  if (req.path === '/' || req.path.startsWith('/api') || req.path.endsWith('.html')) {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Session: ${req.session.userId || 'none'}`);
-  }
-  next();
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Session: ${req.session?.id || 'none'}`);
+    next();
 });
 
-// Базовые маршруты
-app.get('/', (req, res) => {
-  if (req.session.userId) {
-    res.sendFile(path.join(__dirname, 'main.html'));
-  } else {
-    res.sendFile(path.join(__dirname, 'login.html'));
-  }
-});
+// Data file paths
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+const MESSAGES_FILE = path.join(__dirname, 'data', 'messages.json');
+const POSTS_FILE = path.join(__dirname, 'data', 'posts.json');
+const GIFTS_FILE = path.join(__dirname, 'data', 'gifts.json');
+const PROMO_CODES_FILE = path.join(__dirname, 'data', 'promoCodes.json');
 
-app.get('/main.html', (req, res) => {
-  if (req.session.userId) {
-    res.sendFile(path.join(__dirname, 'main.html'));
-  } else {
-    res.redirect('/login.html');
-  }
-});
-
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-app.get('/register.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'register.html'));
-});
-
-// Health check
-app.get('/health', async (req, res) => {
-  try {
-    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
-    const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
-    const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
-
-    res.json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      users: parseInt(usersCount.rows[0].count),
-      messages: parseInt(messagesCount.rows[0].count),
-      posts: parseInt(postsCount.rows[0].count)
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'ERROR', error: error.message });
-  }
-});
-
-// Проверка авторизации
-app.get('/api/check-auth', (req, res) => {
-  if (req.session.userId) {
-    res.json({ 
-      success: true, 
-      authenticated: true,
-      userId: req.session.userId 
-    });
-  } else {
-    res.json({ 
-      success: true, 
-      authenticated: false 
-    });
-  }
-});
-
-// API routes
-app.post('/api/register', async (req, res) => {
-  try {
-    let { email, username, displayName, password } = req.body;
-
-    if (!email || !username || !displayName || !password) {
-      return res.json({ success: false, message: 'Все поля обязательны' });
+// Ensure data directory exists
+async function ensureDataDirectory() {
+    try {
+        await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
+    } catch (error) {
+        console.error('Error creating data directory:', error);
     }
-
-    // Проверка на существующий username
-    const existingUser = await pool.query(
-      'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND deleted = false',
-      [username]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.json({ success: false, message: 'Юзернейм уже занят' });
-    }
-
-    // Хеширование пароля
-    const hashedPassword = simpleHash(password);
-    const userId = Date.now().toString();
-    const isBayRex = username.toLowerCase() === 'bayrex';
-
-    await pool.query(
-      `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [userId, email.toLowerCase(), username, displayName, hashedPassword, isBayRex, isBayRex, 1000]
-    );
-
-    // Сохраняем пользователя в сессии
-    req.session.userId = userId;
-    req.session.username = username;
-
-    console.log(`✅ Новый пользователь: ${username}`);
-
-    res.json({ 
-      success: true, 
-      message: 'Регистрация успешна!',
-      user: {
-        id: userId,
-        username: username,
-        displayName: displayName,
-        verified: isBayRex,
-        isDeveloper: isBayRex,
-        coins: 1000
-      }
-    });
-  } catch (error) {
-    console.error('Error in register:', error);
-    res.json({ success: false, message: 'Ошибка регистрации' });
-  }
-});
-
-app.post('/api/login', async (req, res) => {
-  try {
-    let { email, password } = req.body;
-
-    const user = await pool.query(
-      `SELECT * FROM users WHERE 
-       (email = $1 OR LOWER(username) = LOWER($1)) AND 
-       deleted = false`,
-      [email]
-    );
-
-    if (user.rows.length === 0) {
-      return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
-    }
-
-    const userData = user.rows[0];
-    const isPasswordValid = simpleHash(password) === userData.password;
-    
-    if (!isPasswordValid) {
-      return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
-    }
-
-    // Сохраняем пользователя в сессии
-    req.session.userId = userData.id;
-    req.session.username = userData.username;
-
-    console.log(`✅ Пользователь вошел: ${userData.username}`);
-
-    res.json({ 
-      success: true, 
-      message: 'Вход выполнен!', 
-      user: {
-        id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name,
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        coins: userData.coins
-      }
-    });
-  } catch (error) {
-    console.error('Error in login:', error);
-    res.json({ success: false, message: 'Ошибка входа' });
-  }
-});
-
-// Выход
-app.post('/api/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Error destroying session:', err);
-      return res.json({ success: false, message: 'Ошибка выхода' });
-    }
-    res.json({ success: true, message: 'Выход выполнен' });
-  });
-});
-
-// Получение текущего пользователя
-app.get('/api/current-user', requireAuth, async (req, res) => {
-  try {
-    const user = await pool.query(
-      `SELECT id, username, display_name, verified, is_developer, coins 
-       FROM users WHERE id = $1 AND deleted = false`,
-      [req.session.userId]
-    );
-
-    if (user.rows.length === 0) {
-      req.session.destroy();
-      return res.status(401).json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-    res.json({
-      success: true,
-      user: {
-        id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name,
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        coins: userData.coins
-      }
-    });
-  } catch (error) {
-    console.error('Error getting current user:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения пользователя' });
-  }
-});
-
-// Получение пользователя по ID
-app.get('/api/user/:id', requireAuth, async (req, res) => {
-  try {
-    const user = await pool.query(
-      `SELECT id, username, display_name, verified, is_developer, coins 
-       FROM users WHERE id = $1 AND deleted = false`,
-      [req.params.id]
-    );
-
-    if (user.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-    res.json({
-      success: true,
-      user: {
-        id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name,
-        verified: userData.verified,
-        isDeveloper: userData.is_developer,
-        coins: userData.coins
-      }
-    });
-  } catch (error) {
-    console.error('Error getting user:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения пользователя' });
-  }
-});
-
-// Получение всех пользователей
-app.get('/api/users', requireAuth, async (req, res) => {
-  try {
-    const users = await pool.query(
-      'SELECT id, username, display_name as name FROM users WHERE deleted = false AND id != $1',
-      [req.session.userId]
-    );
-    res.json(users.rows);
-  } catch (error) {
-    console.error('Error getting users:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения пользователей' });
-  }
-});
-
-// Поиск пользователей
-app.get('/api/search-users', requireAuth, async (req, res) => {
-  try {
-    const { query } = req.query;
-    
-    if (!query || query.length < 2) {
-      return res.json([]);
-    }
-
-    const users = await pool.query(
-      `SELECT id, username, display_name as name
-       FROM users 
-       WHERE (LOWER(username) LIKE LOWER($1) OR LOWER(display_name) LIKE LOWER($1)) 
-       AND deleted = false AND id != $2
-       LIMIT 10`,
-      [`%${query}%`, req.session.userId]
-    );
-
-    res.json(users.rows);
-  } catch (error) {
-    console.error('Error searching users:', error);
-    res.status(500).json({ success: false, message: 'Ошибка поиска пользователей' });
-  }
-});
-
-// Получение чатов пользователя
-app.get('/api/chats', requireAuth, async (req, res) => {
-  try {
-    const chats = await pool.query(`
-      SELECT DISTINCT 
-        u.id,
-        u.username,
-        u.display_name as name,
-        (SELECT text FROM messages WHERE (user_id = $1 AND to_user_id = u.id) OR (user_id = u.id AND to_user_id = $1) ORDER BY timestamp DESC LIMIT 1) as last_message,
-        (SELECT COUNT(*) FROM messages WHERE to_user_id = $1 AND user_id = u.id) as unread_count
-      FROM users u
-      WHERE u.id != $1 AND u.deleted = false
-      ORDER BY (SELECT timestamp FROM messages WHERE (user_id = $1 AND to_user_id = u.id) OR (user_id = u.id AND to_user_id = $1) ORDER BY timestamp DESC LIMIT 1) DESC NULLS LAST
-    `, [req.session.userId]);
-
-    res.json(chats.rows);
-  } catch (error) {
-    console.error('Error getting user chats:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения чатов' });
-  }
-});
-
-// Получение сообщений
-app.get('/api/messages', requireAuth, async (req, res) => {
-  try {
-    const { userId, toUserId } = req.query;
-    const messages = await pool.query(`
-      SELECT * FROM messages 
-      WHERE ((user_id = $1 AND to_user_id = $2) OR (user_id = $2 AND to_user_id = $1)) 
-      AND deleted = false 
-      ORDER BY timestamp ASC
-    `, [userId, toUserId]);
-    res.json(messages.rows);
-  } catch (error) {
-    console.error('Error getting messages:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения сообщений' });
-  }
-});
-
-// Отправка сообщения
-app.post('/api/messages', requireAuth, async (req, res) => {
-  try {
-    const { senderId, receiverId, text } = req.body;
-    const messageId = Date.now().toString();
-    
-    const user = await pool.query(
-      'SELECT username, display_name FROM users WHERE id = $1',
-      [senderId]
-    );
-
-    if (user.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-
-    await pool.query(
-      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id) 
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [messageId, senderId, userData.username, userData.display_name, text, receiverId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: {
-        id: messageId,
-        userId: senderId,
-        username: userData.username,
-        displayName: userData.display_name,
-        text: text,
-        toUserId: receiverId,
-        timestamp: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ success: false, message: 'Ошибка отправки сообщения' });
-  }
-});
-
-// Получение постов
-app.get('/api/posts', requireAuth, async (req, res) => {
-  try {
-    const posts = await pool.query(`
-      SELECT p.*, u.username as user_name, u.display_name as user_display_name
-      FROM posts p
-      JOIN users u ON p.user_id = u.id
-      WHERE u.deleted = false
-      ORDER BY p.timestamp DESC
-      LIMIT 20
-    `);
-    
-    const formattedPosts = posts.rows.map(post => ({
-      id: post.id,
-      text: post.text,
-      image: post.image,
-      likes: post.likes || [],
-      comments: post.comments || [],
-      views: post.views || 0,
-      createdAt: post.timestamp,
-      userName: post.user_name,
-      userDisplayName: post.user_display_name
-    }));
-    
-    res.json(formattedPosts);
-  } catch (error) {
-    console.error('Error getting posts:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения постов' });
-  }
-});
-
-// Создание поста
-app.post('/api/posts', requireAuth, async (req, res) => {
-  try {
-    const { text, image } = req.body;
-    const userId = req.session.userId;
-
-    if (!text) {
-      return res.status(400).json({ success: false, message: 'Текст поста обязателен' });
-    }
-
-    const postId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO posts (id, user_id, text, image) VALUES ($1, $2, $3, $4)',
-      [postId, userId, sanitizeInput(text), image]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Пост создан',
-      post: {
-        id: postId,
-        text: sanitizeInput(text),
-        image: image,
-        likes: [],
-        comments: [],
-        views: 0,
-        createdAt: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error creating post:', error);
-    res.status(500).json({ success: false, message: 'Ошибка создания поста' });
-  }
-});
-
-// Лайк поста
-app.post('/api/posts/:id/like', requireAuth, async (req, res) => {
-  try {
-    const postId = req.params.id;
-    const userId = req.session.userId;
-
-    const post = await pool.query('SELECT likes FROM posts WHERE id = $1', [postId]);
-    
-    if (post.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Пост не найден' });
-    }
-
-    let likes = post.rows[0].likes || [];
-    const likeIndex = likes.indexOf(userId);
-
-    if (likeIndex > -1) {
-      // Убираем лайк
-      likes.splice(likeIndex, 1);
-    } else {
-      // Добавляем лайк
-      likes.push(userId);
-    }
-
-    await pool.query('UPDATE posts SET likes = $1 WHERE id = $2', [JSON.stringify(likes), postId]);
-
-    res.json({ 
-      success: true, 
-      likes: likes.length
-    });
-  } catch (error) {
-    console.error('Error liking post:', error);
-    res.status(500).json({ success: false, message: 'Ошибка при установке лайка' });
-  }
-});
-
-// Получение подарков
-app.get('/api/gifts', requireAuth, async (req, res) => {
-  try {
-    const gifts = await pool.query('SELECT * FROM gifts WHERE deleted = false');
-    
-    const formattedGifts = gifts.rows.map(gift => ({
-      id: gift.id,
-      name: gift.name,
-      price: gift.price,
-      image: gift.image,
-      type: gift.type,
-      preview: gift.image || '🎁'
-    }));
-    
-    res.json(formattedGifts);
-  } catch (error) {
-    console.error('Error getting gifts:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения подарков' });
-  }
-});
-
-// Покупка подарка
-app.post('/api/gifts/:id/buy', requireAuth, async (req, res) => {
-  try {
-    const giftId = req.params.id;
-    const userId = req.session.userId;
-
-    // Получаем подарок
-    const gift = await pool.query('SELECT * FROM gifts WHERE id = $1 AND deleted = false', [giftId]);
-    
-    if (gift.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Подарок не найден' });
-    }
-
-    const giftData = gift.rows[0];
-
-    // Получаем пользователя
-    const user = await pool.query('SELECT coins FROM users WHERE id = $1', [userId]);
-    
-    if (user.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    const userData = user.rows[0];
-
-    // Проверяем баланс
-    if (userData.coins < giftData.price) {
-      return res.status(400).json({ success: false, message: 'Недостаточно E-COIN' });
-    }
-
-    // Обновляем баланс
-    const newCoins = userData.coins - giftData.price;
-    await pool.query('UPDATE users SET coins = $1 WHERE id = $2', [newCoins, userId]);
-
-    res.json({ 
-      success: true, 
-      message: 'Подарок успешно куплен!',
-      giftName: giftData.name,
-      newBalance: newCoins
-    });
-  } catch (error) {
-    console.error('Error buying gift:', error);
-    res.status(500).json({ success: false, message: 'Ошибка покупки подарка' });
-  }
-});
-
-// Получение промокодов
-app.get('/api/promo-codes', requireAuth, async (req, res) => {
-  try {
-    const promoCodes = await pool.query('SELECT * FROM promocodes WHERE deleted = false');
-    res.json(promoCodes.rows);
-  } catch (error) {
-    console.error('Error getting promo codes:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения промокодов' });
-  }
-});
-
-// Создание промокода (только для разработчиков)
-app.post('/api/promo-codes', requireAuth, async (req, res) => {
-  try {
-    const { code, value, maxUses = 1 } = req.body;
-    const userId = req.session.userId;
-
-    // Проверяем права разработчика
-    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [userId]);
-    
-    if (!user.rows[0]?.is_developer) {
-      return res.status(403).json({ success: false, message: 'Только разработчики могут создавать промокоды' });
-    }
-
-    if (!code || !value) {
-      return res.status(400).json({ success: false, message: 'Все поля обязательны' });
-    }
-
-    const promoId = Date.now().toString();
-
-    await pool.query(
-      'INSERT INTO promocodes (id, code, coins, max_uses, created_by) VALUES ($1, $2, $3, $4, $5)',
-      [promoId, code.toUpperCase(), parseInt(value), parseInt(maxUses), userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Промокод создан'
-    });
-  } catch (error) {
-    console.error('Error creating promo code:', error);
-    res.status(500).json({ success: false, message: 'Ошибка создания промокода' });
-  }
-});
-
-// Активация промокода
-app.post('/api/promo-codes/activate', requireAuth, async (req, res) => {
-  try {
-    const { code } = req.body;
-    const userId = req.session.userId;
-
-    if (!code) {
-      return res.status(400).json({ success: false, message: 'Введите промокод' });
-    }
-
-    // Ищем промокод
-    const promo = await pool.query('SELECT * FROM promocodes WHERE code = $1 AND deleted = false', [code.toUpperCase()]);
-    
-    if (promo.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Промокод не найден' });
-    }
-
-    const promoData = promo.rows[0];
-
-    // Проверяем лимит использований
-    if (promoData.max_uses > 0 && promoData.used_count >= promoData.max_uses) {
-      return res.status(400).json({ success: false, message: 'Промокод уже использован' });
-    }
-
-    // Начисляем монеты
-    const user = await pool.query('SELECT coins FROM users WHERE id = $1', [userId]);
-    const userData = user.rows[0];
-
-    const newCoins = userData.coins + promoData.coins;
-
-    // Обновляем баланс пользователя
-    await pool.query('UPDATE users SET coins = $1 WHERE id = $2', [newCoins, userId]);
-
-    // Обновляем статистику промокода
-    await pool.query(
-      'UPDATE promocodes SET used_count = $1 WHERE id = $2',
-      [promoData.used_count + 1, promoData.id]
-    );
-
-    res.json({ 
-      success: true, 
-      message: `Промокод активирован! Начислено ${promoData.coins} E-COIN`,
-      coins: promoData.coins,
-      newBalance: newCoins
-    });
-  } catch (error) {
-    console.error('Error activating promo code:', error);
-    res.status(500).json({ success: false, message: 'Ошибка активации промокода' });
-  }
-});
-
-// Обновление профиля
-app.put('/api/user/:id', requireAuth, async (req, res) => {
-  try {
-    const { name, username, bio } = req.body;
-    const userId = req.params.id;
-
-    // Проверяем, что пользователь обновляет свой профиль
-    if (userId !== req.session.userId) {
-      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    await pool.query(
-      'UPDATE users SET display_name = $1, username = $2, description = $3 WHERE id = $4',
-      [sanitizeInput(name), sanitizeInput(username), sanitizeInput(bio), userId]
-    );
-
-    res.json({ 
-      success: true, 
-      message: 'Профиль обновлен'
-    });
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    res.status(500).json({ success: false, message: 'Ошибка обновления профиля' });
-  }
-});
-
-// Админ endpoints
-app.get('/api/admin/stats', requireAuth, async (req, res) => {
-  try {
-    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
-    
-    if (!user.rows[0]?.is_developer) {
-      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
-    const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
-    const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
-
-    res.json({
-      totalUsers: parseInt(usersCount.rows[0].count),
-      totalMessages: parseInt(messagesCount.rows[0].count),
-      totalPosts: parseInt(postsCount.rows[0].count)
-    });
-  } catch (error) {
-    console.error('Error getting admin stats:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения статистики' });
-  }
-});
-
-app.get('/api/admin/users', requireAuth, async (req, res) => {
-  try {
-    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
-    
-    if (!user.rows[0]?.is_developer) {
-      return res.status(403).json({ success: false, message: 'Недостаточно прав' });
-    }
-
-    const users = await pool.query(`
-      SELECT id, username, display_name, email, verified, is_developer, coins, created_at
-      FROM users 
-      WHERE deleted = false
-      ORDER BY created_at DESC
-    `);
-
-    res.json(users.rows);
-  } catch (error) {
-    console.error('Error getting admin users:', error);
-    res.status(500).json({ success: false, message: 'Ошибка получения пользователей' });
-  }
-});
-
-// Инициализация базы данных
-async function initDatabase() {
-  try {
-    console.log('🔄 Инициализация базы данных...');
-
-    // Создаем таблицы если их нет
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id VARCHAR(50) PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        verified BOOLEAN DEFAULT false,
-        is_developer BOOLEAN DEFAULT false,
-        coins INTEGER DEFAULT 1000,
-        description TEXT DEFAULT 'Новый пользователь Epic Messenger',
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id VARCHAR(50) PRIMARY KEY,
-        user_id VARCHAR(50) REFERENCES users(id),
-        username VARCHAR(50) NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        text TEXT NOT NULL,
-        to_user_id VARCHAR(50) REFERENCES users(id),
-        timestamp TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS posts (
-        id VARCHAR(50) PRIMARY KEY,
-        user_id VARCHAR(50) REFERENCES users(id),
-        text TEXT NOT NULL,
-        image TEXT,
-        likes JSONB DEFAULT '[]',
-        comments JSONB DEFAULT '[]',
-        views INTEGER DEFAULT 0,
-        timestamp TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gifts (
-        id VARCHAR(50) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        price INTEGER NOT NULL,
-        image TEXT,
-        type VARCHAR(20) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS promocodes (
-        id VARCHAR(50) PRIMARY KEY,
-        code VARCHAR(100) UNIQUE NOT NULL,
-        coins INTEGER NOT NULL,
-        max_uses INTEGER DEFAULT 1,
-        used_count INTEGER DEFAULT 0,
-        created_by VARCHAR(50) REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
-    // Создаем тестовые данные
-    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
-    if (parseInt(usersCount.rows[0].count) === 0) {
-      const testUsers = [
-        { id: '1', email: 'admin@gmail.com', username: 'admin', displayName: 'Администратор', password: '123', isDeveloper: true, verified: true },
-        { id: '2', email: 'bayrex@gmail.com', username: 'BayRex', displayName: 'BayRex Developer', password: '123', isDeveloper: true, verified: true },
-        { id: '3', email: 'testuser@gmail.com', username: 'testuser', displayName: 'Тестовый Пользователь', password: '123' }
-      ];
-
-      for (const user of testUsers) {
-        const hashedPassword = simpleHash(user.password);
-        await pool.query(
-          `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [user.id, user.email, user.username, user.displayName, hashedPassword, 
-           user.verified || false, user.isDeveloper || false, 1000]
-        );
-      }
-    }
-
-    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
-    if (parseInt(giftsCount.rows[0].count) === 0) {
-      await pool.query(`
-        INSERT INTO gifts (id, name, price, type) VALUES
-        ('1', 'Золотая корона', 100, 'image'),
-        ('2', 'Анимация с фейерверком', 50, 'gif'),
-        ('3', 'Волшебный шар', 75, 'image'),
-        ('4', 'Сердце любви', 25, 'image'),
-        ('5', 'Золотая звезда', 150, 'image')
-      `);
-    }
-
-    console.log('✅ База данных инициализирована');
-  } catch (error) {
-    console.error('❌ Ошибка инициализации базы данных:', error);
-  }
 }
 
-initDatabase();
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static(__dirname));
-
-const onlineUsers = new Map();
-
-// Socket.IO
-io.on('connection', (socket) => {
-  console.log('🔌 Новое подключение:', socket.id);
-
-  socket.on('user_online', async (userId) => {
+// Helper functions for file operations
+async function readJSONFile(filePath) {
     try {
-      onlineUsers.set(socket.id, userId);
-      socket.broadcast.emit('user_status_changed', { userId, status: 'online' });
+        await fs.access(filePath);
+        const data = await fs.readFile(filePath, 'utf8');
+        return JSON.parse(data);
     } catch (error) {
-      console.error('Error setting user online:', error);
+        return [];
     }
-  });
+}
 
-  socket.on('send_message', async (data) => {
+async function writeJSONFile(filePath, data) {
     try {
-      const { userId, toUserId, text } = data;
-      const messageId = Date.now().toString();
-
-      const user = await pool.query(
-        'SELECT username, display_name FROM users WHERE id = $1 AND deleted = false',
-        [userId]
-      );
-
-      if (user.rows.length === 0) return;
-
-      const userData = user.rows[0];
-
-      await pool.query(
-        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id) 
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [messageId, userId, userData.username, userData.display_name, text, toUserId]
-      );
-
-      const message = {
-        id: messageId,
-        userId,
-        username: userData.username,
-        displayName: userData.display_name,
-        text: text,
-        toUserId,
-        timestamp: new Date().toISOString()
-      };
-
-      socket.emit('new_message', message);
-      socket.to(toUserId).emit('new_message', message);
+        await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+        return true;
     } catch (error) {
-      console.error('Error sending message:', error);
+        console.error(`Error writing to ${filePath}:`, error);
+        return false;
     }
-  });
+}
 
-  socket.on('disconnect', async () => {
-    try {
-      const userId = onlineUsers.get(socket.id);
-      if (userId) {
-        onlineUsers.delete(socket.id);
-        socket.broadcast.emit('user_status_changed', { userId, status: 'offline' });
-      }
-    } catch (error) {
-      console.error('Error handling disconnect:', error);
+// Initialize data files
+async function initializeData() {
+    await ensureDataDirectory();
+    
+    // Initialize users if empty
+    const users = await readJSONFile(USERS_FILE);
+    if (users.length === 0) {
+        const defaultUsers = [
+            {
+                id: '1',
+                email: 'admin@gmail.com',
+                username: 'admin',
+                displayName: 'Администратор',
+                password: await bcrypt.hash('admin123', 10),
+                verified: true,
+                isDeveloper: true,
+                coins: 1000,
+                avatar: null,
+                description: 'Системный администратор',
+                createdAt: new Date().toISOString()
+            }
+        ];
+        await writeJSONFile(USERS_FILE, defaultUsers);
     }
-  });
+
+    // Initialize other data files if empty
+    const filesToInitialize = [
+        { file: MESSAGES_FILE, defaultData: [] },
+        { file: POSTS_FILE, defaultData: [] },
+        { file: GIFTS_FILE, defaultData: [] },
+        { file: PROMO_CODES_FILE, defaultData: [] }
+    ];
+
+    for (const { file, defaultData } of filesToInitialize) {
+        const data = await readJSONFile(file);
+        if (data.length === 0) {
+            await writeJSONFile(file, defaultData);
+        }
+    }
+}
+
+// JWT token generation
+function generateToken(user) {
+    return jwt.sign(
+        { 
+            userId: user.id, 
+            email: user.email,
+            username: user.username 
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+}
+
+// Authentication middleware
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ 
+            success: false, 
+            message: 'Требуется авторизация' 
+        });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Недействительный токен' 
+            });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// Routes
+
+// Serve main page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/main.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+// Check authentication
+app.get('/api/check-auth', authenticateToken, (req, res) => {
+    res.json({ 
+        authenticated: true,
+        user: req.user
+    });
 });
+
+// Get current user
+app.get('/api/current-user', authenticateToken, async (req, res) => {
+    try {
+        const users = await readJSONFile(USERS_FILE);
+        const user = users.find(u => u.id === req.user.userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Пользователь не найден'
+            });
+        }
+
+        // Remove password from response
+        const { password, ...userWithoutPassword } = user;
+        res.json({
+            success: true,
+            user: userWithoutPassword
+        });
+    } catch (error) {
+        console.error('Error getting current user:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера'
+        });
+    }
+});
+
+// Registration endpoint
+app.post('/api/register', async (req, res) => {
+    try {
+        console.log('Registration request body:', req.body); // Debug log
+
+        const { email, username, displayName, password } = req.body;
+
+        // Validation
+        if (!email || !username || !displayName || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Все поля обязательны для заполнения'
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Пароль должен содержать минимум 6 символов'
+            });
+        }
+
+        if (!email.endsWith('@gmail.com')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Разрешены только Gmail адреса'
+            });
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Имя пользователя может содержать только буквы, цифры и подчеркивания'
+            });
+        }
+
+        // Check if user already exists
+        const users = await readJSONFile(USERS_FILE);
+        const existingUser = users.find(u => u.email === email || u.username === username);
+        
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'Пользователь с таким email или именем уже существует'
+            });
+        }
+
+        // Create new user
+        const newUser = {
+            id: Date.now().toString(),
+            email,
+            username,
+            displayName,
+            password: await bcrypt.hash(password, 10),
+            verified: false,
+            isDeveloper: false,
+            coins: 100, // Starting balance
+            avatar: null,
+            description: '',
+            createdAt: new Date().toISOString()
+        };
+
+        users.push(newUser);
+        await writeJSONFile(USERS_FILE, users);
+
+        // Generate token
+        const token = generateToken(newUser);
+
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = newUser;
+
+        res.json({
+            success: true,
+            message: 'Регистрация успешна',
+            user: userWithoutPassword,
+            token
+        });
+
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера при регистрации'
+        });
+    }
+});
+
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+    try {
+        console.log('Login request body:', req.body); // Debug log
+
+        const { email, password } = req.body;
+
+        // Validation
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email и пароль обязательны'
+            });
+        }
+
+        // Find user
+        const users = await readJSONFile(USERS_FILE);
+        const user = users.find(u => u.email === email);
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: 'Неверный email или пароль'
+            });
+        }
+
+        // Check password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(400).json({
+                success: false,
+                message: 'Неверный email или пароль'
+            });
+        }
+
+        // Generate token
+        const token = generateToken(user);
+
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = user;
+
+        res.json({
+            success: true,
+            message: 'Вход выполнен успешно',
+            user: userWithoutPassword,
+            token
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера при входе'
+        });
+    }
+});
+
+// Logout endpoint
+app.post('/api/logout', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Выход выполнен успешно'
+    });
+});
+
+// Get chats
+app.get('/api/chats', authenticateToken, async (req, res) => {
+    try {
+        const users = await readJSONFile(USERS_FILE);
+        const messages = await readJSONFile(MESSAGES_FILE);
+        
+        // Get unique user IDs from messages
+        const chatUserIds = [...new Set(messages
+            .filter(m => m.senderId === req.user.userId || m.receiverId === req.user.userId)
+            .map(m => m.senderId === req.user.userId ? m.receiverId : m.senderId)
+        )];
+
+        const chats = chatUserIds.map(userId => {
+            const user = users.find(u => u.id === userId);
+            if (!user) return null;
+
+            const userMessages = messages.filter(m => 
+                (m.senderId === req.user.userId && m.receiverId === userId) ||
+                (m.senderId === userId && m.receiverId === req.user.userId)
+            ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            const lastMessage = userMessages[0];
+            const unreadCount = userMessages.filter(m => 
+                m.senderId === userId && !m.read
+            ).length;
+
+            return {
+                id: userId,
+                name: user.displayName,
+                avatar: user.avatar,
+                last_message: lastMessage?.text || 'Нет сообщений',
+                unread_count: unreadCount,
+                lastActivity: lastMessage?.timestamp
+            };
+        }).filter(chat => chat !== null);
+
+        res.json(chats);
+    } catch (error) {
+        console.error('Error loading chats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки чатов'
+        });
+    }
+});
+
+// Get messages
+app.get('/api/messages', authenticateToken, async (req, res) => {
+    try {
+        const { toUserId } = req.query;
+        
+        if (!toUserId) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID пользователя обязателен'
+            });
+        }
+
+        const messages = await readJSONFile(MESSAGES_FILE);
+        const userMessages = messages.filter(m => 
+            (m.senderId === req.user.userId && m.receiverId === toUserId) ||
+            (m.senderId === toUserId && m.receiverId === req.user.userId)
+        ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        res.json(userMessages);
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки сообщений'
+        });
+    }
+});
+
+// Send message
+app.post('/api/messages', authenticateToken, async (req, res) => {
+    try {
+        const { receiverId, text } = req.body;
+
+        if (!receiverId || !text) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID получателя и текст сообщения обязательны'
+            });
+        }
+
+        const messages = await readJSONFile(MESSAGES_FILE);
+        
+        const newMessage = {
+            id: Date.now().toString(),
+            senderId: req.user.userId,
+            receiverId,
+            text,
+            timestamp: new Date().toISOString(),
+            read: false
+        };
+
+        messages.push(newMessage);
+        await writeJSONFile(MESSAGES_FILE, messages);
+
+        res.json({
+            success: true,
+            message: 'Сообщение отправлено',
+            message: newMessage
+        });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка отправки сообщения'
+        });
+    }
+});
+
+// Get posts
+app.get('/api/posts', authenticateToken, async (req, res) => {
+    try {
+        const posts = await readJSONFile(POSTS_FILE);
+        const users = await readJSONFile(USERS_FILE);
+
+        const postsWithUserInfo = posts.map(post => {
+            const user = users.find(u => u.id === post.userId);
+            return {
+                ...post,
+                userDisplayName: user?.displayName || 'Неизвестный пользователь',
+                userName: user?.username || 'unknown'
+            };
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.json(postsWithUserInfo);
+    } catch (error) {
+        console.error('Error loading posts:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки постов'
+        });
+    }
+});
+
+// Like post
+app.post('/api/posts/:postId/like', authenticateToken, async (req, res) => {
+    try {
+        const { postId } = req.params;
+        
+        const posts = await readJSONFile(POSTS_FILE);
+        const post = posts.find(p => p.id === postId);
+        
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: 'Пост не найден'
+            });
+        }
+
+        if (!post.likes) {
+            post.likes = [];
+        }
+
+        const likeIndex = post.likes.indexOf(req.user.userId);
+        if (likeIndex > -1) {
+            post.likes.splice(likeIndex, 1);
+        } else {
+            post.likes.push(req.user.userId);
+        }
+
+        await writeJSONFile(POSTS_FILE, posts);
+
+        res.json({
+            success: true,
+            likes: post.likes.length
+        });
+    } catch (error) {
+        console.error('Error liking post:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка при установке лайка'
+        });
+    }
+});
+
+// Get gifts
+app.get('/api/gifts', authenticateToken, async (req, res) => {
+    try {
+        const gifts = await readJSONFile(GIFTS_FILE);
+        
+        // If no gifts, create some default ones
+        if (gifts.length === 0) {
+            const defaultGifts = [
+                {
+                    id: '1',
+                    name: 'Сердечко',
+                    preview: '❤️',
+                    price: 10,
+                    description: 'Отправьте сердечко другу'
+                },
+                {
+                    id: '2',
+                    name: 'Звезда',
+                    preview: '⭐',
+                    price: 20,
+                    description: 'Сияющая звезда'
+                },
+                {
+                    id: '3',
+                    name: 'Подарок',
+                    preview: '🎁',
+                    price: 50,
+                    description: 'Красивый подарок'
+                },
+                {
+                    id: '4',
+                    name: 'Корона',
+                    preview: '👑',
+                    price: 100,
+                    description: 'Королевская корона'
+                }
+            ];
+            await writeJSONFile(GIFTS_FILE, defaultGifts);
+            res.json(defaultGifts);
+        } else {
+            res.json(gifts);
+        }
+    } catch (error) {
+        console.error('Error loading gifts:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки подарков'
+        });
+    }
+});
+
+// Buy gift
+app.post('/api/gifts/:giftId/buy', authenticateToken, async (req, res) => {
+    try {
+        const { giftId } = req.params;
+        
+        const gifts = await readJSONFile(GIFTS_FILE);
+        const users = await readJSONFile(USERS_FILE);
+        
+        const gift = gifts.find(g => g.id === giftId);
+        const user = users.find(u => u.id === req.user.userId);
+        
+        if (!gift) {
+            return res.status(404).json({
+                success: false,
+                message: 'Подарок не найден'
+            });
+        }
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Пользователь не найден'
+            });
+        }
+
+        if (user.coins < gift.price) {
+            return res.status(400).json({
+                success: false,
+                message: 'Недостаточно E-COIN для покупки'
+            });
+        }
+
+        // Deduct coins
+        user.coins -= gift.price;
+        await writeJSONFile(USERS_FILE, users);
+
+        res.json({
+            success: true,
+            message: `Подарок "${gift.name}" успешно куплен!`,
+            giftName: gift.name,
+            newBalance: user.coins
+        });
+    } catch (error) {
+        console.error('Error buying gift:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка покупки подарка'
+        });
+    }
+});
+
+// Update user profile
+app.put('/api/user/:userId', authenticateToken, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { name, username, bio } = req.body;
+
+        if (userId !== req.user.userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Недостаточно прав'
+            });
+        }
+
+        const users = await readJSONFile(USERS_FILE);
+        const userIndex = users.findIndex(u => u.id === userId);
+        
+        if (userIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'Пользователь не найден'
+            });
+        }
+
+        // Update user data
+        if (name) users[userIndex].displayName = name;
+        if (username) users[userIndex].username = username;
+        if (bio) users[userIndex].description = bio;
+
+        await writeJSONFile(USERS_FILE, users);
+
+        const { password, ...updatedUser } = users[userIndex];
+
+        res.json({
+            success: true,
+            message: 'Профиль обновлен',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка обновления профиля'
+        });
+    }
+});
+
+// Get all users (admin)
+app.get('/api/users', authenticateToken, async (req, res) => {
+    try {
+        const users = await readJSONFile(USERS_FILE);
+        const usersWithoutPasswords = users.map(user => {
+            const { password, ...userWithoutPassword } = user;
+            return userWithoutPassword;
+        });
+        res.json(usersWithoutPasswords);
+    } catch (error) {
+        console.error('Error loading users:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки пользователей'
+        });
+    }
+});
+
+// Admin stats
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+    try {
+        const users = await readJSONFile(USERS_FILE);
+        const messages = await readJSONFile(MESSAGES_FILE);
+        const posts = await readJSONFile(POSTS_FILE);
+
+        // Check if user is developer
+        const currentUser = users.find(u => u.id === req.user.userId);
+        if (!currentUser || !currentUser.isDeveloper) {
+            return res.status(403).json({
+                success: false,
+                message: 'Недостаточно прав'
+            });
+        }
+
+        res.json({
+            totalUsers: users.length,
+            totalMessages: messages.length,
+            totalPosts: posts.length
+        });
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки статистики'
+        });
+    }
+});
+
+// Admin users
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+    try {
+        const users = await readJSONFile(USERS_FILE);
+
+        // Check if user is developer
+        const currentUser = users.find(u => u.id === req.user.userId);
+        if (!currentUser || !currentUser.isDeveloper) {
+            return res.status(403).json({
+                success: false,
+                message: 'Недостаточно прав'
+            });
+        }
+
+        const usersWithoutPasswords = users.map(user => {
+            const { password, ...userWithoutPassword } = user;
+            return userWithoutPassword;
+        });
+
+        res.json(usersWithoutPasswords);
+    } catch (error) {
+        console.error('Error loading admin users:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка загрузки пользователей'
+        });
+    }
+});
+
+// Activate promo code
+app.post('/api/promo-codes/activate', authenticateToken, async (req, res) => {
+    try {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({
+                success: false,
+                message: 'Промокод обязателен'
+            });
+        }
+
+        // For now, return a mock response
+        // In a real app, you would validate the promo code from database
+        res.json({
+            success: true,
+            message: 'Промокод активирован! Вы получили 50 E-COIN',
+            reward: {
+                type: 'ecoins',
+                amount: 50
+            }
+        });
+    } catch (error) {
+        console.error('Error activating promo code:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка активации промокода'
+        });
+    }
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: 'Маршрут не найден'
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({
+        success: false,
+        message: 'Внутренняя ошибка сервера'
+    });
+});
+
+// Initialize and start server
+async function startServer() {
+    try {
+        await initializeData();
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log(`Open http://localhost:${PORT} in your browser`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
