@@ -3,7 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { Pool } = require('pg');
-const fs = require('fs');
 const session = require('express-session');
 
 const app = express();
@@ -19,18 +18,16 @@ const io = socketIo(server, {
 // Подключение к PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Настройка сессий
+// Упрощенная настройка сессий для Render.com
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'epic-messenger-secret-key',
+  secret: process.env.SESSION_SECRET || 'epic-messenger-secret-key-2024',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // На Render.com обычно не требуется HTTPS для сессий
     maxAge: 24 * 60 * 60 * 1000 // 24 часа
   }
 }));
@@ -55,7 +52,7 @@ function simpleHash(password) {
   return hash.toString();
 }
 
-// Функции санитизации и валидации (остаются без изменений)
+// Функции санитизации и валидации
 function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
   const dangerousTags = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>|<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi;
@@ -114,7 +111,7 @@ function validateUsername(username) {
   return { valid: true };
 }
 
-// Инициализация базы данных (остается без изменений)
+// Инициализация базы данных
 async function initDatabase() {
   try {
     console.log('🔄 Инициализация базы данных...');
@@ -539,37 +536,158 @@ app.get('/api/current-user', requireAuth, async (req, res) => {
   }
 });
 
-// Остальные API endpoints (они остаются практически без изменений, но добавляем requireAuth)
-app.post('/api/update-profile', requireAuth, async (req, res) => {
-  // ... существующий код update-profile
-});
-
-app.get('/api/search-users', requireAuth, async (req, res) => {
-  // ... существующий код search-users
-});
-
+// Получение пользователей
 app.get('/api/users', requireAuth, async (req, res) => {
-  // ... существующий код users
+  try {
+    const users = await pool.query(
+      'SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins FROM users WHERE deleted = false AND id != $1',
+      [req.session.userId]
+    );
+
+    res.json(users.rows);
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения пользователей' });
+  }
 });
 
+// Получение чатов пользователя
 app.get('/api/user-chats', requireAuth, async (req, res) => {
-  // ... существующий код user-chats
+  try {
+    const chats = await pool.query(`
+      SELECT DISTINCT 
+        u.id,
+        u.username,
+        u.display_name as name,
+        u.avatar,
+        u.status,
+        u.verified,
+        u.is_developer,
+        (SELECT text FROM messages WHERE (user_id = $1 AND to_user_id = u.id) OR (user_id = u.id AND to_user_id = $1) ORDER BY timestamp DESC LIMIT 1) as last_message,
+        (SELECT COUNT(*) FROM messages WHERE to_user_id = $1 AND user_id = u.id AND read = false) as unread_count
+      FROM users u
+      WHERE u.id != $1 AND u.deleted = false
+      ORDER BY (SELECT timestamp FROM messages WHERE (user_id = $1 AND to_user_id = u.id) OR (user_id = u.id AND to_user_id = $1) ORDER BY timestamp DESC LIMIT 1) DESC NULLS LAST
+    `, [req.session.userId]);
+
+    res.json(chats.rows);
+  } catch (error) {
+    console.error('Error getting user chats:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения чатов' });
+  }
 });
 
-app.get('/api/user/:id', requireAuth, async (req, res) => {
-  // ... существующий код user/:id
+// Получение сообщений
+app.get('/api/messages', requireAuth, async (req, res) => {
+  try {
+    const { userId, toUserId } = req.query;
+
+    const messages = await pool.query(`
+      SELECT * FROM messages 
+      WHERE ((user_id = $1 AND to_user_id = $2) OR (user_id = $2 AND to_user_id = $1)) 
+      AND deleted = false 
+      ORDER BY timestamp ASC
+    `, [userId, toUserId]);
+
+    res.json(messages.rows);
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения сообщений' });
+  }
 });
 
-// Посты API
+// Отправка сообщения
+app.post('/api/messages', requireAuth, async (req, res) => {
+  try {
+    const { senderId, receiverId, text, type = 'text' } = req.body;
+
+    const messageId = Date.now().toString();
+    
+    const user = await pool.query(
+      'SELECT username, display_name, verified, is_developer FROM users WHERE id = $1',
+      [senderId]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    const userData = user.rows[0];
+
+    await pool.query(
+      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [messageId, senderId, userData.username, userData.display_name, 
+       sanitizeInput(text), receiverId, userData.verified, 
+       userData.is_developer, type]
+    );
+
+    res.json({ 
+      success: true, 
+      message: {
+        id: messageId,
+        userId: senderId,
+        username: userData.username,
+        displayName: userData.display_name,
+        text: sanitizeInput(text),
+        toUserId: receiverId,
+        timestamp: new Date().toISOString(),
+        verified: userData.verified,
+        isDeveloper: userData.is_developer,
+        type
+      }
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ success: false, message: 'Ошибка отправки сообщения' });
+  }
+});
+
+// Получение постов
 app.get('/api/posts', requireAuth, async (req, res) => {
-  // ... существующий код posts
+  try {
+    const posts = await pool.query(`
+      SELECT p.*, u.username as user_name, u.display_name as user_display_name, u.avatar as user_avatar, 
+             u.verified as user_verified, u.is_developer as user_is_developer
+      FROM posts p
+      JOIN users u ON p.user_id = u.id
+      WHERE u.deleted = false
+      ORDER BY p.timestamp DESC
+    `);
+
+    res.json(posts.rows.map(post => ({
+      id: post.id,
+      text: post.text,
+      image: post.image,
+      likes: post.likes || [],
+      comments: post.comments || [],
+      views: post.views || 0,
+      createdAt: post.timestamp,
+      userName: post.user_name,
+      userDisplayName: post.user_display_name,
+      userAvatar: post.user_avatar,
+      userVerified: post.user_verified,
+      userIsDeveloper: post.user_is_developer
+    })));
+  } catch (error) {
+    console.error('Error getting posts:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения постов' });
+  }
 });
 
-app.post('/api/posts', requireAuth, async (req, res) => {
-  // ... существующий код posts
-});
+// Получение подарков
+app.get('/api/gifts', requireAuth, async (req, res) => {
+  try {
+    const gifts = await pool.query(`
+      SELECT * FROM gifts WHERE deleted = false
+    `);
 
-// Остальные endpoints аналогично добавляем requireAuth...
+    res.json(gifts.rows);
+  } catch (error) {
+    console.error('Error getting gifts:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения подарков' });
+  }
+});
 
 // Socket.IO соединения
 io.on('connection', (socket) => {
@@ -595,7 +713,7 @@ io.on('connection', (socket) => {
 
   socket.on('send_message', async (data) => {
     try {
-      const { userId, toUserId, text, type = 'text', fileData, fileName, fileType, fileSize } = data;
+      const { userId, toUserId, text, type = 'text' } = data;
 
       // ЗАЩИТА ОТ ОТПРАВКИ СООБЩЕНИЙ С ЗАПРЕЩЕННЫМИ ID
       const forbiddenIds = ['1759599444816', '1759656247835'];
@@ -617,11 +735,11 @@ io.on('connection', (socket) => {
       const messageId = Date.now().toString();
 
       await pool.query(
-        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type, file_data, file_name, file_type, file_size) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [messageId, userId, userData.username, userData.display_name, 
          sanitizeInput(text), toUserId, userData.verified, 
-         userData.is_developer, type, fileData, fileName, fileType, fileSize]
+         userData.is_developer, type]
       );
 
       const message = {
@@ -634,11 +752,7 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString(),
         verified: userData.verified,
         isDeveloper: userData.is_developer,
-        type,
-        fileData,
-        fileName,
-        fileType,
-        fileSize
+        type
       };
 
       // Отправляем сообщение отправителю и получателю
