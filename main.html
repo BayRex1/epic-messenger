@@ -752,6 +752,9 @@
             border-radius: 8px;
             z-index: 1000;
             animation: slideInRight 0.3s;
+            /* Исправлено для Safari */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .notification.success { background: var(--success-color); }
@@ -779,6 +782,9 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            /* Исправлено для Safari */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .push-avatar {
@@ -969,6 +975,9 @@
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            /* Исправлено для Safari */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .modal-content.large {
@@ -2267,19 +2276,33 @@
 
     async function checkAuth() {
         try {
-            const response = await fetch('/api/check-auth');
-            const data = await response.json();
+            const authToken = localStorage.getItem('authToken');
+            const currentUserData = localStorage.getItem('currentUser');
             
-            if (!data.authenticated) {
-                console.log('❌ Пользователь не авторизован, перенаправление...');
+            if (!authToken || !currentUserData) {
+                console.log('❌ Нет токена или данных пользователя');
                 window.location.href = '/login.html';
                 return false;
             }
+
+            // Проверяем токен на сервере
+            const response = await fetch('/api/check-auth', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Не авторизован');
+            }
+
+            const data = await response.json();
+            return data.authenticated;
             
-            console.log('✅ Пользователь авторизован');
-            return true;
         } catch (error) {
-            console.error('Ошибка проверки авторизации:', error);
+            console.error('Auth error:', error);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('authToken');
             window.location.href = '/login.html';
             return false;
         }
@@ -2287,15 +2310,30 @@
 
     async function loadUserData() {
         try {
-            const response = await fetch('/api/current-user');
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch('/api/current-user', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 const data = await response.json();
                 currentUser = data.user;
                 updateUserInterface();
+            } else {
+                throw new Error('Failed to load user data');
             }
         } catch (error) {
             console.error('Error loading user data:', error);
-            showNotification('Ошибка загрузки данных пользователя', 'error');
+            // Используем данные из localStorage как запасной вариант
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                updateUserInterface();
+            } else {
+                showNotification('Ошибка загрузки данных пользователя', 'error');
+            }
         }
     }
 
@@ -2486,7 +2524,13 @@
 
     async function loadChats() {
         try {
-            const response = await fetch('/api/chats');
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch('/api/chats', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 chats = await response.json();
                 renderChatsList();
@@ -2498,7 +2542,13 @@
 
     async function loadPosts() {
         try {
-            const response = await fetch('/api/posts');
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch('/api/posts', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 posts = await response.json();
                 renderPosts();
@@ -2510,7 +2560,13 @@
 
     async function loadGifts() {
         try {
-            const response = await fetch('/api/gifts');
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch('/api/gifts', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 gifts = await response.json();
                 renderGifts();
@@ -2522,7 +2578,13 @@
 
     async function loadAllUsers() {
         try {
-            const response = await fetch('/api/users');
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch('/api/users', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 allUsers = await response.json();
             }
@@ -2536,6 +2598,16 @@
         if (!chatsList) return;
 
         chatsList.innerHTML = '';
+
+        if (chats.length === 0) {
+            chatsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <div class="empty-state-text">Нет активных чатов</div>
+                </div>
+            `;
+            return;
+        }
 
         chats.forEach(chat => {
             const lastMessage = chat.last_message || 'Нет сообщений';
@@ -2564,6 +2636,16 @@
         if (!postsList) return;
 
         postsList.innerHTML = '';
+
+        if (posts.length === 0) {
+            postsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📰</div>
+                    <div class="empty-state-text">Пока нет постов</div>
+                </div>
+            `;
+            return;
+        }
 
         posts.forEach(post => {
             const postElement = document.createElement('div');
@@ -2619,6 +2701,16 @@
 
         myGiftsGrid.innerHTML = '';
 
+        if (gifts.length === 0) {
+            myGiftsGrid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎁</div>
+                    <div class="empty-state-text">У вас пока нет подарков</div>
+                </div>
+            `;
+            return;
+        }
+
         gifts.forEach(gift => {
             const giftElement = document.createElement('div');
             giftElement.className = 'my-gift-item';
@@ -2639,6 +2731,16 @@
         if (!giftsShop) return;
 
         giftsShop.innerHTML = '';
+
+        if (gifts.length === 0) {
+            giftsShop.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🛍️</div>
+                    <div class="empty-state-text">Магазин пока пуст</div>
+                </div>
+            `;
+            return;
+        }
 
         gifts.forEach(gift => {
             const giftElement = document.createElement('div');
@@ -2692,7 +2794,13 @@
 
     async function loadChatMessages(chatId) {
         try {
-            const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${chatId}`);
+            const authToken = localStorage.getItem('authToken');
+            const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${chatId}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (response.ok) {
                 const messages = await response.json();
                 renderMessages(messages);
@@ -2708,6 +2816,16 @@
         if (!chatMessages) return;
 
         chatMessages.innerHTML = '';
+
+        if (messages.length === 0) {
+            chatMessages.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">💭</div>
+                    <div class="empty-state-text">Начните общение!</div>
+                </div>
+            `;
+            return;
+        }
 
         messages.forEach(message => {
             const messageElement = document.createElement('div');
@@ -2732,10 +2850,12 @@
         if (!text || !currentChat) return;
 
         try {
+            const authToken = localStorage.getItem('authToken');
             const response = await fetch('/api/messages', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     senderId: currentUser.id,
@@ -2759,8 +2879,12 @@
 
     async function likePost(postId) {
         try {
+            const authToken = localStorage.getItem('authToken');
             const response = await fetch(`/api/posts/${postId}/like`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
             });
 
             if (response.ok) {
@@ -2780,8 +2904,12 @@
 
     async function buyGift(giftId) {
         try {
+            const authToken = localStorage.getItem('authToken');
             const response = await fetch(`/api/gifts/${giftId}/buy`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
             });
 
             if (response.ok) {
@@ -2818,8 +2946,15 @@
 
     async function loadAdminData() {
         try {
+            const authToken = localStorage.getItem('authToken');
+            
             // Загружаем статистику
-            const statsResponse = await fetch('/api/admin/stats');
+            const statsResponse = await fetch('/api/admin/stats', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (statsResponse.ok) {
                 const stats = await statsResponse.json();
                 document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
@@ -2828,7 +2963,12 @@
             }
 
             // Загружаем пользователи
-            const usersResponse = await fetch('/api/admin/users');
+            const usersResponse = await fetch('/api/admin/users', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
             if (usersResponse.ok) {
                 const users = await usersResponse.json();
                 renderAdminUsers(users);
@@ -3018,10 +3158,12 @@
         }
 
         try {
+            const authToken = localStorage.getItem('authToken');
             const response = await fetch('/api/promo-codes/activate', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     code: code
@@ -3085,10 +3227,12 @@
         }
 
         try {
+            const authToken = localStorage.getItem('authToken');
             const response = await fetch(`/api/user/${currentUser.id}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
                 },
                 body: JSON.stringify({
                     name: name,
@@ -3234,11 +3378,9 @@
     }
 
     function logout() {
-        fetch('/api/logout', {
-            method: 'POST'
-        }).then(() => {
-            window.location.href = '/login.html';
-        });
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        window.location.href = '/login.html';
     }
 
     function startPeriodicUpdates() {
