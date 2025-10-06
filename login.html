@@ -24,7 +24,9 @@
 
         .login-container {
             background: rgba(255, 255, 255, 0.1);
+            /* Исправлено для поддержки Safari */
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
             width: 100%;
@@ -382,39 +384,50 @@
                 btn.disabled = true;
 
                 try {
+                    const userData = {
+                        email: email,
+                        password: password
+                    };
+
+                    console.log('Sending login data:', userData);
+
                     const response = await fetch('/api/login', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
                         },
-                        body: JSON.stringify({ email, password })
+                        body: JSON.stringify(userData)
                     });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
 
                     const data = await response.json();
 
                     if (data.success) {
-                        // 🔑 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: сохраняем токен!
                         if (data.token) {
                             localStorage.setItem('authToken', data.token);
                         }
                         localStorage.setItem('currentUser', JSON.stringify(data.user));
                         showNotification('Вход выполнен успешно!', 'success');
                         setTimeout(() => {
-                            window.location.href = 'main.html'; // без слеша
+                            window.location.href = 'main.html';
                         }, 1000);
                     } else {
                         showNotification(data.message || 'Ошибка входа', 'error');
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    showNotification('Ошибка соединения с сервером', 'error');
+                    showNotification('Ошибка соединения с сервером: ' + error.message, 'error');
                 } finally {
                     btnText.textContent = originalText;
                     btn.disabled = false;
                 }
             });
 
-            // Регистрация
+            // Регистрация (ИСПРАВЛЕННАЯ ВЕРСИЯ)
             document.getElementById('registerBtn').addEventListener('click', async function() {
                 const name = document.getElementById('registerName').value.trim();
                 const username = document.getElementById('registerUsername').value.trim();
@@ -455,37 +468,45 @@
                 btn.disabled = true;
 
                 try {
+                    const userData = {
+                        email: email,
+                        username: username,
+                        displayName: name,
+                        password: password
+                    };
+
+                    console.log('Sending registration data:', userData);
+
                     const response = await fetch('/api/register', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
                         },
-                        body: JSON.stringify({ 
-                            email, 
-                            username, 
-                            displayName: name, 
-                            password 
-                        })
+                        body: JSON.stringify(userData)
                     });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
 
                     const data = await response.json();
 
                     if (data.success) {
-                        // 🔑 Сохраняем токен и данные
                         if (data.token) {
                             localStorage.setItem('authToken', data.token);
                         }
                         localStorage.setItem('currentUser', JSON.stringify(data.user));
                         showNotification('Регистрация выполнена успешно!', 'success');
                         setTimeout(() => {
-                            window.location.href = 'main.html'; // без слеша
+                            window.location.href = 'main.html';
                         }, 1000);
                     } else {
                         showNotification(data.message || 'Ошибка регистрации', 'error');
                     }
                 } catch (error) {
                     console.error('Registration error:', error);
-                    showNotification('Ошибка соединения с сервером', 'error');
+                    showNotification('Ошибка соединения с сервером: ' + error.message, 'error');
                 } finally {
                     btnText.textContent = originalText;
                     btn.disabled = false;
