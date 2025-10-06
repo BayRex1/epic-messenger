@@ -1,0 +1,28 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .profile-outline {
+            stroke: #20c997;
+            stroke-width: 2;
+            fill: none;
+        }
+        .profile-fill {
+            fill: #20c997;
+        }
+        .profile-detail {
+            fill: #20c997;
+        }
+    </style>
+    
+    <!-- Контур человека -->
+    <circle class="profile-outline" cx="20" cy="15" r="6"/>
+    <path class="profile-outline" d="M14 22H26V32C26 33.5 25.5 34 24 34H16C14.5 34 14 33.5 14 32V22Z"/>
+    
+    <!-- Заполнение -->
+    <circle class="profile-fill" cx="20" cy="15" r="4"/>
+    <rect class="profile-fill" x="16" y="22" width="8" height="10" rx="1"/>
+    
+    <!-- Черты лица -->
+    <circle class="profile-detail" cx="18" cy="14" r="0.8"/>
+    <circle class="profile-detail" cx="22" cy="14" r="0.8"/>
+    <path class="profile-detail" d="M18 17Q20 18 22 17" stroke="#20c997" stroke-width="1" stroke-linecap="round"/>
+</svg>

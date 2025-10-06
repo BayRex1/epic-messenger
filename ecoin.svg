@@ -1,0 +1,181 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Градиенты для сине-фиолетовой монеты -->
+    <radialGradient id="coinMain" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#2c1b6d" />
+      <stop offset="40%" stop-color="#4a2c92" />
+      <stop offset="80%" stop-color="#6b46c1" />
+      <stop offset="100%" stop-color="#553c9a" />
+    </radialGradient>
+    
+    <linearGradient id="coinEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a2c92" />
+      <stop offset="50%" stop-color="#6b46c1" />
+      <stop offset="100%" stop-color="#37216b" />
+    </linearGradient>
+    
+    <linearGradient id="sparkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E90FF" />
+      <stop offset="50%" stop-color="#8A2BE2" />
+      <stop offset="100%" stop-color="#4B0082" />
+    </linearGradient>
+    
+    <filter id="coinShadow">
+      <feDropShadow dx="4" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Анимации для искр -->
+    <style>
+      @keyframes sparkPulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+      }
+      @keyframes sparkMove {
+        0% { transform: translateX(0) translateY(0); }
+        100% { transform: translateX(-10px) translateY(-10px); }
+      }
+      @keyframes coinRotate {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .spark-animation {
+        animation: sparkPulse 2s infinite ease-in-out;
+      }
+      .long-spark {
+        animation: sparkPulse 1.5s infinite alternate;
+      }
+      .rotating-element {
+        animation: coinRotate 20s infinite linear;
+        transform-origin: center;
+      }
+    </style>
+  </defs>
+  
+  <!-- Анимированные искры -->
+  <g filter="url(#glow)">
+    <!-- Основные мощные искры с анимацией -->
+    <path class="long-spark" d="M200 60 L200 20" stroke="url(#sparkGradient)" stroke-width="6" stroke-linecap="round" />
+    <path class="long-spark" d="M340 200 L380 200" stroke="url(#sparkGradient)" stroke-width="6" stroke-linecap="round" />
+    <path class="long-spark" d="M200 340 L200 380" stroke="url(#sparkGradient)" stroke-width="6" stroke-linecap="round" />
+    <path class="long-spark" d="M60 200 L20 200" stroke="url(#sparkGradient)" stroke-width="6" stroke-linecap="round" />
+    
+    <!-- Диагональные искры с анимацией -->
+    <path class="spark-animation" d="M250 120 L300 70" stroke="url(#sparkGradient)" stroke-width="4" stroke-linecap="round" />
+    <path class="spark-animation" d="M250 280 L300 330" stroke="url(#sparkGradient)" stroke-width="4" stroke-linecap="round" />
+    <path class="spark-animation" d="M150 280 L100 330" stroke="url(#sparkGradient)" stroke-width="4" stroke-linecap="round" />
+    <path class="spark-animation" d="M150 120 L100 70" stroke="url(#sparkGradient)" stroke-width="4" stroke-linecap="round" />
+  </g>
+  
+  <!-- Основная монета - сине-фиолетовая -->
+  <g filter="url(#coinShadow)">
+    <!-- Толстый ободок монеты -->
+    <circle cx="200" cy="200" r="120" fill="url(#coinEdge)" stroke="#2c1b6d" stroke-width="8" />
+    
+    <!-- Рельефный край -->
+    <circle cx="200" cy="200" r="115" fill="none" stroke="#6b46c1" stroke-width="3" />
+    <circle cx="200" cy="200" r="110" fill="none" stroke="#4a2c92" stroke-width="2" />
+    
+    <!-- Основное тело монеты -->
+    <circle cx="200" cy="200" r="100" fill="url(#coinMain)" />
+    
+    <!-- Вращающийся внутренний круг -->
+    <circle class="rotating-element" cx="200" cy="200" r="95" fill="none" stroke="#8A2BE2" stroke-width="2" 
+            stroke-dasharray="10,5" opacity="0.7" />
+    
+    <!-- Внутренний декоративный ободок -->
+    <circle cx="200" cy="200" r="90" fill="none" stroke="#6b46c1" stroke-width="2" />
+    
+    <!-- Гравировка по краю -->
+    <circle cx="200" cy="200" r="85" fill="none" stroke="#4a2c92" stroke-width="1" 
+            stroke-dasharray="3,7" opacity="0.8" />
+  </g>
+  
+  <!-- Центральная часть с текстом -->
+  <g>
+    <!-- Базовый круг для текста -->
+    <circle cx="200" cy="200" r="70" fill="#2c1b6d" opacity="0.9" />
+    <circle cx="200" cy="200" r="68" fill="url(#coinMain)" opacity="0.95" />
+    
+    <!-- Декоративные элементы вокруг текста -->
+    <circle cx="200" cy="200" r="65" fill="none" stroke="#6b46c1" stroke-width="3" />
+    
+    <!-- Вращающиеся угловые акценты -->
+    <g class="rotating-element">
+      <path d="M165 165 L175 175 M165 175 L175 165" stroke="#8A2BE2" stroke-width="3" />
+      <path d="M235 165 L225 175 M235 175 L225 165" stroke="#8A2BE2" stroke-width="3" />
+      <path d="M165 235 L175 225 M165 225 L175 235" stroke="#8A2BE2" stroke-width="3" />
+      <path d="M235 235 L225 225 M235 225 L225 235" stroke="#8A2BE2" stroke-width="3" />
+    </g>
+  </g>
+  
+  <!-- Основной текст E-COIN -->
+  <g text-anchor="middle" dominant-baseline="middle">
+    <!-- Тень текста -->
+    <text x="202" y="202" font-family="Georgia, serif" font-size="42" font-weight="bold" 
+          letter-spacing="4" fill="#1a103d" opacity="0.8">
+      E-COIN
+    </text>
+    
+    <!-- Основной текст -->
+    <text x="200" y="200" font-family="Georgia, serif" font-size="42" font-weight="bold" 
+          letter-spacing="4" fill="#8A2BE2" stroke="#4a2c92" stroke-width="2">
+      E-COIN
+    </text>
+    
+    <!-- Контур текста -->
+    <text x="200" y="200" font-family="Georgia, serif" font-size="42" font-weight="bold" 
+          letter-spacing="4" fill="none" stroke="#6b46c1" stroke-width="1">
+      E-COIN
+    </text>
+  </g>
+  
+  <!-- Дополнительные детали монеты -->
+  <g>
+    <!-- Полосы в центре -->
+    <rect x="135" y="185" width="130" height="4" fill="#6b46c1" opacity="0.8" />
+    <rect x="140" y="195" width="120" height="3" fill="#8A2BE2" opacity="0.6" />
+    <rect x="145" y="205" width="110" height="2" fill="#6b46c1" opacity="0.5" />
+    
+    <!-- Точки по кругу с анимацией -->
+    <g class="spark-animation" fill="#8A2BE2">
+      <circle cx="270" cy="200" r="3" />
+      <circle cx="250" cy="150" r="3" />
+      <circle cx="200" cy="130" r="3" />
+      <circle cx="150" cy="150" r="3" />
+      <circle cx="130" cy="200" r="3" />
+      <circle cx="150" cy="250" r="3" />
+      <circle cx="200" cy="270" r="3" />
+      <circle cx="250" cy="250" r="3" />
+    </g>
+  </g>
+  
+  <!-- Дополнительные анимированные искры -->
+  <g class="spark-animation" filter="url(#glow)" opacity="0.7">
+    <path d="M220 100 L230 90" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+    <path d="M280 180 L290 170" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+    <path d="M220 300 L230 310" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+    <path d="M120 220 L110 230" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+    <path d="M180 100 L170 90" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+    <path d="M120 180 L110 170" stroke="url(#sparkGradient)" stroke-width="2" stroke-linecap="round" />
+  </g>
+  
+  <!-- Точки-искры вокруг с анимацией -->
+  <g class="long-spark">
+    <circle cx="200" cy="40" r="4" fill="#1E90FF" />
+    <circle cx="360" cy="200" r="4" fill="#1E90FF" />
+    <circle cx="200" cy="360" r="4" fill="#1E90FF" />
+    <circle cx="40" cy="200" r="4" fill="#1E90FF" />
+    <circle cx="300" cy="100" r="3" fill="#8A2BE2" />
+    <circle cx="300" cy="300" r="3" fill="#8A2BE2" />
+    <circle cx="100" cy="100" r="3" fill="#8A2BE2" />
+    <circle cx="100" cy="300" r="3" fill="#8A2BE2" />
+  </g>
+</svg>

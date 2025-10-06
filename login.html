@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic Messenger - Вход</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f1419, #1a232c);
+            color: #e6e6e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #00b4b4, #00cccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo p {
+            color: #8a9ba8;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #8a9ba8;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e6e6e6;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #00b4b4;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: #8a9ba8;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #00b4b4, #00cccc);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 180, 180, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .switch-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #8a9ba8;
+        }
+
+        .switch-form a {
+            color: #00b4b4;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .switch-form a:hover {
+            text-decoration: underline;
+        }
+
+        .notification {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .notification.success {
+            background: rgba(0, 184, 148, 0.2);
+            border: 1px solid #00b894;
+            color: #00b894;
+        }
+
+        .notification.error {
+            background: rgba(225, 112, 85, 0.2);
+            border: 1px solid #e17055;
+            color: #e17055;
+        }
+
+        .form-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .form-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .form-tab.active {
+            border-bottom-color: #00b4b4;
+            color: #00b4b4;
+        }
+
+        .form-content {
+            display: none;
+        }
+
+        .form-content.active {
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .password-strength {
+            margin-top: 5px;
+            font-size: 12px;
+        }
+
+        .strength-weak { color: #e17055; }
+        .strength-medium { color: #fdcb6e; }
+        .strength-strong { color: #00b894; }
+
+        .terms {
+            font-size: 12px;
+            color: #8a9ba8;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .terms a {
+            color: #00b4b4;
+            text-decoration: none;
+        }
+
+        .terms a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 30px 20px;
+            }
+            
+            .logo h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>Epic Messenger</h1>
+            <p>Общайтесь, делитесь, вдохновляйтесь</p>
+        </div>
+
+        <div class="form-tabs">
+            <div class="form-tab active" data-tab="login">Вход</div>
+            <div class="form-tab" data-tab="register">Регистрация</div>
+        </div>
+
+        <div class="notification" id="notification"></div>
+
+        <!-- Форма входа -->
+        <div class="form-content active" id="login-form">
+            <div class="form-group">
+                <label for="loginEmail">Email или имя пользователя</label>
+                <input type="text" id="loginEmail" placeholder="Введите ваш email или имя пользователя">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Пароль</label>
+                <input type="password" id="loginPassword" placeholder="Введите ваш пароль">
+            </div>
+            <button class="btn" id="loginBtn">
+                <span class="btn-text">Войти</span>
+            </button>
+            <div class="switch-form">
+                Нет аккаунта? <a href="#" onclick="switchToRegister()">Зарегистрируйтесь</a>
+            </div>
+        </div>
+
+        <!-- Форма регистрации -->
+        <div class="form-content" id="register-form">
+            <div class="form-group">
+                <label for="registerName">Имя для отображения</label>
+                <input type="text" id="registerName" placeholder="Введите ваше имя">
+            </div>
+            <div class="form-group">
+                <label for="registerUsername">Имя пользователя</label>
+                <input type="text" id="registerUsername" placeholder="Введите имя пользователя">
+                <div class="username-hint" style="font-size: 12px; color: #8a9ba8; margin-top: 5px;">
+                    Только буквы, цифры и подчеркивания
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="registerEmail">Email</label>
+                <input type="email" id="registerEmail" placeholder="Введите ваш email">
+                <div class="email-hint" style="font-size: 12px; color: #8a9ba8; margin-top: 5px;">
+                    Только Gmail адреса
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="registerPassword">Пароль</label>
+                <input type="password" id="registerPassword" placeholder="Введите пароль">
+                <div class="password-strength" id="passwordStrength"></div>
+            </div>
+            <div class="form-group">
+                <label for="registerConfirmPassword">Подтвердите пароль</label>
+                <input type="password" id="registerConfirmPassword" placeholder="Повторите пароль">
+            </div>
+            <button class="btn" id="registerBtn">
+                <span class="btn-text">Зарегистрироваться</span>
+            </button>
+            <div class="terms">
+                Нажимая "Зарегистрироваться", вы соглашаетесь с 
+                <a href="#">условиями использования</a> и 
+                <a href="#">политикой конфиденциальности</a>
+            </div>
+            <div class="switch-form">
+                Уже есть аккаунт? <a href="#" onclick="switchToLogin()">Войдите</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Элементы DOM
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const loginTab = document.querySelector('[data-tab="login"]');
+            const registerTab = document.querySelector('[data-tab="register"]');
+            const notification = document.getElementById('notification');
+            const passwordStrength = document.getElementById('passwordStrength');
+
+            // Переключение между формами
+            function switchToRegister() {
+                loginTab.classList.remove('active');
+                registerTab.classList.add('active');
+                loginForm.classList.remove('active');
+                registerForm.classList.add('active');
+                hideNotification();
+            }
+
+            function switchToLogin() {
+                registerTab.classList.remove('active');
+                loginTab.classList.add('active');
+                registerForm.classList.remove('active');
+                loginForm.classList.add('active');
+                hideNotification();
+            }
+
+            // Обработчики для табов
+            loginTab.addEventListener('click', switchToLogin);
+            registerTab.addEventListener('click', switchToRegister);
+
+            // Функции для уведомлений
+            function showNotification(message, type) {
+                notification.textContent = message;
+                notification.className = `notification ${type}`;
+                notification.style.display = 'block';
+            }
+
+            function hideNotification() {
+                notification.style.display = 'none';
+            }
+
+            // Проверка силы пароля
+            document.getElementById('registerPassword').addEventListener('input', function() {
+                const password = this.value;
+                let strength = '';
+                let strengthClass = '';
+
+                if (password.length === 0) {
+                    strength = '';
+                } else if (password.length < 6) {
+                    strength = 'Слабый';
+                    strengthClass = 'strength-weak';
+                } else if (password.length < 8) {
+                    strength = 'Средний';
+                    strengthClass = 'strength-medium';
+                } else {
+                    strength = 'Сильный';
+                    strengthClass = 'strength-strong';
+                }
+
+                passwordStrength.textContent = strength;
+                passwordStrength.className = `password-strength ${strengthClass}`;
+            });
+
+            // Вход
+            document.getElementById('loginBtn').addEventListener('click', async function() {
+                const email = document.getElementById('loginEmail').value.trim();
+                const password = document.getElementById('loginPassword').value.trim();
+
+                if (!email || !password) {
+                    showNotification('Заполните все поля', 'error');
+                    return;
+                }
+
+                const btn = this;
+                const btnText = btn.querySelector('.btn-text');
+                const originalText = btnText.textContent;
+                
+                btnText.innerHTML = '<div class="loading"></div>';
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        showNotification('Вход выполнен успешно!', 'success');
+                        localStorage.setItem('currentUser', JSON.stringify(data.user));
+                        
+                        // Перенаправляем на главную страницу через 1 секунду
+                        setTimeout(() => {
+                            window.location.href = 'main.html';
+                        }, 1000);
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    showNotification('Ошибка соединения с сервером', 'error');
+                } finally {
+                    btnText.textContent = originalText;
+                    btn.disabled = false;
+                }
+            });
+
+            // Регистрация
+            document.getElementById('registerBtn').addEventListener('click', async function() {
+                const name = document.getElementById('registerName').value.trim();
+                const username = document.getElementById('registerUsername').value.trim();
+                const email = document.getElementById('registerEmail').value.trim();
+                const password = document.getElementById('registerPassword').value.trim();
+                const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
+
+                // Валидация
+                if (!name || !username || !email || !password || !confirmPassword) {
+                    showNotification('Заполните все поля', 'error');
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    showNotification('Пароли не совпадают', 'error');
+                    return;
+                }
+
+                if (password.length < 6) {
+                    showNotification('Пароль должен содержать минимум 6 символов', 'error');
+                    return;
+                }
+
+                if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                    showNotification('Имя пользователя может содержать только буквы, цифры и подчеркивания', 'error');
+                    return;
+                }
+
+                if (!email.endsWith('@gmail.com')) {
+                    showNotification('Разрешены только Gmail адреса', 'error');
+                    return;
+                }
+
+                const btn = this;
+                const btnText = btn.querySelector('.btn-text');
+                const originalText = btnText.textContent;
+                
+                btnText.innerHTML = '<div class="loading"></div>';
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            email, 
+                            username, 
+                            displayName: name, 
+                            password 
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    // После успешной регистрации/входа
+if (data.success) {
+    showNotification('Регистрация выполнена успешно!', 'success');
+    
+                  // Ждем сохранения сессии и затем перенаправляем
+                         setTimeout(() => {
+                      window.location.href = '/main.html';
+                     }, 500);
+                     }   
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                } catch (error) {
+                    console.error('Registration error:', error);
+                    showNotification('Ошибка соединения с сервером', 'error');
+                } finally {
+                    btnText.textContent = originalText;
+                    btn.disabled = false;
+                }
+            });
+
+            // Ввод по нажатию Enter
+            document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('loginBtn').click();
+                }
+            });
+
+            document.getElementById('registerConfirmPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('registerBtn').click();
+                }
+            });
+
+            // Автозаполнение для тестирования
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                document.getElementById('loginEmail').value = 'test@gmail.com';
+                document.getElementById('loginPassword').value = 'password123';
+                
+                document.getElementById('registerName').value = 'Тестовый Пользователь';
+                document.getElementById('registerUsername').value = 'testuser';
+                document.getElementById('registerEmail').value = 'test@gmail.com';
+                document.getElementById('registerPassword').value = 'password123';
+                document.getElementById('registerConfirmPassword').value = 'password123';
+            }
+        });
+
+        // Глобальные функции для переключения форм
+        function switchToRegister() {
+            document.querySelector('[data-tab="register"]').click();
+        }
+
+        function switchToLogin() {
+            document.querySelector('[data-tab="login"]').click();
+        }
+    </script>
+</body>
+</html>
