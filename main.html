@@ -2684,47 +2684,6 @@
     <div id="notificationsContainer"></div>
 
     <script>
-        // Проверка авторизации при загрузке
-async function checkAuth() {
-    try {
-        const response = await fetch('/api/check-auth');
-        const data = await response.json();
-        
-        if (!data.authenticated) {
-            console.log('❌ Пользователь не авторизован, перенаправление...');
-            window.location.href = '/login.html';
-            return false;
-        }
-        
-        console.log('✅ Пользователь авторизован');
-        return true;
-    } catch (error) {
-        console.error('Ошибка проверки авторизации:', error);
-        window.location.href = '/login.html';
-        return false;
-    }
-}
-
-// Обновленная функция initializeApp
-async function initializeApp() {
-    // Сначала проверяем авторизацию
-    const isAuthenticated = await checkAuth();
-    if (!isAuthenticated) {
-        return;
-    }
-    
-    // Затем загружаем данные пользователя
-    await loadUserData();
-    
-    // Инициализируем интерфейс
-    initializeUI();
-    
-    // Загружаем начальные данные
-    await loadInitialData();
-    
-    // Запускаем периодическое обновление
-    startPeriodicUpdates();
-}
         // Глобальные переменные
         let currentUser = null;
         let currentChat = null;
@@ -2740,46 +2699,62 @@ async function initializeApp() {
         });
 
         async function initializeApp() {
-            // Проверяем авторизацию
-            await checkAuth();
-            
-            // Загружаем данные пользователя
-            await loadUserData();
-            
-            // Инициализируем интерфейс
-            initializeUI();
-            
-            // Загружаем начальные данные
-            await loadInitialData();
-            
-            // Запускаем периодическое обновление
-            startPeriodicUpdates();
+            try {
+                // Сначала проверяем авторизацию
+                const isAuthenticated = await checkAuth();
+                if (!isAuthenticated) {
+                    console.log('❌ Пользователь не авторизован');
+                    return;
+                }
+                
+                // Затем загружаем данные пользователя
+                await loadUserData();
+                
+                // Инициализируем интерфейс
+                initializeUI();
+                
+                // Загружаем начальные данные
+                await loadInitialData();
+                
+                // Запускаем периодическое обновление
+                startPeriodicUpdates();
+                
+                console.log('✅ Приложение успешно инициализировано');
+            } catch (error) {
+                console.error('❌ Ошибка инициализации приложения:', error);
+                showNotification('Ошибка загрузки приложения', 'error');
+            }
         }
 
         async function checkAuth() {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                window.location.href = 'login.html';
-                return;
-            }
-
             try {
-                const response = await fetch('https://epic-messenger.onrender.com/api/verify-token', {
+                const currentUser = localStorage.getItem('currentUser');
+                if (!currentUser) {
+                    console.log('❌ Нет данных пользователя в localStorage');
+                    window.location.href = '/login.html';
+                    return false;
+                }
+
+                const userData = JSON.parse(currentUser);
+                const response = await fetch('/api/check-auth', {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error('Invalid token');
+                    throw new Error('Не авторизован');
                 }
 
-                const userData = await response.json();
-                currentUser = userData;
+                const data = await response.json();
+                return data.authenticated;
+                
             } catch (error) {
                 console.error('Auth error:', error);
+                localStorage.removeItem('currentUser');
                 localStorage.removeItem('authToken');
-                window.location.href = 'login.html';
+                window.location.href = '/login.html';
+                return false;
             }
         }
 
@@ -2944,13 +2919,28 @@ async function initializeApp() {
 
         async function loadInitialData() {
             try {
-                await Promise.all([
+                const [chatsData, postsData, giftsData] = await Promise.allSettled([
                     loadChats(),
                     loadPosts(),
-                    loadGifts(),
-                    loadAllUsers(),
-                    loadPromoCodes()
+                    loadGifts()
                 ]);
+
+                // Обработка результатов
+                if (chatsData.status === 'fulfilled') {
+                    chats = chatsData.value;
+                    renderChatsList();
+                }
+
+                if (postsData.status === 'fulfilled') {
+                    posts = postsData.value;
+                    renderPosts();
+                }
+
+                if (giftsData.status === 'fulfilled') {
+                    gifts = giftsData.value;
+                    renderGifts();
+                }
+
             } catch (error) {
                 console.error('Error loading initial data:', error);
                 showNotification('Ошибка загрузки данных', 'error');
