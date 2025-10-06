@@ -322,6 +322,10 @@
                 hideNotification();
             }
 
+            // Глобальные функции для HTML-атрибутов
+            window.switchToRegister = switchToRegister;
+            window.switchToLogin = switchToLogin;
+
             // Обработчики для табов
             loginTab.addEventListener('click', switchToLogin);
             registerTab.addEventListener('click', switchToRegister);
@@ -389,15 +393,17 @@
                     const data = await response.json();
 
                     if (data.success) {
-                        showNotification('Вход выполнен успешно!', 'success');
+                        // 🔑 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: сохраняем токен!
+                        if (data.token) {
+                            localStorage.setItem('authToken', data.token);
+                        }
                         localStorage.setItem('currentUser', JSON.stringify(data.user));
-                        
-                        // Перенаправляем на главную страницу через 1 секунду
+                        showNotification('Вход выполнен успешно!', 'success');
                         setTimeout(() => {
-                            window.location.href = 'main.html';
+                            window.location.href = 'main.html'; // без слеша
                         }, 1000);
                     } else {
-                        showNotification(data.message, 'error');
+                        showNotification(data.message || 'Ошибка входа', 'error');
                     }
                 } catch (error) {
                     console.error('Login error:', error);
@@ -416,7 +422,6 @@
                 const password = document.getElementById('registerPassword').value.trim();
                 const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
 
-                // Валидация
                 if (!name || !username || !email || !password || !confirmPassword) {
                     showNotification('Заполните все поля', 'error');
                     return;
@@ -465,17 +470,18 @@
 
                     const data = await response.json();
 
-                    // После успешной регистрации/входа
-if (data.success) {
-    showNotification('Регистрация выполнена успешно!', 'success');
-    
-                  // Ждем сохранения сессии и затем перенаправляем
-                         setTimeout(() => {
-                      window.location.href = '/main.html';
-                     }, 500);
-                     }   
+                    if (data.success) {
+                        // 🔑 Сохраняем токен и данные
+                        if (data.token) {
+                            localStorage.setItem('authToken', data.token);
+                        }
+                        localStorage.setItem('currentUser', JSON.stringify(data.user));
+                        showNotification('Регистрация выполнена успешно!', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'main.html'; // без слеша
+                        }, 1000);
                     } else {
-                        showNotification(data.message, 'error');
+                        showNotification(data.message || 'Ошибка регистрации', 'error');
                     }
                 } catch (error) {
                     console.error('Registration error:', error);
@@ -486,40 +492,26 @@ if (data.success) {
                 }
             });
 
-            // Ввод по нажатию Enter
+            // Enter для отправки
             document.getElementById('loginPassword').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    document.getElementById('loginBtn').click();
-                }
+                if (e.key === 'Enter') document.getElementById('loginBtn').click();
             });
-
             document.getElementById('registerConfirmPassword').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    document.getElementById('registerBtn').click();
-                }
+                if (e.key === 'Enter') document.getElementById('registerBtn').click();
             });
 
-            // Автозаполнение для тестирования
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                document.getElementById('loginEmail').value = 'test@gmail.com';
-                document.getElementById('loginPassword').value = 'password123';
-                
-                document.getElementById('registerName').value = 'Тестовый Пользователь';
-                document.getElementById('registerUsername').value = 'testuser';
-                document.getElementById('registerEmail').value = 'test@gmail.com';
-                document.getElementById('registerPassword').value = 'password123';
-                document.getElementById('registerConfirmPassword').value = 'password123';
+            // Автозаполнение для локальной разработки
+            if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+                const f = document.getElementById;
+                f('loginEmail').value = 'test@gmail.com';
+                f('loginPassword').value = 'password123';
+                f('registerName').value = 'Тест';
+                f('registerUsername').value = 'testuser';
+                f('registerEmail').value = 'test@gmail.com';
+                f('registerPassword').value = 'password123';
+                f('registerConfirmPassword').value = 'password123';
             }
         });
-
-        // Глобальные функции для переключения форм
-        function switchToRegister() {
-            document.querySelector('[data-tab="register"]').click();
-        }
-
-        function switchToLogin() {
-            document.querySelector('[data-tab="login"]').click();
-        }
     </script>
 </body>
 </html>
