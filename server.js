@@ -3,10 +3,8 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { Pool } = require('pg');
-const fs = require('fs');
-const session = require('express-session');
-const multer = require('multer');
 const bcrypt = require('bcryptjs');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,15 +16,6 @@ const io = socketIo(server, {
   }
 });
 
-// Настройка multer для загрузки файлов
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB
-  }
-});
-
 // Подключение к PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -35,20 +24,15 @@ const pool = new Pool({
   }
 });
 
-// Настройка сессий
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'epic-messenger-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 часа
-  }
-}));
+// Простая система сессий в памяти
+const sessions = new Map();
 
 // Middleware для проверки авторизации
 function requireAuth(req, res, next) {
-  if (req.session.userId) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (token && sessions.has(token)) {
+    req.userId = sessions.get(token);
     next();
   } else {
     res.status(401).json({ success: false, message: 'Требуется авторизация' });
@@ -66,13 +50,6 @@ function sanitizeInput(input) {
   };
   const reg = /[&<>"'/`=]/ig;
   return input.replace(reg, (match) => map[match]);
-}
-
-function validateInputLength(input, maxLength = 1000) {
-  if (typeof input === 'string' && input.length > maxLength) {
-    return { valid: false, message: `Слишком длинный текст. Максимум ${maxLength} символов` };
-  }
-  return { valid: true };
 }
 
 function validateEmail(email) {
@@ -202,18 +179,6 @@ async function initDatabase() {
       )
     `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS bayrex_usernames (
-        id VARCHAR(50) PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        display_name VARCHAR(100) NOT NULL,
-        assigned_to VARCHAR(50) REFERENCES users(id),
-        created_by VARCHAR(50) REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT NOW(),
-        deleted BOOLEAN DEFAULT false
-      )
-    `);
-
     // Создаем тестовые подарки если их нет
     const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
     if (parseInt(giftsCount.rows[0].count) === 0) {
@@ -281,6 +246,7 @@ async function initDatabase() {
 
 initDatabase();
 
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(__dirname));
@@ -289,25 +255,17 @@ const onlineUsers = new Map();
 
 // Middleware для логирования
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Session: ${req.session.userId || 'none'}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
 // Базовые маршруты
 app.get('/', (req, res) => {
-  if (req.session.userId) {
-    res.sendFile(path.join(__dirname, 'main.html'));
-  } else {
-    res.sendFile(path.join(__dirname, 'login.html'));
-  }
+  res.sendFile(path.join(__dirname, 'login.html'));
 });
 
 app.get('/main.html', (req, res) => {
-  if (req.session.userId) {
-    res.sendFile(path.join(__dirname, 'main.html'));
-  } else {
-    res.redirect('/login.html');
-  }
+  res.sendFile(path.join(__dirname, 'main.html'));
 });
 
 app.get('/login.html', (req, res) => {
@@ -320,18 +278,13 @@ app.get('/health', async (req, res) => {
     const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
     const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
     const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
-    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
-    const promocodesCount = await pool.query('SELECT COUNT(*) FROM promocodes WHERE deleted = false');
 
     res.json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
       users: parseInt(usersCount.rows[0].count),
       messages: parseInt(messagesCount.rows[0].count),
-      posts: parseInt(postsCount.rows[0].count),
-      gifts: parseInt(giftsCount.rows[0].count),
-      promocodes: parseInt(promocodesCount.rows[0].count),
-      session: req.session.userId ? 'active' : 'none'
+      posts: parseInt(postsCount.rows[0].count)
     });
   } catch (error) {
     res.status(500).json({ status: 'ERROR', error: error.message });
@@ -339,19 +292,12 @@ app.get('/health', async (req, res) => {
 });
 
 // Проверка авторизации
-app.get('/api/check-auth', (req, res) => {
-  if (req.session.userId) {
-    res.json({ 
-      success: true, 
-      authenticated: true,
-      userId: req.session.userId 
-    });
-  } else {
-    res.json({ 
-      success: true, 
-      authenticated: false 
-    });
-  }
+app.get('/api/check-auth', requireAuth, async (req, res) => {
+  res.json({ 
+    success: true, 
+    authenticated: true,
+    userId: req.userId 
+  });
 });
 
 // API routes
@@ -367,15 +313,6 @@ app.post('/api/register', async (req, res) => {
     if (!email || !username || !displayName || !password) {
       return res.json({ success: false, message: 'Все поля обязательны' });
     }
-
-    // Проверка длины
-    const emailValidation = validateInputLength(email, 255);
-    const usernameValidation = validateInputLength(username, 50);
-    const displayNameValidation = validateInputLength(displayName, 100);
-    
-    if (!emailValidation.valid) return res.json({ success: false, message: emailValidation.message });
-    if (!usernameValidation.valid) return res.json({ success: false, message: usernameValidation.message });
-    if (!displayNameValidation.valid) return res.json({ success: false, message: displayNameValidation.message });
 
     // Валидация email
     const emailValidationResult = validateEmail(email);
@@ -438,16 +375,16 @@ app.post('/api/register', async (req, res) => {
        JSON.stringify(newUser.used_promocodes)]
     );
 
-    // Сохраняем пользователя в сессии
-    req.session.userId = userId;
-    req.session.username = username;
-    req.session.save();
+    // Создаем сессию
+    const sessionToken = Math.random().toString(36).substring(2);
+    sessions.set(sessionToken, userId);
 
     console.log(`✅ Новый пользователь зарегистрирован: ${username} (ID: ${userId})`);
 
     res.json({ 
       success: true, 
-      message: 'Регистрация успешна!', 
+      message: 'Регистрация успешна!',
+      token: sessionToken,
       user: {
         id: newUser.id,
         email: newUser.email,
@@ -503,16 +440,16 @@ app.post('/api/login', async (req, res) => {
       ['online', userData.id]
     );
 
-    // Сохраняем пользователя в сессии
-    req.session.userId = userData.id;
-    req.session.username = userData.username;
-    req.session.save();
+    // Создаем сессию
+    const sessionToken = Math.random().toString(36).substring(2);
+    sessions.set(sessionToken, userData.id);
 
     console.log(`✅ Пользователь вошел: ${userData.username} (ID: ${userData.id})`);
 
     res.json({ 
       success: true, 
-      message: 'Вход выполнен!', 
+      message: 'Вход выполнен!',
+      token: sessionToken,
       user: {
         id: userData.id,
         email: userData.email,
@@ -536,14 +473,12 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Выход
-app.post('/api/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Error destroying session:', err);
-      return res.json({ success: false, message: 'Ошибка выхода' });
-    }
-    res.json({ success: true, message: 'Выход выполнен' });
-  });
+app.post('/api/logout', requireAuth, (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    sessions.delete(token);
+  }
+  res.json({ success: true, message: 'Выход выполнен' });
 });
 
 // Получение текущего пользователя
@@ -552,11 +487,10 @@ app.get('/api/current-user', requireAuth, async (req, res) => {
     const user = await pool.query(
       `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, gifts, used_promocodes, created_at 
        FROM users WHERE id = $1 AND deleted = false`,
-      [req.session.userId]
+      [req.userId]
     );
 
     if (user.rows.length === 0) {
-      req.session.destroy();
       return res.status(401).json({ success: false, message: 'Пользователь не найден' });
     }
 
@@ -591,7 +525,7 @@ app.get('/api/users', requireAuth, async (req, res) => {
     const users = await pool.query(
       `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, created_at 
        FROM users WHERE deleted = false AND id != $1`,
-      [req.session.userId]
+      [req.userId]
     );
 
     res.json({
@@ -630,7 +564,7 @@ app.get('/api/search-users', requireAuth, async (req, res) => {
        WHERE (LOWER(username) LIKE LOWER($1) OR LOWER(display_name) LIKE LOWER($1)) 
        AND deleted = false AND id != $2
        LIMIT 20`,
-      [`%${query}%`, req.session.userId]
+      [`%${query}%`, req.userId]
     );
 
     res.json({
@@ -715,27 +649,21 @@ app.get('/api/posts', requireAuth, async (req, res) => {
 });
 
 // Создание поста
-app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
+app.post('/api/posts', requireAuth, async (req, res) => {
   try {
-    const { text } = req.body;
-    const userId = req.session.userId;
+    const { text, image } = req.body;
+    const userId = req.userId;
 
     if (!text || text.trim().length === 0) {
       return res.json({ success: false, message: 'Текст поста не может быть пустым' });
     }
 
     const postId = Date.now().toString();
-    let imageData = null;
-
-    if (req.file) {
-      // Конвертируем файл в base64
-      imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    }
 
     await pool.query(
       `INSERT INTO posts (id, user_id, text, image, likes, comments, views) 
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [postId, userId, sanitizeInput(text.trim()), imageData, '[]', '[]', 0]
+      [postId, userId, sanitizeInput(text.trim()), image, '[]', '[]', 0]
     );
 
     // Получаем созданный пост с информацией о пользователе
@@ -774,7 +702,7 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
 app.post('/api/posts/:postId/like', requireAuth, async (req, res) => {
   try {
     const { postId } = req.params;
-    const userId = req.session.userId;
+    const userId = req.userId;
 
     const post = await pool.query('SELECT likes FROM posts WHERE id = $1', [postId]);
     
@@ -836,7 +764,7 @@ app.post('/api/gifts/:giftId/buy', requireAuth, async (req, res) => {
   try {
     const { giftId } = req.params;
     const { toUserId } = req.body;
-    const userId = req.session.userId;
+    const userId = req.userId;
 
     // Получаем информацию о подарке
     const gift = await pool.query('SELECT * FROM gifts WHERE id = $1 AND deleted = false', [giftId]);
@@ -867,7 +795,7 @@ app.post('/api/gifts/:giftId/buy', requireAuth, async (req, res) => {
       giftType: giftData.type,
       purchasedAt: new Date().toISOString(),
       fromUser: userId,
-      toUser: toUserId
+      toUser: toUserId || userId
     });
 
     await pool.query('UPDATE users SET gifts = $1 WHERE id = $2', [JSON.stringify(userGifts), toUserId || userId]);
@@ -897,17 +825,10 @@ app.post('/api/gifts/:giftId/buy', requireAuth, async (req, res) => {
 });
 
 // Обновление профиля
-app.post('/api/update-profile', requireAuth, upload.single('avatar'), async (req, res) => {
+app.post('/api/update-profile', requireAuth, async (req, res) => {
   try {
-    const { displayName, description } = req.body;
-    const userId = req.session.userId;
-
-    let avatarData = null;
-
-    if (req.file) {
-      // Конвертируем аватар в base64
-      avatarData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    }
+    const { displayName, description, avatar } = req.body;
+    const userId = req.userId;
 
     const updates = [];
     const values = [];
@@ -925,9 +846,9 @@ app.post('/api/update-profile', requireAuth, upload.single('avatar'), async (req
       paramCount++;
     }
 
-    if (avatarData) {
+    if (avatar) {
       updates.push(`avatar = $${paramCount}`);
-      values.push(avatarData);
+      values.push(avatar);
       paramCount++;
     }
 
@@ -979,7 +900,7 @@ app.get('/api/promo-codes', requireAuth, async (req, res) => {
 app.post('/api/promo-codes/activate', requireAuth, async (req, res) => {
   try {
     const { code } = req.body;
-    const userId = req.session.userId;
+    const userId = req.userId;
 
     const promoCode = await pool.query(
       'SELECT * FROM promocodes WHERE code = $1 AND deleted = false',
@@ -1028,10 +949,43 @@ app.post('/api/promo-codes/activate', requireAuth, async (req, res) => {
   }
 });
 
+// Создание промокода (админ)
+app.post('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const { code, coins, maxUses } = req.body;
+    const userId = req.userId;
+
+    // Проверяем права администратора
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [userId]);
+    if (!user.rows[0].is_developer) {
+      return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+
+    if (!code || !coins) {
+      return res.json({ success: false, message: 'Заполните обязательные поля' });
+    }
+
+    const promoId = Date.now().toString();
+
+    await pool.query(
+      'INSERT INTO promocodes (id, code, coins, max_uses, created_by) VALUES ($1, $2, $3, $4, $5)',
+      [promoId, code.toUpperCase(), parseInt(coins), parseInt(maxUses) || 0, userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Промокод создан успешно!'
+    });
+  } catch (error) {
+    console.error('Error creating promo code:', error);
+    res.status(500).json({ success: false, message: 'Ошибка создания промокода' });
+  }
+});
+
 // Админские функции
 app.get('/api/admin/stats', requireAuth, async (req, res) => {
   try {
-    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.userId]);
     
     if (!user.rows[0].is_developer) {
       return res.status(403).json({ success: false, message: 'Доступ запрещен' });
@@ -1083,14 +1037,7 @@ io.on('connection', (socket) => {
 
   socket.on('send_message', async (data) => {
     try {
-      const { userId, toUserId, text, type = 'text', fileData, fileName, fileType, fileSize } = data;
-
-      // ЗАЩИТА ОТ ОТПРАВКИ СООБЩЕНИЙ С ЗАПРЕЩЕННЫМИ ID
-      const forbiddenIds = ['1759599444816', '1759656247835'];
-      if (forbiddenIds.includes(userId) || forbiddenIds.includes(toUserId)) {
-        socket.emit('error', { message: 'Отправка сообщений запрещена' });
-        return;
-      }
+      const { userId, toUserId, text, type = 'text' } = data;
 
       const user = await pool.query(
         'SELECT * FROM users WHERE id = $1 AND deleted = false',
@@ -1105,11 +1052,11 @@ io.on('connection', (socket) => {
       const messageId = Date.now().toString();
 
       await pool.query(
-        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type, file_data, file_name, file_type, file_size) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [messageId, userId, userData.username, userData.display_name, 
          sanitizeInput(text), toUserId, userData.verified, 
-         userData.is_developer, type, fileData, fileName, fileType, fileSize]
+         userData.is_developer, type]
       );
 
       const message = {
@@ -1122,11 +1069,7 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString(),
         verified: userData.verified,
         isDeveloper: userData.is_developer,
-        type,
-        fileData,
-        fileName,
-        fileType,
-        fileSize
+        type
       };
 
       // Отправляем сообщение отправителю и получателю
