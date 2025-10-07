@@ -1,35 +1,173 @@
-const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
+const https = require('https');
 const fs = require('fs');
+const path = require('path');
+const url = require('url');
+const { StringDecoder } = require('string_decoder');
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
+class WebSocketServer {
+    constructor(server) {
+        this.server = server;
+        this.clients = new Map();
+        
+        server.on('upgrade', (req, socket, head) => {
+            this.handleUpgrade(req, socket, head);
+        });
+    }
 
-// Middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+    handleUpgrade(req, socket, head) {
+        const key = req.headers['sec-websocket-key'];
+        const accept = this.generateAccept(key);
+        
+        const responseHeaders = [
+            'HTTP/1.1 101 Web Socket Protocol Handshake',
+            'Upgrade: WebSocket',
+            'Connection: Upgrade',
+            `Sec-WebSocket-Accept: ${accept}`
+        ];
 
-// Базы данных (временные хранилища)
-let users = [];
-let messages = [];
-let posts = [];
-let gifts = [];
-let promoCodes = [];
+        socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
+        
+        const clientId = this.generateId();
+        const client = {
+            id: clientId,
+            socket: socket,
+            rooms: new Set()
+        };
+        
+        this.clients.set(clientId, client);
+        
+        socket.on('data', (data) => {
+            this.handleMessage(clientId, data);
+        });
+        
+        socket.on('close', () => {
+            this.clients.delete(clientId);
+            this.broadcast('user_offline', { userId: clientId });
+        });
+        
+        socket.on('error', () => {
+            this.clients.delete(clientId);
+        });
 
-// Генерация ID
-function generateId() {
-    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        // Отправляем приветственное сообщение
+        this.sendToClient(clientId, 'connected', { clientId });
+    }
+
+    generateAccept(key) {
+        const crypto = require('crypto');
+        const sha1 = crypto.createHash('sha1');
+        sha1.update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
+        return sha1.digest('base64');
+    }
+
+    generateId() {
+        return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    }
+
+    handleMessage(clientId, data) {
+        try {
+            const message = this.decodeMessage(data);
+            if (message && message.type && message.data) {
+                this.broadcast(message.type, message.data, clientId);
+            }
+        } catch (error) {
+            console.log('Error decoding message:', error);
+        }
+    }
+
+    decodeMessage(buffer) {
+        const firstByte = buffer.readUInt8(0);
+        const secondByte = buffer.readUInt8(1);
+        
+        const isFinalFrame = Boolean(firstByte & 0x80);
+        const opcode = firstByte & 0x0F;
+        
+        let payloadLength = secondByte & 0x7F;
+        let maskStart = 2;
+        
+        if (payloadLength === 126) {
+            payloadLength = buffer.readUInt16BE(2);
+            maskStart = 4;
+        } else if (payloadLength === 127) {
+            payloadLength = Number(buffer.readBigUInt64BE(2));
+            maskStart = 10;
+        }
+        
+        const masks = buffer.slice(maskStart, maskStart + 4);
+        const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
+        
+        const decoded = Buffer.alloc(payloadLength);
+        for (let i = 0; i < payloadLength; i++) {
+            decoded[i] = payload[i] ^ masks[i % 4];
+        }
+        
+        return JSON.parse(decoded.toString());
+    }
+
+    encodeMessage(data) {
+        const json = JSON.stringify(data);
+        const jsonBuffer = Buffer.from(json);
+        
+        const length = jsonBuffer.length;
+        let payloadLengthByte;
+        let lengthBytes;
+        
+        if (length <= 125) {
+            payloadLengthByte = length;
+            lengthBytes = Buffer.alloc(0);
+        } else if (length <= 65535) {
+            payloadLengthByte = 126;
+            lengthBytes = Buffer.alloc(2);
+            lengthBytes.writeUInt16BE(length);
+        } else {
+            payloadLengthByte = 127;
+            lengthBytes = Buffer.alloc(8);
+            lengthBytes.writeBigUInt64BE(BigInt(length));
+        }
+        
+        const header = Buffer.concat([
+            Buffer.from([0x81, payloadLengthByte]),
+            lengthBytes
+        ]);
+        
+        return Buffer.concat([header, jsonBuffer]);
+    }
+
+    sendToClient(clientId, type, data) {
+        const client = this.clients.get(clientId);
+        if (client && client.socket) {
+            try {
+                const message = this.encodeMessage({ type, data });
+                client.socket.write(message);
+            } catch (error) {
+                console.log('Error sending to client:', error);
+            }
+        }
+    }
+
+    broadcast(type, data, excludeClientId = null) {
+        for (const [clientId, client] of this.clients) {
+            if (clientId !== excludeClientId) {
+                this.sendToClient(clientId, type, data);
+            }
+        }
+    }
 }
 
-// Инициализация начальных данных
-function initializeData() {
-    // Создаем тестовых пользователей
-    if (users.length === 0) {
-        users = [
+class SimpleServer {
+    constructor() {
+        this.users = [];
+        this.messages = [];
+        this.posts = [];
+        this.gifts = [];
+        this.promoCodes = [];
+        this.initializeData();
+    }
+
+    initializeData() {
+        // Тестовые пользователи
+        this.users = [
             {
                 id: '1',
                 username: 'admin',
@@ -74,16 +212,14 @@ function initializeData() {
                 verified: true,
                 isDeveloper: false,
                 status: 'offline',
-                lastSeen: new Date(Date.now() - 30 * 60 * 1000), // 30 минут назад
+                lastSeen: new Date(Date.now() - 30 * 60 * 1000),
                 createdAt: new Date(),
                 gifts: []
             }
         ];
-    }
 
-    // Создаем тестовые подарки
-    if (gifts.length === 0) {
-        gifts = [
+        // Тестовые подарки
+        this.gifts = [
             {
                 id: '1',
                 name: 'Золотая корона',
@@ -104,27 +240,11 @@ function initializeData() {
                 type: 'star',
                 preview: '⭐',
                 price: 200
-            },
-            {
-                id: '4',
-                name: 'Картинка',
-                type: 'image',
-                preview: '🖼️',
-                price: 300
-            },
-            {
-                id: '5',
-                name: 'Гифка',
-                type: 'gif',
-                preview: '🎆',
-                price: 400
             }
         ];
-    }
 
-    // Создаем тестовые промокоды
-    if (promoCodes.length === 0) {
-        promoCodes = [
+        // Тестовые промокоды
+        this.promoCodes = [
             {
                 id: '1',
                 code: 'WELCOME1000',
@@ -132,465 +252,576 @@ function initializeData() {
                 max_uses: 0,
                 used_count: 0,
                 created_at: new Date()
-            },
-            {
-                id: '2',
-                code: 'NEWUSER500',
-                coins: 500,
-                max_uses: 100,
-                used_count: 45,
-                created_at: new Date()
             }
         ];
     }
-}
 
-// Middleware для проверки авторизации
-function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ 
-            success: false, 
-            message: 'Токен доступа отсутствует' 
-        });
+    generateId() {
+        return Date.now().toString() + Math.random().toString(36).substr(2, 9);
     }
 
-    try {
-        // В реальном приложении здесь должна быть проверка JWT токена
-        // Для демо просто проверяем существование пользователя
-        const user = users.find(u => u.id === token);
-        if (!user) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Неверный токен' 
-            });
-        }
-
-        req.user = user;
-        next();
-    } catch (error) {
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Неверный токен' 
-        });
-    }
-}
-
-// Routes
-
-// Главная страница
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'main.html'));
-});
-
-// Страница логина
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// Логин
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    const user = users.find(u => u.username === username && u.password === password);
-    if (!user) {
-        return res.status(401).json({
-            success: false,
-            message: 'Неверное имя пользователя или пароль'
-        });
+    authenticateToken(token) {
+        return this.users.find(u => u.id === token);
     }
 
-    // В реальном приложении здесь должен быть JWT токен
-    // Для демо используем ID пользователя как токен
-    res.json({
-        success: true,
-        token: user.id,
-        user: user
-    });
-});
-
-// Проверка авторизации
-app.get('/api/check-auth', authenticateToken, (req, res) => {
-    res.json({ 
-        authenticated: true,
-        user: req.user
-    });
-});
-
-// Получение текущего пользователя
-app.get('/api/current-user', authenticateToken, (req, res) => {
-    res.json({
-        success: true,
-        user: req.user
-    });
-});
-
-// Получение всех пользователей
-app.get('/api/users', authenticateToken, (req, res) => {
-    // Исключаем текущего пользователя из списка
-    const otherUsers = users.filter(user => user.id !== req.user.id);
-    res.json({
-        success: true,
-        users: otherUsers
-    });
-});
-
-// Получение пользователя по ID
-app.get('/api/users/:id', authenticateToken, (req, res) => {
-    const user = users.find(u => u.id === req.params.id);
-    if (!user) {
-        return res.status(404).json({
-            success: false,
-            message: 'Пользователь не найден'
-        });
-    }
-
-    res.json({
-        success: true,
-        user: user
-    });
-});
-
-// Получение сообщений
-app.get('/api/messages', authenticateToken, (req, res) => {
-    const { userId, toUserId } = req.query;
-    
-    const chatMessages = messages.filter(msg => 
-        (msg.senderId === userId && msg.toUserId === toUserId) ||
-        (msg.senderId === toUserId && msg.toUserId === userId)
-    );
-
-    res.json({
-        success: true,
-        messages: chatMessages
-    });
-});
-
-// Отправка сообщения
-app.post('/api/messages/send', authenticateToken, (req, res) => {
-    const { userId, toUserId, text, type } = req.body;
-
-    const message = {
-        id: generateId(),
-        senderId: userId,
-        toUserId: toUserId,
-        text: text,
-        type: type || 'text',
-        timestamp: new Date(),
-        displayName: req.user.displayName
-    };
-
-    messages.push(message);
-
-    // Отправляем сообщение через Socket.IO
-    io.emit('new_message', message);
-
-    res.json({
-        success: true,
-        message: message
-    });
-});
-
-// Получение постов
-app.get('/api/posts', authenticateToken, (req, res) => {
-    const postsWithUserInfo = posts.map(post => {
-        const user = users.find(u => u.id === post.userId);
-        return {
-            ...post,
-            userName: user ? user.displayName : 'Неизвестный',
-            userAvatar: user ? user.avatar : null,
-            userVerified: user ? user.verified : false,
-            userDeveloper: user ? user.isDeveloper : false
-        };
-    });
-
-    res.json({
-        success: true,
-        posts: postsWithUserInfo
-    });
-});
-
-// Создание поста
-app.post('/api/posts', authenticateToken, (req, res) => {
-    const { text, image } = req.body;
-
-    const post = {
-        id: generateId(),
-        userId: req.user.id,
-        text: text,
-        image: image,
-        likes: [],
-        comments: [],
-        views: 0,
-        createdAt: new Date()
-    };
-
-    posts.push(post);
-
-    res.json({
-        success: true,
-        post: post
-    });
-});
-
-// Лайк поста
-app.post('/api/posts/:id/like', authenticateToken, (req, res) => {
-    const postId = req.params.id;
-    const post = posts.find(p => p.id === postId);
-
-    if (!post) {
-        return res.status(404).json({
-            success: false,
-            message: 'Пост не найден'
-        });
-    }
-
-    const likeIndex = post.likes.indexOf(req.user.id);
-    if (likeIndex === -1) {
-        post.likes.push(req.user.id);
-    } else {
-        post.likes.splice(likeIndex, 1);
-    }
-
-    res.json({
-        success: true,
-        likes: post.likes
-    });
-});
-
-// Получение подарков
-app.get('/api/gifts', authenticateToken, (req, res) => {
-    res.json({
-        success: true,
-        gifts: gifts
-    });
-});
-
-// Покупка подарка
-app.post('/api/gifts/:id/buy', authenticateToken, (req, res) => {
-    const giftId = req.params.id;
-    const { toUserId } = req.body;
-    const gift = gifts.find(g => g.id === giftId);
-
-    if (!gift) {
-        return res.status(404).json({
-            success: false,
-            message: 'Подарок не найден'
-        });
-    }
-
-    if (req.user.coins < gift.price) {
-        return res.status(400).json({
-            success: false,
-            message: 'Недостаточно E-COIN'
-        });
-    }
-
-    // Списываем деньги
-    req.user.coins -= gift.price;
-
-    // Добавляем подарок пользователю
-    if (!req.user.gifts) {
-        req.user.gifts = [];
-    }
-
-    const userGift = {
-        id: generateId(),
-        giftId: gift.id,
-        giftName: gift.name,
-        giftType: gift.type,
-        purchasedAt: new Date(),
-        fromUserId: req.user.id
-    };
-
-    req.user.gifts.push(userGift);
-
-    // Если подарок отправлен другому пользователю
-    if (toUserId) {
-        const toUser = users.find(u => u.id === toUserId);
-        if (toUser) {
-            if (!toUser.gifts) {
-                toUser.gifts = [];
+    serveStaticFile(res, filePath, contentType) {
+        const fullPath = path.join(__dirname, filePath);
+        
+        fs.readFile(fullPath, (err, data) => {
+            if (err) {
+                res.writeHead(404);
+                res.end('File not found');
+                return;
             }
-            toUser.gifts.push({
-                ...userGift,
-                fromUserId: req.user.id
-            });
-
-            // Создаем сообщение о подарке
-            const giftMessage = {
-                id: generateId(),
-                senderId: req.user.id,
-                toUserId: toUserId,
-                type: 'gift',
-                giftName: gift.name,
-                giftType: gift.type,
-                giftPrice: gift.price,
-                timestamp: new Date(),
-                displayName: req.user.displayName
-            };
-
-            messages.push(giftMessage);
-            io.emit('new_message', giftMessage);
-        }
-    }
-
-    res.json({
-        success: true,
-        giftName: gift.name,
-        newBalance: req.user.coins
-    });
-});
-
-// Получение промокодов
-app.get('/api/promo-codes', authenticateToken, (req, res) => {
-    res.json({
-        success: true,
-        promoCodes: promoCodes
-    });
-});
-
-// Активация промокода
-app.post('/api/promo-codes/activate', authenticateToken, (req, res) => {
-    const { code } = req.body;
-    const promoCode = promoCodes.find(p => p.code === code);
-
-    if (!promoCode) {
-        return res.status(404).json({
-            success: false,
-            message: 'Промокод не найден'
-        });
-    }
-
-    if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
-        return res.status(400).json({
-            success: false,
-            message: 'Промокод уже использован максимальное количество раз'
-        });
-    }
-
-    // Начисляем монеты
-    req.user.coins += promoCode.coins;
-    promoCode.used_count++;
-
-    res.json({
-        success: true,
-        message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
-        coins: promoCode.coins
-    });
-});
-
-// Обновление профиля
-app.post('/api/update-profile', authenticateToken, (req, res) => {
-    const { displayName, description, avatar } = req.body;
-
-    if (displayName) {
-        req.user.displayName = displayName;
-    }
-
-    if (description !== undefined) {
-        req.user.description = description;
-    }
-
-    if (avatar) {
-        req.user.avatar = avatar;
-    }
-
-    res.json({
-        success: true,
-        user: req.user
-    });
-});
-
-// Админ статистика
-app.get('/api/admin/stats', authenticateToken, (req, res) => {
-    if (!req.user.isDeveloper) {
-        return res.status(403).json({
-            success: false,
-            message: 'Доступ запрещен'
-        });
-    }
-
-    res.json({
-        success: true,
-        stats: {
-            totalUsers: users.length,
-            totalMessages: messages.length,
-            totalPosts: posts.length
-        }
-    });
-});
-
-// История транзакций
-app.get('/api/user/:id/transactions', authenticateToken, (req, res) => {
-    // Временные данные для демо
-    const transactions = [
-        {
-            description: 'Регистрация бонус',
-            date: req.user.createdAt,
-            amount: 1000
-        },
-        {
-            description: 'Покупка подарка "Золотая корона"',
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 день назад
-            amount: -500
-        },
-        {
-            description: 'Активация промокода WELCOME1000',
-            date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 дня назад
-            amount: 1000
-        }
-    ];
-
-    res.json({
-        success: true,
-        transactions: transactions
-    });
-});
-
-// Выход из системы
-app.post('/api/logout', authenticateToken, (req, res) => {
-    // В реальном приложении здесь должна быть инвалидация токена
-    res.json({
-        success: true,
-        message: 'Успешный выход из системы'
-    });
-});
-
-// Socket.IO connection
-io.on('connection', (socket) => {
-    console.log('🔗 Новое подключение:', socket.id);
-
-    socket.on('user_online', (userId) => {
-        const user = users.find(u => u.id === userId);
-        if (user) {
-            user.status = 'online';
-            user.lastSeen = new Date();
             
-            io.emit('user_status_changed', {
-                userId: userId,
-                status: 'online',
-                lastSeen: user.lastSeen
-            });
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(data);
+        });
+    }
+
+    handleApiRequest(req, res) {
+        const parsedUrl = url.parse(req.url, true);
+        const pathname = parsedUrl.pathname;
+        const method = req.method;
+        
+        let body = '';
+        const decoder = new StringDecoder('utf-8');
+
+        req.on('data', (chunk) => {
+            body += decoder.write(chunk);
+        });
+
+        req.on('end', () => {
+            body += decoder.end();
+            
+            let data = {};
+            if (body) {
+                try {
+                    data = JSON.parse(body);
+                } catch (e) {
+                    // Если не JSON, пробуем как FormData
+                    const params = new URLSearchParams(body);
+                    data = Object.fromEntries(params);
+                }
+            }
+
+            this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
+        });
+    }
+
+    processApiRequest(pathname, method, data, query, req, res) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        };
+
+        // CORS preflight
+        if (method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
         }
-    });
 
-    socket.on('user_typing', (data) => {
-        socket.broadcast.emit('user_typing', data);
-    });
+        // Получение токена из заголовков
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
-    socket.on('disconnect', () => {
-        console.log('🔌 Пользователь отключился:', socket.id);
-    });
-});
+        let response;
 
-// Инициализация данных при запуске
-initializeData();
+        try {
+            switch (pathname) {
+                case '/api/login':
+                    if (method === 'POST') {
+                        response = this.handleLogin(data);
+                    }
+                    break;
+                    
+                case '/api/check-auth':
+                    if (method === 'GET') {
+                        response = this.handleCheckAuth(token);
+                    }
+                    break;
+                    
+                case '/api/current-user':
+                    if (method === 'GET') {
+                        response = this.handleCurrentUser(token);
+                    }
+                    break;
+                    
+                case '/api/users':
+                    if (method === 'GET') {
+                        response = this.handleGetUsers(token);
+                    }
+                    break;
+                    
+                case '/api/messages':
+                    if (method === 'GET') {
+                        response = this.handleGetMessages(token, query);
+                    }
+                    break;
+                    
+                case '/api/messages/send':
+                    if (method === 'POST') {
+                        response = this.handleSendMessage(token, data);
+                    }
+                    break;
+                    
+                case '/api/posts':
+                    if (method === 'GET') {
+                        response = this.handleGetPosts(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreatePost(token, data);
+                    }
+                    break;
+                    
+                case '/api/gifts':
+                    if (method === 'GET') {
+                        response = this.handleGetGifts(token);
+                    }
+                    break;
+                    
+                case '/api/promo-codes':
+                    if (method === 'GET') {
+                        response = this.handleGetPromoCodes(token);
+                    }
+                    break;
+                    
+                case '/api/promo-codes/activate':
+                    if (method === 'POST') {
+                        response = this.handleActivatePromoCode(token, data);
+                    }
+                    break;
+                    
+                case '/api/update-profile':
+                    if (method === 'POST') {
+                        response = this.handleUpdateProfile(token, data);
+                    }
+                    break;
+                    
+                case '/api/logout':
+                    if (method === 'POST') {
+                        response = { success: true, message: 'Успешный выход' };
+                    }
+                    break;
+                    
+                default:
+                    if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
+                        const postId = pathname.split('/')[3];
+                        if (method === 'POST') {
+                            response = this.handleLikePost(token, postId);
+                        }
+                    } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
+                        const giftId = pathname.split('/')[3];
+                        if (method === 'POST') {
+                            response = this.handleBuyGift(token, giftId, data);
+                        }
+                    } else if (pathname.startsWith('/api/users/')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetUser(token, userId);
+                        }
+                    } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetTransactions(token, userId);
+                        }
+                    } else {
+                        response = { success: false, message: 'API endpoint not found' };
+                    }
+            }
+        } catch (error) {
+            response = { success: false, message: error.message };
+        }
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`📧 Доступен по адресу: http://localhost:${PORT}`);
-});
+        if (!response) {
+            response = { success: false, message: 'Method not allowed' };
+        }
+
+        res.writeHead(response.success ? 200 : 400, headers);
+        res.end(JSON.stringify(response));
+    }
+
+    handleLogin(data) {
+        const { username, password } = data;
+        const user = this.users.find(u => u.username === username && u.password === password);
+        
+        if (!user) {
+            return { success: false, message: 'Неверное имя пользователя или пароль' };
+        }
+
+        return {
+            success: true,
+            token: user.id,
+            user: user
+        };
+    }
+
+    handleCheckAuth(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { authenticated: false };
+        }
+
+        return {
+            authenticated: true,
+            user: user
+        };
+    }
+
+    handleCurrentUser(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return {
+            success: true,
+            user: user
+        };
+    }
+
+    handleGetUsers(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const otherUsers = this.users.filter(u => u.id !== user.id);
+        return {
+            success: true,
+            users: otherUsers
+        };
+    }
+
+    handleGetUser(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        return {
+            success: true,
+            user: targetUser
+        };
+    }
+
+    handleGetMessages(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { userId, toUserId } = query;
+        const chatMessages = this.messages.filter(msg => 
+            (msg.senderId === userId && msg.toUserId === toUserId) ||
+            (msg.senderId === toUserId && msg.toUserId === userId)
+        );
+
+        return {
+            success: true,
+            messages: chatMessages
+        };
+    }
+
+    handleSendMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { userId, toUserId, text, type } = data;
+        const message = {
+            id: this.generateId(),
+            senderId: userId,
+            toUserId: toUserId,
+            text: text,
+            type: type || 'text',
+            timestamp: new Date(),
+            displayName: user.displayName
+        };
+
+        this.messages.push(message);
+
+        // В реальном приложении здесь будет отправка через WebSocket
+        // wsServer.broadcast('new_message', message);
+
+        return {
+            success: true,
+            message: message
+        };
+    }
+
+    handleGetPosts(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const postsWithUserInfo = this.posts.map(post => {
+            const postUser = this.users.find(u => u.id === post.userId);
+            return {
+                ...post,
+                userName: postUser ? postUser.displayName : 'Неизвестный',
+                userAvatar: postUser ? postUser.avatar : null,
+                userVerified: postUser ? postUser.verified : false,
+                userDeveloper: postUser ? postUser.isDeveloper : false
+            };
+        });
+
+        return {
+            success: true,
+            posts: postsWithUserInfo
+        };
+    }
+
+    handleCreatePost(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { text, image } = data;
+        const post = {
+            id: this.generateId(),
+            userId: user.id,
+            text: text,
+            image: image,
+            likes: [],
+            comments: [],
+            views: 0,
+            createdAt: new Date()
+        };
+
+        this.posts.push(post);
+
+        return {
+            success: true,
+            post: post
+        };
+    }
+
+    handleLikePost(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const post = this.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const likeIndex = post.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            post.likes.push(user.id);
+        } else {
+            post.likes.splice(likeIndex, 1);
+        }
+
+        return {
+            success: true,
+            likes: post.likes
+        };
+    }
+
+    handleGetGifts(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return {
+            success: true,
+            gifts: this.gifts
+        };
+    }
+
+    handleBuyGift(token, giftId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const gift = this.gifts.find(g => g.id === giftId);
+        if (!gift) {
+            return { success: false, message: 'Подарок не найден' };
+        }
+
+        if (user.coins < gift.price) {
+            return { success: false, message: 'Недостаточно E-COIN' };
+        }
+
+        user.coins -= gift.price;
+
+        if (!user.gifts) {
+            user.gifts = [];
+        }
+
+        const userGift = {
+            id: this.generateId(),
+            giftId: gift.id,
+            giftName: gift.name,
+            giftType: gift.type,
+            purchasedAt: new Date(),
+            fromUserId: user.id
+        };
+
+        user.gifts.push(userGift);
+
+        return {
+            success: true,
+            giftName: gift.name,
+            newBalance: user.coins
+        };
+    }
+
+    handleGetPromoCodes(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return {
+            success: true,
+            promoCodes: this.promoCodes
+        };
+    }
+
+    handleActivatePromoCode(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { code } = data;
+        const promoCode = this.promoCodes.find(p => p.code === code);
+
+        if (!promoCode) {
+            return { success: false, message: 'Промокод не найден' };
+        }
+
+        if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
+            return { success: false, message: 'Промокод уже использован' };
+        }
+
+        user.coins += promoCode.coins;
+        promoCode.used_count++;
+
+        return {
+            success: true,
+            message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
+            coins: promoCode.coins
+        };
+    }
+
+    handleUpdateProfile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { displayName, description, avatar } = data;
+
+        if (displayName) {
+            user.displayName = displayName;
+        }
+
+        if (description !== undefined) {
+            user.description = description;
+        }
+
+        if (avatar) {
+            user.avatar = avatar;
+        }
+
+        return {
+            success: true,
+            user: user
+        };
+    }
+
+    handleGetTransactions(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const transactions = [
+            {
+                description: 'Регистрация бонус',
+                date: user.createdAt,
+                amount: 1000
+            },
+            {
+                description: 'Покупка подарка "Золотая корона"',
+                date: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                amount: -500
+            }
+        ];
+
+        return {
+            success: true,
+            transactions: transactions
+        };
+    }
+
+    start(port = 3000) {
+        const server = http.createServer((req, res) => {
+            const parsedUrl = url.parse(req.url, true);
+            const pathname = parsedUrl.pathname;
+
+            // API routes
+            if (pathname.startsWith('/api/')) {
+                this.handleApiRequest(req, res);
+                return;
+            }
+
+            // Static files
+            if (pathname === '/' || pathname === '/index.html') {
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
+            } else if (pathname === '/login.html') {
+                this.serveStaticFile(res, 'public/login.html', 'text/html');
+            } else if (pathname.endsWith('.css')) {
+                this.serveStaticFile(res, 'public' + pathname, 'text/css');
+            } else if (pathname.endsWith('.js')) {
+                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
+            } else if (pathname.startsWith('/assets/')) {
+                const ext = path.extname(pathname);
+                const contentType = {
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml'
+                }[ext] || 'application/octet-stream';
+                
+                this.serveStaticFile(res, 'public' + pathname, contentType);
+            } else {
+                // Serve main.html for any other route (SPA)
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
+            }
+        });
+
+        // Initialize WebSocket server
+        const wsServer = new WebSocketServer(server);
+
+        server.listen(port, () => {
+            console.log(`🚀 Сервер запущен на порту ${port}`);
+            console.log(`📧 Главная страница: http://localhost:${port}`);
+            console.log(`🔐 Страница входа: http://localhost:${port}/login.html`);
+        });
+
+        return server;
+    }
+}
+
+// Запуск сервера
+const server = new SimpleServer();
+server.start(process.env.PORT || 3000);
