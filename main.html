@@ -2417,41 +2417,59 @@
 
         <div class="compact-menu">
             <button class="menu-item active" data-section="chat">
-                <div class="menu-icon">💬</div>
+                <div class="menu-icon">
+                    <img src="assets/message.svg" alt="Сообщения" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Сообщения</div>
             </button>
             <button class="menu-item" data-section="posts">
-                <div class="menu-icon">📰</div>
-                <div class="menu-text">Посты</div>
+                <div class="menu-icon">
+                    <img src="assets/feed.svg" alt="Лента" class="menu-icon-img">
+                </div>
+                <div class="menu-text">Лента</div>
             </button>
             <button class="menu-item" data-section="my-gifts">
-                <div class="menu-icon">🎁</div>
+                <div class="menu-icon">
+                    <img src="assets/gift.svg" alt="Подарки" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Мои подарки</div>
             </button>
             <button class="menu-item" data-section="gifts-shop">
-                <div class="menu-icon">🛍️</div>
+                <div class="menu-icon">
+                    <img src="assets/gift.svg" alt="Магазин" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Магазин подарков</div>
             </button>
             <button class="menu-item" data-section="ecoins">
-                <div class="menu-icon">🪙</div>
+                <div class="menu-icon">
+                    <img src="assets/coin.svg" alt="E-COIN" class="menu-icon-img">
+                </div>
                 <div class="menu-text">E-COIN</div>
             </button>
             <div class="menu-divider"></div>
             <button class="menu-item" data-section="profile">
-                <div class="menu-icon">👤</div>
-                <div class="menu-text">Профиль</div>
+                <div class="menu-icon">
+                    <img src="assets/profile.svg" alt="Профиль" class="menu-icon-img">
+                </div>
+                <div class="menu-text">Мой профиль</div>
             </button>
             <button class="menu-item" data-section="settings">
-                <div class="menu-icon">⚙️</div>
+                <div class="menu-icon">
+                    <img src="assets/settings.svg" alt="Настройки" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Настройки</div>
             </button>
             <div class="menu-divider"></div>
             <button class="menu-item" id="adminPanelBtn" style="display: none;" data-section="admin">
-                <div class="menu-icon">🛡️</div>
+                <div class="menu-icon">
+                    <img src="assets/admin.png" alt="Админ" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Админ панель</div>
             </button>
             <button class="menu-item" id="logoutBtn">
-                <div class="menu-icon">🚪</div>
+                <div class="menu-icon">
+                    <img src="assets/switch.png" alt="Выйти" class="menu-icon-img">
+                </div>
                 <div class="menu-text">Выйти</div>
             </button>
         </div>
@@ -2911,22 +2929,10 @@
 
             userName.innerHTML = currentUser.displayName || 'Пользователь';
             if (currentUser.verified) {
-                userName.innerHTML += `
-                    <span class="verified-badge">
-                        <svg viewBox="0 0 24 24" width="16" height="16">
-                            <path fill="#00b4b4" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                    </span>
-                `;
+                document.getElementById('verifiedBadge').style.display = 'inline-flex';
             }
             if (currentUser.isDeveloper) {
-                userName.innerHTML += `
-                    <span class="developer-badge">
-                        <svg viewBox="0 0 24 24" width="16" height="16">
-                            <path class="gold-path" d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z"/>
-                        </svg>
-                    </span>
-                `;
+                document.getElementById('developerBadge').style.display = 'inline-flex';
             }
 
             userUsername.textContent = `@${currentUser.username}`;
@@ -3046,19 +3052,17 @@
         }
 
         function initializePostCreation() {
-            const createPostBtn = document.getElementById('createPostBtn');
-            if (createPostBtn) {
-                createPostBtn.addEventListener('click', createPost);
-            }
+            // Инициализация будет выполнена при рендеринге постов
         }
 
         function initializeEventHandlers() {
             // Выход из аккаунта
             document.getElementById('logoutBtn').addEventListener('click', logout);
 
-            // Обработчик для сайдбара
+            // Обработчик для сайдбара - переключение расширения
             document.getElementById('profileSection').addEventListener('click', function() {
-                switchToSection('profile');
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('expanded');
             });
 
             // Инициализация переключателей тем
@@ -3267,6 +3271,9 @@
                     reader.readAsDataURL(file);
                 }
             }
+
+            // Инициализация создания поста
+            document.getElementById('createPostBtn').addEventListener('click', createPost);
 
             // Отображаем посты
             posts.forEach(post => {
@@ -3511,8 +3518,11 @@
             if (!text || !currentChat) return;
 
             try {
-                const response = await makeAuthenticatedRequest('/api/messages', {
+                const response = await makeAuthenticatedRequest('/api/messages/send', {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({
                         userId: currentUser.id,
                         toUserId: currentChat.id,
@@ -3521,7 +3531,9 @@
                     })
                 });
 
-                if (response.ok) {
+                const data = await response.json();
+
+                if (data.success) {
                     messageInput.value = '';
                     
                     // Сбрасываем индикатор набора
@@ -3535,8 +3547,10 @@
                         }, 1000);
                     }
                     
-                    // Перезагружаем сообщения
-                    await loadChatMessages(currentChat.id);
+                    // Добавляем сообщение в чат
+                    addMessageToChat(data.message);
+                } else {
+                    showNotification(data.message, 'error');
                 }
             } catch (error) {
                 console.error('Error sending message:', error);
@@ -3546,7 +3560,7 @@
 
         async function createPost() {
             const postText = document.getElementById('postText');
-            const postImage = document.getElementById('postImage');
+            const postImageInput = document.getElementById('postImage');
             const text = postText.value.trim();
 
             if (!text) {
@@ -3557,8 +3571,8 @@
             const formData = new FormData();
             formData.append('text', text);
             
-            if (postImage.files[0]) {
-                formData.append('image', postImage.files[0]);
+            if (postImageInput.files[0]) {
+                formData.append('image', postImageInput.files[0]);
             }
 
             try {
@@ -3573,7 +3587,7 @@
                     showNotification('Пост опубликован!', 'success');
                     postText.value = '';
                     document.getElementById('postImagePreview').innerHTML = '';
-                    postImage.value = '';
+                    postImageInput.value = '';
                     
                     // Перезагружаем посты
                     await loadPosts();
@@ -3737,22 +3751,10 @@
 
             profileName.innerHTML = currentUser.displayName || 'Пользователь';
             if (currentUser.verified) {
-                profileName.innerHTML += `
-                    <span class="verified-badge">
-                        <svg viewBox="0 0 24 24" width="20" height="20">
-                            <path fill="#00b4b4" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                    </span>
-                `;
+                document.getElementById('profileVerifiedBadge').style.display = 'inline-flex';
             }
             if (currentUser.isDeveloper) {
-                profileName.innerHTML += `
-                    <span class="developer-badge">
-                        <svg viewBox="0 0 24 24" width="20" height="20">
-                            <path class="gold-path" d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z"/>
-                        </svg>
-                    </span>
-                `;
+                document.getElementById('profileDeveloperBadge').style.display = 'inline-flex';
             }
 
             profileUsername.textContent = `@${currentUser.username}`;
