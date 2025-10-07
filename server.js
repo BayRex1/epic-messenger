@@ -5,6 +5,8 @@ const path = require('path');
 const { Pool } = require('pg');
 const fs = require('fs');
 const session = require('express-session');
+const multer = require('multer');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,6 +15,15 @@ const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
+  }
+});
+
+// Настройка multer для загрузки файлов
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB
   }
 });
 
@@ -42,17 +53,6 @@ function requireAuth(req, res, next) {
   } else {
     res.status(401).json({ success: false, message: 'Требуется авторизация' });
   }
-}
-
-// Простая функция хеширования пароля
-function simpleHash(password) {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString();
 }
 
 // Функции санитизации и валидации
@@ -236,7 +236,7 @@ async function initDatabase() {
           email: 'admin@gmail.com',
           username: 'admin',
           display_name: 'Администратор',
-          password: simpleHash('123'),
+          password: await bcrypt.hash('123', 10),
           verified: true,
           is_developer: true,
           coins: 5000
@@ -246,7 +246,7 @@ async function initDatabase() {
           email: 'bayrex@gmail.com',
           username: 'BayRex',
           display_name: 'Разработчик',
-          password: simpleHash('123'),
+          password: await bcrypt.hash('123', 10),
           verified: true,
           is_developer: true,
           coins: 5000
@@ -256,7 +256,7 @@ async function initDatabase() {
           email: 'test@gmail.com',
           username: 'testuser',
           display_name: 'Тестовый Пользователь',
-          password: simpleHash('123'),
+          password: await bcrypt.hash('123', 10),
           verified: false,
           is_developer: false,
           coins: 1000
@@ -410,7 +410,7 @@ app.post('/api/register', async (req, res) => {
     }
 
     // Хеширование пароля
-    const hashedPassword = simpleHash(password);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const userId = Date.now().toString();
 
@@ -492,7 +492,7 @@ app.post('/api/login', async (req, res) => {
     const userData = user.rows[0];
 
     // Проверка пароля
-    const isPasswordValid = simpleHash(password) === userData.password;
+    const isPasswordValid = await bcrypt.compare(password, userData.password);
     if (!isPasswordValid) {
       return res.json({ success: false, message: 'Неверный email/юзернейм или пароль' });
     }
@@ -615,6 +615,34 @@ app.get('/api/users', requireAuth, async (req, res) => {
   }
 });
 
+// Поиск пользователей
+app.get('/api/search-users', requireAuth, async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query || query.length < 2) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const users = await pool.query(
+      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins
+       FROM users 
+       WHERE (LOWER(username) LIKE LOWER($1) OR LOWER(display_name) LIKE LOWER($1)) 
+       AND deleted = false AND id != $2
+       LIMIT 20`,
+      [`%${query}%`, req.session.userId]
+    );
+
+    res.json({
+      success: true,
+      users: users.rows
+    });
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({ success: false, message: 'Ошибка поиска пользователей' });
+  }
+});
+
 // Получение сообщений
 app.get('/api/messages', requireAuth, async (req, res) => {
   try {
@@ -686,6 +714,99 @@ app.get('/api/posts', requireAuth, async (req, res) => {
   }
 });
 
+// Создание поста
+app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
+  try {
+    const { text } = req.body;
+    const userId = req.session.userId;
+
+    if (!text || text.trim().length === 0) {
+      return res.json({ success: false, message: 'Текст поста не может быть пустым' });
+    }
+
+    const postId = Date.now().toString();
+    let imageData = null;
+
+    if (req.file) {
+      // Конвертируем файл в base64
+      imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    await pool.query(
+      `INSERT INTO posts (id, user_id, text, image, likes, comments, views) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [postId, userId, sanitizeInput(text.trim()), imageData, '[]', '[]', 0]
+    );
+
+    // Получаем созданный пост с информацией о пользователе
+    const newPost = await pool.query(`
+      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
+      FROM posts p 
+      JOIN users u ON p.user_id = u.id 
+      WHERE p.id = $1
+    `, [postId]);
+
+    res.json({
+      success: true,
+      message: 'Пост создан успешно!',
+      post: {
+        id: newPost.rows[0].id,
+        userId: newPost.rows[0].user_id,
+        text: newPost.rows[0].text,
+        image: newPost.rows[0].image,
+        likes: newPost.rows[0].likes || [],
+        comments: newPost.rows[0].comments || [],
+        views: newPost.rows[0].views || 0,
+        createdAt: newPost.rows[0].timestamp,
+        userName: newPost.rows[0].display_name,
+        userAvatar: newPost.rows[0].avatar,
+        userVerified: newPost.rows[0].verified,
+        userDeveloper: newPost.rows[0].is_developer
+      }
+    });
+  } catch (error) {
+    console.error('Error creating post:', error);
+    res.status(500).json({ success: false, message: 'Ошибка создания поста' });
+  }
+});
+
+// Лайк поста
+app.post('/api/posts/:postId/like', requireAuth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.session.userId;
+
+    const post = await pool.query('SELECT likes FROM posts WHERE id = $1', [postId]);
+    
+    if (post.rows.length === 0) {
+      return res.json({ success: false, message: 'Пост не найден' });
+    }
+
+    let likes = post.rows[0].likes || [];
+    
+    // Проверяем, лайкал ли уже пользователь
+    const likeIndex = likes.indexOf(userId);
+    if (likeIndex > -1) {
+      // Убираем лайк
+      likes.splice(likeIndex, 1);
+    } else {
+      // Добавляем лайк
+      likes.push(userId);
+    }
+
+    await pool.query('UPDATE posts SET likes = $1 WHERE id = $2', [JSON.stringify(likes), postId]);
+
+    res.json({
+      success: true,
+      likes: likes.length,
+      liked: likeIndex === -1 // true если только что лайкнули, false если убрали лайк
+    });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ success: false, message: 'Ошибка при установке лайка' });
+  }
+});
+
 // Получение подарков
 app.get('/api/gifts', requireAuth, async (req, res) => {
   try {
@@ -707,6 +828,234 @@ app.get('/api/gifts', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error getting gifts:', error);
     res.status(500).json({ success: false, message: 'Ошибка получения подарков' });
+  }
+});
+
+// Покупка подарка
+app.post('/api/gifts/:giftId/buy', requireAuth, async (req, res) => {
+  try {
+    const { giftId } = req.params;
+    const { toUserId } = req.body;
+    const userId = req.session.userId;
+
+    // Получаем информацию о подарке
+    const gift = await pool.query('SELECT * FROM gifts WHERE id = $1 AND deleted = false', [giftId]);
+    
+    if (gift.rows.length === 0) {
+      return res.json({ success: false, message: 'Подарок не найден' });
+    }
+
+    const giftData = gift.rows[0];
+
+    // Проверяем баланс пользователя
+    const user = await pool.query('SELECT coins, gifts FROM users WHERE id = $1', [userId]);
+    const userData = user.rows[0];
+
+    if (userData.coins < giftData.price) {
+      return res.json({ success: false, message: 'Недостаточно E-COIN для покупки' });
+    }
+
+    // Обновляем баланс пользователя
+    const newCoins = userData.coins - giftData.price;
+    await pool.query('UPDATE users SET coins = $1 WHERE id = $2', [newCoins, userId]);
+
+    // Добавляем подарок пользователю
+    let userGifts = userData.gifts || [];
+    userGifts.push({
+      giftId: giftData.id,
+      giftName: giftData.name,
+      giftType: giftData.type,
+      purchasedAt: new Date().toISOString(),
+      fromUser: userId,
+      toUser: toUserId
+    });
+
+    await pool.query('UPDATE users SET gifts = $1 WHERE id = $2', [JSON.stringify(userGifts), toUserId || userId]);
+
+    // Создаем сообщение о подарке
+    const messageId = Date.now().toString();
+    const userInfo = await pool.query('SELECT username, display_name FROM users WHERE id = $1', [userId]);
+
+    await pool.query(
+      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, type, gift_id, gift_name, gift_price) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [messageId, userId, userInfo.rows[0].username, userInfo.rows[0].display_name, 
+       `отправил(а) подарок: ${giftData.name}`, toUserId || userId, 'gift', 
+       giftData.id, giftData.name, giftData.price]
+    );
+
+    res.json({
+      success: true,
+      message: 'Подарок успешно куплен!',
+      giftName: giftData.name,
+      newBalance: newCoins
+    });
+  } catch (error) {
+    console.error('Error buying gift:', error);
+    res.status(500).json({ success: false, message: 'Ошибка покупки подарка' });
+  }
+});
+
+// Обновление профиля
+app.post('/api/update-profile', requireAuth, upload.single('avatar'), async (req, res) => {
+  try {
+    const { displayName, description } = req.body;
+    const userId = req.session.userId;
+
+    let avatarData = null;
+
+    if (req.file) {
+      // Конвертируем аватар в base64
+      avatarData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (displayName) {
+      updates.push(`display_name = $${paramCount}`);
+      values.push(sanitizeInput(displayName.trim()));
+      paramCount++;
+    }
+
+    if (description) {
+      updates.push(`description = $${paramCount}`);
+      values.push(sanitizeInput(description.trim()));
+      paramCount++;
+    }
+
+    if (avatarData) {
+      updates.push(`avatar = $${paramCount}`);
+      values.push(avatarData);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.json({ success: false, message: 'Нет данных для обновления' });
+    }
+
+    values.push(userId);
+
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+      values
+    );
+
+    // Получаем обновленные данные пользователя
+    const updatedUser = await pool.query(
+      'SELECT id, username, display_name, avatar, description FROM users WHERE id = $1',
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Профиль обновлен успешно!',
+      user: updatedUser.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ success: false, message: 'Ошибка обновления профиля' });
+  }
+});
+
+// Промокоды
+app.get('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const promoCodes = await pool.query(
+      'SELECT * FROM promocodes WHERE deleted = false ORDER BY created_at DESC'
+    );
+
+    res.json({
+      success: true,
+      promoCodes: promoCodes.rows
+    });
+  } catch (error) {
+    console.error('Error getting promo codes:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения промокодов' });
+  }
+});
+
+app.post('/api/promo-codes/activate', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const userId = req.session.userId;
+
+    const promoCode = await pool.query(
+      'SELECT * FROM promocodes WHERE code = $1 AND deleted = false',
+      [code.toUpperCase()]
+    );
+
+    if (promoCode.rows.length === 0) {
+      return res.json({ success: false, message: 'Промокод не найден' });
+    }
+
+    const promo = promoCode.rows[0];
+
+    // Проверяем лимит использований
+    if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
+      return res.json({ success: false, message: 'Промокод уже использован максимальное количество раз' });
+    }
+
+    // Проверяем, использовал ли пользователь уже этот промокод
+    const usedBy = promo.used_by || [];
+    if (usedBy.includes(userId)) {
+      return res.json({ success: false, message: 'Вы уже использовали этот промокод' });
+    }
+
+    // Начисляем E-COIN
+    const user = await pool.query('SELECT coins FROM users WHERE id = $1', [userId]);
+    const newCoins = user.rows[0].coins + promo.coins;
+
+    await pool.query('UPDATE users SET coins = $1 WHERE id = $2', [newCoins, userId]);
+
+    // Обновляем информацию о промокоде
+    usedBy.push(userId);
+    await pool.query(
+      'UPDATE promocodes SET used_count = $1, used_by = $2 WHERE id = $3',
+      [promo.used_count + 1, JSON.stringify(usedBy), promo.id]
+    );
+
+    res.json({
+      success: true,
+      message: `Промокод активирован! Получено ${promo.coins} E-COIN`,
+      coins: promo.coins,
+      newBalance: newCoins
+    });
+  } catch (error) {
+    console.error('Error activating promo code:', error);
+    res.status(500).json({ success: false, message: 'Ошибка активации промокода' });
+  }
+});
+
+// Админские функции
+app.get('/api/admin/stats', requireAuth, async (req, res) => {
+  try {
+    const user = await pool.query('SELECT is_developer FROM users WHERE id = $1', [req.session.userId]);
+    
+    if (!user.rows[0].is_developer) {
+      return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+
+    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
+    const messagesCount = await pool.query('SELECT COUNT(*) FROM messages WHERE deleted = false');
+    const postsCount = await pool.query('SELECT COUNT(*) FROM posts');
+    const giftsCount = await pool.query('SELECT COUNT(*) FROM gifts WHERE deleted = false');
+    const promocodesCount = await pool.query('SELECT COUNT(*) FROM promocodes WHERE deleted = false');
+
+    res.json({
+      success: true,
+      stats: {
+        totalUsers: parseInt(usersCount.rows[0].count),
+        totalMessages: parseInt(messagesCount.rows[0].count),
+        totalPosts: parseInt(postsCount.rows[0].count),
+        totalGifts: parseInt(giftsCount.rows[0].count),
+        totalPromocodes: parseInt(promocodesCount.rows[0].count)
+      }
+    });
+  } catch (error) {
+    console.error('Error getting admin stats:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения статистики' });
   }
 });
 
