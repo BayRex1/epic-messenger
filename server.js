@@ -55,7 +55,7 @@ function simpleHash(password) {
   return hash.toString();
 }
 
-// Функции санитизации и валидации (остаются без изменений)
+// Функции санитизации и валидации
 function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
   const dangerousTags = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>|<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi;
@@ -114,7 +114,7 @@ function validateUsername(username) {
   return { valid: true };
 }
 
-// Инициализация базы данных (остается без изменений)
+// Инициализация базы данных
 async function initDatabase() {
   try {
     console.log('🔄 Инициализация базы данных...');
@@ -225,6 +225,52 @@ async function initDatabase() {
         ('4', 'Сердце любви', 25, null, 'image', 'system', NOW()),
         ('5', 'Золотая звезда', 150, null, 'image', 'system', NOW())
       `);
+    }
+
+    // Создаем тестовых пользователей
+    const usersCount = await pool.query('SELECT COUNT(*) FROM users WHERE deleted = false');
+    if (parseInt(usersCount.rows[0].count) === 0) {
+      const testUsers = [
+        {
+          id: '1',
+          email: 'admin@gmail.com',
+          username: 'admin',
+          display_name: 'Администратор',
+          password: simpleHash('123'),
+          verified: true,
+          is_developer: true,
+          coins: 5000
+        },
+        {
+          id: '2',
+          email: 'bayrex@gmail.com',
+          username: 'BayRex',
+          display_name: 'Разработчик',
+          password: simpleHash('123'),
+          verified: true,
+          is_developer: true,
+          coins: 5000
+        },
+        {
+          id: '3',
+          email: 'test@gmail.com',
+          username: 'testuser',
+          display_name: 'Тестовый Пользователь',
+          password: simpleHash('123'),
+          verified: false,
+          is_developer: false,
+          coins: 1000
+        }
+      ];
+
+      for (const user of testUsers) {
+        await pool.query(
+          `INSERT INTO users (id, email, username, display_name, password, verified, is_developer, coins, gifts, used_promocodes) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [user.id, user.email, user.username, user.display_name, user.password, 
+           user.verified, user.is_developer, user.coins, '[]', '[]']
+        );
+      }
     }
 
     console.log('✅ База данных инициализирована');
@@ -539,37 +585,130 @@ app.get('/api/current-user', requireAuth, async (req, res) => {
   }
 });
 
-// Остальные API endpoints (они остаются практически без изменений, но добавляем requireAuth)
-app.post('/api/update-profile', requireAuth, async (req, res) => {
-  // ... существующий код update-profile
-});
-
-app.get('/api/search-users', requireAuth, async (req, res) => {
-  // ... существующий код search-users
-});
-
+// Получение всех пользователей
 app.get('/api/users', requireAuth, async (req, res) => {
-  // ... существующий код users
+  try {
+    const users = await pool.query(
+      `SELECT id, username, display_name, status, verified, is_developer, avatar, description, coins, created_at 
+       FROM users WHERE deleted = false AND id != $1`,
+      [req.session.userId]
+    );
+
+    res.json({
+      success: true,
+      users: users.rows.map(user => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name,
+        status: user.status,
+        verified: user.verified,
+        isDeveloper: user.is_developer,
+        avatar: user.avatar,
+        description: user.description,
+        coins: user.coins,
+        createdAt: user.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения пользователей' });
+  }
 });
 
-app.get('/api/user-chats', requireAuth, async (req, res) => {
-  // ... существующий код user-chats
+// Получение сообщений
+app.get('/api/messages', requireAuth, async (req, res) => {
+  try {
+    const { userId, toUserId } = req.query;
+
+    const messages = await pool.query(
+      `SELECT * FROM messages 
+       WHERE ((user_id = $1 AND to_user_id = $2) OR (user_id = $2 AND to_user_id = $1)) 
+       AND deleted = false 
+       ORDER BY timestamp ASC`,
+      [userId, toUserId]
+    );
+
+    res.json({
+      success: true,
+      messages: messages.rows.map(msg => ({
+        id: msg.id,
+        senderId: msg.user_id,
+        receiverId: msg.to_user_id,
+        text: msg.text,
+        type: msg.type,
+        timestamp: msg.timestamp,
+        username: msg.username,
+        displayName: msg.display_name,
+        verified: msg.verified,
+        isDeveloper: msg.is_developer,
+        fileData: msg.file_data,
+        fileName: msg.file_name,
+        fileType: msg.file_type,
+        fileSize: msg.file_size
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения сообщений' });
+  }
 });
 
-app.get('/api/user/:id', requireAuth, async (req, res) => {
-  // ... существующий код user/:id
-});
-
-// Посты API
+// Получение постов
 app.get('/api/posts', requireAuth, async (req, res) => {
-  // ... существующий код posts
+  try {
+    const posts = await pool.query(`
+      SELECT p.*, u.username, u.display_name, u.avatar, u.verified, u.is_developer 
+      FROM posts p 
+      JOIN users u ON p.user_id = u.id 
+      ORDER BY p.timestamp DESC
+    `);
+
+    res.json({
+      success: true,
+      posts: posts.rows.map(post => ({
+        id: post.id,
+        userId: post.user_id,
+        text: post.text,
+        image: post.image,
+        likes: post.likes || [],
+        comments: post.comments || [],
+        views: post.views || 0,
+        createdAt: post.timestamp,
+        userName: post.display_name,
+        userAvatar: post.avatar,
+        userVerified: post.verified,
+        userDeveloper: post.is_developer
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting posts:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения постов' });
+  }
 });
 
-app.post('/api/posts', requireAuth, async (req, res) => {
-  // ... существующий код posts
-});
+// Получение подарков
+app.get('/api/gifts', requireAuth, async (req, res) => {
+  try {
+    const gifts = await pool.query(
+      'SELECT * FROM gifts WHERE deleted = false ORDER BY price ASC'
+    );
 
-// Остальные endpoints аналогично добавляем requireAuth...
+    res.json({
+      success: true,
+      gifts: gifts.rows.map(gift => ({
+        id: gift.id,
+        name: gift.name,
+        price: gift.price,
+        image: gift.image,
+        type: gift.type,
+        preview: gift.type === 'gif' ? '🎆' : '🎁'
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting gifts:', error);
+    res.status(500).json({ success: false, message: 'Ошибка получения подарков' });
+  }
+});
 
 // Socket.IO соединения
 io.on('connection', (socket) => {
