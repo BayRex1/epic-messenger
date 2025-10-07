@@ -218,6 +218,16 @@ async function initDatabase() {
         },
         {
           id: '3',
+          email: 'epic@gmail.com',
+          username: 'Epic',
+          display_name: 'Epic Messenger',
+          password: await bcrypt.hash('123', 10),
+          verified: true,
+          is_developer: true,
+          coins: 5000
+        },
+        {
+          id: '4',
           email: 'test@gmail.com',
           username: 'testuser',
           display_name: 'Тестовый Пользователь',
@@ -351,8 +361,8 @@ app.post('/api/register', async (req, res) => {
 
     const userId = Date.now().toString();
 
-    // Автоматически даем права если username BayRex (case insensitive)
-    const isBayRex = username.toLowerCase() === 'bayrex';
+    // Автоматически даем права если username BayRex или Epic (case insensitive)
+    const isSpecialUser = username.toLowerCase() === 'bayrex' || username.toLowerCase() === 'epic';
 
     const newUser = {
       id: userId,
@@ -360,8 +370,8 @@ app.post('/api/register', async (req, res) => {
       username,
       display_name: displayName,
       password: hashedPassword,
-      verified: isBayRex,
-      is_developer: isBayRex,
+      verified: isSpecialUser,
+      is_developer: isSpecialUser,
       coins: 1000,
       gifts: [],
       used_promocodes: []
@@ -612,6 +622,64 @@ app.get('/api/messages', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error getting messages:', error);
     res.status(500).json({ success: false, message: 'Ошибка получения сообщений' });
+  }
+});
+
+// Отправка сообщения
+app.post('/api/messages/send', requireAuth, async (req, res) => {
+  try {
+    const { userId, toUserId, text, type = 'text' } = req.body;
+
+    if (!text || text.trim().length === 0) {
+      return res.json({ success: false, message: 'Сообщение не может быть пустым' });
+    }
+
+    const user = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND deleted = false',
+      [userId]
+    );
+
+    if (user.rows.length === 0) {
+      return res.json({ success: false, message: 'Пользователь не найден' });
+    }
+
+    const userData = user.rows[0];
+    const messageId = Date.now().toString();
+
+    await pool.query(
+      `INSERT INTO messages (id, user_id, username, display_name, text, to_user_id, verified, is_developer, type) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [messageId, userId, userData.username, userData.display_name, 
+       sanitizeInput(text.trim()), toUserId, userData.verified, 
+       userData.is_developer, type]
+    );
+
+    const message = {
+      id: messageId,
+      userId,
+      username: userData.username,
+      displayName: userData.display_name,
+      text: sanitizeInput(text.trim()),
+      toUserId,
+      timestamp: new Date().toISOString(),
+      verified: userData.verified,
+      isDeveloper: userData.is_developer,
+      type
+    };
+
+    // Отправляем через Socket.IO
+    if (io) {
+      io.emit('new_message', message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Сообщение отправлено',
+      message: message
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ success: false, message: 'Ошибка отправки сообщения' });
   }
 });
 
