@@ -390,7 +390,9 @@
 
                     if (data.success) {
                         showNotification('Вход выполнен успешно!', 'success');
-                        localStorage.setItem('currentUser', JSON.stringify(data.user));
+                        
+                        // Сохраняем токен
+                        localStorage.setItem('authToken', data.token);
                         
                         // Перенаправляем на главную страницу через 1 секунду
                         setTimeout(() => {
@@ -465,15 +467,16 @@
 
                     const data = await response.json();
 
-                    // После успешной регистрации/входа
-if (data.success) {
-    showNotification('Регистрация выполнена успешно!', 'success');
-    
-                  // Ждем сохранения сессии и затем перенаправляем
-                         setTimeout(() => {
-                      window.location.href = '/main.html';
-                     }, 500);
-                     }   
+                    if (data.success) {
+                        showNotification('Регистрация выполнена успешно!', 'success');
+                        
+                        // Сохраняем токен
+                        localStorage.setItem('authToken', data.token);
+                        
+                        // Ждем сохранения сессии и затем перенаправляем
+                        setTimeout(() => {
+                            window.location.href = '/main.html';
+                        }, 500);
                     } else {
                         showNotification(data.message, 'error');
                     }
@@ -502,13 +505,13 @@ if (data.success) {
             // Автозаполнение для тестирования
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 document.getElementById('loginEmail').value = 'test@gmail.com';
-                document.getElementById('loginPassword').value = 'password123';
+                document.getElementById('loginPassword').value = '123';
                 
                 document.getElementById('registerName').value = 'Тестовый Пользователь';
                 document.getElementById('registerUsername').value = 'testuser';
                 document.getElementById('registerEmail').value = 'test@gmail.com';
-                document.getElementById('registerPassword').value = 'password123';
-                document.getElementById('registerConfirmPassword').value = 'password123';
+                document.getElementById('registerPassword').value = '123';
+                document.getElementById('registerConfirmPassword').value = '123';
             }
         });
 
