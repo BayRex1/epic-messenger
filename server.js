@@ -659,7 +659,7 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { toUserId, text, type } = data; // Убрали userId из data
+        const { toUserId, text, type } = data;
 
         if (!text || text.trim() === '') {
             return { success: false, message: 'Сообщение не может быть пустым' };
@@ -667,7 +667,7 @@ class SimpleServer {
 
         const message = {
             id: this.generateId(),
-            senderId: user.id, // Используем ID авторизованного пользователя
+            senderId: user.id,
             toUserId: toUserId,
             text: text.trim(),
             type: type || 'text',
@@ -922,11 +922,6 @@ class SimpleServer {
         if (description !== undefined) {
             user.description = description;
         }
-
-        // Пока убираем загрузку аватарки через base64
-        // if (avatar) {
-        //     user.avatar = avatar;
-        // }
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
