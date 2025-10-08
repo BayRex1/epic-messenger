@@ -166,26 +166,8 @@ class SimpleServer {
     }
 
     initializeData() {
-        // Основной пользователь BayRex с полными правами
-        this.users = [
-            {
-                id: '1',
-                username: 'BayRex',
-                displayName: 'BayRex',
-                email: 'bayrex@example.com',
-                password: 'bayrex123',
-                avatar: null,
-                description: 'Разработчик и администратор системы',
-                coins: 50000,
-                verified: true,
-                isDeveloper: true,
-                status: 'online',
-                lastSeen: new Date(),
-                createdAt: new Date(),
-                gifts: [],
-                isProtected: true // Защита от удаления
-            }
-        ];
+        // Убираем предсозданного пользователя - теперь только при регистрации
+        this.users = [];
 
         // Тестовые подарки
         this.gifts = [
@@ -250,7 +232,7 @@ class SimpleServer {
         this.posts = [
             {
                 id: '1',
-                userId: '1',
+                userId: 'system',
                 text: 'Добро пожаловать в Epic Messenger! 🚀\n\nЭто современная платформа для общения с уникальными возможностями:\n\n• Мгновенные сообщения\n• Система подарков и E-COIN\n• Лента постов\n• Админ панель для управления\n\nПрисоединяйтесь к нашему сообществу! 💬',
                 image: null,
                 likes: [],
@@ -520,6 +502,9 @@ class SimpleServer {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
 
+        // ПРОВЕРКА НА BayRex - даем особые права
+        const isBayRex = username.toLowerCase() === 'bayrex';
+        
         // Создаем нового пользователя
         const newUser = {
             id: this.generateId(),
@@ -529,23 +514,29 @@ class SimpleServer {
             password: password,
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
-            coins: 1000, // Начальный бонус
-            verified: false,
-            isDeveloper: false,
+            coins: isBayRex ? 50000 : 1000, // BayRex получает 50к монет
+            verified: isBayRex, // BayRex сразу верифицирован
+            isDeveloper: isBayRex, // BayRex получает права разработчика
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
             gifts: [],
-            isProtected: false // Обычные пользователи не защищены
+            isProtected: isBayRex // BayRex защищен от удаления
         };
 
         this.users.push(newUser);
 
-        console.log(`✅ Новый пользователь зарегистрирован: ${username} (${displayName})`);
+        if (isBayRex) {
+            console.log(`👑 BayRex зарегистрирован с правами администратора!`);
+        } else {
+            console.log(`✅ Новый пользователь зарегистрирован: ${username} (${displayName})`);
+        }
 
         return {
             success: true,
-            message: 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
+            message: isBayRex ? 
+                'Аккаунт BayRex создан! Вы получили права администратора!' :
+                'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
             user: newUser
         };
     }
@@ -666,7 +657,7 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { userId, toUserId, text, type } = data;
+        const { toUserId, text, type } = data; // Убрали userId из data
 
         if (!text || text.trim() === '') {
             return { success: false, message: 'Сообщение не может быть пустым' };
@@ -674,7 +665,7 @@ class SimpleServer {
 
         const message = {
             id: this.generateId(),
-            senderId: userId,
+            senderId: user.id, // Используем ID авторизованного пользователя
             toUserId: toUserId,
             text: text.trim(),
             type: type || 'text',
@@ -699,6 +690,16 @@ class SimpleServer {
         }
 
         const postsWithUserInfo = this.posts.map(post => {
+            if (post.userId === 'system') {
+                return {
+                    ...post,
+                    userName: 'Epic Messenger',
+                    userAvatar: null,
+                    userVerified: true,
+                    userDeveloper: true
+                };
+            }
+            
             const postUser = this.users.find(u => u.id === post.userId);
             return {
                 ...post,
@@ -724,7 +725,7 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { text, image } = data;
+        const { text } = data;
         
         if (!text || text.trim() === '') {
             return { success: false, message: 'Текст поста не может быть пустым' };
@@ -734,7 +735,7 @@ class SimpleServer {
             id: this.generateId(),
             userId: user.id,
             text: text.trim(),
-            image: image,
+            image: null, // Пока без изображений
             likes: [],
             comments: [],
             views: 0,
@@ -910,7 +911,7 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { displayName, description, avatar } = data;
+        const { displayName, description } = data;
 
         if (displayName && displayName.trim()) {
             user.displayName = displayName.trim();
@@ -920,9 +921,10 @@ class SimpleServer {
             user.description = description;
         }
 
-        if (avatar) {
-            user.avatar = avatar;
-        }
+        // Пока убираем загрузку аватарки через base64
+        // if (avatar) {
+        //     user.avatar = avatar;
+        // }
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
@@ -961,7 +963,7 @@ class SimpleServer {
             {
                 description: 'Регистрация бонус',
                 date: user.createdAt,
-                amount: 1000
+                amount: user.coins >= 50000 ? 50000 : 1000 // BayRex получает 50к, остальные 1к
             }
         ];
 
@@ -1026,8 +1028,8 @@ class SimpleServer {
             console.log(`   - POST /api/posts - Создание поста`);
             console.log(`   - GET  /api/gifts - Магазин подарков`);
             console.log(`   - POST /api/admin/delete-user - Удаление пользователя (только для админов)`);
-            console.log(`\n👑 Администратор системы:`);
-            console.log(`   - BayRex / bayrex123`);
+            console.log(`\n👑 Особый пользователь:`);
+            console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`   • Полные права администратора`);
             console.log(`   • Защищенный аккаунт`);
             console.log(`   • Доступ к админ панели`);
