@@ -504,6 +504,7 @@ class SimpleServer {
 
         // ПРОВЕРКА НА BayRex - даем особые права
         const isBayRex = username.toLowerCase() === 'bayrex';
+        console.log(`🔍 Регистрация пользователя: ${username}, isBayRex: ${isBayRex}`);
         
         // Создаем нового пользователя
         const newUser = {
@@ -528,6 +529,7 @@ class SimpleServer {
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
+            console.log(`✅ verified: ${newUser.verified}, isDeveloper: ${newUser.isDeveloper}`);
         } else {
             console.log(`✅ Новый пользователь зарегистрирован: ${username} (${displayName})`);
         }
