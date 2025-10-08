@@ -410,6 +410,12 @@ class SimpleServer {
                     }
                     break;
                     
+                case '/api/register':
+                    if (method === 'POST') {
+                        response = this.handleRegister(data);
+                    }
+                    break;
+                    
                 case '/api/check-auth':
                     if (method === 'GET') {
                         response = this.handleCheckAuth(token);
@@ -541,6 +547,62 @@ class SimpleServer {
         };
     }
 
+    handleRegister(data) {
+        const { username, displayName, email, password } = data;
+
+        // Валидация
+        if (!username || !displayName || !email || !password) {
+            return { success: false, message: 'Все поля обязательны для заполнения' };
+        }
+
+        if (username.length < 3) {
+            return { success: false, message: 'Имя пользователя должно содержать минимум 3 символа' };
+        }
+
+        if (password.length < 6) {
+            return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
+        }
+
+        // Проверяем, существует ли пользователь
+        const existingUser = this.users.find(u => u.username === username);
+        if (existingUser) {
+            return { success: false, message: 'Пользователь с таким именем уже существует' };
+        }
+
+        const existingEmail = this.users.find(u => u.email === email);
+        if (existingEmail) {
+            return { success: false, message: 'Пользователь с таким email уже существует' };
+        }
+
+        // Создаем нового пользователя
+        const newUser = {
+            id: this.generateId(),
+            username: username,
+            displayName: displayName,
+            email: email,
+            password: password,
+            avatar: null,
+            description: 'Новый пользователь Epic Messenger',
+            coins: 1000, // Начальный бонус
+            verified: false,
+            isDeveloper: false,
+            status: 'online',
+            lastSeen: new Date(),
+            createdAt: new Date(),
+            gifts: []
+        };
+
+        this.users.push(newUser);
+
+        console.log(`✅ Новый пользователь зарегистрирован: ${username} (${displayName})`);
+
+        return {
+            success: true,
+            message: 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
+            user: newUser
+        };
+    }
+
     handleCheckAuth(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -607,6 +669,9 @@ class SimpleServer {
             (msg.senderId === toUserId && msg.toUserId === userId)
         );
 
+        // Сортируем сообщения по времени
+        chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
         return {
             success: true,
             messages: chatMessages
@@ -620,17 +685,24 @@ class SimpleServer {
         }
 
         const { userId, toUserId, text, type } = data;
+
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Сообщение не может быть пустым' };
+        }
+
         const message = {
             id: this.generateId(),
             senderId: userId,
             toUserId: toUserId,
-            text: text,
+            text: text.trim(),
             type: type || 'text',
             timestamp: new Date(),
             displayName: user.displayName
         };
 
         this.messages.push(message);
+
+        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
 
         return {
             success: true,
@@ -689,6 +761,8 @@ class SimpleServer {
 
         this.posts.unshift(post); // Добавляем в начало
 
+        console.log(`📝 Новый пост от ${user.displayName}`);
+
         return {
             success: true,
             post: post
@@ -709,8 +783,10 @@ class SimpleServer {
         const likeIndex = post.likes.indexOf(user.id);
         if (likeIndex === -1) {
             post.likes.push(user.id);
+            console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
         } else {
             post.likes.splice(likeIndex, 1);
+            console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
         }
 
         return {
@@ -791,7 +867,10 @@ class SimpleServer {
                 };
 
                 this.messages.push(giftMessage);
+                console.log(`🎁 Пользователь ${user.displayName} отправил подарок пользователю ${toUser.displayName}`);
             }
+        } else {
+            console.log(`🎁 Пользователь ${user.displayName} купил подарок: ${gift.name}`);
         }
 
         return {
@@ -834,6 +913,8 @@ class SimpleServer {
         user.coins += promoCode.coins;
         promoCode.used_count++;
 
+        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${code} (+${promoCode.coins} E-COIN)`);
+
         return {
             success: true,
             message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
@@ -860,6 +941,8 @@ class SimpleServer {
         if (avatar) {
             user.avatar = avatar;
         }
+
+        console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
         return {
             success: true,
@@ -962,6 +1045,14 @@ class SimpleServer {
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Приложение готово к работе`);
+            console.log(`🔐 Доступные endpoints:`);
+            console.log(`   - GET  /api/check-auth - Проверка авторизации`);
+            console.log(`   - POST /api/login - Вход в систему`);
+            console.log(`   - POST /api/register - Регистрация`);
+            console.log(`   - GET  /api/users - Список пользователей`);
+            console.log(`   - GET  /api/posts - Лента постов`);
+            console.log(`   - POST /api/posts - Создание поста`);
+            console.log(`   - GET  /api/gifts - Магазин подарков`);
             console.log(`👥 Тестовые пользователи:`);
             console.log(`   - Админ: admin / admin123`);
             console.log(`   - Пользователь 1: user1 / user123`);
