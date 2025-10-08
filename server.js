@@ -166,55 +166,24 @@ class SimpleServer {
     }
 
     initializeData() {
-        // Тестовые пользователи
+        // Основной пользователь BayRex с полными правами
         this.users = [
             {
                 id: '1',
-                username: 'admin',
-                displayName: 'Администратор',
-                email: 'admin@example.com',
-                password: 'admin123',
+                username: 'BayRex',
+                displayName: 'BayRex',
+                email: 'bayrex@example.com',
+                password: 'bayrex123',
                 avatar: null,
-                description: 'Системный администратор',
-                coins: 10000,
+                description: 'Разработчик и администратор системы',
+                coins: 50000,
                 verified: true,
                 isDeveloper: true,
                 status: 'online',
                 lastSeen: new Date(),
                 createdAt: new Date(),
-                gifts: []
-            },
-            {
-                id: '2',
-                username: 'user1',
-                displayName: 'Алексей',
-                email: 'user1@example.com',
-                password: 'user123',
-                avatar: null,
-                description: 'Обычный пользователь',
-                coins: 1000,
-                verified: false,
-                isDeveloper: false,
-                status: 'online',
-                lastSeen: new Date(),
-                createdAt: new Date(),
-                gifts: []
-            },
-            {
-                id: '3',
-                username: 'user2',
-                displayName: 'Мария',
-                email: 'user2@example.com',
-                password: 'user123',
-                avatar: null,
-                description: 'Любитель музыки',
-                coins: 1500,
-                verified: true,
-                isDeveloper: false,
-                status: 'offline',
-                lastSeen: new Date(Date.now() - 30 * 60 * 1000),
-                createdAt: new Date(),
-                gifts: []
+                gifts: [],
+                isProtected: true // Защита от удаления
             }
         ];
 
@@ -269,59 +238,30 @@ class SimpleServer {
             },
             {
                 id: '2',
-                code: 'NEWUSER500',
-                coins: 500,
-                max_uses: 100,
-                used_count: 45,
+                code: 'EPIC2024',
+                coins: 2000,
+                max_uses: 50,
+                used_count: 0,
                 created_at: new Date()
             }
         ];
 
-        // Тестовые посты
+        // Начальные посты
         this.posts = [
             {
                 id: '1',
-                userId: '2',
-                text: 'Привет всем! Это мой первый пост в Epic Messenger! 🎉',
+                userId: '1',
+                text: 'Добро пожаловать в Epic Messenger! 🚀\n\nЭто современная платформа для общения с уникальными возможностями:\n\n• Мгновенные сообщения\n• Система подарков и E-COIN\n• Лента постов\n• Админ панель для управления\n\nПрисоединяйтесь к нашему сообществу! 💬',
                 image: null,
-                likes: ['1', '3'],
+                likes: [],
                 comments: [],
-                views: 15,
-                createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
-            },
-            {
-                id: '2',
-                userId: '3',
-                text: 'Отличная погода сегодня! Кто на прогулку? ☀️',
-                image: null,
-                likes: ['2'],
-                comments: [],
-                views: 8,
-                createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000)
+                views: 0,
+                createdAt: new Date()
             }
         ];
 
-        // Тестовые сообщения
-        this.messages = [
-            {
-                id: '1',
-                senderId: '2',
-                toUserId: '1',
-                text: 'Здравствуйте! У меня вопрос по работе приложения',
-                type: 'text',
-                timestamp: new Date(Date.now() - 30 * 60 * 1000),
-                displayName: 'Алексей'
-            },
-            {
-                id: '2',
-                senderId: '1',
-                toUserId: '2',
-                text: 'Привет! Конечно, задавайте ваш вопрос',
-                type: 'text',
-                timestamp: new Date(Date.now() - 25 * 60 * 1000),
-                displayName: 'Администратор'
-            }
-        ];
+        // Начальные сообщения
+        this.messages = [];
     }
 
     generateId() {
@@ -483,6 +423,12 @@ class SimpleServer {
                         response = this.handleAdminStats(token);
                     }
                     break;
+
+                case '/api/admin/delete-user':
+                    if (method === 'POST') {
+                        response = this.handleDeleteUser(token, data);
+                    }
+                    break;
                     
                 case '/api/logout':
                     if (method === 'POST') {
@@ -589,7 +535,8 @@ class SimpleServer {
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
-            gifts: []
+            gifts: [],
+            isProtected: false // Обычные пользователи не защищены
         };
 
         this.users.push(newUser);
@@ -654,6 +601,41 @@ class SimpleServer {
         return {
             success: true,
             user: targetUser
+        };
+    }
+
+    handleDeleteUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        // Проверяем, существует ли пользователь
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        // Защита от удаления BayRex и защищенных пользователей
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя удалить защищенного пользователя' };
+        }
+
+        // Нельзя удалить самого себя
+        if (targetUser.id === user.id) {
+            return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
+        }
+
+        // Удаляем пользователя
+        this.users = this.users.filter(u => u.id !== userId);
+
+        console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} успешно удален`
         };
     }
 
@@ -980,16 +962,6 @@ class SimpleServer {
                 description: 'Регистрация бонус',
                 date: user.createdAt,
                 amount: 1000
-            },
-            {
-                description: 'Покупка подарка "Золотая корона"',
-                date: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                amount: -500
-            },
-            {
-                description: 'Активация промокода WELCOME1000',
-                date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-                amount: 1000
             }
         ];
 
@@ -1053,10 +1025,13 @@ class SimpleServer {
             console.log(`   - GET  /api/posts - Лента постов`);
             console.log(`   - POST /api/posts - Создание поста`);
             console.log(`   - GET  /api/gifts - Магазин подарков`);
-            console.log(`👥 Тестовые пользователи:`);
-            console.log(`   - Админ: admin / admin123`);
-            console.log(`   - Пользователь 1: user1 / user123`);
-            console.log(`   - Пользователь 2: user2 / user123`);
+            console.log(`   - POST /api/admin/delete-user - Удаление пользователя (только для админов)`);
+            console.log(`\n👑 Администратор системы:`);
+            console.log(`   - BayRex / bayrex123`);
+            console.log(`   • Полные права администратора`);
+            console.log(`   • Защищенный аккаунт`);
+            console.log(`   • Доступ к админ панели`);
+            console.log(`   • 50,000 E-COIN начального баланса`);
         });
 
         return server;
