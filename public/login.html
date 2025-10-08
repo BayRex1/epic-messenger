@@ -51,7 +51,7 @@
             border-radius: 20px;
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            width: 420px;
+            width: 450px;
             max-width: 90vw;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
             position: relative;
@@ -149,6 +149,7 @@
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            margin-bottom: 15px;
         }
 
         .login-btn::before {
@@ -173,6 +174,25 @@
 
         .login-btn:active {
             transform: translateY(-1px);
+        }
+
+        .register-btn {
+            width: 100%;
+            padding: 18px;
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .register-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
         }
 
         .features {
@@ -241,6 +261,80 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        .demo-accounts {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .demo-accounts h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #00b4b4;
+            text-align: center;
+        }
+
+        .demo-account {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .demo-account:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .account-username {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .account-password {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .register-section {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .register-section.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .toggle-text {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .toggle-link {
+            color: #00b4b4;
+            cursor: pointer;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+
+        .toggle-link:hover {
+            color: #00cccc;
+        }
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 30px 25px;
@@ -266,6 +360,7 @@
             <p>Современное общение без границ</p>
         </div>
 
+        <!-- Форма входа -->
         <form id="loginForm">
             <div class="form-group">
                 <input type="text" class="form-input" id="username" placeholder="👤 Имя пользователя" required>
@@ -278,9 +373,59 @@
                 <span id="buttonText">Войти в систему</span>
                 <div class="loading" id="loadingSpinner"></div>
             </button>
+
+            <div class="toggle-text">
+                Нет аккаунта? <span class="toggle-link" id="showRegister">Зарегистрироваться</span>
+            </div>
             
             <div class="error-message" id="errorMessage"></div>
         </form>
+
+        <!-- Форма регистрации -->
+        <div class="register-section" id="registerSection">
+            <div class="form-group">
+                <input type="text" class="form-input" id="regUsername" placeholder="👤 Придумайте имя пользователя" required>
+            </div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="regDisplayName" placeholder="👤 Ваше отображаемое имя" required>
+            </div>
+            <div class="form-group">
+                <input type="email" class="form-input" id="regEmail" placeholder="📧 Электронная почта" required>
+            </div>
+            <div class="form-group">
+                <input type="password" class="form-input" id="regPassword" placeholder="🔒 Придумайте пароль" required>
+            </div>
+            <div class="form-group">
+                <input type="password" class="form-input" id="regConfirmPassword" placeholder="🔒 Подтвердите пароль" required>
+            </div>
+            
+            <button type="button" class="login-btn" id="registerButton">
+                <span id="registerButtonText">Создать аккаунт</span>
+                <div class="loading" id="registerLoadingSpinner"></div>
+            </button>
+
+            <div class="toggle-text">
+                Уже есть аккаунт? <span class="toggle-link" id="showLogin">Войти</span>
+            </div>
+            
+            <div class="error-message" id="registerErrorMessage"></div>
+        </div>
+
+        <div class="demo-accounts">
+            <h3>Демо аккаунты (кликните для входа)</h3>
+            <div class="demo-account" data-username="admin" data-password="admin123">
+                <span class="account-username">👑 Администратор</span>
+                <span class="account-password">admin123</span>
+            </div>
+            <div class="demo-account" data-username="user1" data-password="user123">
+                <span class="account-username">👤 Алексей</span>
+                <span class="account-password">user123</span>
+            </div>
+            <div class="demo-account" data-username="user2" data-password="user123">
+                <span class="account-username">👩 Мария</span>
+                <span class="account-password">user123</span>
+            </div>
+        </div>
 
         <div class="features">
             <div class="feature">
@@ -325,12 +470,19 @@
             }
         }
 
-        // Обработка формы входа
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+        // Переключение между входом и регистрацией
+        document.getElementById('showRegister').addEventListener('click', function() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerSection').classList.add('active');
+        });
+
+        document.getElementById('showLogin').addEventListener('click', function() {
+            document.getElementById('registerSection').classList.remove('active');
+            document.getElementById('loginForm').style.display = 'block';
+        });
+
+        // Функция для выполнения входа
+        async function performLogin(username, password) {
             const loginButton = document.getElementById('loginButton');
             const buttonText = document.getElementById('buttonText');
             const loadingSpinner = document.getElementById('loadingSpinner');
@@ -343,6 +495,8 @@
             errorMessage.style.display = 'none';
             
             try {
+                console.log('Отправка запроса на вход...', { username, password });
+                
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
@@ -351,7 +505,10 @@
                     body: JSON.stringify({ username, password })
                 });
                 
+                console.log('Получен ответ:', response.status);
+                
                 const data = await response.json();
+                console.log('Данные ответа:', data);
                 
                 if (data.success) {
                     // Анимация успешного входа
@@ -360,8 +517,11 @@
                     buttonText.style.display = 'block';
                     loadingSpinner.style.display = 'none';
                     
+                    // Сохраняем токен и переходим на главную страницу
+                    localStorage.setItem('authToken', data.token);
+                    console.log('Токен сохранен, переход на главную...');
+                    
                     setTimeout(() => {
-                        localStorage.setItem('authToken', data.token);
                         window.location.href = '/';
                     }, 1000);
                     
@@ -370,6 +530,8 @@
                 }
                 
             } catch (error) {
+                console.error('Ошибка входа:', error);
+                
                 // Показываем ошибку
                 buttonText.style.display = 'block';
                 buttonText.textContent = 'Войти в систему';
@@ -385,6 +547,138 @@
                     loginButton.style.animation = '';
                 }, 500);
             }
+        }
+
+        // Функция для регистрации
+        async function performRegister(userData) {
+            const registerButton = document.getElementById('registerButton');
+            const registerButtonText = document.getElementById('registerButtonText');
+            const registerLoadingSpinner = document.getElementById('registerLoadingSpinner');
+            const registerErrorMessage = document.getElementById('registerErrorMessage');
+            
+            // Показываем загрузку
+            registerButtonText.style.display = 'none';
+            registerLoadingSpinner.style.display = 'block';
+            registerButton.disabled = true;
+            registerErrorMessage.style.display = 'none';
+            
+            try {
+                console.log('Отправка запроса на регистрацию...', userData);
+                
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                console.log('Получен ответ:', response.status);
+                
+                const data = await response.json();
+                console.log('Данные ответа:', data);
+                
+                if (data.success) {
+                    // Анимация успешной регистрации
+                    registerButton.style.background = 'linear-gradient(135deg, #00b894, #00cc99)';
+                    registerButtonText.textContent = 'Аккаунт создан!';
+                    registerButtonText.style.display = 'block';
+                    registerLoadingSpinner.style.display = 'none';
+                    
+                    // Автоматически входим после регистрации
+                    setTimeout(async () => {
+                        await performLogin(userData.username, userData.password);
+                    }, 1500);
+                    
+                } else {
+                    throw new Error(data.message || 'Ошибка регистрации');
+                }
+                
+            } catch (error) {
+                console.error('Ошибка регистрации:', error);
+                
+                // Показываем ошибку
+                registerButtonText.style.display = 'block';
+                registerButtonText.textContent = 'Создать аккаунт';
+                registerLoadingSpinner.style.display = 'none';
+                registerButton.disabled = false;
+                
+                registerErrorMessage.textContent = error.message || 'Ошибка соединения с сервером';
+                registerErrorMessage.style.display = 'block';
+                
+                // Анимация ошибки
+                registerButton.style.animation = 'shake 0.5s ease-in-out';
+                setTimeout(() => {
+                    registerButton.style.animation = '';
+                }, 500);
+            }
+        }
+
+        // Обработка формы входа
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                document.getElementById('errorMessage').textContent = 'Заполните все поля';
+                document.getElementById('errorMessage').style.display = 'block';
+                return;
+            }
+            
+            await performLogin(username, password);
+        });
+
+        // Обработка формы регистрации
+        document.getElementById('registerButton').addEventListener('click', async function() {
+            const username = document.getElementById('regUsername').value.trim();
+            const displayName = document.getElementById('regDisplayName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('regConfirmPassword').value;
+            
+            // Валидация
+            if (!username || !displayName || !email || !password || !confirmPassword) {
+                document.getElementById('registerErrorMessage').textContent = 'Заполните все поля';
+                document.getElementById('registerErrorMessage').style.display = 'block';
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                document.getElementById('registerErrorMessage').textContent = 'Пароли не совпадают';
+                document.getElementById('registerErrorMessage').style.display = 'block';
+                return;
+            }
+            
+            if (password.length < 6) {
+                document.getElementById('registerErrorMessage').textContent = 'Пароль должен содержать минимум 6 символов';
+                document.getElementById('registerErrorMessage').style.display = 'block';
+                return;
+            }
+            
+            const userData = {
+                username,
+                displayName,
+                email,
+                password
+            };
+            
+            await performRegister(userData);
+        });
+
+        // Обработка кликов по демо аккаунтам
+        document.querySelectorAll('.demo-account').forEach(account => {
+            account.addEventListener('click', function() {
+                const username = this.getAttribute('data-username');
+                const password = this.getAttribute('data-password');
+                
+                document.getElementById('username').value = username;
+                document.getElementById('password').value = password;
+                
+                // Автоматически отправляем форму
+                performLogin(username, password);
+            });
         });
 
         // Анимация ввода
@@ -413,6 +707,27 @@
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
             createBackground();
+            
+            // Проверяем, если пользователь уже авторизован
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                console.log('Найден токен, проверяем авторизацию...');
+                fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.authenticated) {
+                        console.log('Пользователь уже авторизован, переход на главную...');
+                        window.location.href = '/';
+                    }
+                })
+                .catch(error => {
+                    console.log('Токен невалиден, остаемся на странице входа');
+                });
+            }
             
             // Автофокус на поле ввода
             document.getElementById('username').focus();
