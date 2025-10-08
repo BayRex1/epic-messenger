@@ -3031,7 +3031,6 @@
     <!-- Уведомления -->
     <div id="notificationsContainer"></div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
         // Глобальные переменные
         let currentUser = null;
@@ -3085,6 +3084,8 @@
         // Обновленная функция initializeApp
         async function initializeApp() {
             try {
+                console.log('🚀 Инициализация приложения...');
+                
                 // Сначала проверяем авторизацию
                 const isAuthenticated = await checkAuth();
                 if (!isAuthenticated) {
@@ -3100,56 +3101,68 @@
                 // Загружаем начальные данные
                 await loadInitialData();
                 
-                // Запускаем периодическое обновление
-                startPeriodicUpdates();
+                console.log('✅ Приложение успешно инициализировано');
                 
-                // Инициализируем Socket.IO
-                initializeSocketIO();
             } catch (error) {
-                console.error('Ошибка инициализации приложения:', error);
-                showNotification('Ошибка загрузки приложения', 'error');
+                console.error('❌ Ошибка инициализации приложения:', error);
+                showNotification('Ошибка загрузки приложения: ' + error.message, 'error');
             }
         }
 
         // Универсальная функция для авторизованных запросов
         async function makeAuthenticatedRequest(url, options = {}) {
             const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('Токен авторизации не найден');
+            }
+
             const defaultOptions = {
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                     ...options.headers
                 }
             };
             
-            // Убираем дублирование Content-Type если передается FormData
-            if (options.body instanceof FormData) {
-                delete defaultOptions.headers['Content-Type'];
-            }
-            
             const mergedOptions = { ...defaultOptions, ...options };
-            return fetch(url, mergedOptions);
+            
+            try {
+                const response = await fetch(url, mergedOptions);
+                return response;
+            } catch (error) {
+                console.error('Ошибка запроса:', error);
+                throw error;
+            }
         }
 
         // Загрузка данных пользователя
         async function loadUserData() {
             try {
+                console.log('📥 Загрузка данных пользователя...');
                 const response = await makeAuthenticatedRequest('/api/current-user');
                 const data = await response.json();
                 
                 if (data.success) {
                     currentUser = data.user;
+                    console.log('✅ Данные пользователя загружены:', currentUser);
                     updateUserInterface();
                 } else {
-                    throw new Error('Failed to load user data');
+                    throw new Error(data.message || 'Ошибка загрузки данных пользователя');
                 }
             } catch (error) {
-                console.error('Error loading user data:', error);
-                showNotification('Ошибка загрузки данных пользователя', 'error');
+                console.error('❌ Ошибка загрузки данных пользователя:', error);
+                showNotification('Ошибка загрузки данных пользователя: ' + error.message, 'error');
+                throw error;
             }
         }
 
         function updateUserInterface() {
             console.log('🔄 Обновление интерфейса для пользователя:', currentUser);
+            
+            if (!currentUser) {
+                console.error('❌ Нет данных пользователя для обновления интерфейса');
+                return;
+            }
             
             // Обновляем аватар и имя в сайдбаре
             const userAvatar = document.getElementById('userAvatar');
@@ -3157,61 +3170,66 @@
             const userUsername = document.getElementById('userUsername');
 
             if (currentUser.avatar) {
-                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="Avatar">`;
+                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
             } else {
                 const initials = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
                 userAvatar.textContent = initials;
+                userAvatar.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                userAvatar.style.color = 'white';
+                userAvatar.style.display = 'flex';
+                userAvatar.style.alignItems = 'center';
+                userAvatar.style.justifyContent = 'center';
+                userAvatar.style.fontWeight = '600';
+                userAvatar.style.fontSize = '18px';
             }
 
             userName.innerHTML = currentUser.displayName || 'Пользователь';
             
             // Показываем бейджи в зависимости от прав пользователя
-            if (currentUser.verified) {
-                document.getElementById('verifiedBadge').style.display = 'inline-flex';
+            const verifiedBadge = document.getElementById('verifiedBadge');
+            const developerBadge = document.getElementById('developerBadge');
+            const adminPanelBtn = document.getElementById('adminPanelBtn');
+
+            if (currentUser.verified && verifiedBadge) {
+                verifiedBadge.style.display = 'inline-flex';
                 console.log('✅ Показан бейдж верификации');
             }
-            if (currentUser.isDeveloper) {
-                document.getElementById('developerBadge').style.display = 'inline-flex';
-                document.getElementById('adminPanelBtn').style.display = 'flex';
+            
+            if (currentUser.isDeveloper && developerBadge && adminPanelBtn) {
+                developerBadge.style.display = 'inline-flex';
+                adminPanelBtn.style.display = 'flex';
                 console.log('⭐ Показан бейдж разработчика и админ панель');
             }
 
-            userUsername.textContent = `@${currentUser.username}`;
+            if (userUsername) {
+                userUsername.textContent = `@${currentUser.username}`;
+            }
             
             console.log('✅ Интерфейс обновлен');
         }
 
         // Инициализация UI компонентов
         function initializeUI() {
-            // Инициализация сайдбара
-            initializeSidebar();
+            console.log('🎨 Инициализация интерфейса...');
             
-            // Инициализация навигации
-            initializeNavigation();
-            
-            // Инициализация чата
-            initializeChat();
-            
-            // Инициализация постов
-            initializePosts();
-            
-            // Инициализация друзей
-            initializeFriends();
-            
-            // Инициализация подарков
-            initializeGifts();
-            
-            // Инициализация E-COIN
-            initializeEcoins();
-            
-            // Инициализация профиля
-            initializeProfile();
-            
-            // Инициализация настроек
-            initializeSettings();
-            
-            // Инициализация админ панели
-            initializeAdminPanel();
+            try {
+                // Инициализация сайдбара
+                initializeSidebar();
+                
+                // Инициализация навигации
+                initializeNavigation();
+                
+                // Инициализация чата
+                initializeChat();
+                
+                // Инициализация постов
+                initializePosts();
+                
+                console.log('✅ Интерфейс инициализирован');
+            } catch (error) {
+                console.error('❌ Ошибка инициализации интерфейса:', error);
+                throw error;
+            }
         }
 
         // Инициализация сайдбара
@@ -3219,23 +3237,36 @@
             const sidebar = document.getElementById('sidebar');
             const profileSection = document.getElementById('profileSection');
             
+            if (!sidebar || !profileSection) {
+                console.error('❌ Элементы сайдбара не найдены');
+                return;
+            }
+            
             // Переключение расширения сайдбара
             profileSection.addEventListener('click', function() {
                 sidebar.classList.toggle('expanded');
             });
             
             // Выход из аккаунта
-            document.getElementById('logoutBtn').addEventListener('click', function() {
-                if (confirm('Вы уверены, что хотите выйти?')) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login.html';
-                }
-            });
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function() {
+                    if (confirm('Вы уверены, что хотите выйти?')) {
+                        localStorage.removeItem('authToken');
+                        window.location.href = '/login.html';
+                    }
+                });
+            }
         }
 
         // Инициализация навигации
         function initializeNavigation() {
             const menuItems = document.querySelectorAll('.menu-item[data-section]');
+            
+            if (menuItems.length === 0) {
+                console.error('❌ Элементы навигации не найдены');
+                return;
+            }
             
             menuItems.forEach(item => {
                 item.addEventListener('click', function() {
@@ -3252,7 +3283,10 @@
                     });
                     
                     // Показываем выбранную секцию
-                    document.getElementById(sectionId).classList.add('active');
+                    const targetSection = document.getElementById(sectionId);
+                    if (targetSection) {
+                        targetSection.classList.add('active');
+                    }
                 });
             });
         }
@@ -3261,6 +3295,11 @@
         function initializeChat() {
             const messageInput = document.getElementById('messageInput');
             const sendBtn = document.getElementById('sendMessageBtn');
+            
+            if (!messageInput || !sendBtn) {
+                console.error('❌ Элементы чата не найдены');
+                return;
+            }
             
             // Отправка сообщения по Enter
             messageInput.addEventListener('keypress', function(e) {
@@ -3271,305 +3310,82 @@
             
             // Отправка сообщения по клику
             sendBtn.addEventListener('click', sendMessage);
-            
-            // Инициализация записи голосовых сообщений
-            initializeVoiceRecorder();
-            
-            // Инициализация загрузки файлов
-            initializeFileUpload();
         }
 
         // Функция отправки сообщения
-        function sendMessage() {
+        async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
             
-            if (!message || !currentChat) return;
-            
-            // Здесь будет логика отправки сообщения через Socket.IO
-            if (socket) {
-                socket.emit('sendMessage', {
-                    chatId: currentChat.id,
-                    message: message,
-                    timestamp: new Date().toISOString()
-                });
+            if (!message) {
+                showNotification('Введите сообщение', 'warning');
+                return;
             }
             
-            // Очищаем поле ввода
-            messageInput.value = '';
-        }
-
-        // Инициализация записи голосовых сообщений
-        function initializeVoiceRecorder() {
-            const recordBtn = document.getElementById('recordBtn');
-            const voiceRecorder = document.getElementById('voiceRecorder');
-            const messageInput = document.getElementById('messageInput');
+            if (!currentChat) {
+                showNotification('Выберите чат для отправки сообщения', 'warning');
+                return;
+            }
             
-            let mediaRecorder;
-            let audioChunks = [];
-            let recording = false;
-            let recordingTimer;
-            let seconds = 0;
-            
-            recordBtn.addEventListener('click', async function() {
-                if (!recording) {
-                    // Начало записи
-                    try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        mediaRecorder = new MediaRecorder(stream);
-                        
-                        mediaRecorder.ondataavailable = (event) => {
-                            audioChunks.push(event.data);
-                        };
-                        
-                        mediaRecorder.onstop = () => {
-                            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                            // Здесь будет логика отправки голосового сообщения
-                            console.log('Voice message recorded:', audioBlob);
-                            audioChunks = [];
-                        };
-                        
-                        mediaRecorder.start();
-                        recording = true;
-                        recordBtn.classList.add('recording');
-                        voiceRecorder.style.display = 'flex';
-                        messageInput.style.display = 'none';
-                        
-                        // Запуск таймера
-                        seconds = 0;
-                        recordingTimer = setInterval(() => {
-                            seconds++;
-                            const minutes = Math.floor(seconds / 60);
-                            const secs = seconds % 60;
-                            document.getElementById('recordingTimer').textContent = 
-                                `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                        }, 1000);
-                        
-                    } catch (error) {
-                        console.error('Error accessing microphone:', error);
-                        showNotification('Ошибка доступа к микрофону', 'error');
+            try {
+                const response = await makeAuthenticatedRequest('/api/messages/send', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        toUserId: currentChat.id,
+                        text: message,
+                        type: 'text'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageInput.value = '';
+                    showNotification('Сообщение отправлено', 'success');
+                    // Обновляем чат
+                    if (currentChat) {
+                        loadChatMessages(currentChat.id);
                     }
                 } else {
-                    // Окончание записи
-                    mediaRecorder.stop();
-                    recording = false;
-                    recordBtn.classList.remove('recording');
-                    voiceRecorder.style.display = 'none';
-                    messageInput.style.display = 'block';
-                    clearInterval(recordingTimer);
-                    
-                    // Остановка всех треков
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    showNotification('Ошибка отправки: ' + data.message, 'error');
                 }
-            });
-        }
-
-        // Инициализация загрузки файлов
-        function initializeFileUpload() {
-            const fileUploadBtn = document.getElementById('fileUploadBtn');
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.multiple = true;
-            fileInput.style.display = 'none';
-            document.body.appendChild(fileInput);
-            
-            fileUploadBtn.addEventListener('click', () => fileInput.click());
-            
-            fileInput.addEventListener('change', function(e) {
-                const files = e.target.files;
-                if (files.length > 0) {
-                    // Здесь будет логика загрузки файлов
-                    console.log('Files selected:', files);
-                    showNotification(`Выбрано ${files.length} файлов`, 'success');
-                }
-            });
-        }
-
-        // Инициализация постов
-        function initializePosts() {
-            const publishBtn = document.getElementById('publishPostBtn');
-            const postText = document.getElementById('postText');
-            const postFileInput = document.getElementById('postFileInput');
-            const postFileUpload = document.getElementById('postFileUpload');
-            
-            publishBtn.addEventListener('click', publishPost);
-            
-            // Drag and drop для файлов
-            postFileUpload.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                this.classList.add('dragover');
-            });
-            
-            postFileUpload.addEventListener('dragleave', function() {
-                this.classList.remove('dragover');
-            });
-            
-            postFileUpload.addEventListener('drop', function(e) {
-                e.preventDefault();
-                this.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                handlePostFiles(files);
-            });
-            
-            postFileUpload.addEventListener('click', function() {
-                postFileInput.click();
-            });
-            
-            postFileInput.addEventListener('change', function(e) {
-                handlePostFiles(e.target.files);
-            });
-        }
-
-        // Публикация поста
-        function publishPost() {
-            const postText = document.getElementById('postText');
-            const text = postText.value.trim();
-            
-            if (!text) {
-                showNotification('Введите текст поста', 'warning');
-                return;
+            } catch (error) {
+                console.error('Ошибка отправки сообщения:', error);
+                showNotification('Ошибка отправки сообщения', 'error');
             }
-            
-            // Здесь будет логика публикации поста
-            console.log('Publishing post:', text);
-            showNotification('Пост опубликован', 'success');
-            postText.value = '';
-            
-            // Очищаем превью файлов
-            document.getElementById('postFilePreview').innerHTML = '';
-        }
-
-        // Обработка файлов для поста
-        function handlePostFiles(files) {
-            const preview = document.getElementById('postFilePreview');
-            preview.innerHTML = '';
-            
-            Array.from(files).forEach(file => {
-                if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const element = file.type.startsWith('image/') ? 
-                            `<img src="${e.target.result}" alt="Preview">` :
-                            `<video src="${e.target.result}" controls></video>`;
-                        
-                        preview.innerHTML += element;
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-        }
-
-        // Инициализация друзей
-        function initializeFriends() {
-            // Инициализация табов друзей
-            initializeFriendTabs();
-            
-            // Инициализация поиска друзей
-            initializeFriendSearch();
-        }
-
-        // Инициализация табов друзей
-        function initializeFriendTabs() {
-            const tabs = document.querySelectorAll('.profile-tab[data-tab]');
-            
-            tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    
-                    // Убираем активный класс у всех табов
-                    tabs.forEach(t => t.classList.remove('active'));
-                    // Добавляем активный класс текущему табу
-                    this.classList.add('active');
-                    
-                    // Скрываем все содержимое табов
-                    document.querySelectorAll('.profile-tab-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // Показываем выбранное содержимое
-                    document.getElementById(tabId).classList.add('active');
-                });
-            });
-        }
-
-        // Инициализация поиска друзей
-        function initializeFriendSearch() {
-            const searchBtn = document.getElementById('searchFriendsBtn');
-            const searchInput = document.getElementById('findFriendsInput');
-            
-            searchBtn.addEventListener('click', searchFriends);
-            searchInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    searchFriends();
-                }
-            });
-        }
-
-        // Поиск друзей
-        function searchFriends() {
-            const searchInput = document.getElementById('findFriendsInput');
-            const query = searchInput.value.trim();
-            
-            if (!query) {
-                showNotification('Введите имя пользователя', 'warning');
-                return;
-            }
-            
-            // Здесь будет логика поиска друзей
-            console.log('Searching friends:', query);
-        }
-
-        // Инициализация подарков
-        function initializeGifts() {
-            // Инициализация будет добавлена позже
-        }
-
-        // Инициализация E-COIN
-        function initializeEcoins() {
-            // Инициализация будет добавлена позже
-        }
-
-        // Инициализация профиля
-        function initializeProfile() {
-            // Инициализация будет добавлена позже
-        }
-
-        // Инициализация настроек
-        function initializeSettings() {
-            // Инициализация будет добавлена позже
-        }
-
-        // Инициализация админ панели
-        function initializeAdminPanel() {
-            // Инициализация будет добавлена позже
         }
 
         // Загрузка начальных данных
         async function loadInitialData() {
             try {
+                console.log('📥 Загрузка начальных данных...');
                 await Promise.all([
-                    loadChats(),
+                    loadUsers(),
                     loadPosts(),
-                    loadFriends(),
                     loadGifts()
                 ]);
+                console.log('✅ Начальные данные загружены');
             } catch (error) {
-                console.error('Error loading initial data:', error);
+                console.error('❌ Ошибка загрузки начальных данных:', error);
+                throw error;
             }
         }
 
-        // Загрузка чатов
-        async function loadChats() {
+        // Загрузка пользователей
+        async function loadUsers() {
             try {
-                const response = await makeAuthenticatedRequest('/api/chats');
+                const response = await makeAuthenticatedRequest('/api/users');
                 const data = await response.json();
                 
                 if (data.success) {
-                    chats = data.chats;
-                    renderChatsList();
+                    allUsers = data.users;
+                    renderUsersList();
+                } else {
+                    throw new Error(data.message || 'Ошибка загрузки пользователей');
                 }
             } catch (error) {
-                console.error('Error loading chats:', error);
+                console.error('❌ Ошибка загрузки пользователей:', error);
+                throw error;
             }
         }
 
@@ -3582,26 +3398,12 @@
                 if (data.success) {
                     posts = data.posts;
                     renderPostsList();
+                } else {
+                    throw new Error(data.message || 'Ошибка загрузки постов');
                 }
             } catch (error) {
-                console.error('Error loading posts:', error);
-            }
-        }
-
-        // Загрузка друзей
-        async function loadFriends() {
-            try {
-                const response = await makeAuthenticatedRequest('/api/friends');
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Обновляем счетчики друзей
-                    document.getElementById('friendsCount').textContent = data.friendsCount || 0;
-                    document.getElementById('onlineFriendsCount').textContent = data.onlineCount || 0;
-                    document.getElementById('pendingRequestsCount').textContent = data.pendingCount || 0;
-                }
-            } catch (error) {
-                console.error('Error loading friends:', error);
+                console.error('❌ Ошибка загрузки постов:', error);
+                throw error;
             }
         }
 
@@ -3613,40 +3415,63 @@
                 
                 if (data.success) {
                     gifts = data.gifts;
-                    renderGiftsList();
+                } else {
+                    throw new Error(data.message || 'Ошибка загрузки подарков');
                 }
             } catch (error) {
-                console.error('Error loading gifts:', error);
+                console.error('❌ Ошибка загрузки подарков:', error);
+                throw error;
             }
         }
 
-        // Рендер списка чатов
-        function renderChatsList() {
+        // Рендер списка пользователей
+        function renderUsersList() {
             const chatsList = document.getElementById('chatsList');
+            if (!chatsList) return;
+            
             chatsList.innerHTML = '';
             
-            chats.forEach(chat => {
-                const chatElement = document.createElement('div');
-                chatElement.className = 'chat-item';
-                chatElement.innerHTML = `
+            if (allUsers.length === 0) {
+                chatsList.innerHTML = '<div class="system-message">Нет других пользователей</div>';
+                return;
+            }
+            
+            allUsers.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'chat-item';
+                userElement.innerHTML = `
                     <div class="chat-avatar">
-                        ${chat.avatar ? `<img src="${chat.avatar}" alt="${chat.name}">` : chat.name.charAt(0).toUpperCase()}
+                        ${user.avatar ? 
+                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                            user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                        }
                     </div>
                     <div class="chat-info">
-                        <h4>${chat.name}</h4>
-                        <span>${chat.lastMessage || 'Нет сообщений'}</span>
+                        <h4>
+                            ${user.displayName || 'Пользователь'}
+                            ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+                            ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                        </h4>
+                        <span>@${user.username}</span>
                     </div>
                 `;
                 
-                chatElement.addEventListener('click', () => selectChat(chat));
-                chatsList.appendChild(chatElement);
+                userElement.addEventListener('click', () => selectUser(user));
+                chatsList.appendChild(userElement);
             });
         }
 
         // Рендер списка постов
         function renderPostsList() {
             const postsList = document.getElementById('postsList');
+            if (!postsList) return;
+            
             postsList.innerHTML = '';
+            
+            if (posts.length === 0) {
+                postsList.innerHTML = '<div class="system-message">Пока нет постов</div>';
+                return;
+            }
             
             posts.forEach(post => {
                 const postElement = document.createElement('div');
@@ -3655,26 +3480,33 @@
                     <div class="post-header">
                         <div class="post-user">
                             <div class="post-avatar">
-                                ${post.userAvatar ? `<img src="${post.userAvatar}" alt="${post.userName}">` : post.userName.charAt(0).toUpperCase()}
+                                ${post.userAvatar ? 
+                                    `<img src="${post.userAvatar}" alt="${post.userName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                                    post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
+                                }
                             </div>
                             <div class="post-user-info">
-                                <h4>${post.userName}</h4>
-                                <div class="post-time">${formatTime(post.timestamp)}</div>
+                                <h4>
+                                    ${post.userName || 'Неизвестный'}
+                                    ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                                    ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                                </h4>
+                                <div class="post-time">${formatTime(post.createdAt)}</div>
                             </div>
                         </div>
                     </div>
                     <div class="post-content">
-                        <div class="post-text">${post.text}</div>
-                        ${post.media ? `<div class="post-media">${post.media}</div>` : ''}
+                        <div class="post-text">${post.text || ''}</div>
+                        ${post.image ? `<div class="post-media"><img src="${post.image}" alt="Пост изображение"></div>` : ''}
                     </div>
                     <div class="post-actions">
-                        <button class="post-action">
+                        <button class="post-action like-btn" data-post-id="${post.id}">
                             <img src="assets/like.svg" alt="Лайк">
-                            <span>${post.likes || 0}</span>
+                            <span>${post.likes ? post.likes.length : 0}</span>
                         </button>
                         <button class="post-action">
                             <img src="assets/comment.svg" alt="Комментарий">
-                            <span>${post.comments || 0}</span>
+                            <span>${post.comments ? post.comments.length : 0}</span>
                         </button>
                         <div class="post-views">
                             <img src="assets/eye.svg" alt="Просмотры">
@@ -3687,21 +3519,28 @@
             });
         }
 
-        // Рендер списка подарков
-        function renderGiftsList() {
-            // Реализация будет добавлена позже
-        }
-
-        // Выбор чата
-        function selectChat(chat) {
-            currentChat = chat;
+        // Выбор пользователя для чата
+        function selectUser(user) {
+            currentChat = user;
             
             // Обновляем информацию о чате
-            document.getElementById('currentChatName').textContent = chat.name;
-            document.getElementById('currentChatStatus').textContent = 'В сети';
+            const currentChatName = document.getElementById('currentChatName');
+            const currentChatStatus = document.getElementById('currentChatStatus');
+            const currentChatAvatar = document.getElementById('currentChatAvatar');
             
-            // Загружаем сообщения чата
-            loadChatMessages(chat.id);
+            if (currentChatName) currentChatName.textContent = user.displayName || 'Пользователь';
+            if (currentChatStatus) currentChatStatus.textContent = 'В сети';
+            
+            if (currentChatAvatar) {
+                if (user.avatar) {
+                    currentChatAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                } else {
+                    currentChatAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
+                }
+            }
+            
+            // Загружаем сообщения
+            loadChatMessages(user.id);
             
             // Помечаем чат как активный
             document.querySelectorAll('.chat-item').forEach(item => {
@@ -3711,31 +3550,56 @@
         }
 
         // Загрузка сообщений чата
-        async function loadChatMessages(chatId) {
+        async function loadChatMessages(userId) {
             try {
-                const response = await makeAuthenticatedRequest(`/api/chats/${chatId}/messages`);
+                const response = await makeAuthenticatedRequest(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`);
                 const data = await response.json();
                 
                 if (data.success) {
                     renderChatMessages(data.messages);
+                } else {
+                    throw new Error(data.message || 'Ошибка загрузки сообщений');
                 }
             } catch (error) {
-                console.error('Error loading chat messages:', error);
+                console.error('❌ Ошибка загрузки сообщений:', error);
+                showNotification('Ошибка загрузки сообщений', 'error');
             }
         }
 
         // Рендер сообщений чата
         function renderChatMessages(messages) {
             const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+            
             chatMessages.innerHTML = '';
+            
+            if (!messages || messages.length === 0) {
+                chatMessages.innerHTML = '<div class="system-message">Нет сообщений. Начните общение!</div>';
+                return;
+            }
             
             messages.forEach(message => {
                 const messageElement = document.createElement('div');
-                messageElement.className = `message ${message.isOutgoing ? 'outgoing' : 'incoming'}`;
-                messageElement.innerHTML = `
-                    <div class="message-text">${message.text}</div>
-                    <div class="message-time">${formatTime(message.timestamp)}</div>
-                `;
+                const isOutgoing = message.senderId === currentUser.id;
+                messageElement.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
+                
+                if (message.type === 'gift') {
+                    messageElement.innerHTML = `
+                        <div class="message-gift">
+                            <div class="gift-preview">🎁</div>
+                            <div class="gift-info">
+                                <div class="gift-name">${message.giftName || 'Подарок'}</div>
+                                <div class="gift-price">Цена: ${message.giftPrice || 0} E-COIN</div>
+                            </div>
+                        </div>
+                        <div class="message-time">${formatTime(message.timestamp)}</div>
+                    `;
+                } else {
+                    messageElement.innerHTML = `
+                        <div class="message-text">${message.text || ''}</div>
+                        <div class="message-time">${formatTime(message.timestamp)}</div>
+                    `;
+                }
                 
                 chatMessages.appendChild(messageElement);
             });
@@ -3746,6 +3610,8 @@
 
         // Форматирование времени
         function formatTime(timestamp) {
+            if (!timestamp) return '';
+            
             const date = new Date(timestamp);
             const now = new Date();
             const diff = now - date;
@@ -3763,7 +3629,14 @@
 
         // Показ уведомлений
         function showNotification(message, type = 'info') {
+            console.log(`📢 Уведомление [${type}]: ${message}`);
+            
             const container = document.getElementById('notificationsContainer');
+            if (!container) {
+                console.log('Уведомление (контейнер не найден):', message);
+                return;
+            }
+            
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
@@ -3772,80 +3645,78 @@
             
             // Автоматическое удаление через 5 секунд
             setTimeout(() => {
-                notification.remove();
+                if (notification.parentNode) {
+                    notification.remove();
+                }
             }, 5000);
         }
 
-        // Периодическое обновление данных
-        function startPeriodicUpdates() {
-            setInterval(() => {
-                loadChats();
-                loadPosts();
-                loadFriends();
-            }, 30000); // Обновление каждые 30 секунд
-        }
-
-        // Инициализация Socket.IO
-        function initializeSocketIO() {
-            socket = io({
-                auth: {
-                    token: localStorage.getItem('authToken')
-                }
-            });
+        // Инициализация постов
+        function initializePosts() {
+            const publishBtn = document.getElementById('publishPostBtn');
+            const postText = document.getElementById('postText');
             
-            socket.on('connect', () => {
-                console.log('✅ Connected to server');
-            });
-            
-            socket.on('disconnect', () => {
-                console.log('❌ Disconnected from server');
-            });
-            
-            socket.on('newMessage', (message) => {
-                if (currentChat && message.chatId === currentChat.id) {
-                    // Добавляем сообщение в текущий чат
-                    renderChatMessages([message]);
-                }
-                // Обновляем список чатов
-                loadChats();
-            });
-            
-            socket.on('newPost', (post) => {
-                // Добавляем новый пост в ленту
-                posts.unshift(post);
-                renderPostsList();
-            });
-            
-            socket.on('friendRequest', (request) => {
-                showNotification(`Новая заявка в друзья от ${request.fromUserName}`, 'info');
-                loadFriends(); // Обновляем список друзей
-            });
-            
-            socket.on('error', (error) => {
-                showNotification(error.message, 'error');
-            });
-        }
-
-        // Добавляем обработчики для кнопок эмодзи и загрузки файлов
-        document.getElementById('emojiBtn').addEventListener('click', function() {
-            showNotification('Функция эмодзи в разработке', 'info');
-        });
-
-        document.getElementById('voiceCallBtn').addEventListener('click', function() {
-            showNotification('Голосовой вызов в разработке', 'info');
-        });
-
-        document.getElementById('videoCallBtn').addEventListener('click', function() {
-            showNotification('Видео вызов в разработке', 'info');
-        });
-
-        // Добавляем базовую обработку для остальных кнопок
-        document.querySelectorAll('.btn').forEach(btn => {
-            if (!btn.onclick) {
-                btn.addEventListener('click', function() {
-                    showNotification('Функция в разработке', 'info');
+            if (publishBtn && postText) {
+                publishBtn.addEventListener('click', publishPost);
+                
+                // Отправка поста по Ctrl+Enter
+                postText.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        publishPost();
+                    }
                 });
             }
+        }
+
+        // Публикация поста
+        async function publishPost() {
+            const postText = document.getElementById('postText');
+            const text = postText.value.trim();
+            
+            if (!text) {
+                showNotification('Введите текст поста', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await makeAuthenticatedRequest('/api/posts', {
+                    method: 'POST',
+                    body: JSON.stringify({ text: text })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    postText.value = '';
+                    showNotification('Пост опубликован', 'success');
+                    // Перезагружаем посты
+                    await loadPosts();
+                } else {
+                    showNotification('Ошибка публикации: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка публикации поста:', error);
+                showNotification('Ошибка публикации поста', 'error');
+            }
+        }
+
+        // Добавляем базовую обработку для остальных кнопок
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработчики для кнопок, которые еще не реализованы
+            const notImplementedButtons = [
+                'emojiBtn', 'fileUploadBtn', 'voiceCallBtn', 'videoCallBtn',
+                'addPhotoBtn', 'addEmojiBtn', 'buyEcoinsBtn', 'withdrawEcoinsBtn',
+                'editProfileBtn', 'changeAvatarBtn', 'changePasswordBtn'
+            ];
+            
+            notImplementedButtons.forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    btn.addEventListener('click', function() {
+                        showNotification('Эта функция находится в разработке', 'info');
+                    });
+                }
+            });
         });
     </script>
 </body>
