@@ -951,11 +951,9 @@
 
         .gift-shop-name {
             font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
+            font-weight: 6
 
-        .gift-shop-price {
+                .gift-shop-price {
             font-size: 11px;
             color: var(--accent-color);
             font-weight: bold;
@@ -1465,6 +1463,52 @@
         .gift-price {
             font-size: 12px;
             color: var(--text-secondary);
+        }
+
+        /* Капча */
+        .captcha-container {
+            margin: 15px 0;
+            padding: 15px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .captcha-code {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            margin: 10px 0;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 5px;
+            user-select: none;
+        }
+
+        .captcha-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .captcha-refresh {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .captcha-refresh:hover {
+            background: var(--accent-hover);
         }
 
         /* Адаптивность */
@@ -2174,7 +2218,7 @@
                 // Загружаем сохраненную тему
                 loadTheme();
                 
-                // Инициализируем пользователя (в реальном приложении здесь был бы запрос к серверу)
+                // Инициализируем пользователя
                 await initializeUser();
                 
                 // Инициализируем интерфейс
@@ -2194,23 +2238,33 @@
 
         // Инициализация пользователя
         async function initializeUser() {
-            // В реальном приложении здесь был бы запрос к серверу
-            // Для демонстрации создаем тестового пользователя
-            currentUser = {
-                id: 1,
-                username: 'demo_user',
-                displayName: 'Демо Пользователь',
-                avatar: null,
-                verified: true,
-                isDeveloper: true,
-                coins: 1500,
-                friendsCount: 42,
-                postsCount: 15,
-                giftsCount: 8,
-                online: true
-            };
-            
-            updateUserInterface();
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const response = await fetch('/api/current-user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                }
+            } catch (error) {
+                console.error('Ошибка инициализации:', error);
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+            }
         }
 
         // Обновление интерфейса пользователя
@@ -2245,6 +2299,9 @@
 
             // Обновляем профиль
             updateProfileInterface();
+            
+            // Обновляем баланс E-COIN
+            updateEcoinBalance();
         }
 
         // Обновление аватара
@@ -2316,12 +2373,8 @@
             if (logoutBtn) {
                 logoutBtn.addEventListener('click', function() {
                     if (confirm('Вы уверены, что хотите выйти?')) {
-                        // В реальном приложении здесь был бы запрос к серверу
-                        showNotification('Вы вышли из системы', 'success');
-                        setTimeout(() => {
-                            // Перезагружаем страницу для демонстрации
-                            window.location.reload();
-                        }, 1000);
+                        localStorage.removeItem('authToken');
+                        window.location.href = '/login.html';
                     }
                 });
             }
@@ -2565,23 +2618,6 @@
         function changeTheme(theme) {
             document.body.className = `theme-${theme}`;
             localStorage.setItem('theme', theme);
-            
-            // Обновляем превью тем в настройках
-            updateThemePreviews();
-        }
-
-        // Обновление превью тем
-        function updateThemePreviews() {
-            const custom1Preview = document.querySelector('.theme-option[data-theme="custom1"] .custom-theme-preview');
-            const custom2Preview = document.querySelector('.theme-option[data-theme="custom2"] .custom-theme-preview');
-            
-            if (custom1Preview) {
-                custom1Preview.style.background = "url('assets/tema1.png') center/cover";
-            }
-            
-            if (custom2Preview) {
-                custom2Preview.style.background = "url('assets/tema2.png') center/cover";
-            }
         }
 
         // Загрузка начальных данных
@@ -2597,42 +2633,21 @@
         // Загрузка пользователей
         async function loadUsers() {
             try {
-                // В реальном приложении здесь был бы запрос к серверу
-                // Для демонстрации создаем тестовых пользователей
-                allUsers = [
-                    {
-                        id: 2,
-                        username: 'alex_petrov',
-                        displayName: 'Алексей Петров',
-                        avatar: null,
-                        verified: true,
-                        isDeveloper: false,
-                        online: true,
-                        lastSeen: new Date()
-                    },
-                    {
-                        id: 3,
-                        username: 'maria_ivanova',
-                        displayName: 'Мария Иванова',
-                        avatar: null,
-                        verified: false,
-                        isDeveloper: false,
-                        online: false,
-                        lastSeen: new Date(Date.now() - 30 * 60 * 1000) // 30 минут назад
-                    },
-                    {
-                        id: 4,
-                        username: 'serg_dev',
-                        displayName: 'Сергей Разработчик',
-                        avatar: null,
-                        verified: true,
-                        isDeveloper: true,
-                        online: true,
-                        lastSeen: new Date()
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
                     }
-                ];
+                });
                 
-                renderUsersList();
+                const data = await response.json();
+                
+                if (data.success) {
+                    allUsers = data.users;
+                    renderUsersList();
+                } else {
+                    console.error('Ошибка загрузки пользователей:', data.message);
+                }
             } catch (error) {
                 console.error('Ошибка загрузки пользователей:', error);
             }
@@ -2641,40 +2656,21 @@
         // Загрузка постов
         async function loadPosts() {
             try {
-                // В реальном приложении здесь был бы запрос к серверу
-                // Для демонстрации создаем тестовые посты
-                posts = [
-                    {
-                        id: 1,
-                        userId: 2,
-                        userName: 'Алексей Петров',
-                        userVerified: true,
-                        userDeveloper: false,
-                        text: 'Привет всем! Это тестовый пост для демонстрации функционала.',
-                        image: null,
-                        likes: [1, 3],
-                        comments: [],
-                        views: 42,
-                        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 часа назад
-                    },
-                    {
-                        id: 2,
-                        userId: 4,
-                        userName: 'Сергей Разработчик',
-                        userVerified: true,
-                        userDeveloper: true,
-                        text: 'Только что закончил работу над новым функционалом! 🎉',
-                        image: null,
-                        likes: [1, 2, 3],
-                        comments: [
-                            { userId: 2, userName: 'Алексей Петров', text: 'Отлично выглядит!', createdAt: new Date(Date.now() - 30 * 60 * 1000) }
-                        ],
-                        views: 89,
-                        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000) // 5 часов назад
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/posts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
                     }
-                ];
+                });
                 
-                renderPostsList();
+                const data = await response.json();
+                
+                if (data.success) {
+                    posts = data.posts;
+                    renderPostsList();
+                } else {
+                    console.error('Ошибка загрузки постов:', data.message);
+                }
             } catch (error) {
                 console.error('Ошибка загрузки постов:', error);
             }
@@ -2683,18 +2679,21 @@
         // Загрузка подарков
         async function loadGifts() {
             try {
-                // В реальном приложении здесь был бы запрос к серверу
-                // Для демонстрации создаем тестовые подарки
-                gifts = [
-                    { id: 1, name: '❤️ Сердце', price: 100, preview: '❤️' },
-                    { id: 2, name: '🎁 Подарок', price: 200, preview: '🎁' },
-                    { id: 3, name: '⭐ Звезда', price: 150, preview: '⭐' },
-                    { id: 4, name: '🏆 Кубок', price: 500, preview: '🏆' },
-                    { id: 5, name: '🎈 Шарик', price: 50, preview: '🎈' },
-                    { id: 6, name: '💎 Алмаз', price: 1000, preview: '💎' }
-                ];
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 
-                renderGiftsList();
+                const data = await response.json();
+                
+                if (data.success) {
+                    gifts = data.gifts;
+                    renderGiftsList();
+                } else {
+                    console.error('Ошибка загрузки подарков:', data.message);
+                }
             } catch (error) {
                 console.error('Ошибка загрузки подарков:', error);
             }
@@ -2703,8 +2702,7 @@
         // Загрузка друзей
         async function loadFriends() {
             try {
-                // В реальном приложении здесь был бы запрос к серверу
-                // Для демонстрации используем тестовых пользователей как друзей
+                // Пока используем всех пользователей как друзей для демонстрации
                 friends = allUsers.filter(user => user.id !== currentUser.id);
                 
                 updateFriendsCounters();
@@ -2721,7 +2719,7 @@
             const pendingRequestsCount = document.getElementById('pendingRequestsCount');
             
             if (friendsCount) friendsCount.textContent = friends.length;
-            if (onlineFriendsCount) onlineFriendsCount.textContent = friends.filter(f => f.online).length;
+            if (onlineFriendsCount) onlineFriendsCount.textContent = friends.filter(f => f.status === 'online').length;
             if (pendingRequestsCount) pendingRequestsCount.textContent = '0'; // Для демонстрации
         }
 
@@ -2752,7 +2750,7 @@
                             ${user.displayName || 'Пользователь'}
                             ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
                             ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
-                            <span class="${user.online ? 'online-status' : 'offline-status'}"></span>
+                            <span class="${user.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                         </h4>
                         <span>@${user.username}</span>
                     </div>
@@ -2888,7 +2886,7 @@
             if (onlineFriendsList) {
                 onlineFriendsList.innerHTML = '';
                 
-                const onlineFriends = friends.filter(f => f.online);
+                const onlineFriends = friends.filter(f => f.status === 'online');
                 if (onlineFriends.length === 0) {
                     onlineFriendsList.innerHTML = '<div class="system-message">Нет друзей онлайн</div>';
                 } else {
@@ -2916,13 +2914,13 @@
                         ${friend.displayName || 'Пользователь'}
                         ${friend.verified ? '<span class="verified-badge">✓</span>' : ''}
                         ${friend.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
-                        <span class="${friend.online ? 'online-status' : 'offline-status'}"></span>
+                        <span class="${friend.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                     </h4>
                     <span>@${friend.username}</span>
                 </div>
                 <div class="user-actions">
-                    <button class="admin-btn" onclick="startChatWithFriend(${friend.id})">Написать</button>
-                    <button class="admin-btn delete" onclick="removeFriend(${friend.id})">Удалить</button>
+                    <button class="admin-btn" onclick="startChatWithFriend('${friend.id}')">Написать</button>
+                    <button class="admin-btn delete" onclick="removeFriend('${friend.id}')">Удалить</button>
                 </div>
             `;
             
@@ -2940,7 +2938,7 @@
             
             if (currentChatName) currentChatName.textContent = user.displayName || 'Пользователь';
             if (currentChatStatus) {
-                currentChatStatus.textContent = user.online ? 'В сети' : `Был(а) в сети ${formatTime(user.lastSeen)}`;
+                currentChatStatus.textContent = user.status === 'online' ? 'В сети' : `Был(а) в сети ${formatTime(user.lastSeen)}`;
             }
             
             if (currentChatAvatar) {
@@ -2954,35 +2952,20 @@
         // Загрузка сообщений чата
         async function loadChatMessages(userId) {
             try {
-                // В реальном приложении здесь был бы запрос к серверу
-                // Для демонстрации создаем тестовые сообщения
-                if (!messages[userId]) {
-                    messages[userId] = [
-                        {
-                            id: 1,
-                            senderId: userId,
-                            text: 'Привет! Как дела?',
-                            timestamp: new Date(Date.now() - 30 * 60 * 1000),
-                            type: 'text'
-                        },
-                        {
-                            id: 2,
-                            senderId: currentUser.id,
-                            text: 'Привет! Все отлично, работаю над новым проектом.',
-                            timestamp: new Date(Date.now() - 25 * 60 * 1000),
-                            type: 'text'
-                        },
-                        {
-                            id: 3,
-                            senderId: userId,
-                            text: 'Это круто! Удачи в разработке! 🚀',
-                            timestamp: new Date(Date.now() - 20 * 60 * 1000),
-                            type: 'text'
-                        }
-                    ];
-                }
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 
-                renderChatMessages(messages[userId]);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderChatMessages(data.messages);
+                } else {
+                    console.error('Ошибка загрузки сообщений:', data.message);
+                }
             } catch (error) {
                 console.error('Ошибка загрузки сообщений:', error);
             }
@@ -3021,9 +3004,9 @@
                     messageElement.innerHTML = `
                         <div class="message-text">${message.text || ''}</div>
                         <div class="message-file-content">
-                            ${message.fileType.startsWith('image/') ? 
+                            ${message.fileType && message.fileType.startsWith('image/') ? 
                                 `<img src="${message.fileUrl}" alt="Файл">` : 
-                                message.fileType.startsWith('video/') ?
+                                message.fileType && message.fileType.startsWith('video/') ?
                                 `<video controls><source src="${message.fileUrl}" type="${message.fileType}"></video>` :
                                 `<div class="message-file-info">Файл: ${message.fileName}</div>`
                             }
@@ -3053,39 +3036,49 @@
         }
 
         // Отправка сообщения
-        function sendMessage() {
+        async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
             
             if (!text || !currentChat) return;
             
-            // Создаем новое сообщение
-            const newMessage = {
-                id: Date.now(),
-                senderId: currentUser.id,
-                text: text,
-                timestamp: new Date(),
-                type: 'text'
-            };
-            
-            // Добавляем в историю сообщений
-            if (!messages[currentChat.id]) {
-                messages[currentChat.id] = [];
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        toUserId: currentChat.id,
+                        text: text,
+                        type: 'text'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Очищаем поле ввода
+                    messageInput.value = '';
+                    
+                    // Перезагружаем сообщения
+                    loadChatMessages(currentChat.id);
+                    
+                    // Показываем уведомление о отправке
+                    showPushNotification(currentChat.displayName, text);
+                } else {
+                    showNotification('Ошибка отправки сообщения: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка отправки сообщения:', error);
+                showNotification('Ошибка отправки сообщения', 'error');
             }
-            messages[currentChat.id].push(newMessage);
-            
-            // Очищаем поле ввода
-            messageInput.value = '';
-            
-            // Обновляем интерфейс
-            renderChatMessages(messages[currentChat.id]);
-            
-            // Показываем уведомление о отправке (в реальном приложении здесь был бы запрос к серверу)
-            showPushNotification(currentChat.displayName, text);
         }
 
         // Публикация поста
-        function publishPost() {
+        async function publishPost() {
             const postText = document.getElementById('postText');
             const text = postText.value.trim();
             
@@ -3094,40 +3087,41 @@
                 return;
             }
             
-            // Создаем новый пост
-            const newPost = {
-                id: Date.now(),
-                userId: currentUser.id,
-                userName: currentUser.displayName,
-                userVerified: currentUser.verified,
-                userDeveloper: currentUser.isDeveloper,
-                text: text,
-                image: null, // В реальном приложении здесь была бы загрузка изображения
-                likes: [],
-                comments: [],
-                views: 0,
-                createdAt: new Date()
-            };
-            
-            // Добавляем в список постов
-            posts.unshift(newPost);
-            
-            // Обновляем интерфейс
-            renderPostsList();
-            
-            // Очищаем поле ввода
-            postText.value = '';
-            
-            // Показываем уведомление
-            showNotification('Пост опубликован!', 'success');
-            
-            // Обновляем счетчик постов в профиле
-            currentUser.postsCount = (currentUser.postsCount || 0) + 1;
-            updateProfileInterface();
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        text: text
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Очищаем поле ввода
+                    postText.value = '';
+                    
+                    // Перезагружаем посты
+                    loadPosts();
+                    
+                    // Показываем уведомление
+                    showNotification('Пост опубликован!', 'success');
+                } else {
+                    showNotification('Ошибка публикации поста: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка публикации поста:', error);
+                showNotification('Ошибка публикации поста', 'error');
+            }
         }
 
         // Поиск друзей
-        function searchFriends() {
+        async function searchFriends() {
             const findFriendsInput = document.getElementById('findFriendsInput');
             const query = findFriendsInput.value.trim().toLowerCase();
             
@@ -3164,12 +3158,12 @@
                                     ${user.displayName || 'Пользователь'}
                                     ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
                                     ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
-                                    <span class="${user.online ? 'online-status' : 'offline-status'}"></span>
+                                    <span class="${user.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                                 </h4>
                                 <span>@${user.username}</span>
                             </div>
                             <div class="user-actions">
-                                <button class="admin-btn" onclick="sendFriendRequest(${user.id})">Добавить</button>
+                                <button class="admin-btn" onclick="sendFriendRequest('${user.id}')">Добавить</button>
                             </div>
                         `;
                         searchFriendsResults.appendChild(userElement);
@@ -3179,7 +3173,7 @@
         }
 
         // Покупка подарка
-        function buyGift(giftId, price) {
+        async function buyGift(giftId, price) {
             if (!currentUser) return;
             
             if (currentUser.coins < price) {
@@ -3187,20 +3181,36 @@
                 return;
             }
             
-            // В реальном приложении здесь был бы запрос к серверу
-            // Для демонстрации просто показываем уведомление
-            const gift = gifts.find(g => g.id === giftId);
-            if (gift) {
-                showNotification(`Подарок "${gift.name}" куплен за ${price} E-COIN!`, 'success');
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/gifts/${giftId}/buy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({})
+                });
                 
-                // Обновляем баланс
-                currentUser.coins -= price;
-                updateEcoinBalance();
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Подарок куплен за ${price} E-COIN!`, 'success');
+                    
+                    // Обновляем баланс
+                    currentUser.coins = data.newBalance;
+                    updateEcoinBalance();
+                } else {
+                    showNotification('Ошибка покупки подарка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка покупки подарка:', error);
+                showNotification('Ошибка покупки подарка', 'error');
             }
         }
 
         // Активация промокода
-        function activatePromoCode() {
+        async function activatePromoCode() {
             const promoCodeInput = document.getElementById('promoCodeInput');
             const promoCode = promoCodeInput.value.trim();
             
@@ -3209,36 +3219,52 @@
                 return;
             }
             
-            // В реальном приложении здесь был бы запрос к серверу
-            // Для демонстрации проверяем тестовый промокод
-            if (promoCode.toUpperCase() === 'DEMO2024') {
-                const coins = 500;
-                currentUser.coins += coins;
-                updateEcoinBalance();
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        code: promoCode
+                    })
+                });
                 
-                const promoResult = document.getElementById('promoResult');
-                if (promoResult) {
-                    promoResult.innerHTML = `
-                        <div class="promo-result success">
-                            Промокод активирован! Вы получили ${coins} E-COIN
-                        </div>
-                    `;
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser.coins += data.coins;
+                    updateEcoinBalance();
+                    
+                    const promoResult = document.getElementById('promoResult');
+                    if (promoResult) {
+                        promoResult.innerHTML = `
+                            <div class="promo-result success">
+                                Промокод активирован! Вы получили ${data.coins} E-COIN
+                            </div>
+                        `;
+                    }
+                    
+                    showNotification(`Промокод активирован! +${data.coins} E-COIN`, 'success');
+                } else {
+                    const promoResult = document.getElementById('promoResult');
+                    if (promoResult) {
+                        promoResult.innerHTML = `
+                            <div class="promo-result error">
+                                ${data.message}
+                            </div>
+                        `;
+                    }
+                    showNotification(data.message, 'error');
                 }
                 
-                showNotification(`Промокод активирован! +${coins} E-COIN`, 'success');
-            } else {
-                const promoResult = document.getElementById('promoResult');
-                if (promoResult) {
-                    promoResult.innerHTML = `
-                        <div class="promo-result error">
-                            Неверный промокод
-                        </div>
-                    `;
-                }
-                showNotification('Неверный промокод', 'error');
+                promoCodeInput.value = '';
+            } catch (error) {
+                console.error('Ошибка активации промокода:', error);
+                showNotification('Ошибка активации промокода', 'error');
             }
-            
-            promoCodeInput.value = '';
         }
 
         // Обновление баланса E-COIN
@@ -3250,25 +3276,28 @@
         }
 
         // Переключение лайка
-        function toggleLike(postId) {
-            const post = posts.find(p => p.id === postId);
-            if (!post) return;
-            
-            if (!post.likes) {
-                post.likes = [];
+        async function toggleLike(postId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Обновляем интерфейс
+                    loadPosts();
+                } else {
+                    showNotification('Ошибка лайка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка лайка:', error);
+                showNotification('Ошибка лайка', 'error');
             }
-            
-            const likeIndex = post.likes.indexOf(currentUser.id);
-            if (likeIndex > -1) {
-                // Убираем лайк
-                post.likes.splice(likeIndex, 1);
-            } else {
-                // Добавляем лайк
-                post.likes.push(currentUser.id);
-            }
-            
-            // Обновляем интерфейс
-            renderPostsList();
         }
 
         // Обработка файлов для поста
@@ -3363,26 +3392,40 @@
             
             // Создаем голосовое сообщение
             if (recordingDuration >= 1) { // Минимальная длительность 1 секунда
-                const newMessage = {
-                    id: Date.now(),
-                    senderId: currentUser.id,
-                    type: 'voice',
-                    duration: `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, '0')}`,
-                    timestamp: new Date()
-                };
-                
-                // Добавляем в историю сообщений
-                if (!messages[currentChat.id]) {
-                    messages[currentChat.id] = [];
-                }
-                messages[currentChat.id].push(newMessage);
-                
-                // Обновляем интерфейс
-                renderChatMessages(messages[currentChat.id]);
-                
-                showNotification('Голосовое сообщение отправлено', 'success');
+                sendVoiceMessage(recordingDuration);
             } else {
                 showNotification('Сообщение слишком короткое', 'warning');
+            }
+        }
+
+        // Отправка голосового сообщения
+        async function sendVoiceMessage(duration) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        toUserId: currentChat.id,
+                        type: 'voice',
+                        duration: `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Голосовое сообщение отправлено', 'success');
+                    loadChatMessages(currentChat.id);
+                } else {
+                    showNotification('Ошибка отправки голосового сообщения', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка отправки голосового сообщения:', error);
+                showNotification('Ошибка отправки голосового сообщения', 'error');
             }
         }
 
@@ -3475,7 +3518,7 @@
         }
 
         // Отправка файлового сообщения
-        function sendFileMessage() {
+        async function sendFileMessage() {
             const modalFileInput = document.getElementById('modalFileInput');
             if (!modalFileInput || !modalFileInput.files.length || !currentChat) {
                 showNotification('Выберите файл для отправки', 'warning');
@@ -3484,30 +3527,38 @@
             
             const file = modalFileInput.files[0];
             
-            // Создаем файловое сообщение
-            const newMessage = {
-                id: Date.now(),
-                senderId: currentUser.id,
-                type: 'file',
-                fileName: file.name,
-                fileType: file.type,
-                fileUrl: URL.createObjectURL(file), // В реальном приложении здесь был бы URL с сервера
-                timestamp: new Date()
-            };
-            
-            // Добавляем в историю сообщений
-            if (!messages[currentChat.id]) {
-                messages[currentChat.id] = [];
+            try {
+                const token = localStorage.getItem('authToken');
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('toUserId', currentChat.id);
+                formData.append('type', 'file');
+                
+                const response = await fetch('/api/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Закрываем модальное окно
+                    closeModal();
+                    
+                    // Перезагружаем сообщения
+                    loadChatMessages(currentChat.id);
+                    
+                    showNotification('Файл отправлен', 'success');
+                } else {
+                    showNotification('Ошибка отправки файла: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка отправки файла:', error);
+                showNotification('Ошибка отправки файла', 'error');
             }
-            messages[currentChat.id].push(newMessage);
-            
-            // Обновляем интерфейс
-            renderChatMessages(messages[currentChat.id]);
-            
-            // Закрываем модальное окно
-            closeModal();
-            
-            showNotification('Файл отправлен', 'success');
         }
 
         // Показать модальное окно покупки E-COIN
@@ -3680,9 +3731,6 @@
                 showNotification(`Запрос в друзья отправлен пользователю ${user.displayName}`, 'success');
             }
         };
-
-        // Инициализация при загрузке
-        updateThemePreviews();
     </script>
 </body>
 </html>
