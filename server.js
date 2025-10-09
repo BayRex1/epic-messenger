@@ -471,7 +471,20 @@ class SimpleServer {
         return {
             success: true,
             token: user.id,
-            user: user
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt
+            }
         };
     }
 
@@ -539,7 +552,21 @@ class SimpleServer {
             message: isBayRex ? 
                 'Аккаунт BayRex создан! Вы получили права администратора!' :
                 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
-            user: newUser
+            token: newUser.id,
+            user: {
+                id: newUser.id,
+                username: newUser.username,
+                displayName: newUser.displayName,
+                email: newUser.email,
+                avatar: newUser.avatar,
+                description: newUser.description,
+                coins: newUser.coins,
+                verified: newUser.verified,
+                isDeveloper: newUser.isDeveloper,
+                status: newUser.status,
+                lastSeen: newUser.lastSeen,
+                createdAt: newUser.createdAt
+            }
         };
     }
 
@@ -551,7 +578,20 @@ class SimpleServer {
 
         return {
             authenticated: true,
-            user: user
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt
+            }
         };
     }
 
@@ -563,7 +603,20 @@ class SimpleServer {
 
         return {
             success: true,
-            user: user
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt
+            }
         };
     }
 
@@ -573,7 +626,20 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const otherUsers = this.users.filter(u => u.id !== user.id);
+        const otherUsers = this.users.filter(u => u.id !== user.id).map(u => ({
+            id: u.id,
+            username: u.username,
+            displayName: u.displayName,
+            avatar: u.avatar,
+            description: u.description,
+            coins: u.coins,
+            verified: u.verified,
+            isDeveloper: u.isDeveloper,
+            status: u.status,
+            lastSeen: u.lastSeen,
+            createdAt: u.createdAt
+        }));
+
         return {
             success: true,
             users: otherUsers
@@ -593,7 +659,19 @@ class SimpleServer {
 
         return {
             success: true,
-            user: targetUser
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                description: targetUser.description,
+                coins: targetUser.coins,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status,
+                lastSeen: targetUser.lastSeen,
+                createdAt: targetUser.createdAt
+            }
         };
     }
 
@@ -750,7 +828,13 @@ class SimpleServer {
 
         return {
             success: true,
-            post: post
+            post: {
+                ...post,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified,
+                userDeveloper: user.isDeveloper
+            }
         };
     }
 
@@ -927,7 +1011,20 @@ class SimpleServer {
 
         return {
             success: true,
-            user: user
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt
+            }
         };
     }
 
