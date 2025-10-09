@@ -166,63 +166,43 @@ class SimpleServer {
     }
 
     initializeData() {
-        // Убираем предсозданного пользователя - теперь только при регистрации
         this.users = [];
 
-        // Тестовые подарки
+        // Базовые подарки
         this.gifts = [
             {
                 id: '1',
                 name: 'Золотая корона',
                 type: 'crown',
                 preview: '👑',
-                price: 500
+                price: 500,
+                image: null
             },
             {
                 id: '2',
                 name: 'Сердечко',
                 type: 'heart',
                 preview: '❤️',
-                price: 100
+                price: 100,
+                image: null
             },
             {
                 id: '3',
                 name: 'Звезда',
                 type: 'star',
                 preview: '⭐',
-                price: 200
-            },
-            {
-                id: '4',
-                name: 'Картинка',
-                type: 'image',
-                preview: '🖼️',
-                price: 300
-            },
-            {
-                id: '5',
-                name: 'Гифка',
-                type: 'gif',
-                preview: '🎆',
-                price: 400
+                price: 200,
+                image: null
             }
         ];
 
-        // Тестовые промокоды
+        // Промокоды
         this.promoCodes = [
             {
                 id: '1',
                 code: 'WELCOME1000',
                 coins: 1000,
                 max_uses: 0,
-                used_count: 0,
-                created_at: new Date()
-            },
-            {
-                id: '2',
-                code: 'EPIC2024',
-                coins: 2000,
-                max_uses: 50,
                 used_count: 0,
                 created_at: new Date()
             }
@@ -233,7 +213,7 @@ class SimpleServer {
             {
                 id: '1',
                 userId: 'system',
-                text: 'Добро пожаловать в Epic Messenger! 🚀\n\nЭто современная платформа для общения с уникальными возможностями:\n\n• Мгновенные сообщения\n• Система подарков и E-COIN\n• Лента постов\n• Админ панель для управления\n\nПрисоединяйтесь к нашему сообществу! 💬',
+                text: 'Добро пожаловать в Epic Messenger! 🚀',
                 image: null,
                 likes: [],
                 comments: [],
@@ -242,7 +222,6 @@ class SimpleServer {
             }
         ];
 
-        // Начальные сообщения
         this.messages = [];
     }
 
@@ -293,7 +272,6 @@ class SimpleServer {
                 try {
                     data = JSON.parse(body);
                 } catch (e) {
-                    // Если не JSON, пробуем как FormData
                     const params = new URLSearchParams(body);
                     data = Object.fromEntries(params);
                 }
@@ -311,14 +289,12 @@ class SimpleServer {
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
         };
 
-        // CORS preflight
         if (method === 'OPTIONS') {
             res.writeHead(204, headers);
             res.end();
             return;
         }
 
-        // Получение токена из заголовков
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
@@ -379,6 +355,8 @@ class SimpleServer {
                 case '/api/gifts':
                     if (method === 'GET') {
                         response = this.handleGetGifts(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreateGift(token, data);
                     }
                     break;
                     
@@ -400,6 +378,12 @@ class SimpleServer {
                     }
                     break;
 
+                case '/api/update-avatar':
+                    if (method === 'POST') {
+                        response = this.handleUpdateAvatar(token, data);
+                    }
+                    break;
+
                 case '/api/admin/stats':
                     if (method === 'GET') {
                         response = this.handleAdminStats(token);
@@ -409,6 +393,30 @@ class SimpleServer {
                 case '/api/admin/delete-user':
                     if (method === 'POST') {
                         response = this.handleDeleteUser(token, data);
+                    }
+                    break;
+
+                case '/api/admin/ban-user':
+                    if (method === 'POST') {
+                        response = this.handleBanUser(token, data);
+                    }
+                    break;
+
+                case '/api/admin/toggle-verification':
+                    if (method === 'POST') {
+                        response = this.handleToggleVerification(token, data);
+                    }
+                    break;
+
+                case '/api/admin/toggle-developer':
+                    if (method === 'POST') {
+                        response = this.handleToggleDeveloper(token, data);
+                    }
+                    break;
+
+                case '/api/emoji':
+                    if (method === 'GET') {
+                        response = this.handleGetEmoji(token);
                     }
                     break;
                     
@@ -464,7 +472,10 @@ class SimpleServer {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
-        // Обновляем статус пользователя
+        if (user.banned) {
+            return { success: false, message: 'Аккаунт заблокирован' };
+        }
+
         user.status = 'online';
         user.lastSeen = new Date();
 
@@ -486,7 +497,8 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
             }
         };
     }
@@ -494,7 +506,6 @@ class SimpleServer {
     handleRegister(data) {
         const { username, displayName, email, password } = data;
 
-        // Валидация
         if (!username || !displayName || !email || !password) {
             return { success: false, message: 'Все поля обязательны для заполнения' };
         }
@@ -507,7 +518,6 @@ class SimpleServer {
             return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
         }
 
-        // Проверяем, существует ли пользователь
         const existingUser = this.users.find(u => u.username === username);
         if (existingUser) {
             return { success: false, message: 'Пользователь с таким именем уже существует' };
@@ -518,11 +528,9 @@ class SimpleServer {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
 
-        // ПРОВЕРКА НА BayRex - даем особые права
         const isBayRex = username.toLowerCase() === 'bayrex';
         console.log(`🔍 Регистрация пользователя: ${username}, isBayRex: ${isBayRex}`);
         
-        // Создаем нового пользователя
         const newUser = {
             id: this.generateId(),
             username: username,
@@ -531,26 +539,24 @@ class SimpleServer {
             password: password,
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
-            coins: isBayRex ? 50000 : 1000, // BayRex получает 50к монет
-            verified: isBayRex, // BayRex сразу верифицирован
-            isDeveloper: isBayRex, // BayRex получает права разработчика
+            coins: isBayRex ? 50000 : 1000,
+            verified: isBayRex,
+            isDeveloper: isBayRex,
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
             gifts: [],
-            isProtected: isBayRex, // BayRex защищен от удаления
+            isProtected: isBayRex,
             friendsCount: 0,
             postsCount: 0,
-            giftsCount: 0
+            giftsCount: 0,
+            banned: false
         };
 
         this.users.push(newUser);
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
-            console.log(`✅ verified: ${newUser.verified}, isDeveloper: ${newUser.isDeveloper}`);
-        } else {
-            console.log(`✅ Новый пользователь зарегистрирован: ${username} (${displayName})`);
         }
 
         return {
@@ -574,7 +580,8 @@ class SimpleServer {
                 createdAt: newUser.createdAt,
                 friendsCount: newUser.friendsCount,
                 postsCount: newUser.postsCount,
-                giftsCount: newUser.giftsCount
+                giftsCount: newUser.giftsCount,
+                banned: newUser.banned
             }
         };
     }
@@ -602,7 +609,8 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
             }
         };
     }
@@ -630,7 +638,8 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
             }
         };
     }
@@ -655,7 +664,8 @@ class SimpleServer {
             createdAt: u.createdAt,
             friendsCount: u.friendsCount || 0,
             postsCount: u.postsCount || 0,
-            giftsCount: u.giftsCount || 0
+            giftsCount: u.giftsCount || 0,
+            banned: u.banned || false
         }));
 
         return {
@@ -691,7 +701,8 @@ class SimpleServer {
                 createdAt: targetUser.createdAt,
                 friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
-                giftsCount: targetUser.giftsCount || 0
+                giftsCount: targetUser.giftsCount || 0,
+                banned: targetUser.banned || false
             }
         };
     }
@@ -704,23 +715,19 @@ class SimpleServer {
 
         const { userId } = data;
         
-        // Проверяем, существует ли пользователь
         const targetUser = this.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        // Защита от удаления BayRex и защищенных пользователей
         if (targetUser.isProtected) {
             return { success: false, message: 'Нельзя удалить защищенного пользователя' };
         }
 
-        // Нельзя удалить самого себя
         if (targetUser.id === user.id) {
             return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
         }
 
-        // Удаляем пользователя
         this.users = this.users.filter(u => u.id !== userId);
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
@@ -728,6 +735,81 @@ class SimpleServer {
         return {
             success: true,
             message: `Пользователь ${targetUser.username} успешно удален`
+        };
+    }
+
+    handleBanUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId, banned } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
+        }
+
+        targetUser.banned = banned;
+
+        console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${banned ? 'заблокирован' : 'разблокирован'}`
+        };
+    }
+
+    handleToggleVerification(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.verified = !targetUser.verified;
+
+        console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
+            verified: targetUser.verified
+        };
+    }
+
+    handleToggleDeveloper(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.isDeveloper = !targetUser.isDeveloper;
+
+        console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
+            isDeveloper: targetUser.isDeveloper
         };
     }
 
@@ -743,7 +825,6 @@ class SimpleServer {
             (msg.senderId === toUserId && msg.toUserId === userId)
         );
 
-        // Сортируем сообщения по времени
         chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         return {
@@ -811,7 +892,6 @@ class SimpleServer {
             };
         });
 
-        // Сортируем по дате (новые сначала)
         postsWithUserInfo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         return {
@@ -836,14 +916,15 @@ class SimpleServer {
             id: this.generateId(),
             userId: user.id,
             text: text.trim(),
-            image: null, // Пока без изображений
+            image: null,
             likes: [],
             comments: [],
             views: 0,
             createdAt: new Date()
         };
 
-        this.posts.unshift(post); // Добавляем в начало
+        this.posts.unshift(post);
+        user.postsCount = (user.postsCount || 0) + 1;
 
         console.log(`📝 Новый пост от ${user.displayName}`);
 
@@ -897,6 +978,38 @@ class SimpleServer {
         };
     }
 
+    handleCreateGift(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { name, price, type, image } = data;
+        
+        if (!name || !price) {
+            return { success: false, message: 'Название и цена обязательны' };
+        }
+
+        const gift = {
+            id: this.generateId(),
+            name: name,
+            type: type || 'custom',
+            preview: image ? '🖼️' : '🎁',
+            price: parseInt(price),
+            image: image,
+            createdAt: new Date()
+        };
+
+        this.gifts.push(gift);
+
+        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${name}`);
+
+        return {
+            success: true,
+            gift: gift
+        };
+    }
+
     handleBuyGift(token, giftId, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -912,10 +1025,8 @@ class SimpleServer {
             return { success: false, message: 'Недостаточно E-COIN' };
         }
 
-        // Списываем деньги
         user.coins -= gift.price;
 
-        // Добавляем подарок пользователю
         if (!user.gifts) {
             user.gifts = [];
         }
@@ -930,8 +1041,8 @@ class SimpleServer {
         };
 
         user.gifts.push(userGift);
+        user.giftsCount = (user.giftsCount || 0) + 1;
 
-        // Если подарок отправлен другому пользователю
         if (data.toUserId) {
             const toUser = this.users.find(u => u.id === data.toUserId);
             if (toUser) {
@@ -942,8 +1053,8 @@ class SimpleServer {
                     ...userGift,
                     fromUserId: user.id
                 });
+                toUser.giftsCount = (toUser.giftsCount || 0) + 1;
 
-                // Создаем сообщение о подарке
                 const giftMessage = {
                     id: this.generateId(),
                     senderId: user.id,
@@ -999,7 +1110,6 @@ class SimpleServer {
             return { success: false, message: 'Промокод уже использован максимальное количество раз' };
         }
 
-        // Начисляем монеты
         user.coins += promoCode.coins;
         promoCode.used_count++;
 
@@ -1018,7 +1128,7 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { displayName, description } = data;
+        const { displayName, description, username, email } = data;
 
         if (displayName && displayName.trim()) {
             user.displayName = displayName.trim();
@@ -1026,6 +1136,22 @@ class SimpleServer {
 
         if (description !== undefined) {
             user.description = description;
+        }
+
+        if (username && username.trim() && username !== user.username) {
+            const existingUser = this.users.find(u => u.username === username && u.id !== user.id);
+            if (existingUser) {
+                return { success: false, message: 'Имя пользователя уже занято' };
+            }
+            user.username = username.trim();
+        }
+
+        if (email && email.trim() && email !== user.email) {
+            const existingEmail = this.users.find(u => u.email === email && u.id !== user.id);
+            if (existingEmail) {
+                return { success: false, message: 'Email уже используется' };
+            }
+            user.email = email.trim();
         }
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
@@ -1047,9 +1173,73 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
             }
         };
+    }
+
+    handleUpdateAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { avatar } = data;
+
+        user.avatar = avatar;
+
+        console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
+    }
+
+    handleGetEmoji(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        try {
+            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
+            const files = fs.readdirSync(emojiPath);
+            const emojiList = files.filter(file => 
+                file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
+            ).map(file => ({
+                name: file,
+                url: `/assets/emoji/${file}`
+            }));
+
+            return {
+                success: true,
+                emoji: emojiList
+            };
+        } catch (error) {
+            return {
+                success: true,
+                emoji: []
+            };
+        }
     }
 
     handleAdminStats(token) {
@@ -1065,7 +1255,8 @@ class SimpleServer {
                 totalMessages: this.messages.length,
                 totalPosts: this.posts.length,
                 totalGifts: this.gifts.length,
-                totalPromoCodes: this.promoCodes.length
+                totalPromoCodes: this.promoCodes.length,
+                onlineUsers: this.users.filter(u => u.status === 'online').length
             }
         };
     }
@@ -1076,12 +1267,11 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Временные данные для демо
         const transactions = [
             {
                 description: 'Регистрация бонус',
                 date: user.createdAt,
-                amount: user.coins >= 50000 ? 50000 : 1000 // BayRex получает 50к, остальные 1к
+                amount: user.coins >= 50000 ? 50000 : 1000
             }
         ];
 
@@ -1098,13 +1288,11 @@ class SimpleServer {
 
             console.log(`${new Date().toISOString()} - ${req.method} ${pathname}`);
 
-            // API routes
             if (pathname.startsWith('/api/')) {
                 this.handleApiRequest(req, res);
                 return;
             }
 
-            // Static files
             if (pathname === '/' || pathname === '/index.html') {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/login.html') {
@@ -1126,38 +1314,22 @@ class SimpleServer {
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
             } else {
-                // Serve main.html for any other route (SPA)
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             }
         });
 
-        // Initialize WebSocket server
         const wsServer = new WebSocketServer(server);
 
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Приложение готово к работе`);
-            console.log(`🔐 Доступные endpoints:`);
-            console.log(`   - GET  /api/check-auth - Проверка авторизации`);
-            console.log(`   - POST /api/login - Вход в систему`);
-            console.log(`   - POST /api/register - Регистрация`);
-            console.log(`   - GET  /api/users - Список пользователей`);
-            console.log(`   - GET  /api/posts - Лента постов`);
-            console.log(`   - POST /api/posts - Создание поста`);
-            console.log(`   - GET  /api/gifts - Магазин подарков`);
-            console.log(`   - POST /api/admin/delete-user - Удаление пользователя (только для админов)`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
-            console.log(`   • Полные права администратора`);
-            console.log(`   • Защищенный аккаунт`);
-            console.log(`   • Доступ к админ панели`);
-            console.log(`   • 50,000 E-COIN начального баланса`);
         });
 
         return server;
     }
 }
 
-// Запуск сервера
 const server = new SimpleServer();
 server.start(process.env.PORT || 3000);
