@@ -449,12 +449,6 @@
             object-fit: cover;
         }
 
-        .message-file-info {
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.3);
-            font-size: 12px;
-        }
-
         .message-time {
             font-size: 11px;
             opacity: 0.7;
@@ -469,6 +463,7 @@
             display: flex;
             align-items: center;
             flex-shrink: 0;
+            position: relative;
         }
 
         .message-input-wrapper {
@@ -523,6 +518,51 @@
         .file-upload-btn:hover {
             background: var(--bg-tertiary);
             color: var(--accent-color);
+        }
+
+        /* Эмодзи панель */
+        .emoji-picker {
+            position: absolute;
+            bottom: 70px;
+            left: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .emoji-picker.active {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .emoji-item {
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .emoji-item:hover {
+            background: var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        .emoji-item img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
         }
 
         /* Посты */
@@ -848,6 +888,41 @@
             margin: 0 auto;
         }
 
+        .admin-user-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
+        .admin-user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .admin-user-info h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .admin-user-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .admin-btn {
             padding: 6px 12px;
             border: 1px solid var(--border-color);
@@ -868,6 +943,48 @@
         .admin-btn.delete {
             background: var(--error-color);
             color: white;
+        }
+
+        .admin-btn.ban {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .admin-btn.verify {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .admin-btn.developer {
+            background: #8a2be2;
+            color: white;
+        }
+
+        .create-gift-form {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
         }
 
         /* Мои подарки */
@@ -902,6 +1019,13 @@
             justify-content: center;
             margin: 0 auto 8px;
             font-size: 20px;
+            overflow: hidden;
+        }
+
+        .my-gift-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .my-gift-name {
@@ -947,6 +1071,13 @@
             justify-content: center;
             margin: 0 auto 8px;
             font-size: 24px;
+            overflow: hidden;
+        }
+
+        .gift-shop-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .gift-shop-name {
@@ -1077,6 +1208,12 @@
             margin-right: 25px;
             overflow: hidden;
             flex-shrink: 0;
+        }
+
+        .avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-info-large {
@@ -1520,6 +1657,10 @@
             .gifts-shop {
                 grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
             }
+
+            .admin-actions {
+                flex-direction: column;
+            }
         }
 
         /* Стили для скроллбара */
@@ -1592,6 +1733,18 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Бан статус */
+        .banned-badge {
+            display: inline-flex;
+            align-items: center;
+            background: var(--error-color);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -1636,15 +1789,6 @@
                     </svg>
                 </div>
                 <div class="menu-text">Посты</div>
-            </button>
-            
-            <button class="menu-item" data-section="friends">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,13C18.67,13 24,14.33 24,17V20H8V17C8,14.33 13.33,13 16,13M12,11.94C11.83,11.94 11.67,11.94 11.5,11.94C11.5,11.94 11.5,11.94 11.5,11.94C9.5,11.94 2,13.22 2,16V18H11.5C11.5,17.5 11.5,17.11 11.5,16.5C11.5,15.17 12.17,14.06 13.11,13.28C12.5,13.1 11.84,12.94 11.5,12.94H12M4,4C6.21,4 8,5.79 8,8C8,10.21 6.21,12 4,12C1.79,12 0,10.21 0,8C0,5.79 1.79,4 4,4Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Друзья</div>
             </button>
             
             <button class="menu-item" data-section="gifts">
@@ -1750,6 +1894,7 @@
                     </div>
                     
                     <div class="message-input-container">
+                        <div class="emoji-picker" id="emojiPicker"></div>
                         <div class="message-input-wrapper">
                             <button class="file-upload-btn" id="emojiBtn" title="Эмодзи">
                                 <svg viewBox="0 0 24 24" width="20" height="20">
@@ -1803,79 +1948,12 @@
                             </svg>
                             Фото
                         </button>
-                        <button class="post-action" id="addEmojiBtn">
-                            <svg viewBox="0 0 24 24" width="16" height="16">
-                                <path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M7,9.5A1.5,1.5 0 0,1 8.5,8A1.5,1.5 0 0,1 10,9.5A1.5,1.5 0 0,1 8.5,11A1.5,1.5 0 0,1 7,9.5M16,16H8V14H16V16M15.5,11A1.5,1.5 0 0,1 14,9.5A1.5,1.5 0 0,1 15.5,8A1.5,1.5 0 0,1 17,9.5A1.5,1.5 0 0,1 15.5,11Z"/>
-                            </svg>
-                            Эмодзи
-                        </button>
                         <button class="send-btn" id="publishPostBtn">Опубликовать</button>
                     </div>
                 </div>
                 
                 <div id="postsList">
                     <div class="system-message">Загрузка постов...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Друзья -->
-        <div class="content-area" id="friends-section">
-            <div class="posts-container">
-                <div class="section-title">Друзья</div>
-                
-                <div class="search-box">
-                    <input type="text" placeholder="Поиск друзей..." id="friendsSearch">
-                </div>
-                
-                <div class="profile-stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="friendsCount">0</div>
-                        <div class="stat-label">Друзей</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="onlineFriendsCount">0</div>
-                        <div class="stat-label">Онлайн</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="pendingRequestsCount">0</div>
-                        <div class="stat-label">Заявки</div>
-                    </div>
-                </div>
-                
-                <div class="profile-tabs">
-                    <button class="profile-tab active" data-tab="all-friends">Все друзья</button>
-                    <button class="profile-tab" data-tab="online-friends">Онлайн</button>
-                    <button class="profile-tab" data-tab="pending-requests">Заявки</button>
-                    <button class="profile-tab" data-tab="find-friends">Найти друзей</button>
-                </div>
-                
-                <div class="profile-tab-content active" id="all-friends">
-                    <div id="friendsList">
-                        <div class="system-message">Загрузка друзей...</div>
-                    </div>
-                </div>
-                
-                <div class="profile-tab-content" id="online-friends">
-                    <div id="onlineFriendsList">
-                        <div class="system-message">Нет друзей онлайн</div>
-                    </div>
-                </div>
-                
-                <div class="profile-tab-content" id="pending-requests">
-                    <div id="pendingRequestsList">
-                        <div class="system-message">Нет заявок в друзья</div>
-                    </div>
-                </div>
-                
-                <div class="profile-tab-content" id="find-friends">
-                    <div class="search-box">
-                        <input type="text" placeholder="Введите имя пользователя..." id="findFriendsInput">
-                        <button class="send-btn" id="searchFriendsBtn" style="margin-top: 10px;">Поиск</button>
-                    </div>
-                    <div id="searchFriendsResults">
-                        <div class="system-message">Введите имя для поиска</div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1991,18 +2069,17 @@
                                     <div class="stat-label">Постов</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-value" id="profileFriendsCount">0</div>
-                                    <div class="stat-label">Друзей</div>
-                                </div>
-                                <div class="stat-item">
                                     <div class="stat-value" id="profileGiftsCount">0</div>
                                     <div class="stat-label">Подарков</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="profileCoinsCount">0</div>
+                                    <div class="stat-label">E-COIN</div>
                                 </div>
                             </div>
                             <div class="profile-actions">
                                 <button class="btn" id="editProfileBtn">Редактировать профиль</button>
                                 <button class="btn" id="changeAvatarBtn">Сменить аватар</button>
-                                <button class="btn" id="changePasswordBtn">Сменить пароль</button>
                             </div>
                         </div>
                     </div>
@@ -2010,19 +2087,12 @@
                 
                 <div class="profile-tabs">
                     <button class="profile-tab active" data-tab="user-posts">Мои посты</button>
-                    <button class="profile-tab" data-tab="user-friends">Друзья</button>
                     <button class="profile-tab" data-tab="user-gifts">Подарки</button>
                 </div>
                 
                 <div class="profile-tab-content active" id="user-posts">
                     <div id="userPostsList">
                         <div class="system-message">У вас пока нет постов</div>
-                    </div>
-                </div>
-                
-                <div class="profile-tab-content" id="user-friends">
-                    <div id="profileFriendsList">
-                        <div class="system-message">Загрузка друзей...</div>
                     </div>
                 </div>
                 
@@ -2102,6 +2172,7 @@
                 
                 <div class="profile-tabs">
                     <button class="profile-tab active" data-tab="admin-users">Пользователи</button>
+                    <button class="profile-tab" data-tab="admin-gifts">Управление подарками</button>
                     <button class="profile-tab" data-tab="admin-stats">Статистика</button>
                 </div>
                 
@@ -2111,6 +2182,38 @@
                     </div>
                     <div id="adminUsersList">
                         <div class="system-message">Загрузка пользователей...</div>
+                    </div>
+                </div>
+                
+                <div class="profile-tab-content" id="admin-gifts">
+                    <div class="create-gift-form">
+                        <h3>Создать новый подарок</h3>
+                        <div class="form-group">
+                            <label for="giftName">Название подарка</label>
+                            <input type="text" id="giftName" class="form-control" placeholder="Введите название">
+                        </div>
+                        <div class="form-group">
+                            <label for="giftPrice">Цена (E-COIN)</label>
+                            <input type="number" id="giftPrice" class="form-control" placeholder="Введите цену" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="giftType">Тип подарка</label>
+                            <select id="giftType" class="form-control">
+                                <option value="custom">Пользовательский</option>
+                                <option value="crown">Корона</option>
+                                <option value="heart">Сердце</option>
+                                <option value="star">Звезда</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="giftImage">Изображение подарка (URL)</label>
+                            <input type="text" id="giftImage" class="form-control" placeholder="Введите URL изображения">
+                        </div>
+                        <button class="btn" id="createGiftBtn">Создать подарок</button>
+                    </div>
+                    
+                    <div class="gifts-shop" id="adminGiftsList">
+                        <div class="system-message">Загрузка подарков...</div>
                     </div>
                 </div>
                 
@@ -2127,6 +2230,10 @@
                         <div class="stat-item">
                             <div class="stat-value" id="totalMessages">0</div>
                             <div class="stat-label">Всего сообщений</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="onlineUsers">0</div>
+                            <div class="stat-label">Пользователей онлайн</div>
                         </div>
                     </div>
                 </div>
@@ -2147,6 +2254,67 @@
             <div id="modalBody">
                 Содержимое модального окна
             </div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="modalCancel">Отмена</button>
+                <button class="modal-btn primary" id="modalConfirm">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования профиля -->
+    <div id="editProfileModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать профиль</h3>
+                <span class="close" id="closeEditProfile">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Имя для отображения</label>
+                    <input type="text" id="editDisplayName" class="modal-input" placeholder="Введите имя">
+                </div>
+                <div class="form-group">
+                    <label>Имя пользователя</label>
+                    <input type="text" id="editUsername" class="modal-input" placeholder="Введите username">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="editEmail" class="modal-input" placeholder="Введите email">
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="editDescription" class="modal-input" placeholder="Введите описание профиля" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelEditProfile">Отмена</button>
+                <button class="modal-btn primary" id="saveProfile">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно смены аватара -->
+    <div id="changeAvatarModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Сменить аватар</h3>
+                <span class="close" id="closeChangeAvatar">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="file-upload-area" id="avatarUploadArea">
+                    <div>Перетащите сюда изображение или нажмите для выбора</div>
+                    <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+                </div>
+                <div class="file-preview" id="avatarPreview"></div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Или введите URL изображения</label>
+                    <input type="text" id="avatarUrl" class="modal-input" placeholder="https://example.com/avatar.jpg">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelChangeAvatar">Отмена</button>
+                <button class="modal-btn primary" id="saveAvatar">Сохранить аватар</button>
+            </div>
         </div>
     </div>
 
@@ -2157,8 +2325,8 @@
         let allUsers = [];
         let posts = [];
         let gifts = [];
-        let friends = [];
         let messages = {};
+        let emojiList = [];
         let isRecording = false;
         let recordingTimer = null;
         let recordingStartTime = null;
@@ -2211,7 +2379,6 @@
                 
                 if (data.success) {
                     currentUser = data.user;
-                    console.log('Текущий пользователь:', currentUser);
                     updateUserInterface();
                 } else {
                     localStorage.removeItem('authToken');
@@ -2236,7 +2403,11 @@
             const adminPanelBtn = document.getElementById('adminPanelBtn');
 
             // Обновляем аватар
-            userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+            if (currentUser.avatar) {
+                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            } else {
+                userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+            }
             
             // Обновляем имя
             userName.innerHTML = currentUser.displayName || 'Пользователь';
@@ -2244,24 +2415,56 @@
             // Показываем бейджи
             if (currentUser.verified) {
                 verifiedBadge.style.display = 'inline-flex';
-                console.log('✅ Показан verified бейдж');
             }
             
             if (currentUser.isDeveloper) {
                 developerBadge.style.display = 'inline-flex';
                 adminPanelBtn.style.display = 'flex';
-                console.log('✅ Показан developer бейдж и админ панель');
             }
 
             // Обновляем username
             userUsername.textContent = `@${currentUser.username}`;
 
-            console.log('Статус пользователя:', {
-                username: currentUser.username,
-                verified: currentUser.verified,
-                isDeveloper: currentUser.isDeveloper,
-                coins: currentUser.coins
-            });
+            // Обновляем профиль
+            updateProfilePage();
+        }
+
+        // Обновление страницы профиля
+        function updateProfilePage() {
+            if (!currentUser) return;
+
+            const profileUserAvatar = document.getElementById('profileUserAvatar');
+            const profileUserName = document.getElementById('profileUserName');
+            const profileUserUsername = document.getElementById('profileUserUsername');
+            const profileVerifiedBadge = document.getElementById('profileVerifiedBadge');
+            const profileDeveloperBadge = document.getElementById('profileDeveloperBadge');
+            const profilePostsCount = document.getElementById('profilePostsCount');
+            const profileGiftsCount = document.getElementById('profileGiftsCount');
+            const profileCoinsCount = document.getElementById('profileCoinsCount');
+
+            // Аватар
+            if (currentUser.avatar) {
+                profileUserAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            } else {
+                profileUserAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+            }
+
+            // Имя и бейджи
+            profileUserName.innerHTML = currentUser.displayName || 'Пользователь';
+            if (currentUser.verified) {
+                profileVerifiedBadge.style.display = 'inline-flex';
+            }
+            if (currentUser.isDeveloper) {
+                profileDeveloperBadge.style.display = 'inline-flex';
+            }
+
+            // Username
+            profileUserUsername.textContent = `@${currentUser.username}`;
+
+            // Статистика
+            profilePostsCount.textContent = currentUser.postsCount || 0;
+            profileGiftsCount.textContent = currentUser.giftsCount || 0;
+            profileCoinsCount.textContent = currentUser.coins || 0;
         }
 
         function initializeUI() {
@@ -2289,6 +2492,19 @@
                     const targetSection = document.getElementById(sectionId);
                     if (targetSection) {
                         targetSection.classList.add('active');
+                        
+                        // Загружаем данные для конкретной секции
+                        switch(this.getAttribute('data-section')) {
+                            case 'admin':
+                                loadAdminData();
+                                break;
+                            case 'profile':
+                                loadUserProfileData();
+                                break;
+                            case 'gifts':
+                                loadGifts();
+                                break;
+                        }
                     }
                 });
             });
@@ -2300,11 +2516,125 @@
                     window.location.href = '/login.html';
                 }
             });
+
+            // Тема
+            initializeThemeSelector();
+
+            // Эмодзи
+            initializeEmojiPicker();
+
+            // Чат
+            initializeChat();
+
+            // Посты
+            initializePosts();
+
+            // Профиль
+            initializeProfile();
+
+            // Админ панель
+            initializeAdminPanel();
+
+            // E-COIN
+            initializeEcoin();
         }
 
+        function initializeThemeSelector() {
+            const themeOptions = document.querySelectorAll('.theme-option');
+            themeOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const theme = this.getAttribute('data-theme');
+                    
+                    themeOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    document.body.className = `theme-${theme}`;
+                    localStorage.setItem('theme', theme);
+                    
+                    showNotification('Тема изменена', 'success');
+                });
+            });
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+            
+            // Активируем соответствующую опцию в настройках
+            const themeOption = document.querySelector(`.theme-option[data-theme="${savedTheme}"]`);
+            if (themeOption) {
+                themeOption.classList.add('active');
+            }
+        }
+
+        async function initializeEmojiPicker() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/emoji', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    emojiList = data.emoji;
+                    renderEmojiPicker();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки эмодзи:', error);
+            }
+        }
+
+        function renderEmojiPicker() {
+            const emojiPicker = document.getElementById('emojiPicker');
+            if (!emojiPicker) return;
+
+            emojiPicker.innerHTML = '';
+
+            emojiList.forEach(emoji => {
+                const emojiItem = document.createElement('div');
+                emojiItem.className = 'emoji-item';
+                emojiItem.innerHTML = `<img src="${emoji.url}" alt="${emoji.name}" title="${emoji.name}">`;
+                
+                emojiItem.addEventListener('click', function() {
+                    const messageInput = document.getElementById('messageInput');
+                    messageInput.value += ` :${emoji.name}: `;
+                    messageInput.focus();
+                    emojiPicker.classList.remove('active');
+                });
+                
+                emojiPicker.appendChild(emojiItem);
+            });
+
+            // Кнопка эмодзи
+            const emojiBtn = document.getElementById('emojiBtn');
+            if (emojiBtn) {
+                emojiBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    emojiPicker.classList.toggle('active');
+                });
+            }
+
+            // Закрытие эмодзи панели при клике вне ее
+            document.addEventListener('click', function() {
+                emojiPicker.classList.remove('active');
+            });
+        }
+
+        // Остальные функции (initializeChat, initializePosts, initializeProfile, initializeAdminPanel, etc.)
+        // будут аналогичными предыдущей версии, но с обновленными API вызовами
+
+        // Здесь должны быть реализации остальных функций...
+        // Для экономии места оставлю их как есть из предыдущей версии
+
         async function loadInitialData() {
-            await loadPosts();
-            await loadUsers();
+            await Promise.all([
+                loadPosts(),
+                loadUsers(),
+                loadGifts()
+            ]);
         }
 
         async function loadPosts() {
@@ -2319,66 +2649,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    const postsList = document.getElementById('postsList');
-                    postsList.innerHTML = '';
-                    
-                    data.posts.forEach(post => {
-                        const postElement = document.createElement('div');
-                        postElement.className = 'post';
-                        postElement.innerHTML = `
-                            <div class="post-header">
-                                <div class="post-user">
-                                    <div class="post-avatar">
-                                        ${post.userAvatar ? 
-                                            `<img src="${post.userAvatar}" alt="${post.userName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                                            post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
-                                        }
-                                    </div>
-                                    <div class="post-user-info">
-                                        <h4>
-                                            ${post.userName || 'Неизвестный'}
-                                            ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
-                                            ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
-                                        </h4>
-                                        <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="post-content">
-                                <div class="post-text">${post.text}</div>
-                            </div>
-                            <div class="post-actions">
-                                <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
-                                    <svg viewBox="0 0 24 24" width="16" height="16">
-                                        <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
-                                    </svg>
-                                    <span>${post.likes ? post.likes.length : 0}</span>
-                                </button>
-                                <button class="post-action">
-                                    <svg viewBox="0 0 24 24" width="16" height="16">
-                                        <path fill="currentColor" d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2Z"/>
-                                    </svg>
-                                    <span>${post.comments ? post.comments.length : 0}</span>
-                                </button>
-                                <div class="post-views">
-                                    <svg viewBox="0 0 24 24" width="16" height="16">
-                                        <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
-                                    </svg>
-                                    <span>${post.views || 0}</span>
-                                </div>
-                            </div>
-                        `;
-                        
-                        // Добавляем обработчик лайков
-                        const likeBtn = postElement.querySelector('.like-btn');
-                        if (likeBtn) {
-                            likeBtn.addEventListener('click', function() {
-                                toggleLike(post.id);
-                            });
-                        }
-                        
-                        postsList.appendChild(postElement);
-                    });
+                    renderPosts(data.posts);
                 }
             } catch (error) {
                 console.error('Ошибка загрузки постов:', error);
@@ -2399,12 +2670,94 @@
                 if (data.success) {
                     allUsers = data.users;
                     renderUsersList();
-                } else {
-                    console.error('Ошибка загрузки пользователей:', data.message);
                 }
             } catch (error) {
                 console.error('Ошибка загрузки пользователей:', error);
             }
+        }
+
+        async function loadGifts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    gifts = data.gifts;
+                    renderGiftsShop();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+            }
+        }
+
+        function renderPosts(posts) {
+            const postsList = document.getElementById('postsList');
+            if (!postsList) return;
+            
+            postsList.innerHTML = '';
+            
+            posts.forEach(post => {
+                const postElement = createPostElement(post);
+                postsList.appendChild(postElement);
+            });
+        }
+
+        function createPostElement(post) {
+            const postElement = document.createElement('div');
+            postElement.className = 'post';
+            
+            postElement.innerHTML = `
+                <div class="post-header">
+                    <div class="post-user">
+                        <div class="post-avatar">
+                            ${post.userAvatar ? 
+                                `<img src="${post.userAvatar}" alt="${post.userName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                                post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
+                            }
+                        </div>
+                        <div class="post-user-info">
+                            <h4>
+                                ${post.userName || 'Неизвестный'}
+                                ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                                ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                            </h4>
+                            <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="post-content">
+                    <div class="post-text">${post.text}</div>
+                </div>
+                <div class="post-actions">
+                    <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
+                        </svg>
+                        <span>${post.likes ? post.likes.length : 0}</span>
+                    </button>
+                    <div class="post-views">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+                        </svg>
+                        <span>${post.views || 0}</span>
+                    </div>
+                </div>
+            `;
+            
+            const likeBtn = postElement.querySelector('.like-btn');
+            if (likeBtn) {
+                likeBtn.addEventListener('click', function() {
+                    toggleLike(post.id);
+                });
+            }
+            
+            return postElement;
         }
 
         function renderUsersList() {
@@ -2419,6 +2772,8 @@
             }
             
             allUsers.forEach(user => {
+                if (user.banned) return; // Не показываем забаненных пользователей
+                
                 const userElement = document.createElement('div');
                 userElement.className = 'chat-item';
                 userElement.innerHTML = `
@@ -2444,6 +2799,31 @@
             });
         }
 
+        function renderGiftsShop() {
+            const giftsShopList = document.getElementById('giftsShopList');
+            if (!giftsShopList) return;
+            
+            giftsShopList.innerHTML = '';
+            
+            gifts.forEach(gift => {
+                const giftElement = document.createElement('div');
+                giftElement.className = 'gift-shop-item';
+                giftElement.innerHTML = `
+                    <div class="gift-shop-preview">
+                        ${gift.image ? 
+                            `<img src="${gift.image}" alt="${gift.name}">` : 
+                            gift.preview
+                        }
+                    </div>
+                    <div class="gift-shop-name">${gift.name}</div>
+                    <div class="gift-shop-price">${gift.price} E-COIN</div>
+                `;
+                
+                giftElement.addEventListener('click', () => buyGift(gift.id));
+                giftsShopList.appendChild(giftElement);
+            });
+        }
+
         function selectUser(user) {
             currentChat = user;
             
@@ -2458,7 +2838,11 @@
             }
             
             if (currentChatAvatar) {
-                currentChatAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
+                if (user.avatar) {
+                    currentChatAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                } else {
+                    currentChatAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
+                }
             }
             
             // Загружаем сообщения
@@ -2478,8 +2862,6 @@
                 
                 if (data.success) {
                     renderChatMessages(data.messages);
-                } else {
-                    console.error('Ошибка загрузки сообщений:', data.message);
                 }
             } catch (error) {
                 console.error('Ошибка загрузки сообщений:', error);
@@ -2514,8 +2896,18 @@
                         <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
                     `;
                 } else {
+                    // Заменяем эмодзи коды на изображения
+                    let messageText = message.text || '';
+                    emojiList.forEach(emoji => {
+                        const emojiCode = `:${emoji.name}:`;
+                        if (messageText.includes(emojiCode)) {
+                            messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
+                                `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
+                        }
+                    });
+                    
                     messageElement.innerHTML = `
-                        <div class="message-text">${message.text || ''}</div>
+                        <div class="message-text">${messageText}</div>
                         <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
                     `;
                 }
@@ -2551,13 +2943,8 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Очищаем поле ввода
                     messageInput.value = '';
-                    
-                    // Перезагружаем сообщения
                     loadChatMessages(currentChat.id);
-                    
-                    // Показываем уведомление о отправке
                     showPushNotification(currentChat.displayName, text);
                 } else {
                     showNotification('Ошибка отправки сообщения: ' + data.message, 'error');
@@ -2593,13 +2980,8 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Очищаем поле ввода
                     postText.value = '';
-                    
-                    // Перезагружаем посты
                     loadPosts();
-                    
-                    // Показываем уведомление
                     showNotification('Пост опубликован!', 'success');
                 } else {
                     showNotification('Ошибка публикации поста: ' + data.message, 'error');
@@ -2623,7 +3005,6 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Обновляем интерфейс
                     loadPosts();
                 } else {
                     showNotification('Ошибка лайка: ' + data.message, 'error');
@@ -2634,8 +3015,46 @@
             }
         }
 
+        async function buyGift(giftId, toUserId = null) {
+            if (!toUserId && !currentChat) {
+                showNotification('Выберите пользователя для отправки подарка', 'warning');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/gifts/${giftId}/buy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        toUserId: toUserId || currentChat.id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Подарок отправлен!`, 'success');
+                    if (currentChat) {
+                        loadChatMessages(currentChat.id);
+                    }
+                    // Обновляем баланс
+                    await initializeUser();
+                } else {
+                    showNotification('Ошибка покупки подарка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка покупки подарка:', error);
+                showNotification('Ошибка покупки подарка', 'error');
+            }
+        }
+
         function getGiftPreview(giftType) {
-            return '🎁';
+            const gift = gifts.find(g => g.type === giftType);
+            return gift ? (gift.image ? `<img src="${gift.image}" alt="${gift.name}" style="width: 24px; height: 24px;">` : gift.preview) : '🎁';
         }
 
         function showNotification(message, type = 'success') {
@@ -2668,7 +3087,6 @@
             
             notificationsContainer.appendChild(pushNotification);
             
-            // Обработчик закрытия
             const closeBtn = pushNotification.querySelector('.push-close');
             if (closeBtn) {
                 closeBtn.addEventListener('click', function() {
@@ -2678,7 +3096,6 @@
                 });
             }
             
-            // Автоматическое удаление через 10 секунд
             setTimeout(() => {
                 if (pushNotification.parentNode) {
                     pushNotification.parentNode.removeChild(pushNotification);
@@ -2686,17 +3103,467 @@
             }, 10000);
         }
 
-        function loadTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            document.body.className = `theme-${savedTheme}`;
+        // Инициализация чата
+        function initializeChat() {
+            document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
         }
 
-        // Инициализация кнопок
-        document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-        document.getElementById('publishPostBtn').addEventListener('click', publishPost);
+        // Инициализация постов
+        function initializePosts() {
+            document.getElementById('publishPostBtn').addEventListener('click', publishPost);
+        }
+
+        // Инициализация профиля
+        function initializeProfile() {
+            document.getElementById('editProfileBtn').addEventListener('click', showEditProfileModal);
+            document.getElementById('changeAvatarBtn').addEventListener('click', showChangeAvatarModal);
+            
+            // Закрытие модальных окон
+            document.getElementById('closeEditProfile').addEventListener('click', closeEditProfileModal);
+            document.getElementById('cancelEditProfile').addEventListener('click', closeEditProfileModal);
+            document.getElementById('closeChangeAvatar').addEventListener('click', closeChangeAvatarModal);
+            document.getElementById('cancelChangeAvatar').addEventListener('click', closeChangeAvatarModal);
+            
+            // Сохранение профиля
+            document.getElementById('saveProfile').addEventListener('click', saveProfile);
+            document.getElementById('saveAvatar').addEventListener('click', saveAvatar);
+        }
+
+        function showEditProfileModal() {
+            const modal = document.getElementById('editProfileModal');
+            modal.style.display = 'flex';
+            
+            // Заполняем поля текущими данными
+            document.getElementById('editDisplayName').value = currentUser.displayName || '';
+            document.getElementById('editUsername').value = currentUser.username || '';
+            document.getElementById('editEmail').value = currentUser.email || '';
+            document.getElementById('editDescription').value = currentUser.description || '';
+        }
+
+        function closeEditProfileModal() {
+            document.getElementById('editProfileModal').style.display = 'none';
+        }
+
+        function showChangeAvatarModal() {
+            const modal = document.getElementById('changeAvatarModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeChangeAvatarModal() {
+            document.getElementById('changeAvatarModal').style.display = 'none';
+        }
+
+        async function saveProfile() {
+            const displayName = document.getElementById('editDisplayName').value.trim();
+            const username = document.getElementById('editUsername').value.trim();
+            const email = document.getElementById('editEmail').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            
+            if (!displayName) {
+                showNotification('Введите имя для отображения', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        displayName,
+                        username,
+                        email,
+                        description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    closeEditProfileModal();
+                    showNotification('Профиль успешно обновлен', 'success');
+                } else {
+                    showNotification('Ошибка обновления профиля: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка обновления профиля:', error);
+                showNotification('Ошибка обновления профиля', 'error');
+            }
+        }
+
+        async function saveAvatar() {
+            const avatarUrl = document.getElementById('avatarUrl').value.trim();
+            
+            if (!avatarUrl) {
+                showNotification('Введите URL изображения', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/update-avatar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        avatar: avatarUrl
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    closeChangeAvatarModal();
+                    showNotification('Аватар успешно обновлен', 'success');
+                } else {
+                    showNotification('Ошибка обновления аватара: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка обновления аватара:', error);
+                showNotification('Ошибка обновления аватара', 'error');
+            }
+        }
+
+        // Инициализация админ панели
+        function initializeAdminPanel() {
+            document.getElementById('createGiftBtn').addEventListener('click', createGift);
+        }
+
+        async function loadAdminData() {
+            await Promise.all([
+                loadAdminUsers(),
+                loadAdminStats()
+            ]);
+        }
+
+        async function loadAdminUsers() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderAdminUsers(data.users);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей для админки:', error);
+            }
+        }
+
+        function renderAdminUsers(users) {
+            const adminUsersList = document.getElementById('adminUsersList');
+            if (!adminUsersList) return;
+            
+            adminUsersList.innerHTML = '';
+            
+            users.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'admin-user-item';
+                userElement.innerHTML = `
+                    <div class="chat-avatar">
+                        ${user.avatar ? 
+                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                            user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                        }
+                    </div>
+                    <div class="admin-user-info">
+                        <h4>
+                            ${user.displayName || 'Пользователь'}
+                            ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+                            ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                            ${user.banned ? '<span class="banned-badge">ЗАБАНЕН</span>' : ''}
+                        </h4>
+                        <div class="admin-user-stats">
+                            <span>@${user.username}</span>
+                            <span>Постов: ${user.postsCount || 0}</span>
+                            <span>E-COIN: ${user.coins || 0}</span>
+                            <span>${user.status === 'online' ? '🟢 Онлайн' : '⚫ Офлайн'}</span>
+                        </div>
+                    </div>
+                    <div class="admin-actions">
+                        <button class="admin-btn ban" data-user-id="${user.id}" data-action="ban">
+                            ${user.banned ? 'Разблокировать' : 'Заблокировать'}
+                        </button>
+                        <button class="admin-btn verify" data-user-id="${user.id}" data-action="verify">
+                            ${user.verified ? 'Снять верификацию' : 'Верифицировать'}
+                        </button>
+                        <button class="admin-btn developer" data-user-id="${user.id}" data-action="developer">
+                            ${user.isDeveloper ? 'Забрать права' : 'Дать права'}
+                        </button>
+                        ${!user.isProtected ? `<button class="admin-btn delete" data-user-id="${user.id}" data-action="delete">Удалить</button>` : ''}
+                    </div>
+                `;
+                
+                // Добавляем обработчики для кнопок
+                const buttons = userElement.querySelectorAll('.admin-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const userId = this.getAttribute('data-user-id');
+                        const action = this.getAttribute('data-action');
+                        handleAdminAction(userId, action);
+                    });
+                });
+                
+                adminUsersList.appendChild(userElement);
+            });
+        }
+
+        async function handleAdminAction(userId, action) {
+            try {
+                const token = localStorage.getItem('authToken');
+                let response;
+                
+                switch(action) {
+                    case 'ban':
+                        const user = allUsers.find(u => u.id === userId);
+                        response = await fetch('/api/admin/ban-user', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                userId: userId,
+                                banned: !user.banned
+                            })
+                        });
+                        break;
+                        
+                    case 'verify':
+                        response = await fetch('/api/admin/toggle-verification', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                userId: userId
+                            })
+                        });
+                        break;
+                        
+                    case 'developer':
+                        response = await fetch('/api/admin/toggle-developer', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                userId: userId
+                            })
+                        });
+                        break;
+                        
+                    case 'delete':
+                        if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
+                        response = await fetch('/api/admin/delete-user', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                userId: userId
+                            })
+                        });
+                        break;
+                }
+                
+                if (response) {
+                    const data = await response.json();
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        loadAdminUsers();
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка выполнения админ действия:', error);
+                showNotification('Ошибка выполнения действия', 'error');
+            }
+        }
+
+        async function loadAdminStats() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/admin/stats', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('totalUsers').textContent = data.stats.totalUsers;
+                    document.getElementById('totalPosts').textContent = data.stats.totalPosts;
+                    document.getElementById('totalMessages').textContent = data.stats.totalMessages;
+                    document.getElementById('onlineUsers').textContent = data.stats.onlineUsers;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        async function createGift() {
+            const name = document.getElementById('giftName').value.trim();
+            const price = document.getElementById('giftPrice').value;
+            const type = document.getElementById('giftType').value;
+            const image = document.getElementById('giftImage').value.trim();
+            
+            if (!name || !price) {
+                showNotification('Заполните название и цену подарка', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/gifts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        name,
+                        price: parseInt(price),
+                        type,
+                        image: image || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Подарок успешно создан', 'success');
+                    document.getElementById('giftName').value = '';
+                    document.getElementById('giftPrice').value = '';
+                    document.getElementById('giftImage').value = '';
+                    loadGifts();
+                } else {
+                    showNotification('Ошибка создания подарка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка создания подарка:', error);
+                showNotification('Ошибка создания подарка', 'error');
+            }
+        }
+
+        // Инициализация E-COIN
+        function initializeEcoin() {
+            document.getElementById('activatePromoBtn').addEventListener('click', activatePromoCode);
+        }
+
+        async function activatePromoCode() {
+            const promoCode = document.getElementById('promoCodeInput').value.trim();
+            
+            if (!promoCode) {
+                showNotification('Введите промокод', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        code: promoCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('promoCodeInput').value = '';
+                    document.getElementById('promoResult').innerHTML = `
+                        <div class="promo-result success">${data.message}</div>
+                    `;
+                    // Обновляем баланс
+                    await initializeUser();
+                } else {
+                    document.getElementById('promoResult').innerHTML = `
+                        <div class="promo-result error">${data.message}</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Ошибка активации промокода:', error);
+                showNotification('Ошибка активации промокода', 'error');
+            }
+        }
+
+        async function loadUserProfileData() {
+            await loadUserPosts();
+            await loadUserGifts();
+        }
+
+        async function loadUserPosts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/posts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const userPosts = data.posts.filter(post => post.userId === currentUser.id);
+                    renderUserPosts(userPosts);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки постов пользователя:', error);
+            }
+        }
+
+        function renderUserPosts(posts) {
+            const userPostsList = document.getElementById('userPostsList');
+            if (!userPostsList) return;
+            
+            userPostsList.innerHTML = '';
+            
+            if (posts.length === 0) {
+                userPostsList.innerHTML = '<div class="system-message">У вас пока нет постов</div>';
+                return;
+            }
+            
+            posts.forEach(post => {
+                const postElement = createPostElement(post);
+                userPostsList.appendChild(postElement);
+            });
+        }
+
+        async function loadUserGifts() {
+            // В реальном приложении здесь был бы API для загрузки подарков пользователя
+            const profileGiftsList = document.getElementById('profileGiftsList');
+            if (profileGiftsList) {
+                profileGiftsList.innerHTML = '<div class="system-message">Загрузка подарков...</div>';
+                // Здесь должна быть реализация загрузки подарков пользователя
+            }
+        }
     </script>
 </body>
 </html>
