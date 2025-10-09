@@ -27,6 +27,46 @@
         .form-group input:focus {
             border-color: #667eea; outline: none;
         }
+        .captcha-container {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .captcha-code {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            margin: 10px 0;
+            padding: 10px;
+            background: #fff;
+            border-radius: 5px;
+            user-select: none;
+            border: 1px solid #ddd;
+        }
+        .captcha-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fff;
+            font-size: 16px;
+            text-align: center;
+        }
+        .captcha-refresh {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+        .captcha-refresh:hover {
+            background: #764ba2;
+        }
         .btn {
             width: 100%; padding: 12px; background: #667eea;
             color: white; border: none; border-radius: 8px;
@@ -73,6 +113,12 @@
             <div class="form-group">
                 <input type="password" id="regPassword" placeholder="Пароль" required>
             </div>
+            <div class="captcha-container">
+                <div>Введите код с картинки:</div>
+                <div class="captcha-code" id="captchaCode">ABCD</div>
+                <input type="text" class="captcha-input" id="captchaInput" placeholder="Введите код" required>
+                <button type="button" class="captcha-refresh" id="refreshCaptcha">Обновить код</button>
+            </div>
             <button type="submit" class="btn">Зарегистрироваться</button>
             <div class="switch-mode">
                 Есть аккаунт? <a href="#" id="switchToLogin">Войти</a>
@@ -88,12 +134,39 @@
         const switchToRegister = document.getElementById('switchToRegister');
         const switchToLogin = document.getElementById('switchToLogin');
         const errorMessage = document.getElementById('errorMessage');
+        const captchaCode = document.getElementById('captchaCode');
+        const captchaInput = document.getElementById('captchaInput');
+        const refreshCaptcha = document.getElementById('refreshCaptcha');
+
+        // Генерация случайного кода капчи
+        function generateCaptcha() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        // Обновление капчи
+        function updateCaptcha() {
+            const newCaptcha = generateCaptcha();
+            captchaCode.textContent = newCaptcha;
+            captchaInput.value = '';
+        }
+
+        // Инициализация капчи
+        updateCaptcha();
+
+        // Обновление капчи по клику
+        refreshCaptcha.addEventListener('click', updateCaptcha);
 
         switchToRegister.addEventListener('click', (e) => {
             e.preventDefault();
             loginForm.style.display = 'none';
             registerForm.style.display = 'block';
             errorMessage.textContent = '';
+            updateCaptcha(); // Обновляем капчу при переключении
         });
 
         switchToLogin.addEventListener('click', (e) => {
@@ -134,6 +207,14 @@
             const displayName = document.getElementById('regDisplayName').value;
             const email = document.getElementById('regEmail').value;
             const password = document.getElementById('regPassword').value;
+            const captcha = captchaInput.value;
+
+            // Проверка капчи
+            if (captcha !== captchaCode.textContent) {
+                errorMessage.textContent = 'Неверный код с картинки';
+                updateCaptcha();
+                return;
+            }
 
             try {
                 const response = await fetch('/api/register', {
@@ -149,9 +230,11 @@
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.message;
+                    updateCaptcha(); // Обновляем капчу при ошибке
                 }
             } catch (error) {
                 errorMessage.textContent = 'Ошибка соединения';
+                updateCaptcha(); // Обновляем капчу при ошибке
             }
         });
     </script>
