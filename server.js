@@ -483,7 +483,10 @@ class SimpleServer {
                 isDeveloper: user.isDeveloper,
                 status: user.status,
                 lastSeen: user.lastSeen,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0
             }
         };
     }
@@ -535,7 +538,10 @@ class SimpleServer {
             lastSeen: new Date(),
             createdAt: new Date(),
             gifts: [],
-            isProtected: isBayRex // BayRex защищен от удаления
+            isProtected: isBayRex, // BayRex защищен от удаления
+            friendsCount: 0,
+            postsCount: 0,
+            giftsCount: 0
         };
 
         this.users.push(newUser);
@@ -565,7 +571,10 @@ class SimpleServer {
                 isDeveloper: newUser.isDeveloper,
                 status: newUser.status,
                 lastSeen: newUser.lastSeen,
-                createdAt: newUser.createdAt
+                createdAt: newUser.createdAt,
+                friendsCount: newUser.friendsCount,
+                postsCount: newUser.postsCount,
+                giftsCount: newUser.giftsCount
             }
         };
     }
@@ -590,7 +599,10 @@ class SimpleServer {
                 isDeveloper: user.isDeveloper,
                 status: user.status,
                 lastSeen: user.lastSeen,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0
             }
         };
     }
@@ -615,7 +627,10 @@ class SimpleServer {
                 isDeveloper: user.isDeveloper,
                 status: user.status,
                 lastSeen: user.lastSeen,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0
             }
         };
     }
@@ -637,7 +652,10 @@ class SimpleServer {
             isDeveloper: u.isDeveloper,
             status: u.status,
             lastSeen: u.lastSeen,
-            createdAt: u.createdAt
+            createdAt: u.createdAt,
+            friendsCount: u.friendsCount || 0,
+            postsCount: u.postsCount || 0,
+            giftsCount: u.giftsCount || 0
         }));
 
         return {
@@ -670,7 +688,10 @@ class SimpleServer {
                 isDeveloper: targetUser.isDeveloper,
                 status: targetUser.status,
                 lastSeen: targetUser.lastSeen,
-                createdAt: targetUser.createdAt
+                createdAt: targetUser.createdAt,
+                friendsCount: targetUser.friendsCount || 0,
+                postsCount: targetUser.postsCount || 0,
+                giftsCount: targetUser.giftsCount || 0
             }
         };
     }
@@ -1023,7 +1044,10 @@ class SimpleServer {
                 isDeveloper: user.isDeveloper,
                 status: user.status,
                 lastSeen: user.lastSeen,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0
             }
         };
     }
