@@ -1028,7 +1028,7 @@
             object-fit: cover;
         }
 
-        .my-gift-name {
+                .my-gift-name {
             font-size: 12px;
             font-weight: 600;
             margin-bottom: 4px;
@@ -1745,6 +1745,27 @@
             font-size: 10px;
             margin-left: 5px;
         }
+
+        /* Создание промокодов в админке */
+        .create-promo-form {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -1936,8 +1957,8 @@
                     <div class="post-content">
                         <textarea class="post-textarea" placeholder="Что у вас нового?" id="postText"></textarea>
                         <div class="file-upload-area" id="postFileUpload">
-                            <div>Перетащите сюда фото или нажмите для выбора</div>
-                            <input type="file" id="postFileInput" accept="image/*,video/*" style="display: none;">
+                            <div>Перетащите сюда фото или нажмите для выбора (макс. 10 МБ)</div>
+                            <input type="file" id="postFileInput" accept="image/*" style="display: none;">
                         </div>
                         <div class="file-preview" id="postFilePreview"></div>
                     </div>
@@ -2173,6 +2194,7 @@
                 <div class="profile-tabs">
                     <button class="profile-tab active" data-tab="admin-users">Пользователи</button>
                     <button class="profile-tab" data-tab="admin-gifts">Управление подарками</button>
+                    <button class="profile-tab" data-tab="admin-promo">Промокоды</button>
                     <button class="profile-tab" data-tab="admin-stats">Статистика</button>
                 </div>
                 
@@ -2214,6 +2236,34 @@
                     
                     <div class="gifts-shop" id="adminGiftsList">
                         <div class="system-message">Загрузка подарков...</div>
+                    </div>
+                </div>
+
+                <div class="profile-tab-content" id="admin-promo">
+                    <div class="create-promo-form">
+                        <h3>Создать промокод</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="promoCode">Код промокода</label>
+                                <input type="text" id="promoCode" class="form-control" placeholder="Введите код" maxlength="20">
+                            </div>
+                            <div class="form-group">
+                                <label for="promoCoins">Количество E-COIN</label>
+                                <input type="number" id="promoCoins" class="form-control" placeholder="Количество коинов" min="1">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="promoMaxUses">Максимум использований (0 = без ограничений)</label>
+                            <input type="number" id="promoMaxUses" class="form-control" placeholder="Максимум использований" min="0" value="0">
+                        </div>
+                        <button class="btn" id="createPromoBtn">Создать промокод</button>
+                    </div>
+                    
+                    <div class="post" style="margin-top: 20px;">
+                        <h3>Активные промокоды</h3>
+                        <div id="adminPromoCodesList">
+                            <div class="system-message">Загрузка промокодов...</div>
+                        </div>
                     </div>
                 </div>
                 
@@ -2302,7 +2352,7 @@
             </div>
             <div class="modal-body">
                 <div class="file-upload-area" id="avatarUploadArea">
-                    <div>Перетащите сюда изображение или нажмите для выбора</div>
+                    <div>Перетащите сюда изображение или нажмите для выбора (макс. 10 МБ)</div>
                     <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
                 </div>
                 <div class="file-preview" id="avatarPreview"></div>
@@ -2318,6 +2368,31 @@
         </div>
     </div>
 
+    <!-- Модальное окно загрузки изображения для поста -->
+    <div id="uploadImageModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Загрузить изображение</h3>
+                <span class="close" id="closeUploadImage">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="file-upload-area" id="imageUploadArea">
+                    <div>Перетащите сюда изображение или нажмите для выбора (макс. 10 МБ)</div>
+                    <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
+                </div>
+                <div class="file-preview" id="imagePreview"></div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Или введите URL изображения</label>
+                    <input type="text" id="imageUrl" class="modal-input" placeholder="https://example.com/image.jpg">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelUploadImage">Отмена</button>
+                <button class="modal-btn primary" id="saveImage">Добавить изображение</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Глобальные переменные
         let currentUser = null;
@@ -2325,6 +2400,7 @@
         let allUsers = [];
         let posts = [];
         let gifts = [];
+        let promoCodes = [];
         let messages = {};
         let emojiList = [];
         let isRecording = false;
@@ -2504,6 +2580,9 @@
                             case 'gifts':
                                 loadGifts();
                                 break;
+                            case 'ecoins':
+                                loadEcoinData();
+                                break;
                         }
                     }
                 });
@@ -2537,6 +2616,31 @@
 
             // E-COIN
             initializeEcoin();
+
+            // Табы
+            initializeTabs();
+        }
+
+        function initializeTabs() {
+            // Обработчики для вкладок профиля
+            const profileTabs = document.querySelectorAll('.profile-tab');
+            profileTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    const container = this.closest('.profile-tabs').parentElement;
+                    
+                    // Деактивируем все вкладки и контенты
+                    container.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+                    container.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // Активируем текущую вкладку и контент
+                    this.classList.add('active');
+                    const content = container.querySelector(`#${tabId}`);
+                    if (content) {
+                        content.classList.add('active');
+                    }
+                });
+            });
         }
 
         function initializeThemeSelector() {
@@ -2623,17 +2727,12 @@
             });
         }
 
-        // Остальные функции (initializeChat, initializePosts, initializeProfile, initializeAdminPanel, etc.)
-        // будут аналогичными предыдущей версии, но с обновленными API вызовами
-
-        // Здесь должны быть реализации остальных функций...
-        // Для экономии места оставлю их как есть из предыдущей версии
-
         async function loadInitialData() {
             await Promise.all([
                 loadPosts(),
                 loadUsers(),
-                loadGifts()
+                loadGifts(),
+                loadPromoCodes()
             ]);
         }
 
@@ -2696,6 +2795,25 @@
             }
         }
 
+        async function loadPromoCodes() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    promoCodes = data.promoCodes;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки промокодов:', error);
+            }
+        }
+
         function renderPosts(posts) {
             const postsList = document.getElementById('postsList');
             if (!postsList) return;
@@ -2711,6 +2829,15 @@
         function createPostElement(post) {
             const postElement = document.createElement('div');
             postElement.className = 'post';
+            
+            let mediaHtml = '';
+            if (post.image) {
+                mediaHtml = `
+                    <div class="post-media">
+                        <img src="${post.image}" alt="Изображение поста" onclick="openImageModal('${post.image}')">
+                    </div>
+                `;
+            }
             
             postElement.innerHTML = `
                 <div class="post-header">
@@ -2733,6 +2860,7 @@
                 </div>
                 <div class="post-content">
                     <div class="post-text">${post.text}</div>
+                    ${mediaHtml}
                 </div>
                 <div class="post-actions">
                     <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
@@ -2895,6 +3023,16 @@
                         </div>
                         <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
                     `;
+                } else if (message.image) {
+                    messageElement.innerHTML = `
+                        <div class="message-file">
+                            <div class="message-text">${message.text || ''}</div>
+                            <div class="message-file-content">
+                                <img src="${message.image}" alt="Изображение" onclick="openImageModal('${message.image}')">
+                            </div>
+                            <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
+                        </div>
+                    `;
                 } else {
                     // Заменяем эмодзи коды на изображения
                     let messageText = message.text || '';
@@ -2917,6 +3055,36 @@
             
             // Прокручиваем вниз
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Функция для открытия модального окна с изображением
+        function openImageModal(imageUrl) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 90%; max-height: 90%; background: transparent; box-shadow: none;">
+                    <div class="modal-header" style="justify-content: flex-end; padding: 10px;">
+                        <span class="close" style="color: white; font-size: 30px; cursor: pointer;">&times;</span>
+                    </div>
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <img src="${imageUrl}" alt="Изображение" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const closeBtn = modal.querySelector('.close');
+            closeBtn.addEventListener('click', function() {
+                document.body.removeChild(modal);
+            });
+            
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
         }
 
         async function sendMessage() {
@@ -2958,9 +3126,10 @@
         async function publishPost() {
             const postText = document.getElementById('postText');
             const text = postText.value.trim();
+            const image = document.getElementById('postFileInput').dataset.imageUrl || null;
             
-            if (!text) {
-                showNotification('Введите текст поста', 'warning');
+            if (!text && !image) {
+                showNotification('Введите текст поста или добавьте изображение', 'warning');
                 return;
             }
             
@@ -2973,7 +3142,8 @@
                         'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        text: text
+                        text: text,
+                        image: image
                     })
                 });
                 
@@ -2981,6 +3151,8 @@
                 
                 if (data.success) {
                     postText.value = '';
+                    document.getElementById('postFileInput').dataset.imageUrl = '';
+                    document.getElementById('postFilePreview').innerHTML = '';
                     loadPosts();
                     showNotification('Пост опубликован!', 'success');
                 } else {
@@ -3114,7 +3286,67 @@
         // Инициализация постов
         function initializePosts() {
             document.getElementById('publishPostBtn').addEventListener('click', publishPost);
+            document.getElementById('addPhotoBtn').addEventListener('click', showUploadImageModal);
+            
+            // Загрузка изображений для постов
+            const postFileInput = document.getElementById('postFileInput');
+            const postFileUpload = document.getElementById('postFileUpload');
+            
+            postFileUpload.addEventListener('click', function() {
+                postFileInput.click();
+            });
+            
+            postFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                        showNotification('Размер файла не должен превышать 10 МБ', 'error');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const imageUrl = event.target.result;
+                        document.getElementById('postFilePreview').innerHTML = `
+                            <img src="${imageUrl}" alt="Предпросмотр" style="max-width: 200px; max-height: 200px;">
+                            <button type="button" onclick="document.getElementById('postFilePreview').innerHTML = ''; document.getElementById('postFileInput').value = '';" style="margin-top: 10px; background: var(--error-color); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Удалить</button>
+                        `;
+                        postFileInput.dataset.imageUrl = imageUrl;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
         }
+
+        function showUploadImageModal() {
+            const modal = document.getElementById('uploadImageModal');
+            modal.style.display = 'flex';
+        }
+
+        // Закрытие модального окна загрузки изображения
+        document.getElementById('closeUploadImage').addEventListener('click', function() {
+            document.getElementById('uploadImageModal').style.display = 'none';
+        });
+
+        document.getElementById('cancelUploadImage').addEventListener('click', function() {
+            document.getElementById('uploadImageModal').style.display = 'none';
+        });
+
+        // Сохранение изображения для поста
+        document.getElementById('saveImage').addEventListener('click', function() {
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            if (imageUrl) {
+                document.getElementById('postFilePreview').innerHTML = `
+                    <img src="${imageUrl}" alt="Предпросмотр" style="max-width: 200px; max-height: 200px;">
+                    <button type="button" onclick="document.getElementById('postFilePreview').innerHTML = ''; document.getElementById('postFileInput').value = '';" style="margin-top: 10px; background: var(--error-color); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Удалить</button>
+                `;
+                document.getElementById('postFileInput').dataset.imageUrl = imageUrl;
+                document.getElementById('uploadImageModal').style.display = 'none';
+                document.getElementById('imageUrl').value = '';
+            } else {
+                showNotification('Введите URL изображения', 'error');
+            }
+        });
 
         // Инициализация профиля
         function initializeProfile() {
@@ -3239,12 +3471,14 @@
         // Инициализация админ панели
         function initializeAdminPanel() {
             document.getElementById('createGiftBtn').addEventListener('click', createGift);
+            document.getElementById('createPromoBtn').addEventListener('click', createPromoCode);
         }
 
         async function loadAdminData() {
             await Promise.all([
                 loadAdminUsers(),
-                loadAdminStats()
+                loadAdminStats(),
+                loadAdminPromoCodes()
             ]);
         }
 
@@ -3468,9 +3702,110 @@
             }
         }
 
+        async function createPromoCode() {
+            const code = document.getElementById('promoCode').value.trim();
+            const coins = document.getElementById('promoCoins').value;
+            const maxUses = document.getElementById('promoMaxUses').value;
+            
+            if (!code || !coins) {
+                showNotification('Заполните код и количество коинов', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        coins: parseInt(coins),
+                        max_uses: parseInt(maxUses) || 0
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Промокод успешно создан', 'success');
+                    document.getElementById('promoCode').value = '';
+                    document.getElementById('promoCoins').value = '';
+                    document.getElementById('promoMaxUses').value = '0';
+                    loadAdminPromoCodes();
+                } else {
+                    showNotification('Ошибка создания промокода: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка создания промокода:', error);
+                showNotification('Ошибка создания промокода', 'error');
+            }
+        }
+
+        async function loadAdminPromoCodes() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderAdminPromoCodes(data.promoCodes);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки промокодов для админки:', error);
+            }
+        }
+
+        function renderAdminPromoCodes(promoCodes) {
+            const adminPromoCodesList = document.getElementById('adminPromoCodesList');
+            if (!adminPromoCodesList) return;
+            
+            adminPromoCodesList.innerHTML = '';
+            
+            if (promoCodes.length === 0) {
+                adminPromoCodesList.innerHTML = '<div class="system-message">Нет созданных промокодов</div>';
+                return;
+            }
+            
+            promoCodes.forEach(promo => {
+                const promoElement = document.createElement('div');
+                promoElement.className = 'post';
+                promoElement.innerHTML = `
+                    <div class="post-header">
+                        <div class="post-user">
+                            <div class="post-user-info">
+                                <h4>${promo.code}</h4>
+                                <div class="post-time">Создан: ${new Date(promo.created_at).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <div class="post-text">
+                            <strong>Награда:</strong> ${promo.coins} E-COIN<br>
+                            <strong>Использований:</strong> ${promo.used_count}${promo.max_uses > 0 ? ` / ${promo.max_uses}` : ' (без ограничений)'}
+                        </div>
+                    </div>
+                `;
+                
+                adminPromoCodesList.appendChild(promoElement);
+            });
+        }
+
         // Инициализация E-COIN
         function initializeEcoin() {
             document.getElementById('activatePromoBtn').addEventListener('click', activatePromoCode);
+        }
+
+        async function loadEcoinData() {
+            // Обновляем баланс
+            document.getElementById('ecoinBalance').textContent = `${currentUser.coins || 0} E-COIN`;
         }
 
         async function activatePromoCode() {
@@ -3503,6 +3838,7 @@
                     `;
                     // Обновляем баланс
                     await initializeUser();
+                    loadEcoinData();
                 } else {
                     document.getElementById('promoResult').innerHTML = `
                         <div class="promo-result error">${data.message}</div>
