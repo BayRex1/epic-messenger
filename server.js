@@ -164,7 +164,21 @@ class SimpleServer {
         this.gifts = [];
         this.promoCodes = [];
         this.encryptionKey = crypto.randomBytes(32); // Ключ для шифрования
+        
+        // Создаем папки для загрузок если их нет
+        this.ensureUploadDirs();
         this.initializeData();
+    }
+
+    // Создание папок для загрузок
+    ensureUploadDirs() {
+        const uploadDirs = ['uploads', 'uploads/avatars', 'uploads/gifts', 'uploads/posts'];
+        uploadDirs.forEach(dir => {
+            const dirPath = path.join(__dirname, 'public', dir);
+            if (!fs.existsSync(dirPath)) {
+                fs.mkdirSync(dirPath, { recursive: true });
+            }
+        });
     }
 
     // Шифрование данных
@@ -192,8 +206,22 @@ class SimpleServer {
         return crypto.createHash('sha256').update(password).digest('hex');
     }
 
-    // Валидация файлов
-    validateFileType(filename) {
+    // Валидация файлов для аватаров (только фото)
+    validateAvatarFile(filename) {
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    // Валидация файлов для подарков (фото + gif + svg)
+    validateGiftFile(filename) {
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    // Валидация файлов для постов
+    validatePostFile(filename) {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
@@ -216,6 +244,45 @@ class SimpleServer {
             .replace(/javascript:/gi, '')
             .replace(/data:/gi, '')
             .trim();
+    }
+
+    // Сохранение файла
+    saveFile(fileData, filename, type) {
+        return new Promise((resolve, reject) => {
+            try {
+                // Определяем папку для сохранения
+                let uploadDir = 'uploads';
+                if (type === 'avatar') uploadDir = 'uploads/avatars';
+                else if (type === 'gift') uploadDir = 'uploads/gifts';
+                else if (type === 'post') uploadDir = 'uploads/posts';
+
+                const filePath = path.join(__dirname, 'public', uploadDir, filename);
+                
+                // Удаляем префикс data URL если есть
+                const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                fs.writeFile(filePath, buffer, (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(`/${uploadDir}/${filename}`);
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    // Удаление файла
+    deleteFile(fileUrl) {
+        if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
+        
+        const filePath = path.join(__dirname, 'public', fileUrl.substring(1));
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
     }
 
     initializeData() {
@@ -443,9 +510,21 @@ class SimpleServer {
                     }
                     break;
 
-                case '/api/upload-image':
+                case '/api/upload-avatar':
                     if (method === 'POST') {
-                        response = this.handleUploadImage(token, data);
+                        response = this.handleUploadAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/upload-gift':
+                    if (method === 'POST') {
+                        response = this.handleUploadGift(token, data);
+                    }
+                    break;
+
+                case '/api/upload-post-image':
+                    if (method === 'POST') {
+                        response = this.handleUploadPostImage(token, data);
                     }
                     break;
 
@@ -794,6 +873,11 @@ class SimpleServer {
             return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
         }
 
+        // Удаляем аватар пользователя если есть
+        if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
+            this.deleteFile(targetUser.avatar);
+        }
+
         this.users = this.users.filter(u => u.id !== userId);
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
@@ -998,11 +1082,6 @@ class SimpleServer {
         // Очищаем текст от опасного контента
         const sanitizedText = this.sanitizeContent(text.trim());
 
-        // Проверяем изображение если есть
-        if (image && !this.validateFileType(image)) {
-            return { success: false, message: 'Недопустимый формат изображения' };
-        }
-
         const post = {
             id: this.generateId(),
             userId: user.id,
@@ -1098,77 +1177,6 @@ class SimpleServer {
         return {
             success: true,
             gift: gift
-        };
-    }
-
-    handleBuyGift(token, giftId, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const gift = this.gifts.find(g => g.id === giftId);
-        if (!gift) {
-            return { success: false, message: 'Подарок не найден' };
-        }
-
-        if (user.coins < gift.price) {
-            return { success: false, message: 'Недостаточно E-COIN' };
-        }
-
-        user.coins -= gift.price;
-
-        if (!user.gifts) {
-            user.gifts = [];
-        }
-
-        const userGift = {
-            id: this.generateId(),
-            giftId: gift.id,
-            giftName: gift.name,
-            giftType: gift.type,
-            purchasedAt: new Date(),
-            fromUserId: user.id
-        };
-
-        user.gifts.push(userGift);
-        user.giftsCount = (user.giftsCount || 0) + 1;
-
-        if (data.toUserId) {
-            const toUser = this.users.find(u => u.id === data.toUserId);
-            if (toUser) {
-                if (!toUser.gifts) {
-                    toUser.gifts = [];
-                }
-                toUser.gifts.push({
-                    ...userGift,
-                    fromUserId: user.id
-                });
-                toUser.giftsCount = (toUser.giftsCount || 0) + 1;
-
-                const giftMessage = {
-                    id: this.generateId(),
-                    senderId: user.id,
-                    toUserId: data.toUserId,
-                    type: 'gift',
-                    giftName: gift.name,
-                    giftType: gift.type,
-                    giftPrice: gift.price,
-                    timestamp: new Date(),
-                    displayName: user.displayName
-                };
-
-                this.messages.push(giftMessage);
-                console.log(`🎁 Пользователь ${user.displayName} отправил подарок пользователю ${toUser.displayName}`);
-            }
-        } else {
-            console.log(`🎁 Пользователь ${user.displayName} купил подарок: ${gift.name}`);
-        }
-
-        return {
-            success: true,
-            giftName: gift.name,
-            newBalance: user.coins
         };
     }
 
@@ -1315,9 +1323,9 @@ class SimpleServer {
 
         const { avatar } = data;
 
-        // Проверяем URL аватара
-        if (avatar && !this.validateFileType(avatar)) {
-            return { success: false, message: 'Недопустимый формат изображения для аватара' };
+        // Удаляем старый аватар если он был загруженным файлом
+        if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+            this.deleteFile(user.avatar);
         }
 
         user.avatar = avatar;
@@ -1347,34 +1355,147 @@ class SimpleServer {
         };
     }
 
-    handleUploadImage(token, data) {
+    // Загрузка аватара из файла
+    async handleUploadAvatar(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { imageData, filename } = data;
+        const { fileData, filename } = data;
 
-        // Проверяем тип файла
-        if (!this.validateFileType(filename)) {
-            return { success: false, message: 'Недопустимый формат изображения' };
+        // Проверяем тип файла для аватара
+        if (!this.validateAvatarFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для аватара. Разрешены только изображения.' };
+        }
+
+        // Проверяем размер файла (5 МБ максимум для аватара)
+        if (fileData.length > 5 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
+        }
+
+        try {
+            // Генерируем уникальное имя файла
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+            
+            // Сохраняем файл
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
+
+            // Удаляем старый аватар если он был загруженным файлом
+            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                this.deleteFile(user.avatar);
+            }
+
+            // Обновляем аватар пользователя
+            user.avatar = fileUrl;
+
+            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
+
+            return {
+                success: true,
+                avatarUrl: fileUrl,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    email: user.email,
+                    avatar: user.avatar,
+                    description: user.description,
+                    coins: user.coins,
+                    verified: user.verified,
+                    isDeveloper: user.isDeveloper,
+                    status: user.status,
+                    lastSeen: user.lastSeen,
+                    createdAt: user.createdAt,
+                    friendsCount: user.friendsCount || 0,
+                    postsCount: user.postsCount || 0,
+                    giftsCount: user.giftsCount || 0,
+                    banned: user.banned || false
+                }
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аватара:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    // Загрузка изображения подарка
+    async handleUploadGift(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { fileData, filename } = data;
+
+        // Проверяем тип файла для подарка
+        if (!this.validateGiftFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
         }
 
         // Проверяем размер файла (10 МБ максимум)
-        if (imageData.length > 10 * 1024 * 1024) {
+        if (fileData.length > 10 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
         }
 
-        // В реальном приложении здесь бы сохраняли файл на сервере
-        // Для демо просто возвращаем успех
-        const imageUrl = `/uploads/${this.generateId()}_${filename}`;
+        try {
+            // Генерируем уникальное имя файла
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+            
+            // Сохраняем файл
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
 
-        console.log(`📸 Пользователь ${user.username} загрузил изображение: ${filename}`);
+            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
 
-        return {
-            success: true,
-            imageUrl: imageUrl
-        };
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения подарка:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    // Загрузка изображения для поста
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+
+        // Проверяем тип файла для поста
+        if (!this.validatePostFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения.' };
+        }
+
+        // Проверяем размер файла (10 МБ максимум)
+        if (fileData.length > 10 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
+        }
+
+        try {
+            // Генерируем уникальное имя файла
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            
+            // Сохраняем файл
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
+
+            console.log(`📸 Пользователь ${user.username} загрузил изображение для поста: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения для поста:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 
     handleGetEmoji(token) {
@@ -1464,7 +1585,7 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
                 this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-            } else if (pathname.startsWith('/assets/')) {
+            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
                 const ext = path.extname(pathname);
                 const contentType = {
                     '.png': 'image/png',
@@ -1472,6 +1593,8 @@ class SimpleServer {
                     '.jpeg': 'image/jpeg',
                     '.gif': 'image/gif',
                     '.svg': 'image/svg+xml',
+                    '.bmp': 'image/bmp',
+                    '.webp': 'image/webp',
                     '.ico': 'image/x-icon'
                 }[ext] || 'application/octet-stream';
                 
@@ -1487,6 +1610,7 @@ class SimpleServer {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Приложение готово к работе`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
+            console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
         });
