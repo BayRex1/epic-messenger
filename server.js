@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const { StringDecoder } = require('string_decoder');
+const crypto = require('crypto');
 
 class WebSocketServer {
     constructor(server) {
@@ -162,7 +163,59 @@ class SimpleServer {
         this.posts = [];
         this.gifts = [];
         this.promoCodes = [];
+        this.encryptionKey = crypto.randomBytes(32); // Ключ для шифрования
         this.initializeData();
+    }
+
+    // Шифрование данных
+    encrypt(text) {
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return iv.toString('hex') + ':' + encrypted;
+    }
+
+    // Дешифрование данных
+    decrypt(encryptedText) {
+        const parts = encryptedText.split(':');
+        const iv = Buffer.from(parts[0], 'hex');
+        const encrypted = parts[1];
+        const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    }
+
+    // Хеширование пароля
+    hashPassword(password) {
+        return crypto.createHash('sha256').update(password).digest('hex');
+    }
+
+    // Валидация файлов
+    validateFileType(filename) {
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    // Валидация контента
+    sanitizeContent(content) {
+        // Удаляем SVG, HTML и другие опасные теги
+        return content
+            .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<object[\s\S]*?<\/object>/gi, '')
+            .replace(/<embed[\s\S]*?<\/embed>/gi, '')
+            .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+            .replace(/<link[\s\S]*?>/gi, '')
+            .replace(/<meta[\s\S]*?>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/on\w+="[^"]*"/gi, '')
+            .replace(/on\w+='[^']*'/gi, '')
+            .replace(/javascript:/gi, '')
+            .replace(/data:/gi, '')
+            .trim();
     }
 
     initializeData() {
@@ -366,6 +419,12 @@ class SimpleServer {
                     }
                     break;
                     
+                case '/api/promo-codes/create':
+                    if (method === 'POST') {
+                        response = this.handleCreatePromoCode(token, data);
+                    }
+                    break;
+                    
                 case '/api/promo-codes/activate':
                     if (method === 'POST') {
                         response = this.handleActivatePromoCode(token, data);
@@ -381,6 +440,12 @@ class SimpleServer {
                 case '/api/update-avatar':
                     if (method === 'POST') {
                         response = this.handleUpdateAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/upload-image':
+                    if (method === 'POST') {
+                        response = this.handleUploadImage(token, data);
                     }
                     break;
 
@@ -466,7 +531,8 @@ class SimpleServer {
 
     handleLogin(data) {
         const { username, password } = data;
-        const user = this.users.find(u => u.username === username && u.password === password);
+        const hashedPassword = this.hashPassword(password);
+        const user = this.users.find(u => u.username === username && u.password === hashedPassword);
         
         if (!user) {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
@@ -536,7 +602,7 @@ class SimpleServer {
             username: username,
             displayName: displayName,
             email: email,
-            password: password,
+            password: this.hashPassword(password), // Хешируем пароль
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
             coins: isBayRex ? 50000 : 1000,
@@ -825,11 +891,17 @@ class SimpleServer {
             (msg.senderId === toUserId && msg.toUserId === userId)
         );
 
-        chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // Дешифруем сообщения
+        const decryptedMessages = chatMessages.map(msg => ({
+            ...msg,
+            text: msg.encrypted ? this.decrypt(msg.text) : msg.text
+        }));
+
+        decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         return {
             success: true,
-            messages: chatMessages
+            messages: decryptedMessages
         };
     }
 
@@ -839,18 +911,26 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { toUserId, text, type } = data;
+        const { toUserId, text, type, image } = data;
 
         if (!text || text.trim() === '') {
             return { success: false, message: 'Сообщение не может быть пустым' };
         }
 
+        // Очищаем текст от опасного контента
+        const sanitizedText = this.sanitizeContent(text.trim());
+
+        // Шифруем сообщение
+        const encryptedText = this.encrypt(sanitizedText);
+
         const message = {
             id: this.generateId(),
             senderId: user.id,
             toUserId: toUserId,
-            text: text.trim(),
+            text: encryptedText,
+            encrypted: true,
             type: type || 'text',
+            image: image || null,
             timestamp: new Date(),
             displayName: user.displayName
         };
@@ -861,7 +941,10 @@ class SimpleServer {
 
         return {
             success: true,
-            message: message
+            message: {
+                ...message,
+                text: sanitizedText // Возвращаем очищенный текст для клиента
+            }
         };
     }
 
@@ -906,17 +989,25 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { text } = data;
+        const { text, image } = data;
         
         if (!text || text.trim() === '') {
             return { success: false, message: 'Текст поста не может быть пустым' };
         }
 
+        // Очищаем текст от опасного контента
+        const sanitizedText = this.sanitizeContent(text.trim());
+
+        // Проверяем изображение если есть
+        if (image && !this.validateFileType(image)) {
+            return { success: false, message: 'Недопустимый формат изображения' };
+        }
+
         const post = {
             id: this.generateId(),
             userId: user.id,
-            text: text.trim(),
-            image: null,
+            text: sanitizedText,
+            image: image,
             likes: [],
             comments: [],
             views: 0,
@@ -1093,6 +1184,42 @@ class SimpleServer {
         };
     }
 
+    handleCreatePromoCode(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { code, coins, max_uses } = data;
+        
+        if (!code || !coins) {
+            return { success: false, message: 'Код и количество коинов обязательны' };
+        }
+
+        const existingPromo = this.promoCodes.find(p => p.code === code);
+        if (existingPromo) {
+            return { success: false, message: 'Промокод с таким кодом уже существует' };
+        }
+
+        const promoCode = {
+            id: this.generateId(),
+            code: code.toUpperCase(),
+            coins: parseInt(coins),
+            max_uses: max_uses || 0,
+            used_count: 0,
+            created_at: new Date()
+        };
+
+        this.promoCodes.push(promoCode);
+
+        console.log(`🎫 Администратор ${user.displayName} создал промокод: ${code}`);
+
+        return {
+            success: true,
+            promoCode: promoCode
+        };
+    }
+
     handleActivatePromoCode(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1100,7 +1227,7 @@ class SimpleServer {
         }
 
         const { code } = data;
-        const promoCode = this.promoCodes.find(p => p.code === code);
+        const promoCode = this.promoCodes.find(p => p.code === code.toUpperCase());
 
         if (!promoCode) {
             return { success: false, message: 'Промокод не найден' };
@@ -1130,12 +1257,13 @@ class SimpleServer {
 
         const { displayName, description, username, email } = data;
 
+        // Очищаем данные от опасного контента
         if (displayName && displayName.trim()) {
-            user.displayName = displayName.trim();
+            user.displayName = this.sanitizeContent(displayName.trim());
         }
 
         if (description !== undefined) {
-            user.description = description;
+            user.description = this.sanitizeContent(description);
         }
 
         if (username && username.trim() && username !== user.username) {
@@ -1143,7 +1271,7 @@ class SimpleServer {
             if (existingUser) {
                 return { success: false, message: 'Имя пользователя уже занято' };
             }
-            user.username = username.trim();
+            user.username = this.sanitizeContent(username.trim());
         }
 
         if (email && email.trim() && email !== user.email) {
@@ -1187,6 +1315,11 @@ class SimpleServer {
 
         const { avatar } = data;
 
+        // Проверяем URL аватара
+        if (avatar && !this.validateFileType(avatar)) {
+            return { success: false, message: 'Недопустимый формат изображения для аватара' };
+        }
+
         user.avatar = avatar;
 
         console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
@@ -1211,6 +1344,36 @@ class SimpleServer {
                 giftsCount: user.giftsCount || 0,
                 banned: user.banned || false
             }
+        };
+    }
+
+    handleUploadImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { imageData, filename } = data;
+
+        // Проверяем тип файла
+        if (!this.validateFileType(filename)) {
+            return { success: false, message: 'Недопустимый формат изображения' };
+        }
+
+        // Проверяем размер файла (10 МБ максимум)
+        if (imageData.length > 10 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
+        }
+
+        // В реальном приложении здесь бы сохраняли файл на сервере
+        // Для демо просто возвращаем успех
+        const imageUrl = `/uploads/${this.generateId()}_${filename}`;
+
+        console.log(`📸 Пользователь ${user.username} загрузил изображение: ${filename}`);
+
+        return {
+            success: true,
+            imageUrl: imageUrl
         };
     }
 
@@ -1323,6 +1486,7 @@ class SimpleServer {
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Приложение готово к работе`);
+            console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
         });
