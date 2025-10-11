@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic Messenger - О проекте</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            padding: 40px 0;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        .tagline {
+            font-size: 1.8rem;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .url {
+            color: #667eea;
+            font-size: 1.3rem;
+            font-weight: 500;
+        }
+
+        .main-url {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: transform 0.2s ease;
+        }
+
+        .main-url:hover {
+            transform: scale(1.05);
+        }
+
+        /* Sections */
+        .section {
+            background: #111;
+            border-radius: 20px;
+            padding: 50px;
+            border: 1px solid #222;
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: #fff;
+            text-align: center;
+        }
+
+        .description {
+            color: #ccc;
+            margin-bottom: 30px;
+            font-size: 1.4rem;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        /* Screenshots Slider */
+        .screenshots-slider {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 20px;
+            background: #1a1a1a;
+        }
+
+        .slider-container {
+            display: flex;
+            transition: transform 0.5s ease;
+        }
+
+        .slide {
+            min-width: 100%;
+            position: relative;
+        }
+
+        .slide img {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .slide-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+
+        .slider-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(102, 126, 234, 0.8);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .slider-btn:hover {
+            background: #667eea;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .prev-btn {
+            left: 15px;
+        }
+
+        .next-btn {
+            right: 15px;
+        }
+
+        .slider-dots {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .dot.active {
+            background: #667eea;
+        }
+
+        /* Authors */
+        .authors-list {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .author-card {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid #333;
+            transition: all 0.3s ease;
+        }
+
+        .author-card:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+        }
+
+        .author-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .author-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin-right: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .author-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .author-info h3 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .author-role {
+            color: #667eea;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .author-description {
+            color: #999;
+            font-size: 1.3rem;
+            line-height: 1.7;
+        }
+
+        /* Links */
+        .links-list {
+            list-style: none;
+            text-align: center;
+        }
+
+        .links-list li {
+            padding: 25px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .links-list li:last-child {
+            border-bottom: none;
+        }
+
+        .links-list a {
+            color: #ccc;
+            text-decoration: none;
+            font-size: 1.5rem;
+            display: block;
+            transition: color 0.3s ease;
+            padding: 15px;
+        }
+
+        .links-list a:hover {
+            color: #667eea;
+            background: #1a1a1a;
+            border-radius: 12px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 50px 0;
+        }
+
+        .footer-title {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+
+        .contact-email {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            display: block;
+            font-weight: 500;
+        }
+
+        .telegram-badge {
+            background: #0088cc;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            margin: 20px 0;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.4rem;
+            transition: transform 0.2s ease;
+        }
+
+        .telegram-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .copyright {
+            margin-top: 40px;
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        /* Badges */
+        .founder-badge {
+            background: linear-gradient(135deg, #ff8a00, #ff2070);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
+        .admin-badge {
+            background: linear-gradient(135deg, #00b09b, #96c93d);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
+        /* Quick Links */
+        .quick-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .quick-link {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.2rem;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quick-link:hover {
+            transform: scale(1.05);
+        }
+
+        .quick-link.telegram {
+            background: #0088cc;
+        }
+
+        .quick-link.website {
+            background: #764ba2;
+        }
+
+        .quick-link.support {
+            background: #00b09b;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .logo {
+                font-size: 3rem;
+            }
+            
+            .tagline {
+                font-size: 1.4rem;
+            }
+            
+            .section {
+                padding: 30px;
+            }
+            
+            .section-title {
+                font-size: 2rem;
+            }
+            
+            .description {
+                font-size: 1.2rem;
+            }
+            
+            .slide img {
+                height: 300px;
+            }
+            
+            .slider-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+            
+            .author-avatar {
+                width: 80px;
+                height: 80px;
+                font-size: 1.5rem;
+            }
+            
+            .author-info h3 {
+                font-size: 1.8rem;
+            }
+            
+            .author-role {
+                font-size: 1.2rem;
+            }
+            
+            .author-description {
+                font-size: 1.1rem;
+            }
+            
+            .links-list a {
+                font-size: 1.3rem;
+            }
+            
+            .contact-email {
+                font-size: 1.4rem;
+            }
+            
+            .telegram-badge {
+                font-size: 1.2rem;
+                padding: 15px 30px;
+            }
+
+            .quick-links {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .quick-link {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .author-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .author-avatar {
+                margin-right: 0;
+                margin-bottom: 15px;
+            }
+            
+            .slide img {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">Epic Messenger</div>
+            <div class="tagline">Современный мессенджер для комфортного общения</div>
+            <div class="url"> </div>
+            <a href="https://epic-messenger.onrender.com" class="main-url" target="_blank">
+                🌐 Перейти на основной сайт
+            </a>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <a href="https://t.me/Epic_messenge" class="quick-link telegram" target="_blank">
+                📢 Канал с новостями
+            </a>
+            <a href="https://epic-messenger.onrender.com" class="quick-link website" target="_blank">
+                🚀 Основной сайт
+            </a>
+            <a href="https://t.me/EpicMessenger_bot" class="quick-link support" target="_blank">
+                💬 Поддержка в боте
+            </a>
+        </div>
+
+        <!-- Screenshots Section -->
+        <div class="section">
+            <h2 class="section-title">Скриншоты приложения</h2>
+            <div class="screenshots-slider">
+                <button class="slider-btn prev-btn">‹</button>
+                <button class="slider-btn next-btn">›</button>
+                
+                <div class="slider-container">
+                    <div class="slide">
+                        <img src="/public/assets/screenshot/main-chat.png" alt="Главный чат" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 400\"><rect width=\"100%\" height=\"100%\" fill=\"%23667eea\"/><text x=\"50%\" y=\"50%\" font-size=\"24\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\">Главный чат</text></svg>'" />
+                        <div class="slide-caption">Главный интерфейс чата</div>
+                    </div>
+                    <div class="slide">
+                        <img src="/public/assets/screenshot/contacts.png" alt="Лента" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 400\"><rect width=\"100%\" height=\"100%\" fill=\"%23764ba2\"/><text x=\"50%\" y=\"50%\" font-size=\"24\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\">Лента</text></svg>'" />
+                        <div class="slide-caption">Лента постов</div>
+                    </div>
+                    <div class="slide">
+                        <img src="/public/assets/screenshot/settings.png" alt="Система подарков" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 400\"><rect width=\"100%\" height=\"100%\" fill=\"%23ff8a00\"/><text x=\"50%\" y=\"50%\" font-size=\"24\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\">Подарки</text></svg>'" />
+                        <div class="slide-caption">Система подарков</div>
+                    </div>
+                    <div class="slide">
+                        <img src="/public/assets/screenshot/themes.png" alt="Темы" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 400\"><rect width=\"100%\" height=\"100%\" fill=\"%2300b09b\"/><text x=\"50%\" y=\"50%\" font-size=\"24\" text-anchor=\"middle\" dy=\".3em\" fill=\"white\">Темы оформления</text></svg>'" />
+                        <div class="slide-caption">Профили пользователей</div>
+                    </div>
+                </div>
+                
+                <div class="slider-dots">
+                    <div class="dot active" data-slide="0"></div>
+                    <div class="dot" data-slide="1"></div>
+                    <div class="dot" data-slide="2"></div>
+                    <div class="dot" data-slide="3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Section -->
+        <div class="section">
+            <h2 class="section-title">О проекте</h2>
+            <p class="description">
+                Epic Messenger создан passionate командой разработчиков, которые верят в силу простого 
+                и безопасного общения. Мы работаем над тем, чтобы сделать ваш опыт общения максимально комфортным.
+            </p>
+        </div>
+
+        <!-- Team Section -->
+        <div class="section">
+            <h2 class="section-title">Наша команда</h2>
+            <div class="authors-list">
+                <!-- BayRex -->
+                <div class="author-card">
+                    <div class="author-header">
+                        <div class="author-avatar">
+                            <img src="/public/assets/avtors/BayRex.png" alt="BayRex" onerror="this.innerHTML='BR'">
+                        </div>
+                        <div class="author-info">
+                            <h3>BayRex <span class="founder-badge">ОСНОВАТЕЛЬ</span></h3>
+                            <div class="author-role">Главный разработчик</div>
+                        </div>
+                    </div>
+                    <div class="author-description">
+                        Основатель и создатель проекта Epic Messenger. Отвечает за всю техническую часть проекта, 
+                        архитектуру приложения и основную разработку кода. Именно он создал ядро мессенджера 
+                        и продолжает развивать проект, реализуя новые функции и улучшая существующие.
+                    </div>
+                </div>
+
+                <!-- Limonat -->
+                <div class="author-card">
+                    <div class="author-header">
+                        <div class="author-avatar">
+                            <img src="/public/assets/avtors/Limonat.png" alt="Limonat" onerror="this.innerHTML='L'">
+                        </div>
+                        <div class="author-info">
+                            <h3>Limonat</h3>
+                            <div class="author-role">Дизайнер • Контентмейкер</div>
+                        </div>
+                    </div>
+                    <div class="author-description">
+                        Создал дизайн интерфейса и визуальную концепцию мессенджера. Отвечает за пользовательский 
+                        опыт, дизайн приложения и создание контента для социальных сетей. Сделал приложение 
+                        удобным, интуитивно понятным и эстетически приятным для пользователей.
+                    </div>
+                </div>
+
+                <!-- lololo -->
+                <div class="author-card">
+                    <div class="author-header">
+                        <div class="author-avatar">
+                            <img src="/public/assets/avtors/lololo.png" alt="lololo" onerror="this.innerHTML='LL'">
+                        </div>
+                        <div class="author-info">
+                            <h3>lololo <span class="admin-badge">АДМИНИСТРАТОР</span></h3>
+                            <div class="author-role">Тестировщик</div>
+                        </div>
+                    </div>
+                    <div class="author-description">
+                        Проводит тщательное тестирование функционала, ищет баги и уязвимости на сайте. 
+                        Отвечает за безопасность и стабильность работы приложения. Обнаруженные проблемы 
+                        оперативно докладывает основателю для их скорейшего устранения.
+                    </div>
+                </div>
+
+                <!-- депресантов -->
+                <div class="author-card">
+                    <div class="author-header">
+                        <div class="author-avatar">
+                            <img src="/public/assets/avtors/depresantov.png" alt="депресантов" onerror="this.innerHTML='Д'">
+                        </div>
+                        <div class="author-info">
+                            <h3>депресантов <span class="admin-badge">АДМИНИСТРАТОР</span></h3>
+                            <div class="author-role">Тестировщик</div>
+                        </div>
+                    </div>
+                    <div class="author-description">
+                        Тестирует функционал и работает над улучшением пользовательского опыта в мессенджере. 
+                        Специализируется на поиске уязвимостей и проблем безопасности. Все обнаруженные 
+                        недочеты оперативно сообщает основателю проекта для их исправления.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Links Section -->
+        <div class="section">
+            <h2 class="section-title">Ссылки</h2>
+            <ul class="links-list">
+                <li><a href="https://epic-messenger.onrender.com" target="_blank">Основной сайт</a></li>
+                <li><a href="https://t.me/Epic_messenge" target="_blank">Канал с новостями</a></li>
+                <li><a href="https://t.me/EpicMessenger_bot" target="_blank">Поддержка в боте</a></li>
+                <li><a href="#">Правила сообщества</a></li>
+                <li><a href="#">Политика конфиденциальности</a></li>
+                <li><a href="#">Условия использования</a></li>
+                <li><a href="#">Скачать приложение</a></li>
+            </ul>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <h2 class="footer-title">Свяжитесь с нами</h2>
+            <p style="color: #999; margin-bottom: 30px; font-size: 1.4rem;">Есть вопросы или предложения?</p>
+            <a href="https://t.me/EpicMessenger_bot" class="contact-email" target="_blank">
+                t.me/EpicMessenger_bot
+            </a>
+            <a href="https://t.me/EpicMessenger_bot" class="telegram-badge" target="_blank">
+                <span>💬</span> Поддержка в боте
+            </a>
+            <div class="copyright">
+                © 2025 Epic Messenger. Все права защищены.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Slider functionality
+        class Slider {
+            constructor() {
+                this.sliderContainer = document.querySelector('.slider-container');
+                this.slides = document.querySelectorAll('.slide');
+                this.dots = document.querySelectorAll('.dot');
+                this.prevBtn = document.querySelector('.prev-btn');
+                this.nextBtn = document.querySelector('.next-btn');
+                this.currentSlide = 0;
+                this.slideCount = this.slides.length;
+                
+                this.init();
+            }
+            
+            init() {
+                this.prevBtn.addEventListener('click', () => this.prevSlide());
+                this.nextBtn.addEventListener('click', () => this.nextSlide());
+                
+                this.dots.forEach(dot => {
+                    dot.addEventListener('click', (e) => {
+                        const slideIndex = parseInt(e.target.getAttribute('data-slide'));
+                        this.goToSlide(slideIndex);
+                    });
+                });
+                
+                // Auto slide every 5 seconds
+                setInterval(() => this.nextSlide(), 5000);
+            }
+            
+            nextSlide() {
+                this.currentSlide = (this.currentSlide + 1) % this.slideCount;
+                this.updateSlider();
+            }
+            
+            prevSlide() {
+                this.currentSlide = (this.currentSlide - 1 + this.slideCount) % this.slideCount;
+                this.updateSlider();
+            }
+            
+            goToSlide(slideIndex) {
+                this.currentSlide = slideIndex;
+                this.updateSlider();
+            }
+            
+            updateSlider() {
+                this.sliderContainer.style.transform = `translateX(-${this.currentSlide * 100}%)`;
+                
+                // Update dots
+                this.dots.forEach((dot, index) => {
+                    dot.classList.toggle('active', index === this.currentSlide);
+                });
+            }
+        }
+        
+        // Initialize slider when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new Slider();
+        });
+    </script>
+</body>
+</html>
