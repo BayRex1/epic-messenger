@@ -1830,6 +1830,15 @@
                 <div class="menu-text">E-COIN</div>
             </button>
             
+            <button class="menu-item" data-section="music">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,3V12.26C11.5,12.09 11,12 10.5,12C8,12 6,14 6,16.5C6,19 8,21 10.5,21C13,21 15,19 15,16.5V6H19V3H12Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Музыка</div>
+            </button>
+            
             <div class="menu-divider"></div>
             
             <button class="menu-item" data-section="profile">
@@ -2063,6 +2072,41 @@
             </div>
         </div>
 
+        <!-- Музыка -->
+        <div class="content-area" id="music-section">
+            <div class="posts-container">
+                <div class="section-title">Музыка</div>
+                <div class="post">
+                    <div class="post-content">
+                        <div class="post-text">
+                            <h3>Музыкальный плеер</h3>
+                            <p>Откройте для себя мир музыки! Наш музыкальный раздел перенесет вас на специальную платформу с тысячами треков.</p>
+                        </div>
+                    </div>
+                    <div class="post-actions">
+                        <button class="btn-large" id="openMusicPlayerBtn" onclick="window.open('https://epic-messenger.onrender.com/music', '_blank')">
+                            🎵 Открыть музыкальный плеер
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="post">
+                    <div class="post-content">
+                        <div class="post-text">
+                            <h4>Особенности музыкального раздела:</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>Тысячи треков различных жанров</li>
+                                <li>Создание плейлистов</li>
+                                <li>Рекомендации на основе ваших предпочтений</li>
+                                <li>Высокое качество звука</li>
+                                <li>Возможность скачивания треков</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Профиль -->
         <div class="content-area" id="profile-section">
             <div class="profile-container">
@@ -2228,8 +2272,13 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="giftImage">Изображение подарка (URL)</label>
-                            <input type="text" id="giftImage" class="form-control" placeholder="Введите URL изображения">
+                            <label for="giftImage">Изображение подарка</label>
+                            <div class="file-upload-area" id="giftUploadArea">
+                                <div>Перетащите сюда изображение или нажмите для выбора (макс. 10 МБ)</div>
+                                <input type="file" id="giftFileInput" accept="image/*, .svg" style="display: none;">
+                            </div>
+                            <div class="file-preview" id="giftFilePreview"></div>
+                            <input type="text" id="giftImage" class="form-control" placeholder="Или введите URL изображения" style="margin-top: 10px;">
                         </div>
                         <button class="btn" id="createGiftBtn">Создать подарок</button>
                     </div>
@@ -2352,7 +2401,7 @@
             </div>
             <div class="modal-body">
                 <div class="file-upload-area" id="avatarUploadArea">
-                    <div>Перетащите сюда изображение или нажмите для выбора (макс. 10 МБ)</div>
+                    <div>Перетащите сюда изображение или нажмите для выбора (макс. 5 МБ)</div>
                     <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
                 </div>
                 <div class="file-preview" id="avatarPreview"></div>
@@ -2583,6 +2632,9 @@
                             case 'ecoins':
                                 loadEcoinData();
                                 break;
+                            case 'music':
+                                // Музыкальный раздел не требует загрузки данных
+                                break;
                         }
                     }
                 });
@@ -2619,6 +2671,67 @@
 
             // Табы
             initializeTabs();
+
+            // Загрузка файлов
+            initializeFileUploads();
+        }
+
+        function initializeFileUploads() {
+            // Загрузка аватара
+            const avatarFileInput = document.getElementById('avatarFileInput');
+            const avatarUploadArea = document.getElementById('avatarUploadArea');
+            
+            avatarUploadArea.addEventListener('click', function() {
+                avatarFileInput.click();
+            });
+            
+            avatarFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        showNotification('Размер файла не должен превышать 5 МБ', 'error');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const imageUrl = event.target.result;
+                        document.getElementById('avatarPreview').innerHTML = `
+                            <img src="${imageUrl}" alt="Предпросмотр" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                        `;
+                        document.getElementById('avatarUrl').value = imageUrl;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Загрузка изображения для подарка
+            const giftFileInput = document.getElementById('giftFileInput');
+            const giftUploadArea = document.getElementById('giftUploadArea');
+            
+            giftUploadArea.addEventListener('click', function() {
+                giftFileInput.click();
+            });
+            
+            giftFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                        showNotification('Размер файла не должен превышать 10 МБ', 'error');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const imageUrl = event.target.result;
+                        document.getElementById('giftFilePreview').innerHTML = `
+                            <img src="${imageUrl}" alt="Предпросмотр" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                        `;
+                        document.getElementById('giftImage').value = imageUrl;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
         }
 
         function initializeTabs() {
@@ -3435,7 +3548,7 @@
             const avatarUrl = document.getElementById('avatarUrl').value.trim();
             
             if (!avatarUrl) {
-                showNotification('Введите URL изображения', 'error');
+                showNotification('Введите URL изображения или загрузите файл', 'error');
                 return;
             }
             
@@ -3692,6 +3805,7 @@
                     document.getElementById('giftName').value = '';
                     document.getElementById('giftPrice').value = '';
                     document.getElementById('giftImage').value = '';
+                    document.getElementById('giftFilePreview').innerHTML = '';
                     loadGifts();
                 } else {
                     showNotification('Ошибка создания подарка: ' + data.message, 'error');
