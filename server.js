@@ -227,23 +227,58 @@ class SimpleServer {
         return allowedExtensions.includes(ext);
     }
 
-    // Валидация контента
+    // Улучшенная валидация контента - запрещает ссылки, HTML, SVG, скрипты
     sanitizeContent(content) {
-        // Удаляем SVG, HTML и другие опасные теги
-        return content
-            .replace(/<svg[\s\S]*?<\/svg>/gi, '')
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<object[\s\S]*?<\/object>/gi, '')
-            .replace(/<embed[\s\S]*?<\/embed>/gi, '')
-            .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-            .replace(/<link[\s\S]*?>/gi, '')
-            .replace(/<meta[\s\S]*?>/gi, '')
-            .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/on\w+="[^"]*"/gi, '')
-            .replace(/on\w+='[^']*'/gi, '')
+        if (typeof content !== 'string') return '';
+        
+        // Удаляем все URL (http, https, ftp, IP-адреса)
+        let sanitized = content
+            .replace(/(https?|ftp):\/\/[^\s/$.?#].[^\s]*/gi, '[ССЫЛКА УДАЛЕНА]')
+            .replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/gi, (match) => {
+                // Проверяем, похоже ли на домен
+                if (match.includes('.') && !match.includes(' ')) {
+                    return '[ССЫЛКА УДАЛЕНА]';
+                }
+                return match;
+            })
+            .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP УДАЛЕН]');
+
+        // Удаляем все HTML теги и специальные символы
+        sanitized = sanitized
+            .replace(/<[^>]*>/g, '') // Удаляем все HTML теги
+            .replace(/&[^;]+;/g, '') // Удаляем HTML entities
             .replace(/javascript:/gi, '')
             .replace(/data:/gi, '')
+            .replace(/vbscript:/gi, '')
+            .replace(/on\w+="[^"]*"/gi, '')
+            .replace(/on\w+='[^']*'/gi, '')
+            .replace(/on\w+=\w+/gi, '')
             .trim();
+
+        // Дополнительная защита от XSS
+        const dangerousPatterns = [
+            /<script[\s\S]*?<\/script>/gi,
+            /<svg[\s\S]*?<\/svg>/gi,
+            /<object[\s\S]*?<\/object>/gi,
+            /<embed[\s\S]*?<\/embed>/gi,
+            /<iframe[\s\S]*?<\/iframe>/gi,
+            /<link[\s\S]*?>/gi,
+            /<meta[\s\S]*?>/gi,
+            /<style[\s\S]*?<\/style>/gi,
+            /expression\(/gi,
+            /url\(/gi
+        ];
+
+        dangerousPatterns.forEach(pattern => {
+            sanitized = sanitized.replace(pattern, '');
+        });
+
+        // Ограничиваем длину
+        if (sanitized.length > 5000) {
+            sanitized = sanitized.substring(0, 5000);
+        }
+
+        return sanitized;
     }
 
     // Сохранение файла
@@ -663,24 +698,29 @@ class SimpleServer {
             return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
         }
 
-        const existingUser = this.users.find(u => u.username === username);
+        // Очищаем входные данные
+        const sanitizedUsername = this.sanitizeContent(username);
+        const sanitizedDisplayName = this.sanitizeContent(displayName);
+        const sanitizedEmail = this.sanitizeContent(email);
+
+        const existingUser = this.users.find(u => u.username === sanitizedUsername);
         if (existingUser) {
             return { success: false, message: 'Пользователь с таким именем уже существует' };
         }
 
-        const existingEmail = this.users.find(u => u.email === email);
+        const existingEmail = this.users.find(u => u.email === sanitizedEmail);
         if (existingEmail) {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
 
-        const isBayRex = username.toLowerCase() === 'bayrex';
-        console.log(`🔍 Регистрация пользователя: ${username}, isBayRex: ${isBayRex}`);
+        const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
+        console.log(`🔍 Регистрация пользователя: ${sanitizedUsername}, isBayRex: ${isBayRex}`);
         
         const newUser = {
             id: this.generateId(),
-            username: username,
-            displayName: displayName,
-            email: email,
+            username: sanitizedUsername,
+            displayName: sanitizedDisplayName,
+            email: sanitizedEmail,
             password: this.hashPassword(password), // Хешируем пароль
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
@@ -1004,6 +1044,10 @@ class SimpleServer {
         // Очищаем текст от опасного контента
         const sanitizedText = this.sanitizeContent(text.trim());
 
+        if (sanitizedText.length === 0) {
+            return { success: false, message: 'Сообщение содержит запрещенный контент' };
+        }
+
         // Шифруем сообщение
         const encryptedText = this.encrypt(sanitizedText);
 
@@ -1081,6 +1125,10 @@ class SimpleServer {
 
         // Очищаем текст от опасного контента
         const sanitizedText = this.sanitizeContent(text.trim());
+
+        if (sanitizedText.length === 0) {
+            return { success: false, message: 'Текст поста содержит запрещенный контент' };
+        }
 
         const post = {
             id: this.generateId(),
@@ -1160,9 +1208,12 @@ class SimpleServer {
             return { success: false, message: 'Название и цена обязательны' };
         }
 
+        // Очищаем название подарка
+        const sanitizedName = this.sanitizeContent(name);
+
         const gift = {
             id: this.generateId(),
-            name: name,
+            name: sanitizedName,
             type: type || 'custom',
             preview: image ? '🖼️' : '🎁',
             price: parseInt(price),
@@ -1172,7 +1223,7 @@ class SimpleServer {
 
         this.gifts.push(gift);
 
-        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${name}`);
+        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
 
         return {
             success: true,
@@ -1204,14 +1255,17 @@ class SimpleServer {
             return { success: false, message: 'Код и количество коинов обязательны' };
         }
 
-        const existingPromo = this.promoCodes.find(p => p.code === code);
+        // Очищаем код промокода
+        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+
+        const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
         if (existingPromo) {
             return { success: false, message: 'Промокод с таким кодом уже существует' };
         }
 
         const promoCode = {
             id: this.generateId(),
-            code: code.toUpperCase(),
+            code: sanitizedCode,
             coins: parseInt(coins),
             max_uses: max_uses || 0,
             used_count: 0,
@@ -1220,7 +1274,7 @@ class SimpleServer {
 
         this.promoCodes.push(promoCode);
 
-        console.log(`🎫 Администратор ${user.displayName} создал промокод: ${code}`);
+        console.log(`🎫 Администратор ${user.displayName} создал промокод: ${sanitizedCode}`);
 
         return {
             success: true,
@@ -1235,7 +1289,8 @@ class SimpleServer {
         }
 
         const { code } = data;
-        const promoCode = this.promoCodes.find(p => p.code === code.toUpperCase());
+        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+        const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
 
         if (!promoCode) {
             return { success: false, message: 'Промокод не найден' };
@@ -1248,7 +1303,7 @@ class SimpleServer {
         user.coins += promoCode.coins;
         promoCode.used_count++;
 
-        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${code} (+${promoCode.coins} E-COIN)`);
+        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
 
         return {
             success: true,
@@ -1275,19 +1330,21 @@ class SimpleServer {
         }
 
         if (username && username.trim() && username !== user.username) {
-            const existingUser = this.users.find(u => u.username === username && u.id !== user.id);
+            const sanitizedUsername = this.sanitizeContent(username.trim());
+            const existingUser = this.users.find(u => u.username === sanitizedUsername && u.id !== user.id);
             if (existingUser) {
                 return { success: false, message: 'Имя пользователя уже занято' };
             }
-            user.username = this.sanitizeContent(username.trim());
+            user.username = sanitizedUsername;
         }
 
         if (email && email.trim() && email !== user.email) {
-            const existingEmail = this.users.find(u => u.email === email && u.id !== user.id);
+            const sanitizedEmail = this.sanitizeContent(email.trim());
+            const existingEmail = this.users.find(u => u.email === sanitizedEmail && u.id !== user.id);
             if (existingEmail) {
                 return { success: false, message: 'Email уже используется' };
             }
-            user.email = email.trim();
+            user.email = sanitizedEmail;
         }
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
