@@ -299,8 +299,8 @@ class SimpleServer {
         
         // Удаляем все URL (http, https, ftp, IP-адреса)
         let sanitized = content
-            .replace(/(https?|ftp):\/\/[^\s/$.?#].[^\s]*/gi, '[ССЫЛКА УДАЛЕНА]')
-            .replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/gi, (match) => {
+            .replace(/(https?|ftp)\/\/[^\s/$.#].[^\s]*/gi, '[ССЫЛКА УДАЛЕНА]')
+            .replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/[^\s]*)?/gi, (match) => {
                 // Проверяем, похоже ли на домен
                 if (match.includes('.') && !match.includes(' ')) {
                     return '[ССЫЛКА УДАЛЕНА]';
