@@ -163,6 +163,8 @@ class SimpleServer {
         this.posts = [];
         this.gifts = [];
         this.promoCodes = [];
+        this.bannedIPs = new Map();
+        this.devices = new Map();
         this.encryptionKey = crypto.randomBytes(32); // Ключ для шифрования
         
         // Создаем папки для загрузок если их нет
@@ -204,6 +206,70 @@ class SimpleServer {
     // Хеширование пароля
     hashPassword(password) {
         return crypto.createHash('sha256').update(password).digest('hex');
+    }
+
+    // Получение IP адреса из запроса
+    getClientIP(req) {
+        return req.headers['x-forwarded-for'] || 
+               req.connection.remoteAddress || 
+               req.socket.remoteAddress ||
+               (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    }
+
+    // Получение информации об устройстве
+    getDeviceInfo(req) {
+        const userAgent = req.headers['user-agent'] || '';
+        let browser = 'Unknown';
+        let os = 'Unknown';
+        
+        // Определяем браузер
+        if (userAgent.includes('Chrome')) browser = 'Chrome';
+        else if (userAgent.includes('Firefox')) browser = 'Firefox';
+        else if (userAgent.includes('Safari')) browser = 'Safari';
+        else if (userAgent.includes('Edge')) browser = 'Edge';
+        
+        // Определяем ОС
+        if (userAgent.includes('Windows')) os = 'Windows';
+        else if (userAgent.includes('Mac')) os = 'Mac OS';
+        else if (userAgent.includes('Linux')) os = 'Linux';
+        else if (userAgent.includes('Android')) os = 'Android';
+        else if (userAgent.includes('iOS')) os = 'iOS';
+        
+        return {
+            browser,
+            os,
+            userAgent
+        };
+    }
+
+    // Генерация ID устройства
+    generateDeviceId(req) {
+        const ip = this.getClientIP(req);
+        const deviceInfo = this.getDeviceInfo(req);
+        const deviceString = `${ip}-${deviceInfo.browser}-${deviceInfo.os}`;
+        return crypto.createHash('md5').update(deviceString).digest('hex');
+    }
+
+    // Проверка бана по IP
+    isIPBanned(ip) {
+        const banInfo = this.bannedIPs.get(ip);
+        if (!banInfo) return false;
+        
+        // Проверяем срок бана
+        if (banInfo.expires && banInfo.expires < Date.now()) {
+            this.bannedIPs.delete(ip);
+            return false;
+        }
+        
+        return true;
+    }
+
+    // Бан IP
+    banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) { // 30 дней по умолчанию
+        this.bannedIPs.set(ip, {
+            bannedAt: new Date(),
+            expires: Date.now() + duration
+        });
     }
 
     // Валидация файлов для аватаров (только фото)
@@ -388,6 +454,69 @@ class SimpleServer {
         return this.users.find(u => u.id === token);
     }
 
+    // Регистрация устройства
+    registerDevice(userId, req) {
+        const deviceId = this.generateDeviceId(req);
+        const deviceInfo = this.getDeviceInfo(req);
+        const ip = this.getClientIP(req);
+        
+        const device = {
+            id: deviceId,
+            userId: userId,
+            name: `${deviceInfo.browser} on ${deviceInfo.os}`,
+            browser: deviceInfo.browser,
+            os: deviceInfo.os,
+            ip: ip,
+            userAgent: deviceInfo.userAgent,
+            lastActive: new Date(),
+            createdAt: new Date(),
+            isOwner: false // Определяется при первой регистрации
+        };
+        
+        // Проверяем, является ли это первым устройством пользователя
+        const userDevices = Array.from(this.devices.values()).filter(d => d.userId === userId);
+        if (userDevices.length === 0) {
+            device.isOwner = true;
+        }
+        
+        this.devices.set(deviceId, device);
+        return device;
+    }
+
+    // Получение устройств пользователя
+    getUserDevices(userId) {
+        return Array.from(this.devices.values()).filter(device => device.userId === userId);
+    }
+
+    // Завершение сеанса устройства
+    terminateDevice(userId, deviceId) {
+        const device = this.devices.get(deviceId);
+        if (!device || device.userId !== userId) {
+            return false;
+        }
+        
+        // Проверяем права на завершение сеанса
+        const userDevices = this.getUserDevices(userId);
+        const isOwner = userDevices.some(d => d.isOwner);
+        const targetDevice = userDevices.find(d => d.id === deviceId);
+        
+        if (!targetDevice) return false;
+        
+        // Владелец может завершить любой сеанс, другие пользователи - только через 24 часа
+        if (targetDevice.isOwner || isOwner) {
+            this.devices.delete(deviceId);
+            return true;
+        } else {
+            // Проверяем, прошло ли 24 часа
+            const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
+            if (timeDiff > 24 * 60 * 60 * 1000) {
+                this.devices.delete(deviceId);
+                return true;
+            }
+            return false;
+        }
+    }
+
     serveStaticFile(res, filePath, contentType) {
         const fullPath = path.join(__dirname, filePath);
         
@@ -399,7 +528,7 @@ class SimpleServer {
                 return;
             }
             
-            res.writeHead(200, { 
+        res.writeHead(200, { 
                 'Content-Type': contentType,
                 'Cache-Control': 'public, max-age=3600'
             });
@@ -459,25 +588,25 @@ class SimpleServer {
             switch (pathname) {
                 case '/api/login':
                     if (method === 'POST') {
-                        response = this.handleLogin(data);
+                        response = this.handleLogin(data, req);
                     }
                     break;
                     
                 case '/api/register':
                     if (method === 'POST') {
-                        response = this.handleRegister(data);
+                        response = this.handleRegister(data, req);
                     }
                     break;
                     
                 case '/api/check-auth':
                     if (method === 'GET') {
-                        response = this.handleCheckAuth(token);
+                        response = this.handleCheckAuth(token, req);
                     }
                     break;
                     
                 case '/api/current-user':
                     if (method === 'GET') {
-                        response = this.handleCurrentUser(token);
+                        response = this.handleCurrentUser(token, req);
                     }
                     break;
                     
@@ -504,6 +633,8 @@ class SimpleServer {
                         response = this.handleGetPosts(token);
                     } else if (method === 'POST') {
                         response = this.handleCreatePost(token, data);
+                    } else if (method === 'DELETE') {
+                        response = this.handleDeletePost(token, query);
                     }
                     break;
                     
@@ -598,6 +729,18 @@ class SimpleServer {
                         response = this.handleGetEmoji(token);
                     }
                     break;
+
+                case '/api/devices':
+                    if (method === 'GET') {
+                        response = this.handleGetDevices(token);
+                    }
+                    break;
+
+                case '/api/devices/terminate':
+                    if (method === 'POST') {
+                        response = this.handleTerminateDevice(token, data);
+                    }
+                    break;
                     
                 case '/api/logout':
                     if (method === 'POST') {
@@ -643,7 +786,7 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    handleLogin(data) {
+    handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
         const user = this.users.find(u => u.username === username && u.password === hashedPassword);
@@ -652,9 +795,19 @@ class SimpleServer {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
+        // Проверяем бан пользователя
         if (user.banned) {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
+
+        // Проверяем бан по IP
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            return { success: false, message: 'Ваш IP адрес заблокирован' };
+        }
+
+        // Регистрируем устройство
+        const device = this.registerDevice(user.id, req);
 
         user.status = 'online';
         user.lastSeen = new Date();
@@ -662,6 +815,7 @@ class SimpleServer {
         return {
             success: true,
             token: user.id,
+            deviceId: device.id,
             user: {
                 id: user.id,
                 username: user.username,
@@ -683,8 +837,14 @@ class SimpleServer {
         };
     }
 
-    handleRegister(data) {
+    handleRegister(data, req) {
         const { username, displayName, email, password } = data;
+
+        // Проверяем бан по IP
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
+        }
 
         if (!username || !displayName || !email || !password) {
             return { success: false, message: 'Все поля обязательны для заполнения' };
@@ -740,6 +900,9 @@ class SimpleServer {
 
         this.users.push(newUser);
 
+        // Регистрируем устройство
+        const device = this.registerDevice(newUser.id, req);
+
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
         }
@@ -750,6 +913,7 @@ class SimpleServer {
                 'Аккаунт BayRex создан! Вы получили права администратора!' :
                 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
             token: newUser.id,
+            deviceId: device.id,
             user: {
                 id: newUser.id,
                 username: newUser.username,
@@ -771,10 +935,28 @@ class SimpleServer {
         };
     }
 
-    handleCheckAuth(token) {
+    handleCheckAuth(token, req) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { authenticated: false };
+        }
+
+        // Проверяем бан пользователя
+        if (user.banned) {
+            return { authenticated: false, message: 'Аккаунт заблокирован' };
+        }
+
+        // Проверяем бан по IP
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            return { authenticated: false, message: 'IP адрес заблокирован' };
+        }
+
+        // Обновляем активность устройства
+        const deviceId = this.generateDeviceId(req);
+        const device = this.devices.get(deviceId);
+        if (device && device.userId === user.id) {
+            device.lastActive = new Date();
         }
 
         return {
@@ -800,10 +982,28 @@ class SimpleServer {
         };
     }
 
-    handleCurrentUser(token) {
+    handleCurrentUser(token, req) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
+        }
+
+        // Проверяем бан пользователя
+        if (user.banned) {
+            return { success: false, message: 'Аккаунт заблокирован' };
+        }
+
+        // Проверяем бан по IP
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            return { success: false, message: 'IP адрес заблокирован' };
+        }
+
+        // Обновляем активность устройства
+        const deviceId = this.generateDeviceId(req);
+        const device = this.devices.get(deviceId);
+        if (device && device.userId === user.id) {
+            device.lastActive = new Date();
         }
 
         return {
@@ -918,6 +1118,13 @@ class SimpleServer {
             this.deleteFile(targetUser.avatar);
         }
 
+        // Удаляем устройства пользователя
+        Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
+            if (device.userId === userId) {
+                this.devices.delete(deviceId);
+            }
+        });
+
         this.users = this.users.filter(u => u.id !== userId);
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
@@ -946,6 +1153,16 @@ class SimpleServer {
         }
 
         targetUser.banned = banned;
+
+        // Если бан, то добавляем IP в бан лист
+        if (banned) {
+            // Находим последнее устройство пользователя для получения IP
+            const userDevices = this.getUserDevices(userId);
+            if (userDevices.length > 0) {
+                const lastDevice = userDevices[userDevices.length - 1];
+                this.banIP(lastDevice.ip);
+            }
+        }
 
         console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
 
@@ -1158,6 +1375,47 @@ class SimpleServer {
         };
     }
 
+    handleDeletePost(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { postId } = query;
+        const postIndex = this.posts.findIndex(p => p.id === postId);
+        
+        if (postIndex === -1) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const post = this.posts[postIndex];
+        
+        // Администраторы могут удалять любые посты, кроме системных
+        if (post.userId === 'system') {
+            return { success: false, message: 'Нельзя удалить системный пост' };
+        }
+
+        // Удаляем изображение поста если есть
+        if (post.image && post.image.startsWith('/uploads/posts/')) {
+            this.deleteFile(post.image);
+        }
+
+        this.posts.splice(postIndex, 1);
+
+        // Уменьшаем счетчик постов пользователя
+        const postUser = this.users.find(u => u.id === post.userId);
+        if (postUser && postUser.postsCount > 0) {
+            postUser.postsCount--;
+        }
+
+        console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
+
+        return {
+            success: true,
+            message: 'Пост успешно удален'
+        };
+    }
+
     handleLikePost(token, postId) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1231,6 +1489,71 @@ class SimpleServer {
         };
     }
 
+    handleBuyGift(token, giftId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { toUserId } = data;
+        const gift = this.gifts.find(g => g.id === giftId);
+        
+        if (!gift) {
+            return { success: false, message: 'Подарок не найден' };
+        }
+
+        if (user.coins < gift.price) {
+            return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
+        }
+
+        const recipient = this.users.find(u => u.id === toUserId);
+        if (!recipient) {
+            return { success: false, message: 'Получатель не найден' };
+        }
+
+        // Списание средств
+        user.coins -= gift.price;
+
+        // Создание сообщения о подарке
+        const giftMessage = {
+            id: this.generateId(),
+            senderId: user.id,
+            toUserId: toUserId,
+            text: '',
+            encrypted: false,
+            type: 'gift',
+            giftId: gift.id,
+            giftName: gift.name,
+            giftPrice: gift.price,
+            giftImage: gift.image,
+            giftPreview: gift.preview,
+            timestamp: new Date(),
+            displayName: user.displayName
+        };
+
+        this.messages.push(giftMessage);
+
+        // Добавляем подарок получателю
+        if (!recipient.gifts) recipient.gifts = [];
+        recipient.gifts.push({
+            id: this.generateId(),
+            giftId: gift.id,
+            fromUserId: user.id,
+            fromUserName: user.displayName,
+            receivedAt: new Date()
+        });
+
+        recipient.giftsCount = (recipient.giftsCount || 0) + 1;
+
+        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
+
+        return {
+            success: true,
+            message: `Подарок "${gift.name}" успешно отправлен!`,
+            gift: gift
+        };
+    }
+
     handleGetPromoCodes(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1274,7 +1597,7 @@ class SimpleServer {
 
         this.promoCodes.push(promoCode);
 
-        console.log(`🎫 Администратор ${user.displayName} создал промокод: ${sanitizedCode}`);
+        console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
 
         return {
             success: true,
@@ -1597,7 +1920,10 @@ class SimpleServer {
                 totalPosts: this.posts.length,
                 totalGifts: this.gifts.length,
                 totalPromoCodes: this.promoCodes.length,
-                onlineUsers: this.users.filter(u => u.status === 'online').length
+                onlineUsers: this.users.filter(u => u.status === 'online').length,
+                bannedUsers: this.users.filter(u => u.banned).length,
+                bannedIPs: this.bannedIPs.size,
+                activeDevices: this.devices.size
             }
         };
     }
@@ -1620,6 +1946,41 @@ class SimpleServer {
             success: true,
             transactions: transactions
         };
+    }
+
+    handleGetDevices(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const devices = this.getUserDevices(user.id);
+        return {
+            success: true,
+            devices: devices
+        };
+    }
+
+    handleTerminateDevice(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { deviceId } = data;
+        const success = this.terminateDevice(user.id, deviceId);
+
+        if (success) {
+            return {
+                success: true,
+                message: 'Сеанс устройства завершен'
+            };
+        } else {
+            return {
+                success: false,
+                message: 'Не удалось завершить сеанс устройства'
+            };
+        }
     }
 
     start(port = 3000) {
@@ -1668,6 +2029,7 @@ class SimpleServer {
             console.log(`📧 Приложение готово к работе`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`📁 Поддержка загрузки файлов включена`);
+            console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
         });
