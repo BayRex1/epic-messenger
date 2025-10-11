@@ -1999,6 +1999,8 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/login.html') {
                 this.serveStaticFile(res, 'public/login.html', 'text/html');
+            } else if (pathname === '/about.html') {
+                this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
@@ -2032,6 +2034,10 @@ class SimpleServer {
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
+            console.log(`\n📄 Доступные страницы:`);
+            console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Страница входа: http://localhost:${port}/login.html`);
+            console.log(`   - О проекте: http://localhost:${port}/about.html`);
         });
 
         return server;
