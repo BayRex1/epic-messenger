@@ -1999,7 +1999,7 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/login.html') {
                 this.serveStaticFile(res, 'public/login.html', 'text/html');
-            } else if (pathname === '/about.html') {
+            } else if (pathname === '/about.html' || pathname === '/about') {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
@@ -2037,7 +2037,8 @@ class SimpleServer {
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
-            console.log(`   - О проекте: http://localhost:${port}/about.html`);
+            console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`   - О проекте (альтернативная ссылка): http://localhost:${port}/about.html`);
         });
 
         return server;
