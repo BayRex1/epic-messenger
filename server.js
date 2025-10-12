@@ -167,6 +167,10 @@ class SimpleServer {
         this.devices = new Map();
         this.encryptionKey = crypto.randomBytes(32); // Ключ для шифрования
         
+        // НОВОЕ: Добавляем музыку и плейлисты
+        this.music = [];
+        this.playlists = [];
+        
         // Создаем папки для загрузок если их нет
         this.ensureUploadDirs();
         this.initializeData();
@@ -174,13 +178,34 @@ class SimpleServer {
 
     // Создание папок для загрузок
     ensureUploadDirs() {
-        const uploadDirs = ['uploads', 'uploads/avatars', 'uploads/gifts', 'uploads/posts'];
+        const uploadDirs = [
+            'uploads', 
+            'uploads/avatars', 
+            'uploads/gifts', 
+            'uploads/posts',
+            'uploads/music',           // НОВАЯ ПАПКА ДЛЯ МУЗЫКИ
+            'uploads/music/covers'     // ПАПКА ДЛЯ ОБЛОЖЕК
+        ];
         uploadDirs.forEach(dir => {
             const dirPath = path.join(__dirname, 'public', dir);
             if (!fs.existsSync(dirPath)) {
                 fs.mkdirSync(dirPath, { recursive: true });
             }
         });
+    }
+
+    // НОВОЕ: Валидация музыкальных файлов
+    validateMusicFile(filename) {
+        const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    // НОВОЕ: Валидация обложек для музыки
+    validateCoverFile(filename) {
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
     }
 
     // Шифрование данных
@@ -356,6 +381,8 @@ class SimpleServer {
                 if (type === 'avatar') uploadDir = 'uploads/avatars';
                 else if (type === 'gift') uploadDir = 'uploads/gifts';
                 else if (type === 'post') uploadDir = 'uploads/posts';
+                else if (type === 'music') uploadDir = 'uploads/music';
+                else if (type === 'music/covers') uploadDir = 'uploads/music/covers';
 
                 const filePath = path.join(__dirname, 'public', uploadDir, filename);
                 
@@ -442,6 +469,10 @@ class SimpleServer {
                 createdAt: new Date()
             }
         ];
+
+        // НОВОЕ: Инициализация музыки (пустой массив)
+        this.music = [];
+        this.playlists = [];
 
         this.messages = [];
     }
@@ -741,10 +772,57 @@ class SimpleServer {
                         response = this.handleTerminateDevice(token, data);
                     }
                     break;
+
+                // НОВОЕ: API для музыки
+                case '/api/music':
+                    if (method === 'GET') {
+                        response = this.handleGetMusic(token);
+                    } else if (method === 'POST') {
+                        response = this.handleUploadMusic(token, data);
+                    }
+                    break;
                     
-                case '/api/logout':
+                case '/api/music/upload':
                     if (method === 'POST') {
-                        response = { success: true, message: 'Успешный выход из системы' };
+                        response = this.handleUploadMusicFile(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/upload-cover':
+                    if (method === 'POST') {
+                        response = this.handleUploadMusicCover(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/delete':
+                    if (method === 'POST') {
+                        response = this.handleDeleteMusic(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/search':
+                    if (method === 'GET') {
+                        response = this.handleSearchMusic(token, query);
+                    }
+                    break;
+                    
+                case '/api/music/random':
+                    if (method === 'GET') {
+                        response = this.handleGetRandomMusic(token);
+                    }
+                    break;
+                    
+                case '/api/playlists':
+                    if (method === 'GET') {
+                        response = this.handleGetPlaylists(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreatePlaylist(token, data);
+                    }
+                    break;
+                    
+                case '/api/playlists/add':
+                    if (method === 'POST') {
+                        response = this.handleAddToPlaylist(token, data);
                     }
                     break;
                     
@@ -786,6 +864,347 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
+    // НОВОЕ: Методы для работы с музыкой
+    handleGetMusic(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const musicWithUserInfo = this.music.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        return {
+            success: true,
+            music: musicWithUserInfo
+        };
+    }
+
+    handleUploadMusic(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { title, artist, duration, fileUrl, coverUrl, genre } = data;
+        
+        if (!title || !artist || !fileUrl) {
+            return { success: false, message: 'Название, исполнитель и файл обязательны' };
+        }
+
+        // Очищаем данные
+        const sanitizedTitle = this.sanitizeContent(title);
+        const sanitizedArtist = this.sanitizeContent(artist);
+        const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
+
+        const track = {
+            id: this.generateId(),
+            userId: user.id,
+            title: sanitizedTitle,
+            artist: sanitizedArtist,
+            duration: duration || 0,
+            fileUrl: fileUrl,
+            coverUrl: coverUrl || '/assets/default-cover.png',
+            genre: sanitizedGenre,
+            plays: 0,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        this.music.unshift(track);
+
+        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
+
+        return {
+            success: true,
+            track: {
+                ...track,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    async handleUploadMusicFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+
+        // Проверяем тип файла
+        if (!this.validateMusicFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла. Разрешены: MP3, WAV, OGG, M4A, AAC' };
+        }
+
+        // Проверяем размер файла (20 МБ максимум)
+        if (fileData.length > 20 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 20 МБ' };
+        }
+
+        try {
+            // Генерируем уникальное имя файла
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+            
+            // Сохраняем файл
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+
+            console.log(`🎵 Пользователь ${user.username} загрузил музыкальный файл: ${filename}`);
+
+            return {
+                success: true,
+                fileUrl: fileUrl,
+                filename: uniqueFilename
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки музыкального файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadMusicCover(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+
+        // Проверяем тип файла
+        if (!this.validateCoverFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены только изображения.' };
+        }
+
+        // Проверяем размер файла (5 МБ максимум)
+        if (fileData.length > 5 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
+        }
+
+        try {
+            // Генерируем уникальное имя файла
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+            
+            // Сохраняем файл
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+
+            console.log(`🖼️ Пользователь ${user.username} загрузил обложку для музыки: ${filename}`);
+
+            return {
+                success: true,
+                coverUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки обложки:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    handleDeleteMusic(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { trackId } = data;
+        const trackIndex = this.music.findIndex(t => t.id === trackId);
+        
+        if (trackIndex === -1) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        const track = this.music[trackIndex];
+        
+        // Проверяем права: только владелец или администратор может удалить
+        if (track.userId !== user.id && !user.isDeveloper) {
+            return { success: false, message: 'Вы можете удалять только свои треки' };
+        }
+
+        // Удаляем файл музыки если он был загружен
+        if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
+            this.deleteFile(track.fileUrl);
+        }
+
+        // Удаляем обложку если она была загружена и не дефолтная
+        if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
+            this.deleteFile(track.coverUrl);
+        }
+
+        this.music.splice(trackIndex, 1);
+
+        console.log(`🗑️ Пользователь ${user.displayName} удалил трек: ${track.title}`);
+
+        return {
+            success: true,
+            message: 'Трек успешно удален'
+        };
+    }
+
+    handleSearchMusic(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { q } = query;
+        if (!q || q.trim() === '') {
+            return this.handleGetMusic(token);
+        }
+
+        const searchTerm = q.toLowerCase().trim();
+        const filteredMusic = this.music.filter(track => 
+            track.title.toLowerCase().includes(searchTerm) ||
+            track.artist.toLowerCase().includes(searchTerm) ||
+            track.genre.toLowerCase().includes(searchTerm)
+        );
+
+        const musicWithUserInfo = filteredMusic.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        return {
+            success: true,
+            music: musicWithUserInfo,
+            searchTerm: q
+        };
+    }
+
+    handleGetRandomMusic(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (this.music.length === 0) {
+            return {
+                success: true,
+                music: []
+            };
+        }
+
+        // Берем случайные 10 треков
+        const shuffled = [...this.music].sort(() => 0.5 - Math.random());
+        const randomMusic = shuffled.slice(0, 10);
+
+        const musicWithUserInfo = randomMusic.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        return {
+            success: true,
+            music: musicWithUserInfo
+        };
+    }
+
+    handleGetPlaylists(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const userPlaylists = this.playlists.filter(p => p.userId === user.id);
+        return {
+            success: true,
+            playlists: userPlaylists
+        };
+    }
+
+    handleCreatePlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { name, description } = data;
+        
+        if (!name || name.trim() === '') {
+            return { success: false, message: 'Название плейлиста обязательно' };
+        }
+
+        const sanitizedName = this.sanitizeContent(name.trim());
+        const sanitizedDescription = description ? this.sanitizeContent(description) : '';
+
+        const playlist = {
+            id: this.generateId(),
+            userId: user.id,
+            name: sanitizedName,
+            description: sanitizedDescription,
+            tracks: [],
+            cover: null,
+            createdAt: new Date()
+        };
+
+        this.playlists.push(playlist);
+
+        console.log(`🎵 Пользователь ${user.displayName} создал плейлист: ${sanitizedName}`);
+
+        return {
+            success: true,
+            playlist: playlist
+        };
+    }
+
+    handleAddToPlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { playlistId, trackId } = data;
+        
+        const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
+        if (!playlist) {
+            return { success: false, message: 'Плейлист не найден' };
+        }
+
+        const track = this.music.find(t => t.id === trackId);
+        if (!track) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        // Проверяем, нет ли уже этого трека в плейлисте
+        if (playlist.tracks.includes(trackId)) {
+            return { success: false, message: 'Трек уже есть в плейлисте' };
+        }
+
+        playlist.tracks.push(trackId);
+
+        // Если у плейлиста нет обложки, используем обложку первого трека
+        if (!playlist.cover && playlist.tracks.length === 1) {
+            playlist.cover = track.coverUrl;
+        }
+
+        console.log(`🎵 Пользователь ${user.displayName} добавил трек в плейлист: ${playlist.name}`);
+
+        return {
+            success: true,
+            playlist: playlist
+        };
+    }
+
+    // СУЩЕСТВУЮЩИЕ МЕТОДЫ (полные версии)
     handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
@@ -1920,6 +2339,8 @@ class SimpleServer {
                 totalPosts: this.posts.length,
                 totalGifts: this.gifts.length,
                 totalPromoCodes: this.promoCodes.length,
+                totalMusic: this.music.length, // НОВОЕ: статистика музыки
+                totalPlaylists: this.playlists.length, // НОВОЕ: статистика плейлистов
                 onlineUsers: this.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.users.filter(u => u.banned).length,
                 bannedIPs: this.bannedIPs.size,
@@ -2001,6 +2422,8 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public/login.html', 'text/html');
             } else if (pathname === '/about.html' || pathname === '/about') {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
+            } else if (pathname === '/music.html' || pathname === '/music') {
+                this.serveStaticFile(res, 'public/music.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
@@ -2015,7 +2438,12 @@ class SimpleServer {
                     '.svg': 'image/svg+xml',
                     '.bmp': 'image/bmp',
                     '.webp': 'image/webp',
-                    '.ico': 'image/x-icon'
+                    '.ico': 'image/x-icon',
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/mp4',
+                    '.aac': 'audio/aac'
                 }[ext] || 'application/octet-stream';
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
@@ -2031,14 +2459,15 @@ class SimpleServer {
             console.log(`📧 Приложение готово к работе`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`📁 Поддержка загрузки файлов включена`);
+            console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
+            console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
-            console.log(`   - О проекте (альтернативная ссылка): http://localhost:${port}/about.html`);
         });
 
         return server;
