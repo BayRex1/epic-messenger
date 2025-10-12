@@ -5,6 +5,7 @@ const path = require('path');
 const url = require('url');
 const { StringDecoder } = require('string_decoder');
 const crypto = require('crypto');
+const busboy = require('busboy');
 
 class WebSocketServer {
     constructor(server) {
@@ -51,12 +52,10 @@ class WebSocketServer {
             this.clients.delete(clientId);
         });
 
-        // Отправляем приветственное сообщение
         this.sendToClient(clientId, 'connected', { clientId });
     }
 
     generateAccept(key) {
-        const crypto = require('crypto');
         const sha1 = crypto.createHash('sha1');
         sha1.update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
         return sha1.digest('base64');
@@ -167,7 +166,6 @@ class SimpleServer {
         this.devices = new Map();
         this.encryptionKey = crypto.randomBytes(32);
         
-        // Музыка и плейлисты
         this.music = [];
         this.playlists = [];
         
@@ -532,7 +530,7 @@ class SimpleServer {
                 return;
             }
             
-        res.writeHead(200, { 
+            res.writeHead(200, { 
                 'Content-Type': contentType,
                 'Cache-Control': 'public, max-age=3600'
             });
@@ -544,6 +542,12 @@ class SimpleServer {
         const parsedUrl = url.parse(req.url, true);
         const pathname = parsedUrl.pathname;
         const method = req.method;
+        
+        // Для FormData запросов обрабатываем отдельно
+        if (method === 'POST' && pathname === '/api/music/upload-full') {
+            this.handleUploadMusicFull(req, res);
+            return;
+        }
         
         let body = '';
         const decoder = new StringDecoder('utf-8');
@@ -837,6 +841,136 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
+    // НОВАЯ ФУНКЦИЯ: Загрузка музыки через FormData
+    handleUploadMusicFull(req, res) {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
+
+        const bb = busboy({ headers: req.headers });
+        
+        let fields = {};
+        let audioFile = null;
+        let coverFile = null;
+
+        bb.on('field', (name, val) => {
+            fields[name] = val;
+        });
+
+        bb.on('file', (name, file, info) => {
+            const { filename } = info;
+            const chunks = [];
+            
+            file.on('data', (chunk) => {
+                chunks.push(chunk);
+            });
+            
+            file.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                
+                if (name === 'audioFile') {
+                    if (!this.validateMusicFile(filename)) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Недопустимый формат аудио файла' }));
+                        return;
+                    }
+                    audioFile = { buffer, filename };
+                } else if (name === 'coverFile') {
+                    if (!this.validateCoverFile(filename)) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Недопустимый формат изображения' }));
+                        return;
+                    }
+                    coverFile = { buffer, filename };
+                }
+            });
+        });
+
+        bb.on('close', async () => {
+            try {
+                if (!audioFile) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Аудио файл обязателен' }));
+                    return;
+                }
+
+                if (!fields.title || !fields.artist) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Название и исполнитель обязательны' }));
+                    return;
+                }
+
+                // Сохраняем аудио файл
+                const audioExt = path.extname(audioFile.filename);
+                const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
+                
+                await fs.promises.writeFile(audioPath, audioFile.buffer);
+                const audioUrl = `/uploads/music/${audioFilename}`;
+
+                // Сохраняем обложку если есть
+                let coverUrl = null;
+                if (coverFile) {
+                    const coverExt = path.extname(coverFile.filename);
+                    const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                    const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
+                    
+                    await fs.promises.writeFile(coverPath, coverFile.buffer);
+                    coverUrl = `/uploads/music/covers/${coverFilename}`;
+                }
+
+                // Сохраняем метаданные трека
+                const track = {
+                    id: this.generateId(),
+                    userId: user.id,
+                    title: this.sanitizeContent(fields.title),
+                    artist: this.sanitizeContent(fields.artist),
+                    genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
+                    fileUrl: audioUrl,
+                    coverUrl: coverUrl,
+                    duration: 0,
+                    plays: 0,
+                    likes: [],
+                    createdAt: new Date()
+                };
+
+                this.music.unshift(track);
+
+                console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title}`);
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    track: {
+                        ...track,
+                        userName: user.displayName,
+                        userAvatar: user.avatar,
+                        userVerified: user.verified
+                    }
+                }));
+
+            } catch (error) {
+                console.error('❌ Ошибка загрузки:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Ошибка загрузки: ' + error.message }));
+            }
+        });
+
+        bb.on('error', (error) => {
+            console.error('❌ Ошибка busboy:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Ошибка обработки файла' }));
+        });
+
+        req.pipe(bb);
+    }
+
     // Методы для музыки
     handleGetMusic(token) {
         const user = this.authenticateToken(token);
@@ -906,124 +1040,29 @@ class SimpleServer {
     }
 
     async handleUploadMusicFile(token, data) {
+        // Старый метод - оставлен для совместимости
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { fileData, filename } = data;
-
-        console.log('🔍 Загрузка музыкального файла:', filename);
-
-        // Валидация файла
-        if (!this.validateMusicFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла. Разрешены: MP3, WAV, OGG, M4A, AAC' };
-        }
-
-        try {
-            // Извлекаем base64 данные
-            let base64Data;
-            if (fileData.startsWith('data:')) {
-                base64Data = fileData.split(',')[1];
-            } else {
-                base64Data = fileData;
-            }
-
-            if (!base64Data) {
-                return { success: false, message: 'Данные файла отсутствуют' };
-            }
-
-            // Создаем буфер
-            const buffer = Buffer.from(base64Data, 'base64');
-            
-            // Проверяем размер
-            if (buffer.length > 20 * 1024 * 1024) {
-                return { success: false, message: 'Размер файла не должен превышать 20 МБ' };
-            }
-
-            // Создаем уникальное имя файла
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            const filePath = path.join(__dirname, 'public', 'uploads', 'music', uniqueFilename);
-
-            // Создаем папку если не существует
-            const musicDir = path.join(__dirname, 'public', 'uploads', 'music');
-            if (!fs.existsSync(musicDir)) {
-                fs.mkdirSync(musicDir, { recursive: true });
-            }
-
-            // Сохраняем файл
-            await fs.promises.writeFile(filePath, buffer);
-            
-            const fileUrl = `/uploads/music/${uniqueFilename}`;
-            console.log('✅ Музыкальный файл загружен:', fileUrl);
-
-            return {
-                success: true,
-                fileUrl: fileUrl,
-                filename: uniqueFilename
-            };
-        } catch (error) {
-            console.error('❌ Ошибка загрузки музыкального файла:', error);
-            return { success: false, message: 'Ошибка сохранения файла: ' + error.message };
-        }
+        return { 
+            success: false, 
+            message: 'Используйте /api/music/upload-full для загрузки файлов' 
+        };
     }
 
     async handleUploadMusicCover(token, data) {
+        // Старый метод - оставлен для совместимости
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { fileData, filename } = data;
-
-        console.log('🔍 Загрузка обложки:', filename);
-
-        if (!this.validateCoverFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены только изображения.' };
-        }
-
-        try {
-            let base64Data;
-            if (fileData.startsWith('data:')) {
-                base64Data = fileData.split(',')[1];
-            } else {
-                base64Data = fileData;
-            }
-
-            if (!base64Data) {
-                return { success: false, message: 'Данные файла отсутствуют' };
-            }
-
-            const buffer = Buffer.from(base64Data, 'base64');
-            
-            if (buffer.length > 5 * 1024 * 1024) {
-                return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
-            }
-
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            const filePath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', uniqueFilename);
-
-            // Создаем папку если не существует
-            const coversDir = path.join(__dirname, 'public', 'uploads', 'music', 'covers');
-            if (!fs.existsSync(coversDir)) {
-                fs.mkdirSync(coversDir, { recursive: true });
-            }
-
-            await fs.promises.writeFile(filePath, buffer);
-            
-            const fileUrl = `/uploads/music/covers/${uniqueFilename}`;
-            console.log('✅ Обложка загружена:', fileUrl);
-
-            return {
-                success: true,
-                coverUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('❌ Ошибка загрузки обложки:', error);
-            return { success: false, message: 'Ошибка сохранения файла: ' + error.message };
-        }
+        return { 
+            success: false, 
+            message: 'Используйте /api/music/upload-full для загрузки файлов' 
+        };
     }
 
     handleDeleteMusic(token, data) {
@@ -1214,7 +1253,7 @@ class SimpleServer {
         };
     }
 
-    // Существующие методы
+    // Остальные методы (полная версия)
     handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
@@ -1505,130 +1544,6 @@ class SimpleServer {
                 giftsCount: targetUser.giftsCount || 0,
                 banned: targetUser.banned || false
             }
-        };
-    }
-
-    handleDeleteUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя удалить защищенного пользователя' };
-        }
-
-        if (targetUser.id === user.id) {
-            return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
-        }
-
-        if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
-            this.deleteFile(targetUser.avatar);
-        }
-
-        Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
-            if (device.userId === userId) {
-                this.devices.delete(deviceId);
-            }
-        });
-
-        this.users = this.users.filter(u => u.id !== userId);
-
-        console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} успешно удален`
-        };
-    }
-
-    handleBanUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId, banned } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
-        }
-
-        targetUser.banned = banned;
-
-        if (banned) {
-            const userDevices = this.getUserDevices(userId);
-            if (userDevices.length > 0) {
-                const lastDevice = userDevices[userDevices.length - 1];
-                this.banIP(lastDevice.ip);
-            }
-        }
-
-        console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${banned ? 'заблокирован' : 'разблокирован'}`
-        };
-    }
-
-    handleToggleVerification(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        targetUser.verified = !targetUser.verified;
-
-        console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
-            verified: targetUser.verified
-        };
-    }
-
-    handleToggleDeveloper(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        targetUser.isDeveloper = !targetUser.isDeveloper;
-
-        console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
-            isDeveloper: targetUser.isDeveloper
         };
     }
 
@@ -2308,6 +2223,130 @@ class SimpleServer {
                 bannedIPs: this.bannedIPs.size,
                 activeDevices: this.devices.size
             }
+        };
+    }
+
+    handleDeleteUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя удалить защищенного пользователя' };
+        }
+
+        if (targetUser.id === user.id) {
+            return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
+        }
+
+        if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
+            this.deleteFile(targetUser.avatar);
+        }
+
+        Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
+            if (device.userId === userId) {
+                this.devices.delete(deviceId);
+            }
+        });
+
+        this.users = this.users.filter(u => u.id !== userId);
+
+        console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} успешно удален`
+        };
+    }
+
+    handleBanUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId, banned } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
+        }
+
+        targetUser.banned = banned;
+
+        if (banned) {
+            const userDevices = this.getUserDevices(userId);
+            if (userDevices.length > 0) {
+                const lastDevice = userDevices[userDevices.length - 1];
+                this.banIP(lastDevice.ip);
+            }
+        }
+
+        console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${banned ? 'заблокирован' : 'разблокирован'}`
+        };
+    }
+
+    handleToggleVerification(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.verified = !targetUser.verified;
+
+        console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
+            verified: targetUser.verified
+        };
+    }
+
+    handleToggleDeveloper(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.isDeveloper = !targetUser.isDeveloper;
+
+        console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
+
+        return {
+            success: true,
+            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
+            isDeveloper: targetUser.isDeveloper
         };
     }
 
