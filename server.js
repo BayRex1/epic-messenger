@@ -176,18 +176,20 @@ class SimpleServer {
     }
 
     ensureUploadDirs() {
-        const uploadDirs = [
-            'uploads', 
-            'uploads/avatars', 
-            'uploads/gifts', 
-            'uploads/posts',
-            'uploads/music',
-            'uploads/music/covers'
+        const requiredDirs = [
+            'public/uploads/music',
+            'public/uploads/music/covers',
+            'public/uploads/avatars',
+            'public/uploads/gifts',
+            'public/uploads/posts',
+            'public/assets/emoji'
         ];
-        uploadDirs.forEach(dir => {
-            const dirPath = path.join(__dirname, 'public', dir);
-            if (!fs.existsSync(dirPath)) {
-                fs.mkdirSync(dirPath, { recursive: true });
+        
+        requiredDirs.forEach(dir => {
+            const fullPath = path.join(__dirname, dir);
+            if (!fs.existsSync(fullPath)) {
+                fs.mkdirSync(fullPath, { recursive: true });
+                console.log('✅ Создана папка:', fullPath);
             }
         });
     }
@@ -348,7 +350,7 @@ class SimpleServer {
         return sanitized;
     }
 
-    saveFile(fileData, filename, type) {
+    async saveFile(fileData, filename, type) {
         return new Promise((resolve, reject) => {
             try {
                 let uploadDir = 'uploads';
@@ -913,20 +915,47 @@ class SimpleServer {
 
         console.log('🔍 Загрузка музыкального файла:', filename);
 
+        // Валидация файла
         if (!this.validateMusicFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла. Разрешены: MP3, WAV, OGG, M4A, AAC' };
         }
 
-        if (fileData.length > 20 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 20 МБ' };
-        }
-
         try {
+            // Извлекаем base64 данные
+            let base64Data;
+            if (fileData.startsWith('data:')) {
+                base64Data = fileData.split(',')[1];
+            } else {
+                base64Data = fileData;
+            }
+
+            if (!base64Data) {
+                return { success: false, message: 'Данные файла отсутствуют' };
+            }
+
+            // Создаем буфер
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            // Проверяем размер
+            if (buffer.length > 20 * 1024 * 1024) {
+                return { success: false, message: 'Размер файла не должен превышать 20 МБ' };
+            }
+
+            // Создаем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+            const filePath = path.join(__dirname, 'public', 'uploads', 'music', uniqueFilename);
 
+            // Создаем папку если не существует
+            const musicDir = path.join(__dirname, 'public', 'uploads', 'music');
+            if (!fs.existsSync(musicDir)) {
+                fs.mkdirSync(musicDir, { recursive: true });
+            }
+
+            // Сохраняем файл
+            await fs.promises.writeFile(filePath, buffer);
+            
+            const fileUrl = `/uploads/music/${uniqueFilename}`;
             console.log('✅ Музыкальный файл загружен:', fileUrl);
 
             return {
@@ -936,7 +965,7 @@ class SimpleServer {
             };
         } catch (error) {
             console.error('❌ Ошибка загрузки музыкального файла:', error);
-            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
+            return { success: false, message: 'Ошибка сохранения файла: ' + error.message };
         }
     }
 
@@ -954,16 +983,37 @@ class SimpleServer {
             return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены только изображения.' };
         }
 
-        if (fileData.length > 5 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
-        }
-
         try {
+            let base64Data;
+            if (fileData.startsWith('data:')) {
+                base64Data = fileData.split(',')[1];
+            } else {
+                base64Data = fileData;
+            }
+
+            if (!base64Data) {
+                return { success: false, message: 'Данные файла отсутствуют' };
+            }
+
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            if (buffer.length > 5 * 1024 * 1024) {
+                return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
+            }
+
             const fileExt = path.extname(filename);
             const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+            const filePath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', uniqueFilename);
 
+            // Создаем папку если не существует
+            const coversDir = path.join(__dirname, 'public', 'uploads', 'music', 'covers');
+            if (!fs.existsSync(coversDir)) {
+                fs.mkdirSync(coversDir, { recursive: true });
+            }
+
+            await fs.promises.writeFile(filePath, buffer);
+            
+            const fileUrl = `/uploads/music/covers/${uniqueFilename}`;
             console.log('✅ Обложка загружена:', fileUrl);
 
             return {
@@ -972,7 +1022,7 @@ class SimpleServer {
             };
         } catch (error) {
             console.error('❌ Ошибка загрузки обложки:', error);
-            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
+            return { success: false, message: 'Ошибка сохранения файла: ' + error.message };
         }
     }
 
