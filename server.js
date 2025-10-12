@@ -165,26 +165,24 @@ class SimpleServer {
         this.promoCodes = [];
         this.bannedIPs = new Map();
         this.devices = new Map();
-        this.encryptionKey = crypto.randomBytes(32); // Ключ для шифрования
+        this.encryptionKey = crypto.randomBytes(32);
         
-        // НОВОЕ: Добавляем музыку и плейлисты
+        // Музыка и плейлисты
         this.music = [];
         this.playlists = [];
         
-        // Создаем папки для загрузок если их нет
         this.ensureUploadDirs();
         this.initializeData();
     }
 
-    // Создание папок для загрузок
     ensureUploadDirs() {
         const uploadDirs = [
             'uploads', 
             'uploads/avatars', 
             'uploads/gifts', 
             'uploads/posts',
-            'uploads/music',           // НОВАЯ ПАПКА ДЛЯ МУЗЫКИ
-            'uploads/music/covers'     // ПАПКА ДЛЯ ОБЛОЖЕК
+            'uploads/music',
+            'uploads/music/covers'
         ];
         uploadDirs.forEach(dir => {
             const dirPath = path.join(__dirname, 'public', dir);
@@ -194,21 +192,18 @@ class SimpleServer {
         });
     }
 
-    // НОВОЕ: Валидация музыкальных файлов
     validateMusicFile(filename) {
         const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
 
-    // НОВОЕ: Валидация обложек для музыки
     validateCoverFile(filename) {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
 
-    // Шифрование данных
     encrypt(text) {
         const iv = crypto.randomBytes(16);
         const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
@@ -217,7 +212,6 @@ class SimpleServer {
         return iv.toString('hex') + ':' + encrypted;
     }
 
-    // Дешифрование данных
     decrypt(encryptedText) {
         const parts = encryptedText.split(':');
         const iv = Buffer.from(parts[0], 'hex');
@@ -228,12 +222,10 @@ class SimpleServer {
         return decrypted;
     }
 
-    // Хеширование пароля
     hashPassword(password) {
         return crypto.createHash('sha256').update(password).digest('hex');
     }
 
-    // Получение IP адреса из запроса
     getClientIP(req) {
         return req.headers['x-forwarded-for'] || 
                req.connection.remoteAddress || 
@@ -241,19 +233,16 @@ class SimpleServer {
                (req.connection.socket ? req.connection.socket.remoteAddress : null);
     }
 
-    // Получение информации об устройстве
     getDeviceInfo(req) {
         const userAgent = req.headers['user-agent'] || '';
         let browser = 'Unknown';
         let os = 'Unknown';
         
-        // Определяем браузер
         if (userAgent.includes('Chrome')) browser = 'Chrome';
         else if (userAgent.includes('Firefox')) browser = 'Firefox';
         else if (userAgent.includes('Safari')) browser = 'Safari';
         else if (userAgent.includes('Edge')) browser = 'Edge';
         
-        // Определяем ОС
         if (userAgent.includes('Windows')) os = 'Windows';
         else if (userAgent.includes('Mac')) os = 'Mac OS';
         else if (userAgent.includes('Linux')) os = 'Linux';
@@ -267,7 +256,6 @@ class SimpleServer {
         };
     }
 
-    // Генерация ID устройства
     generateDeviceId(req) {
         const ip = this.getClientIP(req);
         const deviceInfo = this.getDeviceInfo(req);
@@ -275,12 +263,10 @@ class SimpleServer {
         return crypto.createHash('md5').update(deviceString).digest('hex');
     }
 
-    // Проверка бана по IP
     isIPBanned(ip) {
         const banInfo = this.bannedIPs.get(ip);
         if (!banInfo) return false;
         
-        // Проверяем срок бана
         if (banInfo.expires && banInfo.expires < Date.now()) {
             this.bannedIPs.delete(ip);
             return false;
@@ -289,44 +275,37 @@ class SimpleServer {
         return true;
     }
 
-    // Бан IP
-    banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) { // 30 дней по умолчанию
+    banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) {
         this.bannedIPs.set(ip, {
             bannedAt: new Date(),
             expires: Date.now() + duration
         });
     }
 
-    // Валидация файлов для аватаров (только фото)
     validateAvatarFile(filename) {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
 
-    // Валидация файлов для подарков (фото + gif + svg)
     validateGiftFile(filename) {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
 
-    // Валидация файлов для постов
     validatePostFile(filename) {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
 
-    // Улучшенная валидация контента - запрещает ссылки, HTML, SVG, скрипты
     sanitizeContent(content) {
         if (typeof content !== 'string') return '';
         
-        // Удаляем все URL (http, https, ftp, IP-адреса)
         let sanitized = content
             .replace(/(https?|ftp)\/\/[^\s/$.#].[^\s]*/gi, '[ССЫЛКА УДАЛЕНА]')
             .replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/[^\s]*)?/gi, (match) => {
-                // Проверяем, похоже ли на домен
                 if (match.includes('.') && !match.includes(' ')) {
                     return '[ССЫЛКА УДАЛЕНА]';
                 }
@@ -334,10 +313,9 @@ class SimpleServer {
             })
             .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP УДАЛЕН]');
 
-        // Удаляем все HTML теги и специальные символы
         sanitized = sanitized
-            .replace(/<[^>]*>/g, '') // Удаляем все HTML теги
-            .replace(/&[^;]+;/g, '') // Удаляем HTML entities
+            .replace(/<[^>]*>/g, '')
+            .replace(/&[^;]+;/g, '')
             .replace(/javascript:/gi, '')
             .replace(/data:/gi, '')
             .replace(/vbscript:/gi, '')
@@ -346,7 +324,6 @@ class SimpleServer {
             .replace(/on\w+=\w+/gi, '')
             .trim();
 
-        // Дополнительная защита от XSS
         const dangerousPatterns = [
             /<script[\s\S]*?<\/script>/gi,
             /<svg[\s\S]*?<\/svg>/gi,
@@ -364,7 +341,6 @@ class SimpleServer {
             sanitized = sanitized.replace(pattern, '');
         });
 
-        // Ограничиваем длину
         if (sanitized.length > 5000) {
             sanitized = sanitized.substring(0, 5000);
         }
@@ -372,11 +348,9 @@ class SimpleServer {
         return sanitized;
     }
 
-    // Сохранение файла
     saveFile(fileData, filename, type) {
         return new Promise((resolve, reject) => {
             try {
-                // Определяем папку для сохранения
                 let uploadDir = 'uploads';
                 if (type === 'avatar') uploadDir = 'uploads/avatars';
                 else if (type === 'gift') uploadDir = 'uploads/gifts';
@@ -386,10 +360,19 @@ class SimpleServer {
 
                 const filePath = path.join(__dirname, 'public', uploadDir, filename);
                 
-                // Удаляем префикс data URL если есть
-                const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                
+                let buffer;
+                if (fileData.startsWith('data:')) {
+                    const base64Data = fileData.split(',')[1];
+                    buffer = Buffer.from(base64Data, 'base64');
+                } else {
+                    buffer = Buffer.from(fileData, 'base64');
+                }
+
+                const dirPath = path.dirname(filePath);
+                if (!fs.existsSync(dirPath)) {
+                    fs.mkdirSync(dirPath, { recursive: true });
+                }
+
                 fs.writeFile(filePath, buffer, (err) => {
                     if (err) {
                         reject(err);
@@ -403,7 +386,6 @@ class SimpleServer {
         });
     }
 
-    // Удаление файла
     deleteFile(fileUrl) {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         
@@ -416,7 +398,6 @@ class SimpleServer {
     initializeData() {
         this.users = [];
 
-        // Базовые подарки
         this.gifts = [
             {
                 id: '1',
@@ -444,7 +425,6 @@ class SimpleServer {
             }
         ];
 
-        // Промокоды
         this.promoCodes = [
             {
                 id: '1',
@@ -456,7 +436,6 @@ class SimpleServer {
             }
         ];
 
-        // Начальные посты
         this.posts = [
             {
                 id: '1',
@@ -470,7 +449,6 @@ class SimpleServer {
             }
         ];
 
-        // НОВОЕ: Инициализация музыки (пустой массив)
         this.music = [];
         this.playlists = [];
 
@@ -485,7 +463,6 @@ class SimpleServer {
         return this.users.find(u => u.id === token);
     }
 
-    // Регистрация устройства
     registerDevice(userId, req) {
         const deviceId = this.generateDeviceId(req);
         const deviceInfo = this.getDeviceInfo(req);
@@ -501,10 +478,9 @@ class SimpleServer {
             userAgent: deviceInfo.userAgent,
             lastActive: new Date(),
             createdAt: new Date(),
-            isOwner: false // Определяется при первой регистрации
+            isOwner: false
         };
         
-        // Проверяем, является ли это первым устройством пользователя
         const userDevices = Array.from(this.devices.values()).filter(d => d.userId === userId);
         if (userDevices.length === 0) {
             device.isOwner = true;
@@ -514,31 +490,26 @@ class SimpleServer {
         return device;
     }
 
-    // Получение устройств пользователя
     getUserDevices(userId) {
         return Array.from(this.devices.values()).filter(device => device.userId === userId);
     }
 
-    // Завершение сеанса устройства
     terminateDevice(userId, deviceId) {
         const device = this.devices.get(deviceId);
         if (!device || device.userId !== userId) {
             return false;
         }
         
-        // Проверяем права на завершение сеанса
         const userDevices = this.getUserDevices(userId);
         const isOwner = userDevices.some(d => d.isOwner);
         const targetDevice = userDevices.find(d => d.id === deviceId);
         
         if (!targetDevice) return false;
         
-        // Владелец может завершить любой сеанс, другие пользователи - только через 24 часа
         if (targetDevice.isOwner || isOwner) {
             this.devices.delete(deviceId);
             return true;
         } else {
-            // Проверяем, прошло ли 24 часа
             const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
             if (timeDiff > 24 * 60 * 60 * 1000) {
                 this.devices.delete(deviceId);
@@ -773,7 +744,7 @@ class SimpleServer {
                     }
                     break;
 
-                // НОВОЕ: API для музыки
+                // API для музыки
                 case '/api/music':
                     if (method === 'GET') {
                         response = this.handleGetMusic(token);
@@ -864,7 +835,7 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // НОВОЕ: Методы для работы с музыкой
+    // Методы для музыки
     handleGetMusic(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -899,7 +870,6 @@ class SimpleServer {
             return { success: false, message: 'Название, исполнитель и файл обязательны' };
         }
 
-        // Очищаем данные
         const sanitizedTitle = this.sanitizeContent(title);
         const sanitizedArtist = this.sanitizeContent(artist);
         const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
@@ -941,25 +911,23 @@ class SimpleServer {
 
         const { fileData, filename } = data;
 
-        // Проверяем тип файла
+        console.log('🔍 Загрузка музыкального файла:', filename);
+
         if (!this.validateMusicFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла. Разрешены: MP3, WAV, OGG, M4A, AAC' };
         }
 
-        // Проверяем размер файла (20 МБ максимум)
         if (fileData.length > 20 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 20 МБ' };
         }
 
         try {
-            // Генерируем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
             
-            // Сохраняем файл
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
 
-            console.log(`🎵 Пользователь ${user.username} загрузил музыкальный файл: ${filename}`);
+            console.log('✅ Музыкальный файл загружен:', fileUrl);
 
             return {
                 success: true,
@@ -967,8 +935,8 @@ class SimpleServer {
                 filename: uniqueFilename
             };
         } catch (error) {
-            console.error('Ошибка загрузки музыкального файла:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
+            console.error('❌ Ошибка загрузки музыкального файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
         }
     }
 
@@ -980,33 +948,31 @@ class SimpleServer {
 
         const { fileData, filename } = data;
 
-        // Проверяем тип файла
+        console.log('🔍 Загрузка обложки:', filename);
+
         if (!this.validateCoverFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены только изображения.' };
         }
 
-        // Проверяем размер файла (5 МБ максимум)
         if (fileData.length > 5 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
         }
 
         try {
-            // Генерируем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
             
-            // Сохраняем файл
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
 
-            console.log(`🖼️ Пользователь ${user.username} загрузил обложку для музыки: ${filename}`);
+            console.log('✅ Обложка загружена:', fileUrl);
 
             return {
                 success: true,
                 coverUrl: fileUrl
             };
         } catch (error) {
-            console.error('Ошибка загрузки обложки:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
+            console.error('❌ Ошибка загрузки обложки:', error);
+            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
         }
     }
 
@@ -1025,24 +991,21 @@ class SimpleServer {
 
         const track = this.music[trackIndex];
         
-        // Проверяем права: только владелец или администратор может удалить
         if (track.userId !== user.id && !user.isDeveloper) {
             return { success: false, message: 'Вы можете удалять только свои треки' };
         }
 
-        // Удаляем файл музыки если он был загружен
         if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
             this.deleteFile(track.fileUrl);
         }
 
-        // Удаляем обложку если она была загружена и не дефолтная
         if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
             this.deleteFile(track.coverUrl);
         }
 
         this.music.splice(trackIndex, 1);
 
-        console.log(`🗑️ Пользователь ${user.displayName} удалил трек: ${track.title}`);
+        console.log(`🗑️ Трек удален: ${track.title}`);
 
         return {
             success: true,
@@ -1098,7 +1061,6 @@ class SimpleServer {
             };
         }
 
-        // Берем случайные 10 треков
         const shuffled = [...this.music].sort(() => 0.5 - Math.random());
         const randomMusic = shuffled.slice(0, 10);
 
@@ -1158,7 +1120,7 @@ class SimpleServer {
 
         this.playlists.push(playlist);
 
-        console.log(`🎵 Пользователь ${user.displayName} создал плейлист: ${sanitizedName}`);
+        console.log(`🎵 Создан плейлист: ${sanitizedName}`);
 
         return {
             success: true,
@@ -1184,19 +1146,17 @@ class SimpleServer {
             return { success: false, message: 'Трек не найден' };
         }
 
-        // Проверяем, нет ли уже этого трека в плейлисте
         if (playlist.tracks.includes(trackId)) {
             return { success: false, message: 'Трек уже есть в плейлисте' };
         }
 
         playlist.tracks.push(trackId);
 
-        // Если у плейлиста нет обложки, используем обложку первого трека
         if (!playlist.cover && playlist.tracks.length === 1) {
             playlist.cover = track.coverUrl;
         }
 
-        console.log(`🎵 Пользователь ${user.displayName} добавил трек в плейлист: ${playlist.name}`);
+        console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
 
         return {
             success: true,
@@ -1204,7 +1164,7 @@ class SimpleServer {
         };
     }
 
-    // СУЩЕСТВУЮЩИЕ МЕТОДЫ (полные версии)
+    // Существующие методы
     handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
@@ -1214,18 +1174,15 @@ class SimpleServer {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
-        // Проверяем бан пользователя
         if (user.banned) {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
 
-        // Проверяем бан по IP
         const clientIP = this.getClientIP(req);
         if (this.isIPBanned(clientIP)) {
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
-        // Регистрируем устройство
         const device = this.registerDevice(user.id, req);
 
         user.status = 'online';
@@ -1259,7 +1216,6 @@ class SimpleServer {
     handleRegister(data, req) {
         const { username, displayName, email, password } = data;
 
-        // Проверяем бан по IP
         const clientIP = this.getClientIP(req);
         if (this.isIPBanned(clientIP)) {
             return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
@@ -1277,7 +1233,6 @@ class SimpleServer {
             return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
         }
 
-        // Очищаем входные данные
         const sanitizedUsername = this.sanitizeContent(username);
         const sanitizedDisplayName = this.sanitizeContent(displayName);
         const sanitizedEmail = this.sanitizeContent(email);
@@ -1293,14 +1248,13 @@ class SimpleServer {
         }
 
         const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
-        console.log(`🔍 Регистрация пользователя: ${sanitizedUsername}, isBayRex: ${isBayRex}`);
         
         const newUser = {
             id: this.generateId(),
             username: sanitizedUsername,
             displayName: sanitizedDisplayName,
             email: sanitizedEmail,
-            password: this.hashPassword(password), // Хешируем пароль
+            password: this.hashPassword(password),
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
             coins: isBayRex ? 50000 : 1000,
@@ -1319,7 +1273,6 @@ class SimpleServer {
 
         this.users.push(newUser);
 
-        // Регистрируем устройство
         const device = this.registerDevice(newUser.id, req);
 
         if (isBayRex) {
@@ -1360,18 +1313,15 @@ class SimpleServer {
             return { authenticated: false };
         }
 
-        // Проверяем бан пользователя
         if (user.banned) {
             return { authenticated: false, message: 'Аккаунт заблокирован' };
         }
 
-        // Проверяем бан по IP
         const clientIP = this.getClientIP(req);
         if (this.isIPBanned(clientIP)) {
             return { authenticated: false, message: 'IP адрес заблокирован' };
         }
 
-        // Обновляем активность устройства
         const deviceId = this.generateDeviceId(req);
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
@@ -1407,18 +1357,15 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Проверяем бан пользователя
         if (user.banned) {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
 
-        // Проверяем бан по IP
         const clientIP = this.getClientIP(req);
         if (this.isIPBanned(clientIP)) {
             return { success: false, message: 'IP адрес заблокирован' };
         }
 
-        // Обновляем активность устройства
         const deviceId = this.generateDeviceId(req);
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
@@ -1532,12 +1479,10 @@ class SimpleServer {
             return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
         }
 
-        // Удаляем аватар пользователя если есть
         if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
             this.deleteFile(targetUser.avatar);
         }
 
-        // Удаляем устройства пользователя
         Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
             if (device.userId === userId) {
                 this.devices.delete(deviceId);
@@ -1573,9 +1518,7 @@ class SimpleServer {
 
         targetUser.banned = banned;
 
-        // Если бан, то добавляем IP в бан лист
         if (banned) {
-            // Находим последнее устройство пользователя для получения IP
             const userDevices = this.getUserDevices(userId);
             if (userDevices.length > 0) {
                 const lastDevice = userDevices[userDevices.length - 1];
@@ -1651,7 +1594,6 @@ class SimpleServer {
             (msg.senderId === toUserId && msg.toUserId === userId)
         );
 
-        // Дешифруем сообщения
         const decryptedMessages = chatMessages.map(msg => ({
             ...msg,
             text: msg.encrypted ? this.decrypt(msg.text) : msg.text
@@ -1677,14 +1619,12 @@ class SimpleServer {
             return { success: false, message: 'Сообщение не может быть пустым' };
         }
 
-        // Очищаем текст от опасного контента
         const sanitizedText = this.sanitizeContent(text.trim());
 
         if (sanitizedText.length === 0) {
             return { success: false, message: 'Сообщение содержит запрещенный контент' };
         }
 
-        // Шифруем сообщение
         const encryptedText = this.encrypt(sanitizedText);
 
         const message = {
@@ -1707,7 +1647,7 @@ class SimpleServer {
             success: true,
             message: {
                 ...message,
-                text: sanitizedText // Возвращаем очищенный текст для клиента
+                text: sanitizedText
             }
         };
     }
@@ -1759,7 +1699,6 @@ class SimpleServer {
             return { success: false, message: 'Текст поста не может быть пустым' };
         }
 
-        // Очищаем текст от опасного контента
         const sanitizedText = this.sanitizeContent(text.trim());
 
         if (sanitizedText.length === 0) {
@@ -1809,19 +1748,16 @@ class SimpleServer {
 
         const post = this.posts[postIndex];
         
-        // Администраторы могут удалять любые посты, кроме системных
         if (post.userId === 'system') {
             return { success: false, message: 'Нельзя удалить системный пост' };
         }
 
-        // Удаляем изображение поста если есть
         if (post.image && post.image.startsWith('/uploads/posts/')) {
             this.deleteFile(post.image);
         }
 
         this.posts.splice(postIndex, 1);
 
-        // Уменьшаем счетчик постов пользователя
         const postUser = this.users.find(u => u.id === post.userId);
         if (postUser && postUser.postsCount > 0) {
             postUser.postsCount--;
@@ -1885,7 +1821,6 @@ class SimpleServer {
             return { success: false, message: 'Название и цена обязательны' };
         }
 
-        // Очищаем название подарка
         const sanitizedName = this.sanitizeContent(name);
 
         const gift = {
@@ -1930,10 +1865,8 @@ class SimpleServer {
             return { success: false, message: 'Получатель не найден' };
         }
 
-        // Списание средств
         user.coins -= gift.price;
 
-        // Создание сообщения о подарке
         const giftMessage = {
             id: this.generateId(),
             senderId: user.id,
@@ -1952,7 +1885,6 @@ class SimpleServer {
 
         this.messages.push(giftMessage);
 
-        // Добавляем подарок получателю
         if (!recipient.gifts) recipient.gifts = [];
         recipient.gifts.push({
             id: this.generateId(),
@@ -1997,7 +1929,6 @@ class SimpleServer {
             return { success: false, message: 'Код и количество коинов обязательны' };
         }
 
-        // Очищаем код промокода
         const sanitizedCode = this.sanitizeContent(code.toUpperCase());
 
         const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
@@ -2062,7 +1993,6 @@ class SimpleServer {
 
         const { displayName, description, username, email } = data;
 
-        // Очищаем данные от опасного контента
         if (displayName && displayName.trim()) {
             user.displayName = this.sanitizeContent(displayName.trim());
         }
@@ -2122,7 +2052,6 @@ class SimpleServer {
 
         const { avatar } = data;
 
-        // Удаляем старый аватар если он был загруженным файлом
         if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
             this.deleteFile(user.avatar);
         }
@@ -2154,7 +2083,6 @@ class SimpleServer {
         };
     }
 
-    // Загрузка аватара из файла
     async handleUploadAvatar(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2163,30 +2091,24 @@ class SimpleServer {
 
         const { fileData, filename } = data;
 
-        // Проверяем тип файла для аватара
         if (!this.validateAvatarFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла для аватара. Разрешены только изображения.' };
         }
 
-        // Проверяем размер файла (5 МБ максимум для аватара)
         if (fileData.length > 5 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
         }
 
         try {
-            // Генерируем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
             
-            // Сохраняем файл
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
 
-            // Удаляем старый аватар если он был загруженным файлом
             if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                 this.deleteFile(user.avatar);
             }
 
-            // Обновляем аватар пользователя
             user.avatar = fileUrl;
 
             console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
@@ -2219,7 +2141,6 @@ class SimpleServer {
         }
     }
 
-    // Загрузка изображения подарка
     async handleUploadGift(token, data) {
         const user = this.authenticateToken(token);
         if (!user || !user.isDeveloper) {
@@ -2228,22 +2149,18 @@ class SimpleServer {
 
         const { fileData, filename } = data;
 
-        // Проверяем тип файла для подарка
         if (!this.validateGiftFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
         }
 
-        // Проверяем размер файла (10 МБ максимум)
         if (fileData.length > 10 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
         }
 
         try {
-            // Генерируем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `gift_${Date.now()}${fileExt}`;
             
-            // Сохраняем файл
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
 
             console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
@@ -2258,7 +2175,6 @@ class SimpleServer {
         }
     }
 
-    // Загрузка изображения для поста
     async handleUploadPostImage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2267,22 +2183,18 @@ class SimpleServer {
 
         const { fileData, filename } = data;
 
-        // Проверяем тип файла для поста
         if (!this.validatePostFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения.' };
         }
 
-        // Проверяем размер файла (10 МБ максимум)
         if (fileData.length > 10 * 1024 * 1024) {
             return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
         }
 
         try {
-            // Генерируем уникальное имя файла
             const fileExt = path.extname(filename);
             const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
             
-            // Сохраняем файл
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
 
             console.log(`📸 Пользователь ${user.username} загрузил изображение для поста: ${filename}`);
@@ -2339,8 +2251,8 @@ class SimpleServer {
                 totalPosts: this.posts.length,
                 totalGifts: this.gifts.length,
                 totalPromoCodes: this.promoCodes.length,
-                totalMusic: this.music.length, // НОВОЕ: статистика музыки
-                totalPlaylists: this.playlists.length, // НОВОЕ: статистика плейлистов
+                totalMusic: this.music.length,
+                totalPlaylists: this.playlists.length,
                 onlineUsers: this.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.users.filter(u => u.banned).length,
                 bannedIPs: this.bannedIPs.size,
