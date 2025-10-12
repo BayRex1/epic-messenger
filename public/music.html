@@ -687,6 +687,20 @@
             margin-bottom: 20px;
             opacity: 0.5;
         }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -838,13 +852,15 @@
                 <button class="close-modal" onclick="closeUploadModal()">&times;</button>
             </div>
             
+            <div id="uploadError" style="display: none;"></div>
+            
             <div class="form-group">
-                <label class="form-label">Название песни</label>
+                <label class="form-label">Название песни *</label>
                 <input type="text" class="form-input" id="songTitle" placeholder="Введите название">
             </div>
             
             <div class="form-group">
-                <label class="form-label">Исполнитель</label>
+                <label class="form-label">Исполнитель *</label>
                 <input type="text" class="form-input" id="songArtist" placeholder="Введите имя исполнителя">
             </div>
             
@@ -854,10 +870,10 @@
             </div>
             
             <div class="form-group">
-                <label class="form-label">Аудио файл</label>
+                <label class="form-label">Аудио файл *</label>
                 <input type="file" class="file-input" id="audioFile" accept="audio/*">
                 <label for="audioFile" class="file-label" id="audioFileLabel">
-                    <i class="fas fa-music"></i> Выберите аудио файл
+                    <i class="fas fa-music"></i> Выберите аудио файл (MP3, WAV, OGG, M4A, AAC)
                 </label>
             </div>
             
@@ -1009,7 +1025,7 @@
             const password = document.getElementById('loginPassword').value;
 
             if (!username || !password) {
-                alert('Заполните все поля');
+                showError('Заполните все поля');
                 return;
             }
 
@@ -1030,11 +1046,11 @@
                     showMainApp();
                     loadMusic();
                 } else {
-                    alert(data.message);
+                    showError(data.message);
                 }
             } catch (error) {
                 console.error('Ошибка входа:', error);
-                alert('Ошибка соединения с сервером');
+                showError('Ошибка соединения с сервером');
             }
         }
 
@@ -1046,7 +1062,7 @@
             const password = document.getElementById('regPassword').value;
 
             if (!username || !displayName || !email || !password) {
-                alert('Заполните все поля');
+                showError('Заполните все поля');
                 return;
             }
 
@@ -1068,11 +1084,11 @@
                     loadMusic();
                     alert(data.message);
                 } else {
-                    alert(data.message);
+                    showError(data.message);
                 }
             } catch (error) {
                 console.error('Ошибка регистрации:', error);
-                alert('Ошибка соединения с сервером');
+                showError('Ошибка соединения с сервером');
             }
         }
 
@@ -1082,6 +1098,16 @@
             currentUser = null;
             musicList = [];
             showAuthModal();
+        }
+
+        // Показать ошибку
+        function showError(message) {
+            const errorDiv = document.getElementById('uploadError');
+            errorDiv.innerHTML = `<div class="error-message">${message}</div>`;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
         }
 
         // Загрузка музыки с сервера
@@ -1151,6 +1177,7 @@
         // Показать модальное окно загрузки
         function showUploadModal() {
             document.getElementById('uploadModal').style.display = 'block';
+            document.getElementById('uploadError').style.display = 'none';
             
             // Сброс формы
             document.getElementById('songTitle').value = '';
@@ -1158,7 +1185,7 @@
             document.getElementById('songGenre').value = '';
             document.getElementById('audioFile').value = '';
             document.getElementById('coverFile').value = '';
-            document.getElementById('audioFileLabel').innerHTML = '<i class="fas fa-music"></i> Выберите аудио файл';
+            document.getElementById('audioFileLabel').innerHTML = '<i class="fas fa-music"></i> Выберите аудио файл (MP3, WAV, OGG, M4A, AAC)';
             document.getElementById('coverFileLabel').innerHTML = '<i class="fas fa-image"></i> Выберите обложку';
         }
 
@@ -1169,14 +1196,23 @@
 
         // Загрузка песни на сервер
         async function uploadSong() {
-            const title = document.getElementById('songTitle').value;
-            const artist = document.getElementById('songArtist').value;
-            const genre = document.getElementById('songGenre').value;
+            const title = document.getElementById('songTitle').value.trim();
+            const artist = document.getElementById('songArtist').value.trim();
+            const genre = document.getElementById('songGenre').value.trim();
             const audioFile = document.getElementById('audioFile').files[0];
             const coverFile = document.getElementById('coverFile').files[0];
 
-            if (!title || !artist || !audioFile) {
-                alert('Заполните название, исполнителя и выберите аудио файл');
+            // Валидация
+            if (!title) {
+                showError('Введите название песни');
+                return;
+            }
+            if (!artist) {
+                showError('Введите имя исполнителя');
+                return;
+            }
+            if (!audioFile) {
+                showError('Выберите аудио файл');
                 return;
             }
 
@@ -1184,10 +1220,15 @@
             const uploadBtn = document.getElementById('uploadBtn');
             uploadBtn.disabled = true;
             uploadBtn.textContent = 'Загрузка...';
+            uploadBtn.classList.add('loading');
 
             try {
+                console.log('Начинаем загрузку файла...');
+
                 // Загружаем аудио файл
                 const audioData = await readFileAsBase64(audioFile);
+                console.log('Аудио файл прочитан, размер:', audioData.length);
+
                 const audioResponse = await fetch('/api/music/upload', {
                     method: 'POST',
                     headers: {
@@ -1201,14 +1242,16 @@
                 });
 
                 const audioResult = await audioResponse.json();
+                console.log('Ответ от сервера (аудио):', audioResult);
                 
                 if (!audioResult.success) {
-                    throw new Error(audioResult.message);
+                    throw new Error(audioResult.message || 'Ошибка загрузки аудио файла');
                 }
 
                 // Загружаем обложку если есть
                 let coverUrl = null;
                 if (coverFile) {
+                    console.log('Загружаем обложку...');
                     const coverData = await readFileAsBase64(coverFile);
                     const coverResponse = await fetch('/api/music/upload-cover', {
                         method: 'POST',
@@ -1223,12 +1266,14 @@
                     });
 
                     const coverResult = await coverResponse.json();
+                    console.log('Ответ от сервера (обложка):', coverResult);
                     if (coverResult.success) {
                         coverUrl = coverResult.coverUrl;
                     }
                 }
 
                 // Сохраняем метаданные трека
+                console.log('Сохраняем метаданные трека...');
                 const saveResponse = await fetch('/api/music', {
                     method: 'POST',
                     headers: {
@@ -1238,7 +1283,7 @@
                     body: JSON.stringify({
                         title: title,
                         artist: artist,
-                        genre: genre,
+                        genre: genre || 'Не указан',
                         fileUrl: audioResult.fileUrl,
                         coverUrl: coverUrl,
                         duration: 0
@@ -1246,20 +1291,23 @@
                 });
 
                 const saveResult = await saveResponse.json();
+                console.log('Ответ от сервера (метаданные):', saveResult);
+                
                 if (saveResult.success) {
                     alert('Песня успешно опубликована!');
                     closeUploadModal();
                     loadMusic(); // Перезагружаем список
                 } else {
-                    throw new Error(saveResult.message);
+                    throw new Error(saveResult.message || 'Ошибка сохранения метаданных');
                 }
 
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
-                alert('Ошибка загрузки: ' + error.message);
+                showError('Ошибка загрузки: ' + error.message);
             } finally {
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = 'Опубликовать песню';
+                uploadBtn.classList.remove('loading');
             }
         }
 
@@ -1295,11 +1343,14 @@
             }
         }
 
-        // Чтение файла как base64
+        // Чтение файла как base64 (исправленная версия)
         function readFileAsBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
+                reader.onload = () => {
+                    // Берем только data URL без проверки на префикс
+                    resolve(reader.result);
+                };
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
@@ -1309,16 +1360,25 @@
         document.getElementById('audioFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                document.getElementById('audioFileLabel').innerHTML = `<i class="fas fa-check"></i> ${file.name}`;
+                document.getElementById('audioFileLabel').innerHTML = `<i class="fas fa-check"></i> ${file.name} (${formatFileSize(file.size)})`;
             }
         });
 
         document.getElementById('coverFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                document.getElementById('coverFileLabel').innerHTML = `<i class="fas fa-check"></i> ${file.name}`;
+                document.getElementById('coverFileLabel').innerHTML = `<i class="fas fa-check"></i> ${file.name} (${formatFileSize(file.size)})`;
             }
         });
+
+        // Форматирование размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
         // Воспроизведение трека
         function playTrack(index) {
