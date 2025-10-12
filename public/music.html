@@ -24,7 +24,6 @@
             min-height: 100vh;
         }
 
-        /* Сайдбар */
         .sidebar {
             width: 250px;
             background: rgba(0, 0, 0, 0.3);
@@ -144,7 +143,6 @@
             box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
         }
 
-        /* Основной контент */
         .main-content {
             flex: 1;
             padding: 20px;
@@ -265,7 +263,6 @@
             opacity: 1;
         }
 
-        /* Модальное окно */
         .modal {
             display: none;
             position: fixed;
@@ -380,7 +377,6 @@
             box-shadow: none;
         }
 
-        /* Окно входа */
         .auth-modal {
             display: none;
             position: fixed;
@@ -436,7 +432,6 @@
             display: block;
         }
 
-        /* Полноэкранный плеер */
         .fullscreen-player {
             position: fixed;
             top: 0;
@@ -589,7 +584,6 @@
             color: #ccc;
         }
 
-        /* Нижний мини-плеер */
         .mini-player {
             position: fixed;
             bottom: 0;
@@ -701,10 +695,17 @@
             margin-bottom: 15px;
             text-align: center;
         }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <!-- Окно авторизации -->
     <div class="auth-modal" id="authModal">
         <div class="auth-content">
             <div class="logo" style="margin-bottom: 30px;">EPIC MUSIC</div>
@@ -714,7 +715,6 @@
                 <button class="auth-tab" onclick="showAuthTab('register')">Регистрация</button>
             </div>
 
-            <!-- Форма входа -->
             <div class="auth-form active" id="loginForm">
                 <div class="form-group">
                     <input type="text" class="form-input" id="loginUsername" placeholder="Имя пользователя">
@@ -725,7 +725,6 @@
                 <button class="submit-btn" onclick="login()">Войти</button>
             </div>
 
-            <!-- Форма регистрации -->
             <div class="auth-form" id="registerForm">
                 <div class="form-group">
                     <input type="text" class="form-input" id="regUsername" placeholder="Имя пользователя">
@@ -745,11 +744,9 @@
     </div>
 
     <div class="container" id="mainContainer" style="display: none;">
-        <!-- Сайдбар -->
         <div class="sidebar">
             <div class="logo">EPIC MUSIC</div>
             
-            <!-- Информация о пользователе -->
             <div class="user-info">
                 <div class="user-avatar" id="userAvatar"></div>
                 <div class="user-details">
@@ -792,31 +789,24 @@
             </button>
         </div>
 
-        <!-- Основной контент -->
         <div class="main-content">
-            <!-- Поиск -->
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" placeholder="Поиск музыки..." id="searchInput" oninput="searchMusic()">
             </div>
 
-            <!-- Раздел "Моя музыка" -->
             <div class="content-section active" id="my-music">
                 <h2 class="section-title">Вся музыка</h2>
                 <div class="music-grid" id="musicGrid">
-                    <!-- Музыка будет загружаться с сервера -->
                 </div>
             </div>
 
-            <!-- Раздел "Поиск" -->
             <div class="content-section" id="search">
                 <h2 class="section-title">Поиск музыки</h2>
                 <div class="music-grid" id="searchResults">
-                    <!-- Результаты поиска -->
                 </div>
             </div>
 
-            <!-- Раздел "Мой плейлист" -->
             <div class="content-section" id="playlist">
                 <h2 class="section-title">Мой плейлист</h2>
                 <div class="empty-state">
@@ -825,15 +815,12 @@
                 </div>
             </div>
 
-            <!-- Раздел "Рандом" -->
             <div class="content-section" id="random">
                 <h2 class="section-title">Случайные треки</h2>
                 <div class="music-grid" id="randomMusic">
-                    <!-- Случайная музыка -->
                 </div>
             </div>
 
-            <!-- Раздел "Скачанное" -->
             <div class="content-section" id="downloads">
                 <h2 class="section-title">Скачанная музыка</h2>
                 <div class="empty-state">
@@ -844,7 +831,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно загрузки музыки -->
     <div class="modal" id="uploadModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -889,7 +875,6 @@
         </div>
     </div>
 
-    <!-- Полноэкранный плеер -->
     <div class="fullscreen-player" id="fullscreenPlayer">
         <div class="player-header">
             <div></div>
@@ -932,7 +917,6 @@
         </div>
     </div>
 
-    <!-- Мини-плеер -->
     <div class="mini-player" id="miniPlayer">
         <div class="mini-track-info">
             <div class="mini-cover" id="miniCover"></div>
@@ -962,7 +946,6 @@
         let progressInterval = null;
         let audioElement = null;
 
-        // Проверка авторизации при загрузке
         async function checkAuth() {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -992,25 +975,21 @@
             }
         }
 
-        // Показать окно авторизации
         function showAuthModal() {
             document.getElementById('authModal').style.display = 'block';
             document.getElementById('mainContainer').style.display = 'none';
         }
 
-        // Показать основное приложение
         function showMainApp() {
             document.getElementById('authModal').style.display = 'none';
             document.getElementById('mainContainer').style.display = 'flex';
             
-            // Обновляем информацию о пользователе
             document.getElementById('userName').textContent = currentUser.displayName;
             document.getElementById('userAvatar').innerHTML = currentUser.avatar ? 
                 `<img src="${currentUser.avatar}" style="width:100%;height:100%;border-radius:50%;">` :
                 `<i class="fas fa-user"></i>`;
         }
 
-        // Переключение вкладок авторизации
         function showAuthTab(tab) {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
@@ -1019,7 +998,6 @@
             document.getElementById(tab + 'Form').classList.add('active');
         }
 
-        // Вход
         async function login() {
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
@@ -1054,7 +1032,6 @@
             }
         }
 
-        // Регистрация
         async function register() {
             const username = document.getElementById('regUsername').value;
             const displayName = document.getElementById('regDisplayName').value;
@@ -1092,7 +1069,6 @@
             }
         }
 
-        // Выход
         function logout() {
             localStorage.removeItem('token');
             currentUser = null;
@@ -1100,7 +1076,6 @@
             showAuthModal();
         }
 
-        // Показать ошибку
         function showError(message) {
             const errorDiv = document.getElementById('uploadError');
             errorDiv.innerHTML = `<div class="error-message">${message}</div>`;
@@ -1110,7 +1085,6 @@
             }, 5000);
         }
 
-        // Загрузка музыки с сервера
         async function loadMusic() {
             const token = localStorage.getItem('token');
             
@@ -1134,7 +1108,6 @@
             }
         }
 
-        // Отрисовка сетки музыки
         function renderMusicGrid() {
             const grid = document.getElementById('musicGrid');
             
@@ -1174,12 +1147,10 @@
             });
         }
 
-        // Показать модальное окно загрузки
         function showUploadModal() {
             document.getElementById('uploadModal').style.display = 'block';
             document.getElementById('uploadError').style.display = 'none';
             
-            // Сброс формы
             document.getElementById('songTitle').value = '';
             document.getElementById('songArtist').value = '';
             document.getElementById('songGenre').value = '';
@@ -1189,12 +1160,10 @@
             document.getElementById('coverFileLabel').innerHTML = '<i class="fas fa-image"></i> Выберите обложку';
         }
 
-        // Закрыть модальное окно загрузки
         function closeUploadModal() {
             document.getElementById('uploadModal').style.display = 'none';
         }
 
-        // Загрузка песни на сервер
         async function uploadSong() {
             const title = document.getElementById('songTitle').value.trim();
             const artist = document.getElementById('songArtist').value.trim();
@@ -1202,7 +1171,6 @@
             const audioFile = document.getElementById('audioFile').files[0];
             const coverFile = document.getElementById('coverFile').files[0];
 
-            // Валидация
             if (!title) {
                 showError('Введите название песни');
                 return;
@@ -1216,6 +1184,11 @@
                 return;
             }
 
+            if (audioFile.size > 20 * 1024 * 1024) {
+                showError('Размер аудио файла не должен превышать 20 МБ');
+                return;
+            }
+
             const token = localStorage.getItem('token');
             const uploadBtn = document.getElementById('uploadBtn');
             uploadBtn.disabled = true;
@@ -1223,11 +1196,10 @@
             uploadBtn.classList.add('loading');
 
             try {
-                console.log('Начинаем загрузку файла...');
+                console.log('🎵 Начинаем загрузку песни...');
 
-                // Загружаем аудио файл
                 const audioData = await readFileAsBase64(audioFile);
-                console.log('Аудио файл прочитан, размер:', audioData.length);
+                console.log('✅ Аудио файл прочитан');
 
                 const audioResponse = await fetch('/api/music/upload', {
                     method: 'POST',
@@ -1242,16 +1214,15 @@
                 });
 
                 const audioResult = await audioResponse.json();
-                console.log('Ответ от сервера (аудио):', audioResult);
+                console.log('📨 Ответ от сервера (аудио):', audioResult);
                 
                 if (!audioResult.success) {
-                    throw new Error(audioResult.message || 'Ошибка загрузки аудио файла');
+                    throw new Error(audioResult.message || 'Неизвестная ошибка загрузки аудио');
                 }
 
-                // Загружаем обложку если есть
                 let coverUrl = null;
                 if (coverFile) {
-                    console.log('Загружаем обложку...');
+                    console.log('🖼️ Загружаем обложку...');
                     const coverData = await readFileAsBase64(coverFile);
                     const coverResponse = await fetch('/api/music/upload-cover', {
                         method: 'POST',
@@ -1266,14 +1237,15 @@
                     });
 
                     const coverResult = await coverResponse.json();
-                    console.log('Ответ от сервера (обложка):', coverResult);
+                    console.log('📨 Ответ от сервера (обложка):', coverResult);
                     if (coverResult.success) {
                         coverUrl = coverResult.coverUrl;
+                    } else {
+                        console.warn('⚠️ Ошибка загрузки обложки:', coverResult.message);
                     }
                 }
 
-                // Сохраняем метаданные трека
-                console.log('Сохраняем метаданные трека...');
+                console.log('💾 Сохраняем метаданные трека...');
                 const saveResponse = await fetch('/api/music', {
                     method: 'POST',
                     headers: {
@@ -1291,18 +1263,19 @@
                 });
 
                 const saveResult = await saveResponse.json();
-                console.log('Ответ от сервера (метаданные):', saveResult);
+                console.log('📨 Ответ от сервера (метаданные):', saveResult);
                 
                 if (saveResult.success) {
+                    console.log('🎉 Песня успешно опубликована!');
                     alert('Песня успешно опубликована!');
                     closeUploadModal();
-                    loadMusic(); // Перезагружаем список
+                    loadMusic();
                 } else {
                     throw new Error(saveResult.message || 'Ошибка сохранения метаданных');
                 }
 
             } catch (error) {
-                console.error('Ошибка загрузки:', error);
+                console.error('❌ Ошибка загрузки:', error);
                 showError('Ошибка загрузки: ' + error.message);
             } finally {
                 uploadBtn.disabled = false;
@@ -1311,7 +1284,6 @@
             }
         }
 
-        // Удаление трека
         async function deleteTrack(trackId) {
             if (!confirm('Вы уверены, что хотите удалить этот трек?')) {
                 return;
@@ -1333,7 +1305,7 @@
                 
                 if (data.success) {
                     alert('Трек успешно удален');
-                    loadMusic(); // Перезагружаем список
+                    loadMusic();
                 } else {
                     alert(data.message);
                 }
@@ -1343,20 +1315,15 @@
             }
         }
 
-        // Чтение файла как base64 (исправленная версия)
         function readFileAsBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = () => {
-                    // Берем только data URL без проверки на префикс
-                    resolve(reader.result);
-                };
+                reader.onload = () => resolve(reader.result);
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
         }
 
-        // Обработчики выбора файлов
         document.getElementById('audioFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
@@ -1371,7 +1338,6 @@
             }
         });
 
-        // Форматирование размера файла
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -1380,7 +1346,6 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // Воспроизведение трека
         function playTrack(index) {
             if (audioElement) {
                 audioElement.pause();
@@ -1392,7 +1357,6 @@
             
             audioElement = new Audio(currentTrack.fileUrl);
             
-            // Обновляем интерфейс плеера
             document.getElementById('fullscreenTitle').textContent = currentTrack.title;
             document.getElementById('fullscreenArtist').textContent = currentTrack.artist;
             document.getElementById('fullscreenCover').style.backgroundImage = currentTrack.coverUrl ? 
@@ -1405,15 +1369,12 @@
                 `url('${currentTrack.coverUrl}')` : 'none';
             document.getElementById('miniCover').innerHTML = currentTrack.coverUrl ? '' : '<i class="fas fa-music"></i>';
             
-            // Показываем полноэкранный плеер
             document.getElementById('fullscreenPlayer').style.display = 'flex';
             document.body.style.overflow = 'hidden';
             
-            // Запускаем воспроизведение
             startPlayback();
         }
 
-        // Запуск воспроизведения
         function startPlayback() {
             if (!audioElement) return;
             
@@ -1423,7 +1384,6 @@
             document.getElementById('playIcon').className = 'fas fa-pause';
             document.getElementById('miniPlayBtn').innerHTML = '<i class="fas fa-pause"></i>';
             
-            // Слушаем события аудио
             audioElement.addEventListener('loadedmetadata', function() {
                 document.getElementById('totalTime').textContent = formatTime(audioElement.duration);
             });
@@ -1432,21 +1392,18 @@
             audioElement.addEventListener('ended', nextTrack);
         }
 
-        // Следующий трек
         function nextTrack() {
             if (musicList.length === 0) return;
             currentTrackIndex = (currentTrackIndex + 1) % musicList.length;
             playTrack(currentTrackIndex);
         }
 
-        // Предыдущий трек
         function previousTrack() {
             if (musicList.length === 0) return;
             currentTrackIndex = (currentTrackIndex - 1 + musicList.length) % musicList.length;
             playTrack(currentTrackIndex);
         }
 
-        // Пауза/воспроизведение
         function togglePlay() {
             if (!audioElement) return;
             
@@ -1462,7 +1419,6 @@
             isPlaying = !isPlaying;
         }
 
-        // Обновление прогресса
         function updateProgress() {
             if (!audioElement) return;
             
@@ -1471,7 +1427,6 @@
             document.getElementById('currentTime').textContent = formatTime(audioElement.currentTime);
         }
 
-        // Перемотка
         function seek(event) {
             if (!audioElement) return;
             
@@ -1484,7 +1439,6 @@
             audioElement.currentTime = seekPercent * audioElement.duration;
         }
 
-        // Форматирование времени
         function formatTime(seconds) {
             if (isNaN(seconds)) return '0:00';
             const mins = Math.floor(seconds / 60);
@@ -1492,21 +1446,18 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Свернуть плеер
         function minimizePlayer() {
             document.getElementById('fullscreenPlayer').style.display = 'none';
             document.body.style.overflow = 'auto';
             document.getElementById('miniPlayer').style.display = 'flex';
         }
 
-        // Развернуть плеер
         function expandPlayer() {
             document.getElementById('miniPlayer').style.display = 'none';
             document.getElementById('fullscreenPlayer').style.display = 'flex';
             document.body.style.overflow = 'hidden';
         }
 
-        // Поиск музыки
         async function searchMusic() {
             const query = document.getElementById('searchInput').value;
             const token = localStorage.getItem('token');
@@ -1564,7 +1515,6 @@
             }
         }
 
-        // Показать раздел
         function showSection(sectionId) {
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
@@ -1577,7 +1527,6 @@
             document.getElementById(sectionId).classList.add('active');
         }
 
-        // Запуск при загрузке страницы
         window.onload = checkAuth;
     </script>
 </body>
