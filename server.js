@@ -841,7 +841,6 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // НОВАЯ ФУНКЦИЯ: Загрузка музыки через FormData
     handleUploadMusicFull(req, res) {
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -882,7 +881,7 @@ class SimpleServer {
                     }
                     audioFile = { buffer, filename };
                 } else if (name === 'coverFile') {
-                    if (!this.validateCoverFile(filename)) {
+                    if (filename && !this.validateCoverFile(filename)) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: false, message: 'Недопустимый формат изображения' }));
                         return;
@@ -906,6 +905,19 @@ class SimpleServer {
                     return;
                 }
 
+                // Проверка размера файлов
+                if (audioFile.buffer.length > 50 * 1024 * 1024) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Размер аудио файла не должен превышать 50 МБ' }));
+                    return;
+                }
+
+                if (coverFile && coverFile.buffer.length > 10 * 1024 * 1024) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Размер обложки не должен превышать 10 МБ' }));
+                    return;
+                }
+
                 // Сохраняем аудио файл
                 const audioExt = path.extname(audioFile.filename);
                 const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
@@ -916,7 +928,7 @@ class SimpleServer {
 
                 // Сохраняем обложку если есть
                 let coverUrl = null;
-                if (coverFile) {
+                if (coverFile && coverFile.filename) {
                     const coverExt = path.extname(coverFile.filename);
                     const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
                     const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
@@ -944,7 +956,10 @@ class SimpleServer {
 
                 console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title}`);
 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
                 res.end(JSON.stringify({
                     success: true,
                     track: {
@@ -957,14 +972,20 @@ class SimpleServer {
 
             } catch (error) {
                 console.error('❌ Ошибка загрузки:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.writeHead(500, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
                 res.end(JSON.stringify({ success: false, message: 'Ошибка загрузки: ' + error.message }));
             }
         });
 
         bb.on('error', (error) => {
             console.error('❌ Ошибка busboy:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.writeHead(500, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
             res.end(JSON.stringify({ success: false, message: 'Ошибка обработки файла' }));
         });
 
@@ -1040,7 +1061,6 @@ class SimpleServer {
     }
 
     async handleUploadMusicFile(token, data) {
-        // Старый метод - оставлен для совместимости
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
@@ -1053,7 +1073,6 @@ class SimpleServer {
     }
 
     async handleUploadMusicCover(token, data) {
-        // Старый метод - оставлен для совместимости
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
@@ -1253,7 +1272,7 @@ class SimpleServer {
         };
     }
 
-    // Остальные методы (полная версия)
+    // Остальные методы
     handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
@@ -2457,7 +2476,7 @@ class SimpleServer {
 
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
-            console.log(`📧 Приложение готово к работе`);
+            console.log(`📧 Epic Messenger готов к работе!`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
@@ -2469,6 +2488,7 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`\n🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
         });
 
         return server;
