@@ -1066,10 +1066,26 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        return { 
-            success: false, 
-            message: 'Используйте /api/music/upload-full для загрузки файлов' 
-        };
+        const { fileData, filename } = data;
+        
+        if (!this.validateMusicFile(filename)) {
+            return { success: false, message: 'Недопустимый формат аудио файла' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+
+            return {
+                success: true,
+                fileUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аудио файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 
     async handleUploadMusicCover(token, data) {
@@ -1078,10 +1094,26 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        return { 
-            success: false, 
-            message: 'Используйте /api/music/upload-full для загрузки файлов' 
-        };
+        const { fileData, filename } = data;
+        
+        if (!this.validateCoverFile(filename)) {
+            return { success: false, message: 'Недопустимый формат изображения' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+
+            return {
+                success: true,
+                coverUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки обложки:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 
     handleDeleteMusic(token, data) {
