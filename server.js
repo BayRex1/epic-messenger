@@ -303,43 +303,75 @@ class SimpleServer {
     sanitizeContent(content) {
         if (typeof content !== 'string') return '';
         
-        let sanitized = content
-            .replace(/(https?|ftp)\/\/[^\s/$.#].[^\s]*/gi, '[ССЫЛКА УДАЛЕНА]')
-            .replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/[^\s]*)?/gi, (match) => {
-                if (match.includes('.') && !match.includes(' ')) {
-                    return '[ССЫЛКА УДАЛЕНА]';
-                }
-                return match;
-            })
-            .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP УДАЛЕН]');
+        let sanitized = content;
 
+        // Удаляем HTML теги и опасные атрибуты
         sanitized = sanitized
-            .replace(/<[^>]*>/g, '')
-            .replace(/&[^;]+;/g, '')
-            .replace(/javascript:/gi, '')
-            .replace(/data:/gi, '')
-            .replace(/vbscript:/gi, '')
+            .replace(/<[^>]*>/g, '') // Удаляем все HTML теги
+            .replace(/&[^;]+;/g, '') // Удаляем HTML entities
+            .replace(/javascript:/gi, '[БЛОК]')
+            .replace(/data:/gi, '[БЛОК]')
+            .replace(/vbscript:/gi, '[БЛОК]')
             .replace(/on\w+="[^"]*"/gi, '')
             .replace(/on\w+='[^']*'/gi, '')
-            .replace(/on\w+=\w+/gi, '')
-            .trim();
+            .replace(/on\w+=\w+/gi, '');
 
+        // Фильтрация по опасным ключевым словам (регистронезависимая)
+        const dangerousKeywords = [
+            'script', 'iframe', 'object', 'embed', 'link', 'meta', 'style',
+            'expression', 'eval', 'exec', 'compile', 'function constructor',
+            'document.write', 'innerhtml', 'outerhtml', 'insertadjacent',
+            'setattribute', 'createelement', 'appendchild', 'removechild',
+            'window.open', 'location.href', 'document.domain', 'localstorage',
+            'sessionstorage', 'cookie', 'xmlhttprequest', 'fetch', 'websocket',
+            'postmessage', 'import', 'export', 'require', 'module'
+        ];
+
+        dangerousKeywords.forEach(keyword => {
+            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+            sanitized = sanitized.replace(regex, '[БЛОК]');
+        });
+
+        // Фильтрация опасных паттернов
         const dangerousPatterns = [
             /<script[\s\S]*?<\/script>/gi,
-            /<svg[\s\S]*?<\/svg>/gi,
+            /<iframe[\s\S]*?<\/iframe>/gi,
             /<object[\s\S]*?<\/object>/gi,
             /<embed[\s\S]*?<\/embed>/gi,
-            /<iframe[\s\S]*?<\/iframe>/gi,
+            /<svg[\s\S]*?<\/svg>/gi,
             /<link[\s\S]*?>/gi,
             /<meta[\s\S]*?>/gi,
             /<style[\s\S]*?<\/style>/gi,
-            /expression\(/gi,
-            /url\(/gi
+            /expression\([^)]*\)/gi,
+            /eval\([^)]*\)/gi,
+            /Function\([^)]*\)/gi,
+            /document\.write\([^)]*\)/gi,
+            /\.innerHTML\s*=/gi,
+            /\.outerHTML\s*=/gi,
+            /\.insertAdjacentHTML\([^)]*\)/gi,
+            /\.setAttribute\([^)]*\)/gi,
+            /document\.createElement\([^)]*\)/gi,
+            /window\.open\([^)]*\)/gi,
+            /location\.href\s*=/gi,
+            /document\.domain\s*=/gi,
+            /XMLHttpRequest/gi,
+            /Fetch/gi,
+            /WebSocket/gi,
+            /postMessage\([^)]*\)/gi
         ];
 
         dangerousPatterns.forEach(pattern => {
-            sanitized = sanitized.replace(pattern, '');
+            sanitized = sanitized.replace(pattern, '[БЛОК]');
         });
+
+        // Фильтрация IP-адресов (опционально)
+        sanitized = sanitized.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP]');
+
+        // Фильтрация URL (только явные http/https ссылки)
+        sanitized = sanitized.replace(/(https?|ftp):\/\/[^\s<>{}\[\]"']+/gi, '[ССЫЛКА]');
+
+        // Удаляем лишние пробелы и обрезаем длину
+        sanitized = sanitized.trim();
 
         if (sanitized.length > 5000) {
             sanitized = sanitized.substring(0, 5000);
@@ -717,7 +749,6 @@ class SimpleServer {
                 case '/api/admin/ban-user':
                     if (method === 'POST') {
                         response = this.handleBanUser(token, data);
-                    }
                     break;
 
                 case '/api/admin/toggle-verification':
@@ -1051,7 +1082,7 @@ class SimpleServer {
 
         return {
             success: true,
-            track: {
+            track:{
                 ...track,
                 userName: user.displayName,
                 userAvatar: user.avatar,
