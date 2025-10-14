@@ -583,6 +583,14 @@ class SimpleServer {
         console.log(`Content-Type: ${req.headers['content-type']}`);
         console.log(`Content-Length: ${req.headers['content-length']}`);
         
+        // Для multipart/form-data обрабатываем отдельно
+        if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+            if (pathname === '/api/music/upload-full') {
+                this.handleUploadMusicFull(req, res);
+                return;
+            }
+        }
+
         let body = '';
         const decoder = new StringDecoder('utf-8');
 
@@ -799,9 +807,9 @@ class SimpleServer {
 
                 // API для музыки
                 case '/api/music/upload-full':
+                    // Обрабатывается в handleApiRequest для multipart/form-data
                     if (method === 'POST') {
-                        this.handleUploadMusicFull(req, res);
-                        return;
+                        response = { success: false, message: 'Multipart request already processed' };
                     }
                     break;
                     
@@ -898,6 +906,8 @@ class SimpleServer {
     }
 
     handleUploadMusicFull(req, res) {
+        console.log('🎵 Начало обработки загрузки музыки...');
+
         const headers = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -923,7 +933,7 @@ class SimpleServer {
             return;
         }
 
-        console.log('🎵 Начало загрузки музыки для пользователя:', user.username);
+        console.log('🎵 Пользователь авторизован:', user.username);
 
         let isResponseSent = false;
 
@@ -955,25 +965,35 @@ class SimpleServer {
                 headers: req.headers,
                 limits: {
                     fileSize: 50 * 1024 * 1024, // 50MB максимум
-                    files: 2 // максимум 2 файла (аудио + обложка)
+                    files: 2, // максимум 2 файла (аудио + обложка)
+                    fields: 10 // максимум 10 полей
                 }
             });
             
             let fields = {};
             let audioFile = null;
             let coverFile = null;
-            let hasAudioFile = false;
-            let hasCoverFile = false;
+            let filesProcessed = 0;
+            let totalFilesExpected = 0;
+            let fieldsProcessed = 0;
 
             bb.on('field', (name, val) => {
                 console.log(`📋 Поле формы: ${name} = ${val}`);
                 fields[name] = val;
+                fieldsProcessed++;
             });
 
             bb.on('file', (name, file, info) => {
                 const { filename, mimeType } = info;
                 console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
                 
+                if (!filename) {
+                    console.log('📁 Пропускаем пустой файл');
+                    file.resume();
+                    return;
+                }
+
+                totalFilesExpected++;
                 const chunks = [];
                 
                 file.on('data', (chunk) => {
@@ -981,6 +1001,14 @@ class SimpleServer {
                 });
                 
                 file.on('end', () => {
+                    filesProcessed++;
+                    console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
+                    
+                    if (chunks.length === 0) {
+                        console.log('⚠️ Файл пустой, пропускаем');
+                        return;
+                    }
+
                     const buffer = Buffer.concat(chunks);
                     console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
                     
@@ -990,14 +1018,14 @@ class SimpleServer {
                             return;
                         }
                         audioFile = { buffer, filename, mimeType };
-                        hasAudioFile = true;
-                    } else if (name === 'coverFile' && filename) {
+                        console.log('✅ Аудио файл сохранен в памяти');
+                    } else if (name === 'coverFile') {
                         if (!this.validateCoverFile(filename)) {
                             sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
                             return;
                         }
                         coverFile = { buffer, filename, mimeType };
-                        hasCoverFile = true;
+                        console.log('✅ Обложка сохранена в памяти');
                     }
                 });
 
@@ -1005,87 +1033,95 @@ class SimpleServer {
                     console.error('❌ Ошибка чтения файла:', error);
                     sendErrorResponse('Ошибка чтения файла');
                 });
+
+                file.on('limit', () => {
+                    console.error('❌ Превышен лимит размера файла');
+                    sendErrorResponse('Размер файла превышает допустимый лимит', 400);
+                });
             });
 
             bb.on('close', async () => {
                 console.log('🔚 Завершение обработки формы');
+                console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
                 
-                try {
-                    if (!hasAudioFile) {
-                        sendErrorResponse('Аудио файл обязателен', 400);
-                        return;
-                    }
-
-                    if (!fields.title || !fields.artist) {
-                        sendErrorResponse('Название и исполнитель обязательны', 400);
-                        return;
-                    }
-
-                    // Проверка размера файлов
-                    if (audioFile.buffer.length > 50 * 1024 * 1024) {
-                        sendErrorResponse('Размер аудио файла не должен превышать 50 МБ', 400);
-                        return;
-                    }
-
-                    if (coverFile && coverFile.buffer.length > 10 * 1024 * 1024) {
-                        sendErrorResponse('Размер обложки не должен превышать 10 МБ', 400);
-                        return;
-                    }
-
-                    // Сохраняем аудио файл
-                    const audioExt = path.extname(audioFile.filename);
-                    const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                    const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
-                    
-                    console.log(`💾 Сохранение аудио файла: ${audioPath}`);
-                    await fs.promises.writeFile(audioPath, audioFile.buffer);
-                    const audioUrl = `/uploads/music/${audioFilename}`;
-
-                    // Сохраняем обложку если есть
-                    let coverUrl = null;
-                    if (coverFile && coverFile.filename) {
-                        const coverExt = path.extname(coverFile.filename);
-                        const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
-                        const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
-                        
-                        console.log(`💾 Сохранение обложки: ${coverPath}`);
-                        await fs.promises.writeFile(coverPath, coverFile.buffer);
-                        coverUrl = `/uploads/music/covers/${coverFilename}`;
-                    }
-
-                    // Сохраняем метаданные трека
-                    const track = {
-                        id: this.generateId(),
-                        userId: user.id,
-                        title: this.sanitizeContent(fields.title),
-                        artist: this.sanitizeContent(fields.artist),
-                        genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
-                        fileUrl: audioUrl,
-                        coverUrl: coverUrl,
-                        duration: 0,
-                        plays: 0,
-                        likes: [],
-                        createdAt: new Date()
-                    };
-
-                    this.music.unshift(track);
-
-                    console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
-
-                    sendSuccessResponse({
-                        success: true,
-                        track: {
-                            ...track,
-                            userName: user.displayName,
-                            userAvatar: user.avatar,
-                            userVerified: user.verified
+                // Даем немного времени на завершение обработки файлов
+                setTimeout(async () => {
+                    try {
+                        if (!audioFile) {
+                            sendErrorResponse('Аудио файл обязателен', 400);
+                            return;
                         }
-                    });
 
-                } catch (error) {
-                    console.error('❌ Ошибка при сохранении файлов:', error);
-                    sendErrorResponse('Ошибка при сохранении файлов: ' + error.message);
-                }
+                        if (!fields.title || !fields.artist) {
+                            sendErrorResponse('Название и исполнитель обязательны', 400);
+                            return;
+                        }
+
+                        console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
+
+                        // Сохраняем аудио файл
+                        const audioExt = path.extname(audioFile.filename);
+                        const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                        const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
+                        
+                        console.log(`💾 Сохранение аудио файла: ${audioPath}`);
+                        try {
+                            await fs.promises.writeFile(audioPath, audioFile.buffer);
+                            const audioUrl = `/uploads/music/${audioFilename}`;
+                            console.log('✅ Аудио файл сохранен');
+
+                            // Сохраняем обложку если есть
+                            let coverUrl = null;
+                            if (coverFile && coverFile.filename) {
+                                const coverExt = path.extname(coverFile.filename);
+                                const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                                const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
+                                
+                                console.log(`💾 Сохранение обложки: ${coverPath}`);
+                                await fs.promises.writeFile(coverPath, coverFile.buffer);
+                                coverUrl = `/uploads/music/covers/${coverFilename}`;
+                                console.log('✅ Обложка сохранена');
+                            }
+
+                            // Сохраняем метаданные трека
+                            const track = {
+                                id: this.generateId(),
+                                userId: user.id,
+                                title: this.sanitizeContent(fields.title),
+                                artist: this.sanitizeContent(fields.artist),
+                                genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
+                                fileUrl: audioUrl,
+                                coverUrl: coverUrl,
+                                duration: 0,
+                                plays: 0,
+                                likes: [],
+                                createdAt: new Date()
+                            };
+
+                            this.music.unshift(track);
+
+                            console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
+
+                            sendSuccessResponse({
+                                success: true,
+                                track: {
+                                    ...track,
+                                    userName: user.displayName,
+                                    userAvatar: user.avatar,
+                                    userVerified: user.verified
+                                }
+                            });
+
+                        } catch (fileError) {
+                            console.error('❌ Ошибка при сохранении файлов:', fileError);
+                            sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
+                        }
+
+                    } catch (error) {
+                        console.error('❌ Ошибка при обработке формы:', error);
+                        sendErrorResponse('Ошибка при обработке формы: ' + error.message);
+                    }
+                }, 100); // Небольшая задержка для завершения всех операций
             });
 
             bb.on('error', (error) => {
@@ -1096,24 +1132,31 @@ class SimpleServer {
             // Обработка ошибок запроса
             req.on('error', (error) => {
                 console.error('❌ Ошибка запроса:', error);
-                sendErrorResponse('Ошибка запроса');
+                sendErrorResponse('Ошибка запроса: ' + error.message);
+            });
+
+            req.on('end', () => {
+                console.log('📨 Запрос полностью получен');
             });
 
             // Таймаут обработки
             const timeout = setTimeout(() => {
+                console.error('⏰ Таймаут обработки запроса');
                 sendErrorResponse('Таймаут обработки запроса', 408);
-            }, 30000); // 30 секунд
+            }, 60000); // 60 секунд
 
+            console.log('🔄 Начинаем парсинг формы...');
             req.pipe(bb);
 
             // Очистка таймаута при успешной обработке
             bb.on('close', () => {
                 clearTimeout(timeout);
+                console.log('✅ Таймаут очищен');
             });
 
         } catch (error) {
             console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
-            sendErrorResponse('Критическая ошибка сервера');
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
         }
     }
 
