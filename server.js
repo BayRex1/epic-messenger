@@ -188,6 +188,8 @@ class SimpleServer {
             if (!fs.existsSync(fullPath)) {
                 fs.mkdirSync(fullPath, { recursive: true });
                 console.log('✅ Создана папка:', fullPath);
+            } else {
+                console.log('✅ Папка существует:', fullPath);
             }
         });
     }
@@ -571,335 +573,329 @@ class SimpleServer {
     }
 
     handleApiRequest(req, res) {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
-    const method = req.method;
-    
-    console.log(`=== API REQUEST ===`);
-    console.log(`Method: ${method}`);
-    console.log(`Path: ${pathname}`);
-    console.log(`Headers:`, req.headers);
-    
-    let body = '';
-    const decoder = new StringDecoder('utf-8');
-
-    req.on('data', (chunk) => {
-        body += decoder.write(chunk);
-    });
-
-    req.on('end', () => {
-        body += decoder.end();
+        const parsedUrl = url.parse(req.url, true);
+        const pathname = parsedUrl.pathname;
+        const method = req.method;
         
-        console.log(`Raw body:`, body);
-        console.log(`Body length: ${body.length}`);
+        console.log(`=== API REQUEST ===`);
+        console.log(`Method: ${method}`);
+        console.log(`Path: ${pathname}`);
+        console.log(`Content-Type: ${req.headers['content-type']}`);
+        console.log(`Content-Length: ${req.headers['content-length']}`);
         
-        let data = {};
-        if (body && body.trim() !== '') {
-            try {
-                data = JSON.parse(body);
-                console.log(`Parsed data:`, data);
-            } catch (e) {
-                console.log(`JSON parse error:`, e.message);
-                console.log(`Trying URL encoded...`);
+        let body = '';
+        const decoder = new StringDecoder('utf-8');
+
+        req.on('data', (chunk) => {
+            body += decoder.write(chunk);
+        });
+
+        req.on('end', () => {
+            body += decoder.end();
+            
+            // Для multipart/form-data не логируем тело, так как оно бинарное
+            if (req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
+                console.log(`Raw body:`, body);
+                console.log(`Body length: ${body.length}`);
+            }
+            
+            let data = {};
+            if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
                 try {
-                    const params = new URLSearchParams(body);
-                    data = Object.fromEntries(params);
-                    console.log(`URL encoded data:`, data);
-                } catch (e2) {
-                    console.log(`URL encoded parse error:`, e2.message);
+                    data = JSON.parse(body);
+                    console.log(`Parsed data:`, data);
+                } catch (e) {
+                    console.log(`JSON parse error:`, e.message);
                 }
             }
-        } else {
-            console.log(`Empty body`);
-        }
 
-        console.log(`=== END REQUEST ===`);
-        
-        this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
-    });
-}
+            console.log(`=== END REQUEST ===`);
+            
+            this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
+        });
+    }
 
     processApiRequest(pathname, method, data, query, req, res) {
-    console.log(`🔄 Processing API: ${method} ${pathname}`);
-    console.log(`📦 Request data:`, data);
-    console.log(`❓ Query params:`, query);
-    
-    const headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
-        'Access-Control-Allow-Credentials': 'true'
-    };
+        console.log(`🔄 Processing API: ${method} ${pathname}`);
+        console.log(`📦 Request data:`, data);
+        console.log(`❓ Query params:`, query);
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
+            'Access-Control-Allow-Credentials': 'true'
+        };
 
-    if (method === 'OPTIONS') {
-        res.writeHead(204, headers);
-        res.end();
-        return;
-    }
-
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-    let response;
-
-    try {
-        switch (pathname) {
-            case '/api/login':
-                if (method === 'POST') {
-                    response = this.handleLogin(data, req);
-                }
-                break;
-                
-            case '/api/register':
-                if (method === 'POST') {
-                    response = this.handleRegister(data, req);
-                }
-                break;
-                
-            case '/api/check-auth':
-                if (method === 'GET') {
-                    response = this.handleCheckAuth(token, req);
-                }
-                break;
-                
-            case '/api/current-user':
-                if (method === 'GET') {
-                    response = this.handleCurrentUser(token, req);
-                }
-                break;
-                
-            case '/api/users':
-                if (method === 'GET') {
-                    response = this.handleGetUsers(token);
-                }
-                break;
-                
-            case '/api/messages':
-                if (method === 'GET') {
-                    response = this.handleGetMessages(token, query);
-                }
-                break;
-                
-            case '/api/messages/send':
-                if (method === 'POST') {
-                    response = this.handleSendMessage(token, data);
-                }
-                break;
-                
-            case '/api/posts':
-                if (method === 'GET') {
-                    response = this.handleGetPosts(token);
-                } else if (method === 'POST') {
-                    response = this.handleCreatePost(token, data);
-                } else if (method === 'DELETE') {
-                    response = this.handleDeletePost(token, query);
-                }
-                break;
-                
-            case '/api/gifts':
-                if (method === 'GET') {
-                    response = this.handleGetGifts(token);
-                } else if (method === 'POST') {
-                    response = this.handleCreateGift(token, data);
-                }
-                break;
-                
-            case '/api/promo-codes':
-                if (method === 'GET') {
-                    response = this.handleGetPromoCodes(token);
-                }
-                break;
-                
-            case '/api/promo-codes/create':
-                if (method === 'POST') {
-                    response = this.handleCreatePromoCode(token, data);
-                }
-                break;
-                
-            case '/api/promo-codes/activate':
-                if (method === 'POST') {
-                    response = this.handleActivatePromoCode(token, data);
-                }
-                break;
-                
-            case '/api/update-profile':
-                if (method === 'POST') {
-                    response = this.handleUpdateProfile(token, data);
-                }
-                break;
-
-            case '/api/update-avatar':
-                if (method === 'POST') {
-                    response = this.handleUpdateAvatar(token, data);
-                }
-                break;
-
-            case '/api/upload-avatar':
-                if (method === 'POST') {
-                    response = this.handleUploadAvatar(token, data);
-                }
-                break;
-
-            case '/api/upload-gift':
-                if (method === 'POST') {
-                    response = this.handleUploadGift(token, data);
-                }
-                break;
-
-            case '/api/upload-post-image':
-                if (method === 'POST') {
-                    response = this.handleUploadPostImage(token, data);
-                }
-                break;
-
-            case '/api/admin/stats':
-                if (method === 'GET') {
-                    response = this.handleAdminStats(token);
-                }
-                break;
-
-            case '/api/admin/delete-user':
-                if (method === 'POST') {
-                    response = this.handleDeleteUser(token, data);
-                }
-                break;
-
-            case '/api/admin/ban-user':
-                if (method === 'POST') {
-                    response = this.handleBanUser(token, data);
-                }
-                break;
-
-            case '/api/admin/toggle-verification':
-                if (method === 'POST') {
-                    response = this.handleToggleVerification(token, data);
-                }
-                break;
-
-            case '/api/admin/toggle-developer':
-                if (method === 'POST') {
-                    response = this.handleToggleDeveloper(token, data);
-                }
-                break;
-
-            case '/api/emoji':
-                if (method === 'GET') {
-                    response = this.handleGetEmoji(token);
-                }
-                break;
-
-            case '/api/devices':
-                if (method === 'GET') {
-                    response = this.handleGetDevices(token);
-                }
-                break;
-
-            case '/api/devices/terminate':
-                if (method === 'POST') {
-                    response = this.handleTerminateDevice(token, data);
-                }
-                break;
-
-            // API для музыки
-            case '/api/music/upload-full':
-                if (method === 'POST') {
-                    this.handleUploadMusicFull(req, res);
-                    return;
-                }
-                break;
-                
-            case '/api/music':
-                if (method === 'GET') {
-                    response = this.handleGetMusic(token);
-                } else if (method === 'POST') {
-                    response = this.handleUploadMusic(token, data);
-                }
-                break;
-                
-            case '/api/music/upload':
-                if (method === 'POST') {
-                    response = this.handleUploadMusicFile(token, data);
-                }
-                break;
-                
-            case '/api/music/upload-cover':
-                if (method === 'POST') {
-                    response = this.handleUploadMusicCover(token, data);
-                }
-                break;
-                
-            case '/api/music/delete':
-                if (method === 'POST') {
-                    response = this.handleDeleteMusic(token, data);
-                }
-                break;
-                
-            case '/api/music/search':
-                if (method === 'GET') {
-                    response = this.handleSearchMusic(token, query);
-                }
-                break;
-                
-            case '/api/music/random':
-                if (method === 'GET') {
-                    response = this.handleGetRandomMusic(token);
-                }
-                break;
-                
-            case '/api/playlists':
-                if (method === 'GET') {
-                    response = this.handleGetPlaylists(token);
-                } else if (method === 'POST') {
-                    response = this.handleCreatePlaylist(token, data);
-                }
-                break;
-                
-            case '/api/playlists/add':
-                if (method === 'POST') {
-                    response = this.handleAddToPlaylist(token, data);
-                }
-                break;
-                
-            default:
-                if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
-                    const postId = pathname.split('/')[3];
-                    if (method === 'POST') {
-                        response = this.handleLikePost(token, postId);
-                    }
-                } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
-                    const giftId = pathname.split('/')[3];
-                    if (method === 'POST') {
-                        response = this.handleBuyGift(token, giftId, data);
-                    }
-                } else if (pathname.startsWith('/api/users/')) {
-                    const userId = pathname.split('/')[3];
-                    if (method === 'GET') {
-                        response = this.handleGetUser(token, userId);
-                    }
-                } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                    const userId = pathname.split('/')[3];
-                    if (method === 'GET') {
-                        response = this.handleGetTransactions(token, userId);
-                    }
-                } else {
-                    response = { success: false, message: 'API endpoint not found' };
-                }
+        if (method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
         }
-    } catch (error) {
-        console.error('API Error:', error);
-        response = { success: false, message: error.message };
-    }
 
-    if (!response) {
-        response = { success: false, message: 'Method not allowed' };
-    }
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
-    console.log(`📤 Response data:`, response);
-    
-    res.writeHead(response.success ? 200 : 400, headers);
-    res.end(JSON.stringify(response));
-}
+        let response;
+
+        try {
+            switch (pathname) {
+                case '/api/login':
+                    if (method === 'POST') {
+                        response = this.handleLogin(data, req);
+                    }
+                    break;
+                    
+                case '/api/register':
+                    if (method === 'POST') {
+                        response = this.handleRegister(data, req);
+                    }
+                    break;
+                    
+                case '/api/check-auth':
+                    if (method === 'GET') {
+                        response = this.handleCheckAuth(token, req);
+                    }
+                    break;
+                    
+                case '/api/current-user':
+                    if (method === 'GET') {
+                        response = this.handleCurrentUser(token, req);
+                    }
+                    break;
+                    
+                case '/api/users':
+                    if (method === 'GET') {
+                        response = this.handleGetUsers(token);
+                    }
+                    break;
+                    
+                case '/api/messages':
+                    if (method === 'GET') {
+                        response = this.handleGetMessages(token, query);
+                    }
+                    break;
+                    
+                case '/api/messages/send':
+                    if (method === 'POST') {
+                        response = this.handleSendMessage(token, data);
+                    }
+                    break;
+                    
+                case '/api/posts':
+                    if (method === 'GET') {
+                        response = this.handleGetPosts(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreatePost(token, data);
+                    } else if (method === 'DELETE') {
+                        response = this.handleDeletePost(token, query);
+                    }
+                    break;
+                    
+                case '/api/gifts':
+                    if (method === 'GET') {
+                        response = this.handleGetGifts(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreateGift(token, data);
+                    }
+                    break;
+                    
+                case '/api/promo-codes':
+                    if (method === 'GET') {
+                        response = this.handleGetPromoCodes(token);
+                    }
+                    break;
+                    
+                case '/api/promo-codes/create':
+                    if (method === 'POST') {
+                        response = this.handleCreatePromoCode(token, data);
+                    }
+                    break;
+                    
+                case '/api/promo-codes/activate':
+                    if (method === 'POST') {
+                        response = this.handleActivatePromoCode(token, data);
+                    }
+                    break;
+                    
+                case '/api/update-profile':
+                    if (method === 'POST') {
+                        response = this.handleUpdateProfile(token, data);
+                    }
+                    break;
+
+                case '/api/update-avatar':
+                    if (method === 'POST') {
+                        response = this.handleUpdateAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/upload-avatar':
+                    if (method === 'POST') {
+                        response = this.handleUploadAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/upload-gift':
+                    if (method === 'POST') {
+                        response = this.handleUploadGift(token, data);
+                    }
+                    break;
+
+                case '/api/upload-post-image':
+                    if (method === 'POST') {
+                        response = this.handleUploadPostImage(token, data);
+                    }
+                    break;
+
+                case '/api/admin/stats':
+                    if (method === 'GET') {
+                        response = this.handleAdminStats(token);
+                    }
+                    break;
+
+                case '/api/admin/delete-user':
+                    if (method === 'POST') {
+                        response = this.handleDeleteUser(token, data);
+                    }
+                    break;
+
+                case '/api/admin/ban-user':
+                    if (method === 'POST') {
+                        response = this.handleBanUser(token, data);
+                    }
+                    break;
+
+                case '/api/admin/toggle-verification':
+                    if (method === 'POST') {
+                        response = this.handleToggleVerification(token, data);
+                    }
+                    break;
+
+                case '/api/admin/toggle-developer':
+                    if (method === 'POST') {
+                        response = this.handleToggleDeveloper(token, data);
+                    }
+                    break;
+
+                case '/api/emoji':
+                    if (method === 'GET') {
+                        response = this.handleGetEmoji(token);
+                    }
+                    break;
+
+                case '/api/devices':
+                    if (method === 'GET') {
+                        response = this.handleGetDevices(token);
+                    }
+                    break;
+
+                case '/api/devices/terminate':
+                    if (method === 'POST') {
+                        response = this.handleTerminateDevice(token, data);
+                    }
+                    break;
+
+                // API для музыки
+                case '/api/music/upload-full':
+                    if (method === 'POST') {
+                        this.handleUploadMusicFull(req, res);
+                        return;
+                    }
+                    break;
+                    
+                case '/api/music':
+                    if (method === 'GET') {
+                        response = this.handleGetMusic(token);
+                    } else if (method === 'POST') {
+                        response = this.handleUploadMusic(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/upload':
+                    if (method === 'POST') {
+                        response = this.handleUploadMusicFile(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/upload-cover':
+                    if (method === 'POST') {
+                        response = this.handleUploadMusicCover(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/delete':
+                    if (method === 'POST') {
+                        response = this.handleDeleteMusic(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/search':
+                    if (method === 'GET') {
+                        response = this.handleSearchMusic(token, query);
+                    }
+                    break;
+                    
+                case '/api/music/random':
+                    if (method === 'GET') {
+                        response = this.handleGetRandomMusic(token);
+                    }
+                    break;
+                    
+                case '/api/playlists':
+                    if (method === 'GET') {
+                        response = this.handleGetPlaylists(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreatePlaylist(token, data);
+                    }
+                    break;
+                    
+                case '/api/playlists/add':
+                    if (method === 'POST') {
+                        response = this.handleAddToPlaylist(token, data);
+                    }
+                    break;
+                    
+                default:
+                    if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
+                        const postId = pathname.split('/')[3];
+                        if (method === 'POST') {
+                            response = this.handleLikePost(token, postId);
+                        }
+                    } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
+                        const giftId = pathname.split('/')[3];
+                        if (method === 'POST') {
+                            response = this.handleBuyGift(token, giftId, data);
+                        }
+                    } else if (pathname.startsWith('/api/users/')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetUser(token, userId);
+                        }
+                    } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetTransactions(token, userId);
+                        }
+                    } else {
+                        response = { success: false, message: 'API endpoint not found' };
+                    }
+            }
+        } catch (error) {
+            console.error('API Error:', error);
+            response = { success: false, message: error.message };
+        }
+
+        if (!response) {
+            response = { success: false, message: 'Method not allowed' };
+        }
+
+        console.log(`📤 Response data:`, response);
+        
+        res.writeHead(response.success ? 200 : 400, headers);
+        res.end(JSON.stringify(response));
+    }
 
     handleUploadMusicFull(req, res) {
         const headers = {
@@ -927,162 +923,198 @@ class SimpleServer {
             return;
         }
 
-        const bb = busboy({ headers: req.headers });
-        
-        let fields = {};
-        let audioFile = null;
-        let coverFile = null;
+        console.log('🎵 Начало загрузки музыки для пользователя:', user.username);
 
-        bb.on('field', (name, val) => {
-            fields[name] = val;
-        });
+        let isResponseSent = false;
 
-        bb.on('file', (name, file, info) => {
-            const { filename } = info;
-            const chunks = [];
-            
-            file.on('data', (chunk) => {
-                chunks.push(chunk);
-            });
-            
-            file.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                
-                if (name === 'audioFile') {
-                    if (!this.validateMusicFile(filename)) {
-                        res.writeHead(400, { 
-                            'Content-Type': 'application/json',
-                            'Access-Control-Allow-Origin': '*'
-                        });
-                        res.end(JSON.stringify({ success: false, message: 'Недопустимый формат аудио файла' }));
-                        return;
-                    }
-                    audioFile = { buffer, filename };
-                } else if (name === 'coverFile') {
-                    if (filename && !this.validateCoverFile(filename)) {
-                        res.writeHead(400, { 
-                            'Content-Type': 'application/json',
-                            'Access-Control-Allow-Origin': '*'
-                        });
-                        res.end(JSON.stringify({ success: false, message: 'Недопустимый формат изображения' }));
-                        return;
-                    }
-                    coverFile = { buffer, filename };
-                }
-            });
-        });
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
 
-        bb.on('close', async () => {
-            try {
-                if (!audioFile) {
-                    res.writeHead(400, { 
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    });
-                    res.end(JSON.stringify({ success: false, message: 'Аудио файл обязателен' }));
-                    return;
-                }
-
-                if (!fields.title || !fields.artist) {
-                    res.writeHead(400, { 
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    });
-                    res.end(JSON.stringify({ success: false, message: 'Название и исполнитель обязательны' }));
-                    return;
-                }
-
-                // Проверка размера файлов
-                if (audioFile.buffer.length > 50 * 1024 * 1024) {
-                    res.writeHead(400, { 
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    });
-                    res.end(JSON.stringify({ success: false, message: 'Размер аудио файла не должен превышать 50 МБ' }));
-                    return;
-                }
-
-                if (coverFile && coverFile.buffer.length > 10 * 1024 * 1024) {
-                    res.writeHead(400, { 
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    });
-                    res.end(JSON.stringify({ success: false, message: 'Размер обложки не должен превышать 10 МБ' }));
-                    return;
-                }
-
-                // Сохраняем аудио файл
-                const audioExt = path.extname(audioFile.filename);
-                const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
-                
-                await fs.promises.writeFile(audioPath, audioFile.buffer);
-                const audioUrl = `/uploads/music/${audioFilename}`;
-
-                // Сохраняем обложку если есть
-                let coverUrl = null;
-                if (coverFile && coverFile.filename) {
-                    const coverExt = path.extname(coverFile.filename);
-                    const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
-                    const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
-                    
-                    await fs.promises.writeFile(coverPath, coverFile.buffer);
-                    coverUrl = `/uploads/music/covers/${coverFilename}`;
-                }
-
-                // Сохраняем метаданные трека
-                const track = {
-                    id: this.generateId(),
-                    userId: user.id,
-                    title: this.sanitizeContent(fields.title),
-                    artist: this.sanitizeContent(fields.artist),
-                    genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
-                    fileUrl: audioUrl,
-                    coverUrl: coverUrl,
-                    duration: 0,
-                    plays: 0,
-                    likes: [],
-                    createdAt: new Date()
-                };
-
-                this.music.unshift(track);
-
-                console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title}`);
-
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
-                res.end(JSON.stringify({
-                    success: true,
-                    track: {
-                        ...track,
-                        userName: user.displayName,
-                        userAvatar: user.avatar,
-                        userVerified: user.verified
-                    }
-                }));
-
-            } catch (error) {
-                console.error('❌ Ошибка загрузки:', error);
-                res.writeHead(500, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify({ success: false, message: 'Ошибка загрузки: ' + error.message }));
+                res.end(JSON.stringify(data));
             }
-        });
+        };
 
-        bb.on('error', (error) => {
-            console.error('❌ Ошибка busboy:', error);
-            res.writeHead(500, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 50 * 1024 * 1024, // 50MB максимум
+                    files: 2 // максимум 2 файла (аудио + обложка)
+                }
             });
-            res.end(JSON.stringify({ success: false, message: 'Ошибка обработки файла' }));
-        });
+            
+            let fields = {};
+            let audioFile = null;
+            let coverFile = null;
+            let hasAudioFile = false;
+            let hasCoverFile = false;
 
-        req.pipe(bb);
+            bb.on('field', (name, val) => {
+                console.log(`📋 Поле формы: ${name} = ${val}`);
+                fields[name] = val;
+            });
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                const chunks = [];
+                
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    const buffer = Buffer.concat(chunks);
+                    console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
+                    
+                    if (name === 'audioFile') {
+                        if (!this.validateMusicFile(filename)) {
+                            sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
+                            return;
+                        }
+                        audioFile = { buffer, filename, mimeType };
+                        hasAudioFile = true;
+                    } else if (name === 'coverFile' && filename) {
+                        if (!this.validateCoverFile(filename)) {
+                            sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
+                            return;
+                        }
+                        coverFile = { buffer, filename, mimeType };
+                        hasCoverFile = true;
+                    }
+                });
+
+                file.on('error', (error) => {
+                    console.error('❌ Ошибка чтения файла:', error);
+                    sendErrorResponse('Ошибка чтения файла');
+                });
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы');
+                
+                try {
+                    if (!hasAudioFile) {
+                        sendErrorResponse('Аудио файл обязателен', 400);
+                        return;
+                    }
+
+                    if (!fields.title || !fields.artist) {
+                        sendErrorResponse('Название и исполнитель обязательны', 400);
+                        return;
+                    }
+
+                    // Проверка размера файлов
+                    if (audioFile.buffer.length > 50 * 1024 * 1024) {
+                        sendErrorResponse('Размер аудио файла не должен превышать 50 МБ', 400);
+                        return;
+                    }
+
+                    if (coverFile && coverFile.buffer.length > 10 * 1024 * 1024) {
+                        sendErrorResponse('Размер обложки не должен превышать 10 МБ', 400);
+                        return;
+                    }
+
+                    // Сохраняем аудио файл
+                    const audioExt = path.extname(audioFile.filename);
+                    const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                    const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
+                    
+                    console.log(`💾 Сохранение аудио файла: ${audioPath}`);
+                    await fs.promises.writeFile(audioPath, audioFile.buffer);
+                    const audioUrl = `/uploads/music/${audioFilename}`;
+
+                    // Сохраняем обложку если есть
+                    let coverUrl = null;
+                    if (coverFile && coverFile.filename) {
+                        const coverExt = path.extname(coverFile.filename);
+                        const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                        const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
+                        
+                        console.log(`💾 Сохранение обложки: ${coverPath}`);
+                        await fs.promises.writeFile(coverPath, coverFile.buffer);
+                        coverUrl = `/uploads/music/covers/${coverFilename}`;
+                    }
+
+                    // Сохраняем метаданные трека
+                    const track = {
+                        id: this.generateId(),
+                        userId: user.id,
+                        title: this.sanitizeContent(fields.title),
+                        artist: this.sanitizeContent(fields.artist),
+                        genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
+                        fileUrl: audioUrl,
+                        coverUrl: coverUrl,
+                        duration: 0,
+                        plays: 0,
+                        likes: [],
+                        createdAt: new Date()
+                    };
+
+                    this.music.unshift(track);
+
+                    console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        track: {
+                            ...track,
+                            userName: user.displayName,
+                            userAvatar: user.avatar,
+                            userVerified: user.verified
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении файлов:', error);
+                    sendErrorResponse('Ошибка при сохранении файлов: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            // Обработка ошибок запроса
+            req.on('error', (error) => {
+                console.error('❌ Ошибка запроса:', error);
+                sendErrorResponse('Ошибка запроса');
+            });
+
+            // Таймаут обработки
+            const timeout = setTimeout(() => {
+                sendErrorResponse('Таймаут обработки запроса', 408);
+            }, 30000); // 30 секунд
+
+            req.pipe(bb);
+
+            // Очистка таймаута при успешной обработке
+            bb.on('close', () => {
+                clearTimeout(timeout);
+            });
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
+            sendErrorResponse('Критическая ошибка сервера');
+        }
     }
 
     // Методы для музыки
