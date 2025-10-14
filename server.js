@@ -571,307 +571,328 @@ class SimpleServer {
     }
 
     handleApiRequest(req, res) {
-        const parsedUrl = url.parse(req.url, true);
-        const pathname = parsedUrl.pathname;
-        const method = req.method;
-        
-        // Для FormData запросов обрабатываем отдельно
-        if (method === 'POST' && pathname === '/api/music/upload-full') {
-            this.handleUploadMusicFull(req, res);
-            return;
-        }
-        
-        let body = '';
-        const decoder = new StringDecoder('utf-8');
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const method = req.method;
+    
+    console.log(`=== API REQUEST ===`);
+    console.log(`Method: ${method}`);
+    console.log(`Path: ${pathname}`);
+    console.log(`Headers:`, req.headers);
+    
+    let body = '';
+    const decoder = new StringDecoder('utf-8');
 
-        req.on('data', (chunk) => {
-            body += decoder.write(chunk);
-        });
+    req.on('data', (chunk) => {
+        body += decoder.write(chunk);
+    });
 
-        req.on('end', () => {
-            body += decoder.end();
-            
-            let data = {};
-            if (body) {
+    req.on('end', () => {
+        body += decoder.end();
+        
+        console.log(`Raw body:`, body);
+        console.log(`Body length: ${body.length}`);
+        
+        let data = {};
+        if (body && body.trim() !== '') {
+            try {
+                data = JSON.parse(body);
+                console.log(`Parsed data:`, data);
+            } catch (e) {
+                console.log(`JSON parse error:`, e.message);
+                console.log(`Trying URL encoded...`);
                 try {
-                    data = JSON.parse(body);
-                } catch (e) {
                     const params = new URLSearchParams(body);
                     data = Object.fromEntries(params);
+                    console.log(`URL encoded data:`, data);
+                } catch (e2) {
+                    console.log(`URL encoded parse error:`, e2.message);
                 }
             }
+        } else {
+            console.log(`Empty body`);
+        }
 
-            this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
-        });
-    }
+        console.log(`=== END REQUEST ===`);
+        
+        this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
+    });
+}
 
     processApiRequest(pathname, method, data, query, req, res) {
-        const headers = {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-        };
+    console.log(`🔄 Processing API: ${method} ${pathname}`);
+    console.log(`📦 Request data:`, data);
+    console.log(`❓ Query params:`, query);
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
+        'Access-Control-Allow-Credentials': 'true'
+    };
 
-        if (method === 'OPTIONS') {
-            res.writeHead(204, headers);
-            res.end();
-            return;
-        }
-
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-        let response;
-
-        try {
-            switch (pathname) {
-                case '/api/login':
-                    if (method === 'POST') {
-                        response = this.handleLogin(data, req);
-                    }
-                    break;
-                    
-                case '/api/register':
-                    if (method === 'POST') {
-                        response = this.handleRegister(data, req);
-                    }
-                    break;
-                    
-                case '/api/check-auth':
-                    if (method === 'GET') {
-                        response = this.handleCheckAuth(token, req);
-                    }
-                    break;
-                    
-                case '/api/current-user':
-                    if (method === 'GET') {
-                        response = this.handleCurrentUser(token, req);
-                    }
-                    break;
-                    
-                case '/api/users':
-                    if (method === 'GET') {
-                        response = this.handleGetUsers(token);
-                    }
-                    break;
-                    
-                case '/api/messages':
-                    if (method === 'GET') {
-                        response = this.handleGetMessages(token, query);
-                    }
-                    break;
-                    
-                case '/api/messages/send':
-                    if (method === 'POST') {
-                        response = this.handleSendMessage(token, data);
-                    }
-                    break;
-                    
-                case '/api/posts':
-                    if (method === 'GET') {
-                        response = this.handleGetPosts(token);
-                    } else if (method === 'POST') {
-                        response = this.handleCreatePost(token, data);
-                    } else if (method === 'DELETE') {
-                        response = this.handleDeletePost(token, query);
-                    }
-                    break;
-                    
-                case '/api/gifts':
-                    if (method === 'GET') {
-                        response = this.handleGetGifts(token);
-                    } else if (method === 'POST') {
-                        response = this.handleCreateGift(token, data);
-                    }
-                    break;
-                    
-                case '/api/promo-codes':
-                    if (method === 'GET') {
-                        response = this.handleGetPromoCodes(token);
-                    }
-                    break;
-                    
-                case '/api/promo-codes/create':
-                    if (method === 'POST') {
-                        response = this.handleCreatePromoCode(token, data);
-                    }
-                    break;
-                    
-                case '/api/promo-codes/activate':
-                    if (method === 'POST') {
-                        response = this.handleActivatePromoCode(token, data);
-                    }
-                    break;
-                    
-                case '/api/update-profile':
-                    if (method === 'POST') {
-                        response = this.handleUpdateProfile(token, data);
-                    }
-                    break;
-
-                case '/api/update-avatar':
-                    if (method === 'POST') {
-                        response = this.handleUpdateAvatar(token, data);
-                    }
-                    break;
-
-                case '/api/upload-avatar':
-                    if (method === 'POST') {
-                        response = this.handleUploadAvatar(token, data);
-                    }
-                    break;
-
-                case '/api/upload-gift':
-                    if (method === 'POST') {
-                        response = this.handleUploadGift(token, data);
-                    }
-                    break;
-
-                case '/api/upload-post-image':
-                    if (method === 'POST') {
-                        response = this.handleUploadPostImage(token, data);
-                    }
-                    break;
-
-                case '/api/admin/stats':
-                    if (method === 'GET') {
-                        response = this.handleAdminStats(token);
-                    }
-                    break;
-
-                case '/api/admin/delete-user':
-                    if (method === 'POST') {
-                        response = this.handleDeleteUser(token, data);
-                    }
-                    break;
-
-                case '/api/admin/ban-user':
-                    if (method === 'POST') {
-                        response = this.handleBanUser(token, data);
-                    }
-                    break;
-
-                case '/api/admin/toggle-verification':
-                    if (method === 'POST') {
-                        response = this.handleToggleVerification(token, data);
-                    }
-                    break;
-
-                case '/api/admin/toggle-developer':
-                    if (method === 'POST') {
-                        response = this.handleToggleDeveloper(token, data);
-                    }
-                    break;
-
-                case '/api/emoji':
-                    if (method === 'GET') {
-                        response = this.handleGetEmoji(token);
-                    }
-                    break;
-
-                case '/api/devices':
-                    if (method === 'GET') {
-                        response = this.handleGetDevices(token);
-                    }
-                    break;
-
-                case '/api/devices/terminate':
-                    if (method === 'POST') {
-                        response = this.handleTerminateDevice(token, data);
-                    }
-                    break;
-
-                // API для музыки
-                case '/api/music':
-                    if (method === 'GET') {
-                        response = this.handleGetMusic(token);
-                    } else if (method === 'POST') {
-                        response = this.handleUploadMusic(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/upload':
-                    if (method === 'POST') {
-                        response = this.handleUploadMusicFile(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/upload-cover':
-                    if (method === 'POST') {
-                        response = this.handleUploadMusicCover(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/delete':
-                    if (method === 'POST') {
-                        response = this.handleDeleteMusic(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/search':
-                    if (method === 'GET') {
-                        response = this.handleSearchMusic(token, query);
-                    }
-                    break;
-                    
-                case '/api/music/random':
-                    if (method === 'GET') {
-                        response = this.handleGetRandomMusic(token);
-                    }
-                    break;
-                    
-                case '/api/playlists':
-                    if (method === 'GET') {
-                        response = this.handleGetPlaylists(token);
-                    } else if (method === 'POST') {
-                        response = this.handleCreatePlaylist(token, data);
-                    }
-                    break;
-                    
-                case '/api/playlists/add':
-                    if (method === 'POST') {
-                        response = this.handleAddToPlaylist(token, data);
-                    }
-                    break;
-                    
-                default:
-                    if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
-                        const postId = pathname.split('/')[3];
-                        if (method === 'POST') {
-                            response = this.handleLikePost(token, postId);
-                        }
-                    } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
-                        const giftId = pathname.split('/')[3];
-                        if (method === 'POST') {
-                            response = this.handleBuyGift(token, giftId, data);
-                        }
-                    } else if (pathname.startsWith('/api/users/')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetUser(token, userId);
-                        }
-                    } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetTransactions(token, userId);
-                        }
-                    } else {
-                        response = { success: false, message: 'API endpoint not found' };
-                    }
-            }
-        } catch (error) {
-            console.error('API Error:', error);
-            response = { success: false, message: error.message };
-        }
-
-        if (!response) {
-            response = { success: false, message: 'Method not allowed' };
-        }
-
-        res.writeHead(response.success ? 200 : 400, headers);
-        res.end(JSON.stringify(response));
+    if (method === 'OPTIONS') {
+        res.writeHead(204, headers);
+        res.end();
+        return;
     }
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+    let response;
+
+    try {
+        switch (pathname) {
+            case '/api/login':
+                if (method === 'POST') {
+                    response = this.handleLogin(data, req);
+                }
+                break;
+                
+            case '/api/register':
+                if (method === 'POST') {
+                    response = this.handleRegister(data, req);
+                }
+                break;
+                
+            case '/api/check-auth':
+                if (method === 'GET') {
+                    response = this.handleCheckAuth(token, req);
+                }
+                break;
+                
+            case '/api/current-user':
+                if (method === 'GET') {
+                    response = this.handleCurrentUser(token, req);
+                }
+                break;
+                
+            case '/api/users':
+                if (method === 'GET') {
+                    response = this.handleGetUsers(token);
+                }
+                break;
+                
+            case '/api/messages':
+                if (method === 'GET') {
+                    response = this.handleGetMessages(token, query);
+                }
+                break;
+                
+            case '/api/messages/send':
+                if (method === 'POST') {
+                    response = this.handleSendMessage(token, data);
+                }
+                break;
+                
+            case '/api/posts':
+                if (method === 'GET') {
+                    response = this.handleGetPosts(token);
+                } else if (method === 'POST') {
+                    response = this.handleCreatePost(token, data);
+                } else if (method === 'DELETE') {
+                    response = this.handleDeletePost(token, query);
+                }
+                break;
+                
+            case '/api/gifts':
+                if (method === 'GET') {
+                    response = this.handleGetGifts(token);
+                } else if (method === 'POST') {
+                    response = this.handleCreateGift(token, data);
+                }
+                break;
+                
+            case '/api/promo-codes':
+                if (method === 'GET') {
+                    response = this.handleGetPromoCodes(token);
+                }
+                break;
+                
+            case '/api/promo-codes/create':
+                if (method === 'POST') {
+                    response = this.handleCreatePromoCode(token, data);
+                }
+                break;
+                
+            case '/api/promo-codes/activate':
+                if (method === 'POST') {
+                    response = this.handleActivatePromoCode(token, data);
+                }
+                break;
+                
+            case '/api/update-profile':
+                if (method === 'POST') {
+                    response = this.handleUpdateProfile(token, data);
+                }
+                break;
+
+            case '/api/update-avatar':
+                if (method === 'POST') {
+                    response = this.handleUpdateAvatar(token, data);
+                }
+                break;
+
+            case '/api/upload-avatar':
+                if (method === 'POST') {
+                    response = this.handleUploadAvatar(token, data);
+                }
+                break;
+
+            case '/api/upload-gift':
+                if (method === 'POST') {
+                    response = this.handleUploadGift(token, data);
+                }
+                break;
+
+            case '/api/upload-post-image':
+                if (method === 'POST') {
+                    response = this.handleUploadPostImage(token, data);
+                }
+                break;
+
+            case '/api/admin/stats':
+                if (method === 'GET') {
+                    response = this.handleAdminStats(token);
+                }
+                break;
+
+            case '/api/admin/delete-user':
+                if (method === 'POST') {
+                    response = this.handleDeleteUser(token, data);
+                }
+                break;
+
+            case '/api/admin/ban-user':
+                if (method === 'POST') {
+                    response = this.handleBanUser(token, data);
+                }
+                break;
+
+            case '/api/admin/toggle-verification':
+                if (method === 'POST') {
+                    response = this.handleToggleVerification(token, data);
+                }
+                break;
+
+            case '/api/admin/toggle-developer':
+                if (method === 'POST') {
+                    response = this.handleToggleDeveloper(token, data);
+                }
+                break;
+
+            case '/api/emoji':
+                if (method === 'GET') {
+                    response = this.handleGetEmoji(token);
+                }
+                break;
+
+            case '/api/devices':
+                if (method === 'GET') {
+                    response = this.handleGetDevices(token);
+                }
+                break;
+
+            case '/api/devices/terminate':
+                if (method === 'POST') {
+                    response = this.handleTerminateDevice(token, data);
+                }
+                break;
+
+            // API для музыки
+            case '/api/music':
+                if (method === 'GET') {
+                    response = this.handleGetMusic(token);
+                } else if (method === 'POST') {
+                    response = this.handleUploadMusic(token, data);
+                }
+                break;
+                
+            case '/api/music/upload':
+                if (method === 'POST') {
+                    response = this.handleUploadMusicFile(token, data);
+                }
+                break;
+                
+            case '/api/music/upload-cover':
+                if (method === 'POST') {
+                    response = this.handleUploadMusicCover(token, data);
+                }
+                break;
+                
+            case '/api/music/delete':
+                if (method === 'POST') {
+                    response = this.handleDeleteMusic(token, data);
+                }
+                break;
+                
+            case '/api/music/search':
+                if (method === 'GET') {
+                    response = this.handleSearchMusic(token, query);
+                }
+                break;
+                
+            case '/api/music/random':
+                if (method === 'GET') {
+                    response = this.handleGetRandomMusic(token);
+                }
+                break;
+                
+            case '/api/playlists':
+                if (method === 'GET') {
+                    response = this.handleGetPlaylists(token);
+                } else if (method === 'POST') {
+                    response = this.handleCreatePlaylist(token, data);
+                }
+                break;
+                
+            case '/api/playlists/add':
+                if (method === 'POST') {
+                    response = this.handleAddToPlaylist(token, data);
+                }
+                break;
+                
+            default:
+                if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
+                    const postId = pathname.split('/')[3];
+                    if (method === 'POST') {
+                        response = this.handleLikePost(token, postId);
+                    }
+                } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
+                    const giftId = pathname.split('/')[3];
+                    if (method === 'POST') {
+                        response = this.handleBuyGift(token, giftId, data);
+                    }
+                } else if (pathname.startsWith('/api/users/')) {
+                    const userId = pathname.split('/')[3];
+                    if (method === 'GET') {
+                        response = this.handleGetUser(token, userId);
+                    }
+                } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                    const userId = pathname.split('/')[3];
+                    if (method === 'GET') {
+                        response = this.handleGetTransactions(token, userId);
+                    }
+                } else {
+                    response = { success: false, message: 'API endpoint not found' };
+                }
+        }
+    } catch (error) {
+        console.error('API Error:', error);
+        response = { success: false, message: error.message };
+    }
+
+    if (!response) {
+        response = { success: false, message: 'Method not allowed' };
+    }
+
+    console.log(`📤 Response data:`, response);
+    
+    res.writeHead(response.success ? 200 : 400, headers);
+    res.end(JSON.stringify(response));
+}
 
     handleUploadMusicFull(req, res) {
         const authHeader = req.headers['authorization'];
