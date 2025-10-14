@@ -802,6 +802,13 @@ class SimpleServer {
                 break;
 
             // API для музыки
+            case '/api/music/upload-full':
+                if (method === 'POST') {
+                    this.handleUploadMusicFull(req, res);
+                    return;
+                }
+                break;
+                
             case '/api/music':
                 if (method === 'GET') {
                     response = this.handleGetMusic(token);
@@ -895,12 +902,27 @@ class SimpleServer {
 }
 
     handleUploadMusicFull(req, res) {
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
+
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
         const user = this.authenticateToken(token);
         
         if (!user) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
             res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
             return;
         }
@@ -928,14 +950,20 @@ class SimpleServer {
                 
                 if (name === 'audioFile') {
                     if (!this.validateMusicFile(filename)) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.writeHead(400, { 
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*'
+                        });
                         res.end(JSON.stringify({ success: false, message: 'Недопустимый формат аудио файла' }));
                         return;
                     }
                     audioFile = { buffer, filename };
                 } else if (name === 'coverFile') {
                     if (filename && !this.validateCoverFile(filename)) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.writeHead(400, { 
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*'
+                        });
                         res.end(JSON.stringify({ success: false, message: 'Недопустимый формат изображения' }));
                         return;
                     }
@@ -947,26 +975,38 @@ class SimpleServer {
         bb.on('close', async () => {
             try {
                 if (!audioFile) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.writeHead(400, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(JSON.stringify({ success: false, message: 'Аудио файл обязателен' }));
                     return;
                 }
 
                 if (!fields.title || !fields.artist) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.writeHead(400, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(JSON.stringify({ success: false, message: 'Название и исполнитель обязательны' }));
                     return;
                 }
 
                 // Проверка размера файлов
                 if (audioFile.buffer.length > 50 * 1024 * 1024) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.writeHead(400, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(JSON.stringify({ success: false, message: 'Размер аудио файла не должен превышать 50 МБ' }));
                     return;
                 }
 
                 if (coverFile && coverFile.buffer.length > 10 * 1024 * 1024) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.writeHead(400, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(JSON.stringify({ success: false, message: 'Размер обложки не должен превышать 10 МБ' }));
                     return;
                 }
