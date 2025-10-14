@@ -749,6 +749,7 @@ class SimpleServer {
                 case '/api/admin/ban-user':
                     if (method === 'POST') {
                         response = this.handleBanUser(token, data);
+                    }
                     break;
 
                 case '/api/admin/toggle-verification':
