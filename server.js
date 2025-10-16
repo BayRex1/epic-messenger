@@ -1159,6 +1159,46 @@ class SimpleServer {
         };
     }
 
+    // Исправленный метод для получения транзакций (подарков)
+    handleGetTransactions(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // Получаем все подарки, отправленные пользователю
+        const giftMessages = this.messages.filter(msg => 
+            msg.toUserId === userId && msg.type === 'gift'
+        );
+
+        const transactions = giftMessages.map(msg => ({
+            id: msg.id,
+            giftId: msg.giftId,
+            giftName: msg.giftName,
+            giftPreview: msg.giftPreview,
+            giftImage: msg.giftImage,
+            giftPrice: msg.giftPrice,
+            fromUserId: msg.senderId,
+            fromUserName: msg.displayName,
+            receivedAt: msg.timestamp,
+            type: 'gift'
+        }));
+
+        // Добавляем бонус за регистрацию
+        transactions.push({
+            id: 'registration-bonus',
+            description: 'Регистрация бонус',
+            date: user.createdAt,
+            amount: user.coins >= 50000 ? 50000 : 1000,
+            type: 'bonus'
+        });
+
+        return {
+            success: true,
+            transactions: transactions
+        };
+    }
+
     // Новый метод для смены версии
     handleChangeVersion(token, data) {
         const user = this.authenticateToken(token);
@@ -2857,26 +2897,6 @@ class SimpleServer {
             success: true,
             message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
             isDeveloper: targetUser.isDeveloper
-        };
-    }
-
-    handleGetTransactions(token, userId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const transactions = [
-            {
-                description: 'Регистрация бонус',
-                date: user.createdAt,
-                amount: user.coins >= 50000 ? 50000 : 1000
-            }
-        ];
-
-        return {
-            success: true,
-            transactions: transactions
         };
     }
 
