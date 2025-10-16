@@ -161,6 +161,11 @@ class SimpleServer {
         this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
+        // Кэш для эмодзи
+        this.emojiCache = null;
+        this.emojiCacheTime = null;
+        this.emojiCacheDuration = 5 * 60 * 1000; // 5 минут кэша
+        
         this.ensureUploadDirs();
         this.loadData();
         this.setupAutoSave();
@@ -275,6 +280,58 @@ class SimpleServer {
                 console.log('✅ Создана папка:', fullPath);
             }
         });
+    }
+
+    // Кэшированная загрузка эмодзи
+    async loadEmojiList() {
+        const now = Date.now();
+        
+        if (this.emojiCache && this.emojiCacheTime && 
+            (now - this.emojiCacheTime) < this.emojiCacheDuration) {
+            return this.emojiCache;
+        }
+
+        try {
+            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
+            const files = fs.readdirSync(emojiPath);
+            const emojiList = files.filter(file => 
+                file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
+            ).map(file => ({
+                name: path.parse(file).name,
+                url: `/assets/emoji/${file}`,
+                filename: file
+            }));
+
+            this.emojiCache = emojiList;
+            this.emojiCacheTime = now;
+            
+            console.log(`📦 Загружено ${emojiList.length} эмодзи в кэш`);
+            return emojiList;
+        } catch (error) {
+            console.log('❌ Эмодзи не загружены:', error.message);
+            return [];
+        }
+    }
+
+    // Обработка текста с эмодзи
+    processTextWithEmoji(text, emojiList) {
+        if (!text || typeof text !== 'string') return text;
+
+        let processedText = text;
+        
+        // Заменяем кастомные эмодзи коды на HTML
+        emojiList.forEach(emoji => {
+            const emojiCode = `:${emoji.name}:`;
+            const emojiHtml = `<img src="${emoji.url}" alt="${emoji.name}" class="emoji" style="width: 20px; height: 20px; vertical-align: middle; display: inline-block;">`;
+            processedText = processedText.replace(new RegExp(this.escapeRegExp(emojiCode), 'g'), emojiHtml);
+        });
+
+        return processedText;
+    }
+
+    // Вспомогательная функция для экранирования спецсимволов в регулярных выражениях
+    escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     validateMusicFile(filename) {
@@ -1012,6 +1069,94 @@ class SimpleServer {
         
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
+    }
+
+    // Улучшенный метод для получения сообщений с поддержкой эмодзи
+    async handleGetMessages(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { userId, toUserId } = query;
+        
+        if (!userId || !toUserId) {
+            return { success: false, message: 'Не указаны ID пользователей' };
+        }
+
+        // Проверяем права доступа к чату
+        if (user.id !== userId && user.id !== toUserId && !user.isDeveloper) {
+            return { success: false, message: 'Доступ к этому чату запрещен' };
+        }
+
+        const chatMessages = this.messages.filter(msg => 
+            (msg.senderId === userId && msg.toUserId === toUserId) ||
+            (msg.senderId === toUserId && msg.toUserId === userId)
+        );
+
+        // Расшифровываем сообщения
+        const decryptedMessages = chatMessages.map(msg => ({
+            ...msg,
+            text: msg.encrypted ? this.decrypt(msg.text) : msg.text,
+            isCurrentUser: msg.senderId === user.id
+        }));
+
+        // Сортируем по времени
+        decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Загружаем эмодзи из кэша
+        const emojiList = await this.loadEmojiList();
+
+        // Обрабатываем эмодзи в сообщениях
+        const processedMessages = decryptedMessages.map(msg => {
+            if (msg.type === 'text' && msg.text) {
+                const processedText = this.processTextWithEmoji(msg.text, emojiList);
+                
+                return {
+                    ...msg,
+                    text: processedText,
+                    containsEmoji: processedText !== msg.text,
+                    originalText: msg.text // Сохраняем оригинальный текст для редактирования
+                };
+            }
+            return msg;
+        });
+
+        // Получаем информацию о собеседнике
+        const otherUserId = user.id === userId ? toUserId : userId;
+        const otherUser = this.users.find(u => u.id === otherUserId);
+
+        return {
+            success: true,
+            messages: processedMessages,
+            chatInfo: {
+                otherUser: otherUser ? {
+                    id: otherUser.id,
+                    displayName: otherUser.displayName,
+                    avatar: otherUser.avatar,
+                    verified: otherUser.verified,
+                    status: otherUser.status,
+                    isDeveloper: otherUser.isDeveloper
+                } : null,
+                totalMessages: processedMessages.length,
+                emojiSupported: emojiList.length > 0
+            }
+        };
+    }
+
+    // Обновленный метод для получения эмодзи
+    async handleGetEmoji(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const emojiList = await this.loadEmojiList();
+
+        return {
+            success: true,
+            emoji: emojiList
+        };
     }
 
     // Новый метод для смены версии
@@ -1927,31 +2072,6 @@ class SimpleServer {
         };
     }
 
-    handleGetMessages(token, query) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { userId, toUserId } = query;
-        const chatMessages = this.messages.filter(msg => 
-            (msg.senderId === userId && msg.toUserId === toUserId) ||
-            (msg.senderId === toUserId && msg.toUserId === userId)
-        );
-
-        const decryptedMessages = chatMessages.map(msg => ({
-            ...msg,
-            text: msg.encrypted ? this.decrypt(msg.text) : msg.text
-        }));
-
-        decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        return {
-            success: true,
-            messages: decryptedMessages
-        };
-    }
-
     handleSendMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1970,6 +2090,9 @@ class SimpleServer {
             return { success: false, message: 'Сообщение содержит запрещенный контент' };
         }
 
+        // Проверяем поддержку эмодзи в тексте
+        const containsCustomEmoji = /:\w+:/g.test(sanitizedText);
+
         const encryptedText = this.encrypt(sanitizedText);
 
         const message = {
@@ -1981,7 +2104,8 @@ class SimpleServer {
             type: type || 'text',
             image: image || null,
             timestamp: new Date(),
-            displayName: user.displayName
+            displayName: user.displayName,
+            containsCustomEmoji: containsCustomEmoji
         };
 
         this.messages.push(message);
@@ -2575,34 +2699,6 @@ class SimpleServer {
         }
     }
 
-    handleGetEmoji(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        try {
-            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
-            const files = fs.readdirSync(emojiPath);
-            const emojiList = files.filter(file => 
-                file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
-            ).map(file => ({
-                name: file,
-                url: `/assets/emoji/${file}`
-            }));
-
-            return {
-                success: true,
-                emoji: emojiList
-            };
-        } catch (error) {
-            return {
-                success: true,
-                emoji: []
-            };
-        }
-    }
-
     handleAdminStats(token) {
         const user = this.authenticateToken(token);
         if (!user || !user.isDeveloper) {
@@ -2880,6 +2976,7 @@ class SimpleServer {
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`📱 Поддержка мобильной версии включена`);
+            console.log(`😊 Поддержка кастомных эмодзи включена`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
@@ -2890,6 +2987,7 @@ class SimpleServer {
             console.log(`   - Мобильная версия: http://localhost:${port}/mobile`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
+            console.log(`😊 Для использования эмодзи в сообщениях используйте синтаксис :имя_эмодзи:`);
         });
 
         return server;
