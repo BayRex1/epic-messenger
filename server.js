@@ -157,20 +157,101 @@ class WebSocketServer {
 
 class SimpleServer {
     constructor() {
-        this.users = [];
-        this.messages = [];
-        this.posts = [];
-        this.gifts = [];
-        this.promoCodes = [];
-        this.bannedIPs = new Map();
-        this.devices = new Map();
+        // Используем /tmp для Render, так как он сохраняется между деплоями
+        this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
-        this.music = [];
-        this.playlists = [];
-        
         this.ensureUploadDirs();
-        this.initializeData();
+        this.loadData();
+        this.setupAutoSave();
+    }
+
+    loadData() {
+        try {
+            if (fs.existsSync(this.dataFile)) {
+                const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+                this.users = data.users || [];
+                this.messages = data.messages || [];
+                this.posts = data.posts || [];
+                this.gifts = data.gifts || [];
+                this.promoCodes = data.promoCodes || [];
+                this.music = data.music || [];
+                this.playlists = data.playlists || [];
+                this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
+                this.devices = new Map(Object.entries(data.devices || {}));
+                
+                // Восстанавливаем даты
+                this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
+                this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
+                this.users.forEach(user => {
+                    user.lastSeen = new Date(user.lastSeen);
+                    user.createdAt = new Date(user.createdAt);
+                });
+                this.music.forEach(track => track.createdAt = new Date(track.createdAt));
+                this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
+                
+                console.log('✅ Данные загружены из файла');
+                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов`);
+            } else {
+                console.log('📁 Файл данных не найден, инициализируем пустые данные');
+                this.initializeData();
+            }
+        } catch (error) {
+            console.log('❌ Ошибка загрузки данных:', error);
+            console.log('🔄 Инициализируем пустые данные');
+            this.initializeData();
+        }
+    }
+
+    saveData() {
+        try {
+            const data = {
+                users: this.users,
+                messages: this.messages,
+                posts: this.posts,
+                gifts: this.gifts,
+                promoCodes: this.promoCodes,
+                music: this.music,
+                playlists: this.playlists,
+                bannedIPs: Object.fromEntries(this.bannedIPs),
+                devices: Object.fromEntries(this.devices),
+                lastSave: new Date().toISOString()
+            };
+            
+            fs.writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
+            console.log('💾 Данные сохранены');
+        } catch (error) {
+            console.log('❌ Ошибка сохранения данных:', error);
+        }
+    }
+
+    setupAutoSave() {
+        // Сохраняем каждые 30 секунд
+        setInterval(() => {
+            this.saveData();
+        }, 30000);
+
+        // Сохраняем при graceful shutdown
+        process.on('SIGINT', () => {
+            console.log('🔄 Получен SIGINT, сохраняем данные...');
+            this.saveData();
+            process.exit(0);
+        });
+
+        process.on('SIGTERM', () => {
+            console.log('🔄 Получен SIGTERM, сохраняем данные...');
+            this.saveData();
+            process.exit(0);
+        });
+
+        // Сохраняем при необработанных ошибках
+        process.on('uncaughtException', (error) => {
+            console.log('🚨 Необработанная ошибка, сохраняем данные...', error);
+            this.saveData();
+            process.exit(1);
+        });
+
+        console.log('🔄 Автосохранение настроено');
     }
 
     ensureUploadDirs() {
@@ -180,7 +261,8 @@ class SimpleServer {
             'public/uploads/avatars',
             'public/uploads/gifts',
             'public/uploads/posts',
-            'public/assets/emoji'
+            'public/assets/emoji',
+            '/tmp' // Убедимся что папка tmp существует
         ];
         
         requiredDirs.forEach(dir => {
@@ -188,8 +270,6 @@ class SimpleServer {
             if (!fs.existsSync(fullPath)) {
                 fs.mkdirSync(fullPath, { recursive: true });
                 console.log('✅ Создана папка:', fullPath);
-            } else {
-                console.log('✅ Папка существует:', fullPath);
             }
         });
     }
@@ -282,6 +362,7 @@ class SimpleServer {
             bannedAt: new Date(),
             expires: Date.now() + duration
         });
+        this.saveData(); // Сохраняем при изменении банов
     }
 
     validateAvatarFile(filename) {
@@ -487,6 +568,8 @@ class SimpleServer {
         this.playlists = [];
 
         this.messages = [];
+        this.bannedIPs = new Map();
+        this.devices = new Map();
     }
 
     generateId() {
@@ -521,6 +604,7 @@ class SimpleServer {
         }
         
         this.devices.set(deviceId, device);
+        this.saveData(); // Сохраняем при добавлении устройства
         return device;
     }
 
@@ -542,11 +626,13 @@ class SimpleServer {
         
         if (targetDevice.isOwner || isOwner) {
             this.devices.delete(deviceId);
+            this.saveData(); // Сохраняем при удалении устройства
             return true;
         } else {
             const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
             if (timeDiff > 24 * 60 * 60 * 1000) {
                 this.devices.delete(deviceId);
+                this.saveData(); // Сохраняем при удалении устройства
                 return true;
             }
             return false;
@@ -1099,6 +1185,7 @@ class SimpleServer {
                             };
 
                             this.music.unshift(track);
+                            this.saveData(); // Сохраняем данные
 
                             console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
 
@@ -1214,6 +1301,7 @@ class SimpleServer {
         };
 
         this.music.unshift(track);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
 
@@ -1312,6 +1400,7 @@ class SimpleServer {
         }
 
         this.music.splice(trackIndex, 1);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🗑️ Трек удален: ${track.title}`);
 
@@ -1427,6 +1516,7 @@ class SimpleServer {
         };
 
         this.playlists.push(playlist);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🎵 Создан плейлист: ${sanitizedName}`);
 
@@ -1464,6 +1554,8 @@ class SimpleServer {
             playlist.cover = track.coverUrl;
         }
 
+        this.saveData(); // Сохраняем данные
+
         console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
 
         return {
@@ -1495,6 +1587,7 @@ class SimpleServer {
 
         user.status = 'online';
         user.lastSeen = new Date();
+        this.saveData(); // Сохраняем данные
 
         return {
             success: true,
@@ -1582,6 +1675,7 @@ class SimpleServer {
         this.users.push(newUser);
 
         const device = this.registerDevice(newUser.id, req);
+        this.saveData(); // Сохраняем данные
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
@@ -1634,6 +1728,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
+            this.saveData(); // Сохраняем данные
         }
 
         return {
@@ -1678,6 +1773,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
+            this.saveData(); // Сохраняем данные
         }
 
         return {
@@ -1824,6 +1920,7 @@ class SimpleServer {
         };
 
         this.messages.push(message);
+        this.saveData(); // Сохраняем данные
 
         console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
 
@@ -1902,6 +1999,7 @@ class SimpleServer {
 
         this.posts.unshift(post);
         user.postsCount = (user.postsCount || 0) + 1;
+        this.saveData(); // Сохраняем данные
 
         console.log(`📝 Новый пост от ${user.displayName}`);
 
@@ -1947,6 +2045,8 @@ class SimpleServer {
             postUser.postsCount--;
         }
 
+        this.saveData(); // Сохраняем данные
+
         console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
 
         return {
@@ -1974,6 +2074,8 @@ class SimpleServer {
             post.likes.splice(likeIndex, 1);
             console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
         }
+
+        this.saveData(); // Сохраняем данные
 
         return {
             success: true,
@@ -2018,6 +2120,7 @@ class SimpleServer {
         };
 
         this.gifts.push(gift);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
 
@@ -2080,6 +2183,8 @@ class SimpleServer {
 
         recipient.giftsCount = (recipient.giftsCount || 0) + 1;
 
+        this.saveData(); // Сохраняем данные
+
         console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
 
         return {
@@ -2130,6 +2235,7 @@ class SimpleServer {
         };
 
         this.promoCodes.push(promoCode);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
 
@@ -2159,6 +2265,7 @@ class SimpleServer {
 
         user.coins += promoCode.coins;
         promoCode.used_count++;
+        this.saveData(); // Сохраняем данные
 
         console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
 
@@ -2203,6 +2310,8 @@ class SimpleServer {
             user.email = sanitizedEmail;
         }
 
+        this.saveData(); // Сохраняем данные
+
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
         return {
@@ -2241,6 +2350,7 @@ class SimpleServer {
         }
 
         user.avatar = avatar;
+        this.saveData(); // Сохраняем данные
 
         console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
 
@@ -2294,6 +2404,7 @@ class SimpleServer {
             }
 
             user.avatar = fileUrl;
+            this.saveData(); // Сохраняем данные
 
             console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
@@ -2477,6 +2588,7 @@ class SimpleServer {
         });
 
         this.users = this.users.filter(u => u.id !== userId);
+        this.saveData(); // Сохраняем данные
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
 
@@ -2513,6 +2625,8 @@ class SimpleServer {
             }
         }
 
+        this.saveData(); // Сохраняем данные
+
         console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
 
         return {
@@ -2535,6 +2649,7 @@ class SimpleServer {
         }
 
         targetUser.verified = !targetUser.verified;
+        this.saveData(); // Сохраняем данные
 
         console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
 
@@ -2559,6 +2674,7 @@ class SimpleServer {
         }
 
         targetUser.isDeveloper = !targetUser.isDeveloper;
+        this.saveData(); // Сохраняем данные
 
         console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
 
@@ -2677,6 +2793,7 @@ class SimpleServer {
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
+            console.log(`💾 Система сохранения данных активирована`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
@@ -2688,7 +2805,8 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
-            console.log(`\n🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
+            console.log(`\n💾 Файл данных: ${this.dataFile}`);
+            console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
         });
 
         return server;
