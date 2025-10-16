@@ -186,6 +186,9 @@ class SimpleServer {
                 this.users.forEach(user => {
                     user.lastSeen = new Date(user.lastSeen);
                     user.createdAt = new Date(user.createdAt);
+                    // Миграция для старых пользователей
+                    if (!user.deviceType) user.deviceType = 'desktop';
+                    if (!user.preferredVersion) user.preferredVersion = 'desktop';
                 });
                 this.music.forEach(track => track.createdAt = new Date(track.createdAt));
                 this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
@@ -317,24 +320,32 @@ class SimpleServer {
 
     getDeviceInfo(req) {
         const userAgent = req.headers['user-agent'] || '';
-        let browser = 'Unknown';
-        let os = 'Unknown';
         
+        // Определение браузера
+        let browser = 'Unknown';
         if (userAgent.includes('Chrome')) browser = 'Chrome';
         else if (userAgent.includes('Firefox')) browser = 'Firefox';
         else if (userAgent.includes('Safari')) browser = 'Safari';
         else if (userAgent.includes('Edge')) browser = 'Edge';
         
+        // Определение ОС
+        let os = 'Unknown';
         if (userAgent.includes('Windows')) os = 'Windows';
         else if (userAgent.includes('Mac')) os = 'Mac OS';
         else if (userAgent.includes('Linux')) os = 'Linux';
         else if (userAgent.includes('Android')) os = 'Android';
         else if (userAgent.includes('iOS')) os = 'iOS';
         
+        // Определение типа устройства
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+        const deviceType = isMobile ? 'mobile' : 'desktop';
+        
         return {
             browser,
             os,
-            userAgent
+            deviceType,
+            userAgent,
+            isMobile
         };
     }
 
@@ -891,6 +902,18 @@ class SimpleServer {
                     }
                     break;
 
+                case '/api/change-version':
+                    if (method === 'POST') {
+                        response = this.handleChangeVersion(token, data);
+                    }
+                    break;
+
+                case '/api/ping':
+                    if (method === 'GET') {
+                        response = { success: true, ping: Date.now(), timestamp: new Date().toISOString() };
+                    }
+                    break;
+
                 // API для музыки
                 case '/api/music/upload-full':
                     // Обрабатывается в handleApiRequest для multipart/form-data
@@ -989,6 +1012,28 @@ class SimpleServer {
         
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
+    }
+
+    // Новый метод для смены версии
+    handleChangeVersion(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { version } = data;
+        if (version !== 'desktop' && version !== 'mobile') {
+            return { success: false, message: 'Неверная версия' };
+        }
+
+        user.preferredVersion = version;
+        this.saveData();
+
+        return {
+            success: true,
+            message: `Версия изменена на ${version === 'mobile' ? 'мобильную' : 'компьютерную'}`,
+            version: version
+        };
     }
 
     handleUploadMusicFull(req, res) {
@@ -1609,7 +1654,9 @@ class SimpleServer {
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+                banned: user.banned || false,
+                deviceType: user.deviceType || 'desktop',
+                preferredVersion: user.preferredVersion || 'desktop'
             }
         };
     }
@@ -1650,6 +1697,9 @@ class SimpleServer {
 
         const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
         
+        // Определяем устройство пользователя
+        const deviceInfo = this.getDeviceInfo(req);
+        
         const newUser = {
             id: this.generateId(),
             username: sanitizedUsername,
@@ -1669,7 +1719,14 @@ class SimpleServer {
             friendsCount: 0,
             postsCount: 0,
             giftsCount: 0,
-            banned: false
+            banned: false,
+            deviceType: deviceInfo.deviceType,
+            preferredVersion: deviceInfo.isMobile ? 'mobile' : 'desktop',
+            registrationDevice: {
+                browser: deviceInfo.browser,
+                os: deviceInfo.os,
+                userAgent: deviceInfo.userAgent
+            }
         };
 
         this.users.push(newUser);
@@ -1704,7 +1761,9 @@ class SimpleServer {
                 friendsCount: newUser.friendsCount,
                 postsCount: newUser.postsCount,
                 giftsCount: newUser.giftsCount,
-                banned: newUser.banned
+                banned: newUser.banned,
+                deviceType: newUser.deviceType,
+                preferredVersion: newUser.preferredVersion
             }
         };
     }
@@ -1749,7 +1808,9 @@ class SimpleServer {
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+                banned: user.banned || false,
+                deviceType: user.deviceType || 'desktop',
+                preferredVersion: user.preferredVersion || 'desktop'
             }
         };
     }
@@ -1794,7 +1855,9 @@ class SimpleServer {
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+                banned: user.banned || false,
+                deviceType: user.deviceType || 'desktop',
+                preferredVersion: user.preferredVersion || 'desktop'
             }
         };
     }
@@ -1820,7 +1883,8 @@ class SimpleServer {
             friendsCount: u.friendsCount || 0,
             postsCount: u.postsCount || 0,
             giftsCount: u.giftsCount || 0,
-            banned: u.banned || false
+            banned: u.banned || false,
+            deviceType: u.deviceType || 'desktop'
         }));
 
         return {
@@ -1857,7 +1921,8 @@ class SimpleServer {
                 friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
-                banned: targetUser.banned || false
+                banned: targetUser.banned || false,
+                deviceType: targetUser.deviceType || 'desktop'
             }
         };
     }
@@ -2332,7 +2397,9 @@ class SimpleServer {
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+                banned: user.banned || false,
+                deviceType: user.deviceType || 'desktop',
+                preferredVersion: user.preferredVersion || 'desktop'
             }
         };
     }
@@ -2372,7 +2439,9 @@ class SimpleServer {
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+                banned: user.banned || false,
+                deviceType: user.deviceType || 'desktop',
+                preferredVersion: user.preferredVersion || 'desktop'
             }
         };
     }
@@ -2427,7 +2496,9 @@ class SimpleServer {
                     friendsCount: user.friendsCount || 0,
                     postsCount: user.postsCount || 0,
                     giftsCount: user.giftsCount || 0,
-                    banned: user.banned || false
+                    banned: user.banned || false,
+                    deviceType: user.deviceType || 'desktop',
+                    preferredVersion: user.preferredVersion || 'desktop'
                 }
             };
         } catch (error) {
@@ -2538,6 +2609,10 @@ class SimpleServer {
             return { success: false, message: 'Доступ запрещен' };
         }
 
+        // Симуляция FPS и пинга
+        const fps = Math.floor(Math.random() * 60) + 30; // 30-90 FPS
+        const ping = Math.floor(Math.random() * 100) + 10; // 10-110ms
+
         return {
             success: true,
             stats: {
@@ -2551,7 +2626,11 @@ class SimpleServer {
                 onlineUsers: this.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.users.filter(u => u.banned).length,
                 bannedIPs: this.bannedIPs.size,
-                activeDevices: this.devices.size
+                activeDevices: this.devices.size,
+                fps: fps,
+                ping: ping,
+                serverUptime: process.uptime(),
+                memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024) // в MB
             }
         };
     }
@@ -2760,6 +2839,8 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname === '/music.html' || pathname === '/music') {
                 this.serveStaticFile(res, 'public/music.html', 'text/html');
+            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
+                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
@@ -2798,6 +2879,7 @@ class SimpleServer {
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
+            console.log(`📱 Поддержка мобильной версии включена`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
@@ -2805,6 +2887,7 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`   - Мобильная версия: http://localhost:${port}/mobile`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
         });
