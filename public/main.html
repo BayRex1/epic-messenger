@@ -795,6 +795,31 @@
             font-weight: 600;
         }
 
+        /* Переключатель версий */
+        .version-switcher {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .version-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .version-btn.active {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: white;
+        }
+
         /* Уведомления */
         .notification {
             position: fixed;
@@ -2269,6 +2294,18 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="post">
+                    <h3>Версия приложения</h3>
+                    <div class="version-switcher">
+                        <button class="version-btn active" id="desktopVersionBtn">
+                            🖥️ Компьютерная версия
+                        </button>
+                        <button class="version-btn" id="mobileVersionBtn">
+                            📱 Мобильная версия
+                        </button>
+                    </div>
+                </div>
                 
                 <div class="post">
                     <h3>Уведомления</h3>
@@ -2415,6 +2452,14 @@
                             <div class="stat-value" id="onlineUsers">0</div>
                             <div class="stat-label">Пользователей онлайн</div>
                         </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="fps">60</div>
+                            <div class="stat-label">FPS</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="ping">25ms</div>
+                            <div class="stat-label">Пинг</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2524,6 +2569,28 @@
     </div>
 
     <script>
+        // Проверка устройства и редирект на мобильную версию
+        document.addEventListener('DOMContentLoaded', function() {
+            const preferredVersion = localStorage.getItem('preferredVersion');
+            const userAgent = navigator.userAgent;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+            
+            // Если пользователь с мобильного и нет предпочтения ПК версии
+            if (isMobile && preferredVersion !== 'desktop') {
+                window.location.href = '/mobile.html';
+                return;
+            }
+            
+            // Если пользователь выбрал мобильную версию на ПК
+            if (!isMobile && preferredVersion === 'mobile') {
+                window.location.href = '/mobile.html';
+                return;
+            }
+            
+            // Инициализация обычного приложения
+            initializeApp();
+        });
+
         // Глобальные переменные
         let currentUser = null;
         let currentChat = null;
@@ -2536,11 +2603,6 @@
         let isRecording = false;
         let recordingTimer = null;
         let recordingStartTime = null;
-
-        // Инициализация при загрузке страницы
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-        });
 
         // Основная функция инициализации приложения
         async function initializeApp() {
@@ -2730,6 +2792,17 @@
                     localStorage.removeItem('authToken');
                     window.location.href = '/login.html';
                 }
+            });
+
+            // Переключатель версий
+            document.getElementById('desktopVersionBtn').addEventListener('click', function() {
+                localStorage.setItem('preferredVersion', 'desktop');
+                showNotification('Установлена компьютерная версия', 'success');
+            });
+
+            document.getElementById('mobileVersionBtn').addEventListener('click', function() {
+                localStorage.setItem('preferredVersion', 'mobile');
+                showNotification('Установлена мобильная версия', 'success');
             });
 
             // Тема
@@ -3892,6 +3965,8 @@
                     document.getElementById('totalPosts').textContent = data.stats.totalPosts;
                     document.getElementById('totalMessages').textContent = data.stats.totalMessages;
                     document.getElementById('onlineUsers').textContent = data.stats.onlineUsers;
+                    document.getElementById('fps').textContent = data.stats.fps || '60';
+                    document.getElementById('ping').textContent = data.stats.ping || '25ms';
                 }
             } catch (error) {
                 console.error('Ошибка загрузки статистики:', error);
