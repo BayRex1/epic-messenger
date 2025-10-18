@@ -400,7 +400,8 @@ class SimpleServer {
         else if (userAgent.includes('Android')) os = 'Android';
         else if (userAgent.includes('iOS')) os = 'iOS';
         
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+        // Улучшенное определение мобильных устройств
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(userAgent);
         const deviceType = isMobile ? 'mobile' : 'desktop';
         
         return {
@@ -2962,30 +2963,66 @@ class SimpleServer {
         }
     }
 
+    // НОВАЯ ФУНКЦИЯ: Проверка авторизации пользователя
+    isUserAuthenticated(req) {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        
+        if (!token) {
+            // Проверяем куки (если используется)
+            const cookieHeader = req.headers['cookie'];
+            if (cookieHeader) {
+                const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+                    const [name, value] = cookie.trim().split('=');
+                    acc[name] = value;
+                    return acc;
+                }, {});
+                
+                const cookieToken = cookies['authToken'];
+                if (cookieToken) {
+                    return this.authenticateToken(cookieToken);
+                }
+            }
+            return null;
+        }
+        
+        return this.authenticateToken(token);
+    }
+
     start(port = 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = url.parse(req.url, true);
             const pathname = parsedUrl.pathname;
 
             console.log(`${new Date().toISOString()} - ${req.method} ${pathname}`);
+            console.log(`User-Agent: ${req.headers['user-agent']}`);
 
             if (pathname.startsWith('/api/')) {
                 this.handleApiRequest(req, res);
                 return;
             }
 
-            // АВТОМАТИЧЕСКОЕ ПЕРЕНАПРАВЛЕНИЕ НА ОСНОВЕ ТИПА УСТРОЙСТВА
+            // ОСНОВНАЯ ЛОГИКА ПЕРЕНАПРАВЛЕНИЯ
             if (pathname === '/' || pathname === '/index.html') {
                 const deviceInfo = this.getDeviceInfo(req);
+                const user = this.isUserAuthenticated(req);
                 
-                if (deviceInfo.isMobile) {
-                    // Перенаправляем мобильные устройства на mobile.html
-                    console.log(`📱 Мобильное устройство обнаружено, перенаправляем на мобильную версию`);
-                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                console.log(`📱 Device detection: Mobile=${deviceInfo.isMobile}, Browser=${deviceInfo.browser}, OS=${deviceInfo.os}`);
+                console.log(`🔐 User auth: ${user ? 'Authenticated' : 'Not authenticated'}`);
+
+                if (!user) {
+                    // НЕАВТОРИЗОВАННЫЙ пользователь - всегда на страницу логина
+                    console.log('🚫 User not authenticated, redirecting to login');
+                    this.serveStaticFile(res, 'public/login.html', 'text/html');
                 } else {
-                    // Десктопные устройства получают основную версию
-                    console.log(`💻 Десктопное устройство, загружаем основную версию`);
-                    this.serveStaticFile(res, 'public/main.html', 'text/html');
+                    // АВТОРИЗОВАННЫЙ пользователь - определяем версию по устройству
+                    if (deviceInfo.isMobile) {
+                        console.log('📱 Mobile device detected, serving mobile version');
+                        this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                    } else {
+                        console.log('💻 Desktop device detected, serving desktop version');
+                        this.serveStaticFile(res, 'public/main.html', 'text/html');
+                    }
                 }
             } else if (pathname === '/login.html') {
                 this.serveStaticFile(res, 'public/login.html', 'text/html');
@@ -2994,7 +3031,11 @@ class SimpleServer {
             } else if (pathname === '/music.html' || pathname === '/music') {
                 this.serveStaticFile(res, 'public/music.html', 'text/html');
             } else if (pathname === '/mobile.html' || pathname === '/mobile') {
+                // Прямой доступ к мобильной версии
                 this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+            } else if (pathname === '/main.html') {
+                // Прямой доступ к десктопной версии
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
@@ -3019,9 +3060,13 @@ class SimpleServer {
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
             } else {
-                // Для всех остальных маршрутов также определяем устройство
+                // Для всех остальных маршрутов также проверяем авторизацию и устройство
                 const deviceInfo = this.getDeviceInfo(req);
-                if (deviceInfo.isMobile) {
+                const user = this.isUserAuthenticated(req);
+                
+                if (!user) {
+                    this.serveStaticFile(res, 'public/login.html', 'text/html');
+                } else if (deviceInfo.isMobile) {
                     this.serveStaticFile(res, 'public/mobile.html', 'text/html');
                 } else {
                     this.serveStaticFile(res, 'public/main.html', 'text/html');
@@ -3040,7 +3085,8 @@ class SimpleServer {
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
-            console.log(`📱 АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УСТРОЙСТВ ВКЛЮЧЕНО`);
+            console.log(`📱 УЛУЧШЕННОЕ ОПРЕДЕЛЕНИЕ УСТРОЙСТВ ВКЛЮЧЕНО`);
+            console.log(`🔐 АВТОМАТИЧЕСКАЯ ПРОВЕРКА АВТОРИЗАЦИИ ВКЛЮЧЕНА`);
             console.log(`😊 Поддержка кастомных эмодзи включена`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
@@ -3050,10 +3096,12 @@ class SimpleServer {
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
             console.log(`   - Мобильная версия: http://localhost:${port}/mobile`);
+            console.log(`   - Десктопная версия: http://localhost:${port}/main.html`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
             console.log(`😊 Для использования эмодзи в сообщениях используйте синтаксис :имя_файла_эмодзи:`);
             console.log(`\n🔗 Мобильные и десктопные пользователи теперь ВИДЯТ ДРУГ ДРУГА!`);
+            console.log(`\n⚠️  ВАЖНО: Неавторизованные пользователи автоматически перенаправляются на страницу логина!`);
         });
 
         return server;
