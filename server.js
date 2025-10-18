@@ -581,31 +581,6 @@ class SimpleServer {
     initializeData() {
         this.users = [];
 
-        // ТОЛЬКО системный пользователь
-        const systemUser = {
-            id: 'system',
-            username: 'system',
-            displayName: 'Epic Messenger',
-            email: 'system@epic-messenger.com',
-            password: this.hashPassword('system'),
-            avatar: null,
-            description: 'Системный аккаунт Epic Messenger',
-            coins: 0,
-            verified: true,
-            isDeveloper: true,
-            status: 'online',
-            lastSeen: new Date(),
-            createdAt: new Date(),
-            friendsCount: 0,
-            postsCount: 1,
-            giftsCount: 0,
-            banned: false,
-            deviceType: 'desktop',
-            preferredVersion: 'desktop',
-            isProtected: true
-        };
-        this.users.push(systemUser);
-
         this.gifts = [
             {
                 id: '1',
@@ -2060,31 +2035,28 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Включаем ВСЕХ пользователей (включая текущего и системного)
-        const allUsers = this.users
-            .filter(u => !u.banned) // исключаем забаненных
-            .map(u => ({
-                id: u.id,
-                username: u.username,
-                displayName: u.displayName,
-                avatar: u.avatar,
-                description: u.description,
-                coins: u.coins,
-                verified: u.verified,
-                isDeveloper: u.isDeveloper,
-                status: u.status,
-                lastSeen: u.lastSeen,
-                createdAt: u.createdAt,
-                friendsCount: u.friendsCount || 0,
-                postsCount: u.postsCount || 0,
-                giftsCount: u.giftsCount || 0,
-                banned: u.banned || false,
-                deviceType: u.deviceType || 'desktop'
-            }));
+        const otherUsers = this.users.filter(u => u.id !== user.id).map(u => ({
+            id: u.id,
+            username: u.username,
+            displayName: u.displayName,
+            avatar: u.avatar,
+            description: u.description,
+            coins: u.coins,
+            verified: u.verified,
+            isDeveloper: u.isDeveloper,
+            status: u.status,
+            lastSeen: u.lastSeen,
+            createdAt: u.createdAt,
+            friendsCount: u.friendsCount || 0,
+            postsCount: u.postsCount || 0,
+            giftsCount: u.giftsCount || 0,
+            banned: u.banned || false,
+            deviceType: u.deviceType || 'desktop'
+        }));
 
         return {
             success: true,
-            users: allUsers
+            users: otherUsers
         };
     }
 
