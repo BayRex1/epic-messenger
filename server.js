@@ -1781,6 +1781,16 @@ class SimpleServer {
         user.lastSeen = new Date();
         this.saveData();
 
+        // Уведомляем всех о смене статуса
+        const wsServer = this.wsServer;
+        if (wsServer) {
+            wsServer.broadcast('user_status_changed', {
+                userId: user.id,
+                status: 'online',
+                displayName: user.displayName
+            });
+        }
+
         return {
             success: true,
             token: user.id,
@@ -1879,6 +1889,16 @@ class SimpleServer {
 
         const device = this.registerDevice(newUser.id, req);
         this.saveData();
+
+        // Уведомляем всех о новом пользователе
+        const wsServer = this.wsServer;
+        if (wsServer) {
+            wsServer.broadcast('user_joined', {
+                userId: newUser.id,
+                displayName: newUser.displayName,
+                avatar: newUser.avatar
+            });
+        }
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
@@ -2113,6 +2133,22 @@ class SimpleServer {
 
         console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
 
+        // Уведомляем через WebSocket о новом сообщении
+        const wsServer = this.wsServer;
+        if (wsServer) {
+            wsServer.broadcast('new_message', {
+                message: {
+                    ...message,
+                    text: sanitizedText
+                },
+                fromUser: {
+                    id: user.id,
+                    displayName: user.displayName,
+                    avatar: user.avatar
+                }
+            });
+        }
+
         return {
             success: true,
             message: {
@@ -2191,6 +2227,20 @@ class SimpleServer {
         this.saveData();
 
         console.log(`📝 Новый пост от ${user.displayName}`);
+
+        // Уведомляем через WebSocket о новом посте
+        const wsServer = this.wsServer;
+        if (wsServer) {
+            wsServer.broadcast('new_post', {
+                post: {
+                    ...post,
+                    userName: user.displayName,
+                    userAvatar: user.avatar,
+                    userVerified: user.verified,
+                    userDeveloper: user.isDeveloper
+                }
+            });
+        }
 
         return {
             success: true,
@@ -2375,6 +2425,24 @@ class SimpleServer {
         this.saveData();
 
         console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
+
+        // Уведомляем через WebSocket о новом подарке
+        const wsServer = this.wsServer;
+        if (wsServer) {
+            wsServer.broadcast('new_gift', {
+                gift: giftMessage,
+                fromUser: {
+                    id: user.id,
+                    displayName: user.displayName,
+                    avatar: user.avatar
+                },
+                toUser: {
+                    id: recipient.id,
+                    displayName: recipient.displayName,
+                    avatar: recipient.avatar
+                }
+            });
+        }
 
         return {
             success: true,
@@ -2906,8 +2974,19 @@ class SimpleServer {
                 return;
             }
 
+            // АВТОМАТИЧЕСКОЕ ПЕРЕНАПРАВЛЕНИЕ НА ОСНОВЕ ТИПА УСТРОЙСТВА
             if (pathname === '/' || pathname === '/index.html') {
-                this.serveStaticFile(res, 'public/main.html', 'text/html');
+                const deviceInfo = this.getDeviceInfo(req);
+                
+                if (deviceInfo.isMobile) {
+                    // Перенаправляем мобильные устройства на mobile.html
+                    console.log(`📱 Мобильное устройство обнаружено, перенаправляем на мобильную версию`);
+                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                } else {
+                    // Десктопные устройства получают основную версию
+                    console.log(`💻 Десктопное устройство, загружаем основную версию`);
+                    this.serveStaticFile(res, 'public/main.html', 'text/html');
+                }
             } else if (pathname === '/login.html') {
                 this.serveStaticFile(res, 'public/login.html', 'text/html');
             } else if (pathname === '/about.html' || pathname === '/about') {
@@ -2940,11 +3019,18 @@ class SimpleServer {
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
             } else {
-                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                // Для всех остальных маршрутов также определяем устройство
+                const deviceInfo = this.getDeviceInfo(req);
+                if (deviceInfo.isMobile) {
+                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                } else {
+                    this.serveStaticFile(res, 'public/main.html', 'text/html');
+                }
             }
         });
 
         const wsServer = new WebSocketServer(server);
+        this.wsServer = wsServer; // Сохраняем ссылку на WebSocket сервер
 
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
@@ -2954,12 +3040,12 @@ class SimpleServer {
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
-            console.log(`📱 Поддержка мобильной версии включена`);
+            console.log(`📱 АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УСТРОЙСТВ ВКЛЮЧЕНО`);
             console.log(`😊 Поддержка кастомных эмодзи включена`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
-            console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Основное приложение (автоопределение): http://localhost:${port}/`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
@@ -2967,6 +3053,7 @@ class SimpleServer {
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
             console.log(`😊 Для использования эмодзи в сообщениях используйте синтаксис :имя_файла_эмодзи:`);
+            console.log(`\n🔗 Мобильные и десктопные пользователи теперь ВИДЯТ ДРУГ ДРУГА!`);
         });
 
         return server;
