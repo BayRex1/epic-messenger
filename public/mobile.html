@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Messenger - Mobile</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -764,6 +764,10 @@
         .messages-container::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8;
         }
+
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -967,8 +971,14 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ОСНОВНОЙ СКРИПТ ПРИЛОЖЕНИЯ -->
+    <script src="/script.js"></script>
+    
     <script>
+        // Глобальные переменные для мобильной версии
+        let currentChatUser = null;
+        let allUsers = [];
+
         // Мобильные специфичные функции
         function showSection(sectionName) {
             // Скрыть все секции
@@ -988,6 +998,17 @@
             
             // Обновить навигацию
             updateNavigation(sectionName);
+
+            // Загрузить данные при переходе на определенные секции
+            if (sectionName === 'users' && allUsers.length === 0) {
+                loadUsers();
+            } else if (sectionName === 'posts') {
+                loadPosts();
+            } else if (sectionName === 'gifts') {
+                loadUserGifts();
+            } else if (sectionName === 'devices') {
+                loadDevices();
+            }
         }
 
         function updateHeader(sectionName) {
@@ -1041,10 +1062,18 @@
         }
 
         function searchUsers(query) {
-            // Эта функция будет переопределена в основном script.js
-            if (window.searchUsers) {
-                window.searchUsers(query);
+            if (!query || query.trim() === '') {
+                displayUsers(allUsers);
+                return;
             }
+
+            const filteredUsers = allUsers.filter(user => 
+                user.displayName.toLowerCase().includes(query.toLowerCase()) ||
+                user.username.toLowerCase().includes(query.toLowerCase()) ||
+                (user.description && user.description.toLowerCase().includes(query.toLowerCase()))
+            );
+
+            displayUsers(filteredUsers);
         }
 
         async function sendMobileMessage() {
@@ -1073,6 +1102,8 @@
                 
                 if (data.success) {
                     messageInput.value = '';
+                    // Сбрасываем высоту текстового поля
+                    messageInput.style.height = 'auto';
                     await loadMessages(currentChatUser.id);
                 } else {
                     showNotification(data.message, 'error');
@@ -1096,38 +1127,27 @@
             input.value = '';
         }
 
-        // Инициализация мобильной версии
-        document.addEventListener('DOMContentLoaded', function() {
-            // Обработчик отправки сообщения по Enter
-            const messageInput = document.getElementById('mobile-message-input');
-            if (messageInput) {
-                messageInput.addEventListener('keypress', function(event) {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        sendMobileMessage();
-                    }
+        // Функции для работы с пользователями
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users', {
+                    headers: getAuthHeaders()
                 });
 
-                // Автовысота текстового поля
-                messageInput.addEventListener('input', function() {
-                    this.style.height = 'auto';
-                    this.style.height = (this.scrollHeight) + 'px';
-                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    allUsers = data.users;
+                    displayUsers(allUsers);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+                showNotification('Ошибка загрузки пользователей', 'error');
             }
+        }
 
-            // Навигация
-            const navItems = document.querySelectorAll('.nav-item');
-            navItems.forEach(item => {
-                item.addEventListener('click', function() {
-                    const section = this.getAttribute('data-section');
-                    if (section) {
-                        showSection(section);
-                    }
-                });
-            });
-        });
-
-        // Переопределение функций для мобильной версии
         function displayUsers(users) {
             const container = document.getElementById('mobile-users-list');
             if (!container) return;
@@ -1167,11 +1187,14 @@
             if (chatHeader) {
                 chatHeader.innerHTML = `
                     <div class="chat-user-info">
-                        ${user.avatar ? 
-                            `<img src="${user.avatar}" alt="${user.displayName}" class="user-avatar">` :
-                            `<div class="user-avatar-placeholder">${user.displayName.charAt(0)}</div>`
-                        }
-                        <div>
+                        <div class="user-avatar-container">
+                            ${user.avatar ? 
+                                `<img src="${user.avatar}" alt="${user.displayName}" class="user-avatar">` :
+                                `<div class="user-avatar-placeholder">${user.displayName.charAt(0)}</div>`
+                            }
+                            <div class="user-status ${user.status === 'online' ? 'online' : 'offline'}"></div>
+                        </div>
+                        <div style="margin-left: 10px;">
                             <div class="user-name">${user.displayName}</div>
                             <div class="user-status-text">${user.status === 'online' ? 'В сети' : 'Не в сети'}</div>
                         </div>
@@ -1188,9 +1211,35 @@
             await loadMessages(userId);
         }
 
+        async function loadMessages(userId) {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
+                    headers: getAuthHeaders()
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayMessages(data.messages);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки сообщений:', error);
+                showNotification('Ошибка загрузки сообщений', 'error');
+            }
+        }
+
         function displayMessages(messages) {
             const container = document.getElementById('mobile-messages-container');
             if (!container) return;
+
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="no-data">Нет сообщений</div>';
+                return;
+            }
 
             container.innerHTML = messages.map(message => `
                 <div class="message ${message.isCurrentUser ? 'own-message' : 'other-message'}">
@@ -1205,7 +1254,7 @@
                             </div>
                         ` : `
                             <div class="message-text">${message.text}</div>
-                            ${message.image ? `<img src="${message.image}" alt="Изображение" class="message-image">` : ''}
+                            ${message.image ? `<img src="${message.image}" alt="Изображение" class="message-image" style="max-width: 100%; border-radius: 8px; margin-top: 5px;">` : ''}
                         `}
                         <div class="message-time">${formatTime(message.timestamp)}</div>
                     </div>
@@ -1214,6 +1263,131 @@
 
             // Прокрутка вниз
             container.scrollTop = container.scrollHeight;
+        }
+
+        // Функции для работы с постами
+        async function loadPosts() {
+            try {
+                const response = await fetch('/api/posts', {
+                    headers: getAuthHeaders()
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPosts(data.posts);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки постов:', error);
+                showNotification('Ошибка загрузки постов', 'error');
+            }
+        }
+
+        function displayPosts(posts) {
+            const container = document.getElementById('mobile-posts-list');
+            if (!container) return;
+
+            if (posts.length === 0) {
+                container.innerHTML = '<div class="no-data">Постов пока нет</div>';
+                return;
+            }
+
+            container.innerHTML = posts.map(post => `
+                <div class="post">
+                    <div class="post-header">
+                        <div class="post-user">
+                            <div class="user-avatar-container">
+                                ${post.userAvatar ? 
+                                    `<img src="${post.userAvatar}" alt="${post.userName}" class="user-avatar">` :
+                                    `<div class="user-avatar-placeholder">${post.userName.charAt(0)}</div>`
+                                }
+                            </div>
+                            <div class="post-user-info">
+                                <div class="user-name">${post.userName}</div>
+                                <div class="post-time">${formatTime(post.createdAt)}</div>
+                            </div>
+                        </div>
+                        ${post.userVerified ? '<div class="verified-badge">✓</div>' : ''}
+                        ${post.userDeveloper ? '<div class="developer-badge">👑</div>' : ''}
+                    </div>
+                    <div class="post-content">
+                        <div class="post-text">${post.text}</div>
+                        ${post.image ? `<img src="${post.image}" alt="Изображение" class="post-image">` : ''}
+                    </div>
+                    <div class="post-actions">
+                        <button class="like-btn ${post.likes.includes(currentUser.id) ? 'liked' : ''}" onclick="likePost('${post.id}')">
+                            <i class="fas fa-heart"></i>
+                            <span>${post.likes.length}</span>
+                        </button>
+                        <button class="comment-btn">
+                            <i class="fas fa-comment"></i>
+                            <span>${post.comments.length}</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function createMobilePost() {
+            const textInput = document.getElementById('mobile-post-text');
+            const text = textInput.value.trim();
+            
+            if (!text) {
+                showNotification('Введите текст поста', 'error');
+                return;
+            }
+
+            try {
+                const postData = {
+                    text: text,
+                    image: document.getElementById('mobile-post-preview-img').src || null
+                };
+
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(postData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    textInput.value = '';
+                    document.getElementById('mobile-post-image-preview').style.display = 'none';
+                    showNotification('Пост опубликован!', 'success');
+                    showSection('posts');
+                    loadPosts();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка создания поста:', error);
+                showNotification('Ошибка создания поста', 'error');
+            }
+        }
+
+        // Функции для работы с подарками
+        async function loadUserGifts() {
+            if (!currentUser) return;
+
+            try {
+                const response = await fetch(`/api/user/${currentUser.id}/transactions`, {
+                    headers: getAuthHeaders()
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayUserGifts(data.transactions);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                showNotification('Ошибка загрузки подарков', 'error');
+            }
         }
 
         function displayUserGifts(gifts) {
@@ -1238,6 +1412,26 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Функции для работы с устройствами
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices', {
+                    headers: getAuthHeaders()
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayDevices(data.devices);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки устройств:', error);
+                showNotification('Ошибка загрузки устройств', 'error');
+            }
         }
 
         function displayDevices(devices) {
@@ -1269,7 +1463,29 @@
             `).join('');
         }
 
-        // Обновление главной статистики
+        async function terminateDevice(deviceId) {
+            try {
+                const response = await fetch('/api/devices/terminate', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ deviceId })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Сеанс устройства завершен', 'success');
+                    loadDevices();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка завершения сеанса:', error);
+                showNotification('Ошибка завершения сеанса', 'error');
+            }
+        }
+
+        // Функции для работы с профилем
         function updateMainStats(user) {
             const coins = document.getElementById('mobile-main-coins');
             const friends = document.getElementById('mobile-main-friends');
@@ -1280,14 +1496,233 @@
             if (posts) posts.textContent = user.postsCount || 0;
         }
 
-        // Переопределяем loadCurrentUser для мобильной версии
-        const originalLoadCurrentUser = window.loadCurrentUser;
-        window.loadCurrentUser = async function() {
-            await originalLoadCurrentUser?.();
-            if (currentUser) {
-                updateMainStats(currentUser);
+        function updateProfileStats(user) {
+            const coins = document.getElementById('mobile-coins');
+            const friends = document.getElementById('mobile-friends');
+            const posts = document.getElementById('mobile-posts');
+
+            if (coins) coins.textContent = user.coins || 0;
+            if (friends) friends.textContent = user.friendsCount || 0;
+            if (posts) posts.textContent = user.postsCount || 0;
+        }
+
+        async function updateProfile() {
+            const displayName = document.getElementById('mobile-displayName').value;
+            const description = document.getElementById('mobile-description').value;
+            const email = document.getElementById('mobile-email').value;
+
+            if (!displayName.trim()) {
+                showNotification('Имя пользователя обязательно', 'error');
+                return;
             }
-        };
+
+            try {
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        displayName: displayName.trim(),
+                        description: description,
+                        email: email
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Профиль обновлен!', 'success');
+                    currentUser = data.user;
+                    updateMainStats(currentUser);
+                    updateProfileStats(currentUser);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка обновления профиля:', error);
+                showNotification('Ошибка обновления профиля', 'error');
+            }
+        }
+
+        // Функции для работы с изображениями
+        function openImageUpload() {
+            document.getElementById('avatarUpload').click();
+        }
+
+        function handleAvatarSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showNotification('Выберите изображение', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const avatarImg = document.getElementById('mobile-avatar');
+                avatarImg.src = e.target.result;
+                
+                // Автоматически загружаем аватар на сервер
+                uploadAvatar(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadAvatar(file) {
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const fileData = e.target.result.split(',')[1]; // Убираем data:image/... префикс
+                    
+                    const response = await fetch('/api/upload-avatar', {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({
+                            fileData: fileData,
+                            filename: file.name
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification('Аватар обновлен!', 'success');
+                        currentUser.avatar = data.avatarUrl;
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Ошибка загрузки аватара:', error);
+                showNotification('Ошибка загрузки аватара', 'error');
+            }
+        }
+
+        function triggerPostImageUpload() {
+            document.getElementById('mobile-post-image-input').click();
+        }
+
+        function handlePostImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showNotification('Выберите изображение', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('mobile-post-image-preview');
+                const previewImg = document.getElementById('mobile-post-preview-img');
+                
+                previewImg.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removePostImage() {
+            const preview = document.getElementById('mobile-post-image-preview');
+            const previewImg = document.getElementById('mobile-post-preview-img');
+            const fileInput = document.getElementById('mobile-post-image-input');
+            
+            previewImg.src = '';
+            preview.style.display = 'none';
+            fileInput.value = '';
+        }
+
+        // Вспомогательные функции
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) { // Меньше минуты
+                return 'только что';
+            } else if (diff < 3600000) { // Меньше часа
+                return `${Math.floor(diff / 60000)} мин назад`;
+            } else if (diff < 86400000) { // Меньше суток
+                return `${Math.floor(diff / 3600000)} ч назад`;
+            } else {
+                return date.toLocaleDateString();
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            // Простая реализация уведомлений для мобильной версии
+            alert(`${type === 'error' ? '❌ ' : type === 'success' ? '✅ ' : 'ℹ️ '}${message}`);
+        }
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        // Инициализация мобильной версии
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработчик отправки сообщения по Enter
+            const messageInput = document.getElementById('mobile-message-input');
+            if (messageInput) {
+                messageInput.addEventListener('keypress', function(event) {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        sendMobileMessage();
+                    }
+                });
+
+                // Автовысота текстового поля
+                messageInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight) + 'px';
+                });
+            }
+
+            // Навигация
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    if (section) {
+                        showSection(section);
+                    }
+                });
+            });
+
+            // Загрузка текущего пользователя при инициализации
+            if (typeof loadCurrentUser === 'function') {
+                loadCurrentUser().then(user => {
+                    if (user) {
+                        // Обновляем данные в мобильной версии
+                        updateMainStats(user);
+                        updateProfileStats(user);
+                        
+                        // Заполняем поля профиля
+                        document.getElementById('mobile-displayName').value = user.displayName || '';
+                        document.getElementById('mobile-description').value = user.description || '';
+                        document.getElementById('mobile-email').value = user.email || '';
+                        
+                        if (user.avatar) {
+                            document.getElementById('mobile-avatar').src = user.avatar;
+                        }
+                    }
+                });
+            }
+
+            // Загружаем пользователей при первом открытии
+            loadUsers();
+        });
+
+        // Переопределение функций для интеграции с основным приложением
+        window.showMobileSection = showSection;
+        window.mobileLoadUsers = loadUsers;
+        window.mobileLoadPosts = loadPosts;
+
+        console.log('📱 Мобильная версия Epic Messenger инициализирована');
     </script>
 </body>
 </html>
