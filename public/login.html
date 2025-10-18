@@ -232,6 +232,8 @@
 
                 if (data.success) {
                     localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('deviceId', data.deviceId);
+                    // Исправленный редирект
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.message;
@@ -267,6 +269,8 @@
 
                 if (data.success) {
                     localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('deviceId', data.deviceId);
+                    // Исправленный редирект
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.message;
