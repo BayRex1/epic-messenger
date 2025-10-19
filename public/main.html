@@ -283,7 +283,7 @@
             color: var(--text-primary);
         }
 
-        /* Чат */
+        /* ИСПРАВЛЕННЫЙ Чат */
         .chat-container {
             display: flex;
             flex: 1;
@@ -1053,7 +1053,7 @@
             object-fit: cover;
         }
 
-                .my-gift-name {
+        .my-gift-name {
             font-size: 12px;
             font-weight: 600;
             margin-bottom: 4px;
@@ -1864,6 +1864,23 @@
             .form-row {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* Кнопка удаления поста для админов */
+        .delete-post-btn {
+            background: var(--error-color);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: auto;
+            transition: all 0.3s;
+        }
+
+        .delete-post-btn:hover {
+            background: #c82333;
         }
     </style>
 </head>
