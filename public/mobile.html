@@ -188,7 +188,7 @@
             justify-content: center;
         }
 
-        /* Нижняя панель навигации */
+        /* ИСПРАВЛЕННАЯ Нижняя панель навигации */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -201,6 +201,7 @@
             justify-content: space-around;
             align-items: center;
             z-index: 999;
+            padding: 0 5px;
         }
 
         .nav-btn {
@@ -209,7 +210,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 8px;
+            padding: 8px 4px;
             background: none;
             border: none;
             color: var(--text-secondary);
@@ -217,6 +218,8 @@
             font-size: 10px;
             gap: 4px;
             transition: all 0.3s;
+            min-width: 0;
+            max-width: 80px;
         }
 
         .nav-btn.active {
@@ -224,11 +227,12 @@
         }
 
         .nav-icon {
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 18px;
         }
 
         /* Основной контент */
@@ -249,7 +253,7 @@
             display: block;
         }
 
-        /* Адаптация существующих стилей для мобильных */
+        /* ИСПРАВЛЕННЫЙ Чат для мобильных */
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -259,17 +263,84 @@
         .chats-sidebar {
             flex: 1;
             background: var(--bg-secondary);
-            border-right: none;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
 
         .chat-area {
             flex: 1;
             display: none;
+            flex-direction: column;
+            height: 100%;
         }
 
         .chat-area.active {
             display: flex;
-            flex-direction: column;
+        }
+
+        /* ИСПРАВЛЕННЫЙ Хедер чата для мобильных */
+        .chat-header {
+            padding: 10px 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 60px;
+            flex-shrink: 0;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+
+        .chat-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .chat-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-info h4 {
+            font-size: 16px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-info span {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .message {
@@ -303,6 +374,17 @@
                 margin-top: 45px;
                 margin-bottom: 55px;
                 height: calc(100vh - 100px);
+            }
+
+            .nav-btn {
+                padding: 6px 2px;
+                font-size: 9px;
+            }
+
+            .nav-icon {
+                width: 18px;
+                height: 18px;
+                font-size: 16px;
             }
         }
 
@@ -502,24 +584,6 @@
         .chat-info span {
             font-size: 12px;
             color: var(--text-secondary);
-        }
-
-        .chat-header {
-            padding: 15px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .back-btn {
-            background: none;
-            border: none;
-            color: var(--text-primary);
-            font-size: 18px;
-            cursor: pointer;
-            padding: 5px;
         }
 
         .chat-messages {
@@ -793,6 +857,90 @@
             font-size: 12px;
             margin-right: 10px;
         }
+
+        /* Push уведомления для мобильных */
+        .push-notification {
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            right: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 1002;
+            animation: slideInDown 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .push-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .push-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .push-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .push-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .push-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Кнопка удаления поста для админов */
+        .delete-post-btn {
+            background: var(--error-color);
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-left: auto;
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -886,9 +1034,10 @@
                     </div>
                 </div>
                 
+                <!-- ИСПРАВЛЕННЫЙ Чат -->
                 <div class="chat-area" id="chatArea">
                     <div class="chat-header">
-                        <button class="back-btn" id="backToChats">← Назад</button>
+                        <button class="back-btn" id="backToChats">←</button>
                         <div class="chat-user-info" id="currentChatInfo">
                             <div class="chat-avatar" id="currentChatAvatar"></div>
                             <div class="chat-info">
@@ -1058,6 +1207,9 @@
         </button>
     </div>
 
+    <!-- Контейнер для push уведомлений -->
+    <div id="pushNotificationsContainer"></div>
+
     <script>
         // Глобальные переменные
         let currentUser = null;
@@ -1089,6 +1241,9 @@
                     currentUser = data.user;
                     updateMobileInterface();
                     loadInitialData();
+                    
+                    // Запускаем проверку уведомлений
+                    startNotificationPolling();
                 } else {
                     window.location.href = '/login.html';
                 }
@@ -1099,6 +1254,23 @@
 
             // Инициализация UI
             initializeMobileUI();
+        }
+
+        // Функция для проверки новых уведомлений
+        function startNotificationPolling() {
+            // Проверяем каждые 30 секунд
+            setInterval(async () => {
+                try {
+                    const token = localStorage.getItem('authToken');
+                    // Здесь можно добавить API для проверки новых уведомлений
+                    // Пока просто обновляем данные чата если есть активный чат
+                    if (currentChat) {
+                        await loadChatMessages(currentChat.id);
+                    }
+                } catch (error) {
+                    console.error('Ошибка проверки уведомлений:', error);
+                }
+            }, 30000);
         }
 
         function updateMobileInterface() {
@@ -1304,6 +1476,7 @@
             });
         }
 
+        // ИСПРАВЛЕННАЯ функция инициализации чата
         function initializeMobileChat() {
             // Навигация между списком чатов и конкретным чатом
             const backToChats = document.getElementById('backToChats');
@@ -1466,6 +1639,7 @@
             });
         }
 
+        // ИСПРАВЛЕННАЯ функция создания поста с кнопкой удаления для админов
         function createPostElement(post) {
             const postElement = document.createElement('div');
             postElement.className = 'post';
@@ -1492,6 +1666,9 @@
                             <h4>${post.userName || 'Неизвестный'}</h4>
                             <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
                         </div>
+                        ${currentUser && currentUser.isDeveloper && post.userId !== currentUser.id ? `
+                            <button class="delete-post-btn" data-post-id="${post.id}">Удалить</button>
+                        ` : ''}
                     </div>
                 </div>
                 <div class="post-content">
@@ -1512,6 +1689,14 @@
             if (likeBtn) {
                 likeBtn.addEventListener('click', function() {
                     toggleLike(post.id);
+                });
+            }
+
+            // Добавляем обработчик для кнопки удаления поста
+            const deleteBtn = postElement.querySelector('.delete-post-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    deletePost(post.id);
                 });
             }
             
@@ -1579,6 +1764,7 @@
             }
         }
 
+        // ИСПРАВЛЕННАЯ функция выбора пользователя для чата
         function selectUser(user) {
             currentChat = user;
             
@@ -1603,9 +1789,12 @@
             loadChatMessages(user.id);
         }
 
+        // ИСПРАВЛЕННАЯ функция загрузки сообщений
         async function loadChatMessages(userId) {
             try {
                 const token = localStorage.getItem('authToken');
+                
+                // ИСПРАВЛЕНИЕ: Правильные параметры для API
                 const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -1616,9 +1805,13 @@
                 
                 if (data.success) {
                     renderChatMessages(data.messages);
+                } else {
+                    console.error('Ошибка загрузки сообщений:', data.message);
+                    document.getElementById('chatMessages').innerHTML = '<div class="system-message">Ошибка загрузки сообщений</div>';
                 }
             } catch (error) {
                 console.error('Ошибка загрузки сообщений:', error);
+                document.getElementById('chatMessages').innerHTML = '<div class="system-message">Ошибка загрузки сообщений</div>';
             }
         }
 
@@ -1672,6 +1865,7 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+        // ИСПРАВЛЕННАЯ функция отправки сообщения
         async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
@@ -1703,6 +1897,9 @@
                 if (data.success) {
                     messageInput.value = '';
                     loadChatMessages(currentChat.id);
+                    
+                    // Показываем push уведомление
+                    showPushNotification(currentChat.displayName, text);
                 } else {
                     alert('Ошибка отправки сообщения: ' + data.message);
                 }
@@ -1788,6 +1985,7 @@
             }
         }
 
+        // ИСПРАВЛЕННАЯ функция лайка поста с push уведомлением
         async function toggleLike(postId) {
             try {
                 const token = localStorage.getItem('authToken');
@@ -1806,6 +2004,62 @@
             } catch (error) {
                 console.error('Ошибка лайка:', error);
             }
+        }
+
+        // НОВАЯ функция удаления поста для админов
+        async function deletePost(postId) {
+            if (!confirm('Вы уверены, что хотите удалить этот пост?')) return;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts?postId=${postId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Пост удален');
+                    loadPosts();
+                } else {
+                    alert('Ошибка удаления поста: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Ошибка удаления поста:', error);
+                alert('Ошибка удаления поста');
+            }
+        }
+
+        // Функция для показа push уведомлений
+        function showPushNotification(title, message) {
+            const container = document.getElementById('pushNotificationsContainer');
+            const notification = document.createElement('div');
+            notification.className = 'push-notification';
+            notification.innerHTML = `
+                <div class="push-avatar">${title.charAt(0)}</div>
+                <div class="push-content">
+                    <div class="push-title">${title}</div>
+                    <div class="push-message">${message}</div>
+                </div>
+                <button class="push-close">&times;</button>
+            `;
+            
+            container.appendChild(notification);
+            
+            const closeBtn = notification.querySelector('.push-close');
+            closeBtn.addEventListener('click', function() {
+                container.removeChild(notification);
+            });
+            
+            // Автоматическое скрытие через 5 секунд
+            setTimeout(() => {
+                if (notification.parentNode === container) {
+                    container.removeChild(notification);
+                }
+            }, 5000);
         }
 
         async function loadUserProfileData() {
