@@ -183,6 +183,7 @@ class SimpleServer {
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
                 
+                // Восстанавливаем Date объекты
                 this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
                 this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
                 this.users.forEach(user => {
@@ -1066,6 +1067,8 @@ class SimpleServer {
             return { success: false, message: 'Не указаны ID пользователей' };
         }
 
+        // ИСПРАВЛЕННАЯ ПРОВЕРКА ПРАВ ДОСТУПА
+        // Разрешаем доступ если пользователь является одним из участников чата
         if (user.id !== userId && user.id !== toUserId && !user.isDeveloper) {
             return { success: false, message: 'Доступ к этому чату запрещен' };
         }
@@ -1140,23 +1143,27 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const giftMessages = this.messages.filter(msg => 
-            msg.toUserId === userId && msg.type === 'gift'
-        );
+        // Получаем подарки пользователя
+        const userGifts = user.gifts || [];
+        const transactions = userGifts.map(gift => {
+            const giftData = this.gifts.find(g => g.id === gift.giftId);
+            const fromUser = this.users.find(u => u.id === gift.fromUserId);
+            
+            return {
+                id: gift.id,
+                giftId: gift.giftId,
+                giftName: giftData ? giftData.name : 'Неизвестный подарок',
+                giftPreview: giftData ? giftData.preview : '🎁',
+                giftImage: giftData ? giftData.image : null,
+                giftPrice: giftData ? giftData.price : 0,
+                fromUserId: gift.fromUserId,
+                fromUserName: fromUser ? fromUser.displayName : 'Неизвестный',
+                receivedAt: gift.receivedAt,
+                type: 'gift'
+            };
+        });
 
-        const transactions = giftMessages.map(msg => ({
-            id: msg.id,
-            giftId: msg.giftId,
-            giftName: msg.giftName,
-            giftPreview: msg.giftPreview,
-            giftImage: msg.giftImage,
-            giftPrice: msg.giftPrice,
-            fromUserId: msg.senderId,
-            fromUserName: msg.displayName,
-            receivedAt: msg.timestamp,
-            type: 'gift'
-        }));
-
+        // Добавляем бонус за регистрацию
         transactions.push({
             id: 'registration-bonus',
             description: 'Регистрация бонус',
