@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки - Epic Messenger</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            background: #0f1419;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .theme-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .theme-option {
+            padding: 15px 10px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-tertiary);
+        }
+
+        .theme-option.active {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .theme-option:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-color);
+        }
+
+        .custom-theme-option {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .custom-theme-preview {
+            width: 100%;
+            height: 60px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background-size: cover;
+            background-position: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .custom-theme-name {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+        }
+    </style>
+</head>
+<body>
+    <h2 class="section-title">Настройки</h2>
+    
+    <div class="form-group">
+        <label>Тема оформления</label>
+        <div class="theme-selector">
+            <div class="theme-option active" onclick="changeTheme('dark')">
+                <div class="custom-theme-preview" style="background: linear-gradient(135deg, #0f1419, #1a232c);"></div>
+                <div class="custom-theme-name">Темная</div>
+            </div>
+            <div class="theme-option" onclick="changeTheme('light')">
+                <div class="custom-theme-preview" style="background: linear-gradient(135deg, #ffffff, #f5f5f5);"></div>
+                <div class="custom-theme-name">Светлая</div>
+            </div>
+            <div class="theme-option custom-theme-option" onclick="changeTheme('custom1')">
+                <div class="custom-theme-preview" style="background: url('assets/tema1.png') center/cover;"></div>
+                <div class="custom-theme-name">Фиолетовая</div>
+            </div>
+            <div class="theme-option custom-theme-option" onclick="changeTheme('custom2')">
+                <div class="custom-theme-preview" style="background: url('assets/tema2.png') center/cover;"></div>
+                <div class="custom-theme-name">Розовая</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Уведомления</label>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="pushNotifications" checked>
+                Push уведомления
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="soundNotifications" checked>
+                Звуковые уведомления
+            </label>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Язык</label>
+        <select class="form-control" id="languageSelect">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+        </select>
+    </div>
+
+    <button class="btn" onclick="saveSettings()">Сохранить настройки</button>
+
+    <script>
+        function changeTheme(theme) {
+            document.querySelectorAll('.theme-option').forEach(opt => opt.classList.remove('active'));
+            event.target.closest('.theme-option').classList.add('active');
+            alert(`Тема изменена на: ${theme}`);
+        }
+
+        function saveSettings() {
+            alert('Настройки сохранены');
+        }
+    </script>
+</body>
+</html>
