@@ -2,7 +2,7 @@ class AuthManager {
     constructor() {
         this.init();
     }
-
+ 
     init() {
         this.setupAuthForms();
         this.checkExistingAuth();
