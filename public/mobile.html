@@ -698,6 +698,101 @@
         .btn-large:hover {
             background: var(--accent-hover);
         }
+
+        /* Стили для темы */
+        .theme-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .theme-option {
+            padding: 15px 10px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-tertiary);
+        }
+
+        .theme-option.active {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .custom-theme-preview {
+            width: 100%;
+            height: 40px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .custom-theme-name {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Устройства */
+        .devices-container {
+            margin-top: 20px;
+        }
+
+        .device-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: var(--bg-tertiary);
+        }
+
+        .device-info {
+            flex: 1;
+        }
+
+        .device-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .device-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .device-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .device-btn:hover {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .current-device {
+            background: var(--accent-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -805,7 +900,7 @@
                     
                     <div class="chat-messages" id="chatMessages">
                         <div class="system-message">
-                            Загрузка сообщений...
+                            Выберите пользователя для начала общения
                         </div>
                     </div>
                     
@@ -902,6 +997,13 @@
                             <div class="custom-theme-preview" style="background: #ffffff;"></div>
                             <div class="custom-theme-name">Светлая</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="post">
+                    <h3>Устройства</h3>
+                    <div class="devices-container" id="devicesContainer">
+                        <div class="system-message">Загрузка устройств...</div>
                     </div>
                 </div>
 
@@ -1075,12 +1177,9 @@
                         'posts': 'Лента',
                         'chat': 'Сообщения',
                         'music': 'Музыка',
-                        'gifts': 'Подарки',
-                        'profile': 'Профиль',
-                        'settings': 'Настройки',
-                        'ecoins': 'E-COIN'
+                        'gifts': 'Подарки'
                     };
-                    document.getElementById('mobileHeaderTitle').textContent = titles[this.getAttribute('data-section')];
+                    document.getElementById('mobileHeaderTitle').textContent = titles[this.getAttribute('data-section')] || 'Epic Messenger';
                     
                     // Показываем соответствующий раздел
                     contentSections.forEach(section => {
@@ -1090,6 +1189,19 @@
                     const targetSection = document.getElementById(sectionId);
                     if (targetSection) {
                         targetSection.classList.add('active');
+                        
+                        // Загружаем данные для конкретной секции
+                        switch(this.getAttribute('data-section')) {
+                            case 'profile':
+                                loadUserProfileData();
+                                break;
+                            case 'settings':
+                                loadDevices();
+                                break;
+                            case 'ecoins':
+                                loadEcoinData();
+                                break;
+                        }
                     }
                 });
             });
@@ -1104,12 +1216,36 @@
                     sideMenu.classList.remove('active');
                     menuOverlay.classList.remove('active');
                     
-                    // Активируем соответствующую кнопку внизу
-                    navBtns.forEach(btn => {
-                        if (btn.getAttribute('data-section') === this.getAttribute('data-section')) {
-                            btn.click();
-                        }
+                    // Обновляем заголовок
+                    const titles = {
+                        'profile': 'Мой профиль',
+                        'settings': 'Настройки',
+                        'ecoins': 'E-COIN'
+                    };
+                    document.getElementById('mobileHeaderTitle').textContent = titles[this.getAttribute('data-section')] || 'Epic Messenger';
+                    
+                    // Показываем соответствующий раздел
+                    contentSections.forEach(section => {
+                        section.classList.remove('active');
                     });
+                    
+                    const targetSection = document.getElementById(sectionId);
+                    if (targetSection) {
+                        targetSection.classList.add('active');
+                        
+                        // Загружаем данные для конкретной секции
+                        switch(this.getAttribute('data-section')) {
+                            case 'profile':
+                                loadUserProfileData();
+                                break;
+                            case 'settings':
+                                loadDevices();
+                                break;
+                            case 'ecoins':
+                                loadEcoinData();
+                                break;
+                        }
+                    }
                 });
             });
 
@@ -1178,9 +1314,12 @@
                 chatsSidebar.classList.add('active');
                 chatArea.classList.remove('active');
                 currentChat = null;
+                
+                // Обновляем заголовок
+                document.getElementById('mobileHeaderTitle').textContent = 'Сообщения';
             });
 
-            // Загрузка пользователей для чата
+            // Отправка сообщений
             document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
             document.getElementById('messageInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') sendMessage();
@@ -1457,6 +1596,9 @@
                 document.getElementById('currentChatAvatar').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
             }
             
+            // Обновляем заголовок
+            document.getElementById('mobileHeaderTitle').textContent = user.displayName || 'Чат';
+            
             // Загружаем сообщения
             loadChatMessages(user.id);
         }
@@ -1534,7 +1676,12 @@
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
             
-            if (!text || !currentChat) return;
+            if (!text || !currentChat) {
+                if (!currentChat) {
+                    alert('Выберите пользователя для общения');
+                }
+                return;
+            }
             
             try {
                 const token = localStorage.getItem('authToken');
@@ -1556,14 +1703,20 @@
                 if (data.success) {
                     messageInput.value = '';
                     loadChatMessages(currentChat.id);
+                } else {
+                    alert('Ошибка отправки сообщения: ' + data.message);
                 }
             } catch (error) {
                 console.error('Ошибка отправки сообщения:', error);
+                alert('Ошибка отправки сообщения');
             }
         }
 
         async function sendFileMessage(type, fileData) {
-            if (!currentChat) return;
+            if (!currentChat) {
+                alert('Выберите пользователя для общения');
+                return;
+            }
             
             try {
                 const token = localStorage.getItem('authToken');
@@ -1585,9 +1738,12 @@
                 
                 if (data.success) {
                     loadChatMessages(currentChat.id);
+                } else {
+                    alert('Ошибка отправки файла: ' + data.message);
                 }
             } catch (error) {
                 console.error('Ошибка отправки файла:', error);
+                alert('Ошибка отправки файла');
             }
         }
 
@@ -1649,6 +1805,109 @@
                 }
             } catch (error) {
                 console.error('Ошибка лайка:', error);
+            }
+        }
+
+        async function loadUserProfileData() {
+            // Обновляем данные профиля
+            updateMobileInterface();
+        }
+
+        async function loadEcoinData() {
+            // Обновляем баланс E-COIN
+            document.getElementById('ecoinMobileBalance').textContent = `${currentUser.coins || 0} E-COIN`;
+        }
+
+        async function loadDevices() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/devices', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderDevices(data.devices);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки устройств:', error);
+            }
+        }
+
+        function renderDevices(devices) {
+            const devicesContainer = document.getElementById('devicesContainer');
+            if (!devicesContainer) return;
+            
+            devicesContainer.innerHTML = '';
+            
+            if (devices.length === 0) {
+                devicesContainer.innerHTML = '<div class="system-message">Нет активных устройств</div>';
+                return;
+            }
+            
+            devices.forEach(device => {
+                const deviceElement = document.createElement('div');
+                deviceElement.className = 'device-item';
+                
+                const isCurrentDevice = device.id === localStorage.getItem('deviceId');
+                
+                deviceElement.innerHTML = `
+                    <div class="device-info">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-details">
+                            ${device.browser} • ${device.os}<br>
+                            Последняя активность: ${new Date(device.lastActive).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="device-actions">
+                        ${isCurrentDevice ? '<span class="current-device">Текущее</span>' : ''}
+                        <button class="device-btn terminate-btn" data-device-id="${device.id}">
+                            Завершить
+                        </button>
+                    </div>
+                `;
+                
+                const terminateBtn = deviceElement.querySelector('.terminate-btn');
+                if (terminateBtn && !isCurrentDevice) {
+                    terminateBtn.addEventListener('click', function() {
+                        terminateDevice(device.id);
+                    });
+                }
+                
+                devicesContainer.appendChild(deviceElement);
+            });
+        }
+
+        async function terminateDevice(deviceId) {
+            if (!confirm('Вы уверены, что хотите завершить этот сеанс?')) return;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/devices/terminate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        deviceId: deviceId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Сеанс завершен');
+                    loadDevices();
+                } else {
+                    alert('Ошибка завершения сеанса: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Ошибка завершения сеанса:', error);
+                alert('Ошибка завершения сеанса');
             }
         }
     </script>
