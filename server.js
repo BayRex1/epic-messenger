@@ -7,166 +7,21 @@ const { StringDecoder } = require('string_decoder');
 const crypto = require('crypto');
 const busboy = require('busboy');
 
-class WebSocketServer {
-    constructor(server) {
-        this.server = server;
-        this.clients = new Map();
-        
-        server.on('upgrade', (req, socket, head) => {
-            this.handleUpgrade(req, socket, head);
-        });
-    }
-
-    handleUpgrade(req, socket, head) {
-        const key = req.headers['sec-websocket-key'];
-        const accept = this.generateAccept(key);
-        
-        const responseHeaders = [
-            'HTTP/1.1 101 Web Socket Protocol Handshake',
-            'Upgrade: WebSocket',
-            'Connection: Upgrade',
-            `Sec-WebSocket-Accept: ${accept}`
-        ];
-
-        socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
-        
-        const clientId = this.generateId();
-        const client = {
-            id: clientId,
-            socket: socket,
-            rooms: new Set()
-        };
-        
-        this.clients.set(clientId, client);
-        
-        socket.on('data', (data) => {
-            this.handleMessage(clientId, data);
-        });
-        
-        socket.on('close', () => {
-            this.clients.delete(clientId);
-            this.broadcast('user_offline', { userId: clientId });
-        });
-        
-        socket.on('error', () => {
-            this.clients.delete(clientId);
-        });
-
-        this.sendToClient(clientId, 'connected', { clientId });
-    }
-
-    generateAccept(key) {
-        const sha1 = crypto.createHash('sha1');
-        sha1.update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
-        return sha1.digest('base64');
-    }
-
-    generateId() {
-        return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    }
-
-    handleMessage(clientId, data) {
-        try {
-            const message = this.decodeMessage(data);
-            if (message && message.type && message.data) {
-                this.broadcast(message.type, message.data, clientId);
-            }
-        } catch (error) {
-            console.log('Error decoding message:', error);
-        }
-    }
-
-    decodeMessage(buffer) {
-        const firstByte = buffer.readUInt8(0);
-        const secondByte = buffer.readUInt8(1);
-        
-        const isFinalFrame = Boolean(firstByte & 0x80);
-        const opcode = firstByte & 0x0F;
-        
-        let payloadLength = secondByte & 0x7F;
-        let maskStart = 2;
-        
-        if (payloadLength === 126) {
-            payloadLength = buffer.readUInt16BE(2);
-            maskStart = 4;
-        } else if (payloadLength === 127) {
-            payloadLength = Number(buffer.readBigUInt64BE(2));
-            maskStart = 10;
-        }
-        
-        const masks = buffer.slice(maskStart, maskStart + 4);
-        const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
-        
-        const decoded = Buffer.alloc(payloadLength);
-        for (let i = 0; i < payloadLength; i++) {
-            decoded[i] = payload[i] ^ masks[i % 4];
-        }
-        
-        return JSON.parse(decoded.toString());
-    }
-
-    encodeMessage(data) {
-        const json = JSON.stringify(data);
-        const jsonBuffer = Buffer.from(json);
-        
-        const length = jsonBuffer.length;
-        let payloadLengthByte;
-        let lengthBytes;
-        
-        if (length <= 125) {
-            payloadLengthByte = length;
-            lengthBytes = Buffer.alloc(0);
-        } else if (length <= 65535) {
-            payloadLengthByte = 126;
-            lengthBytes = Buffer.alloc(2);
-            lengthBytes.writeUInt16BE(length);
-        } else {
-            payloadLengthByte = 127;
-            lengthBytes = Buffer.alloc(8);
-            lengthBytes.writeBigUInt64BE(BigInt(length));
-        }
-        
-        const header = Buffer.concat([
-            Buffer.from([0x81, payloadLengthByte]),
-            lengthBytes
-        ]);
-        
-        return Buffer.concat([header, jsonBuffer]);
-    }
-
-    sendToClient(clientId, type, data) {
-        const client = this.clients.get(clientId);
-        if (client && client.socket) {
-            try {
-                const message = this.encodeMessage({ type, data });
-                client.socket.write(message);
-            } catch (error) {
-                console.log('Error sending to client:', error);
-            }
-        }
-    }
-
-    broadcast(type, data, excludeClientId = null) {
-        for (const [clientId, client] of this.clients) {
-            if (clientId !== excludeClientId) {
-                this.sendToClient(clientId, type, data);
-            }
-        }
-    }
-}
-
 class SimpleServer {
     constructor() {
-        this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
+        this.dataFile = path.join(__dirname, 'data', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
-        this.emojiCache = null;
-        this.emojiCacheTime = null;
-        this.emojiCacheDuration = 5 * 60 * 1000;
-        
-        this.ensureUploadDirs();
+        this.ensureDataDir();
         this.loadData();
         this.setupAutoSave();
+    }
+
+    ensureDataDir() {
+        const dataDir = path.join(__dirname, 'data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
     }
 
     loadData() {
@@ -178,32 +33,15 @@ class SimpleServer {
                 this.posts = data.posts || [];
                 this.gifts = data.gifts || [];
                 this.promoCodes = data.promoCodes || [];
-                this.music = data.music || [];
-                this.playlists = data.playlists || [];
-                this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
-                this.devices = new Map(Object.entries(data.devices || {}));
                 
-                // Восстанавливаем Date объекты
-                this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
-                this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
-                this.users.forEach(user => {
-                    user.lastSeen = new Date(user.lastSeen);
-                    user.createdAt = new Date(user.createdAt);
-                    if (!user.deviceType) user.deviceType = 'desktop';
-                    if (!user.preferredVersion) user.preferredVersion = 'desktop';
-                });
-                this.music.forEach(track => track.createdAt = new Date(track.createdAt));
-                this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
-                
-                console.log('✅ Данные загружены из файла');
-                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов`);
+                console.log('✅ Данные загружены');
+                console.log(`📊 Пользователей: ${this.users.length}`);
             } else {
                 console.log('📁 Файл данных не найден, инициализируем пустые данные');
                 this.initializeData();
             }
         } catch (error) {
             console.log('❌ Ошибка загрузки данных:', error);
-            console.log('🔄 Инициализируем пустые данные');
             this.initializeData();
         }
     }
@@ -216,10 +54,6 @@ class SimpleServer {
                 posts: this.posts,
                 gifts: this.gifts,
                 promoCodes: this.promoCodes,
-                music: this.music,
-                playlists: this.playlists,
-                bannedIPs: Object.fromEntries(this.bannedIPs),
-                devices: Object.fromEntries(this.devices),
                 lastSave: new Date().toISOString()
             };
             
@@ -236,351 +70,29 @@ class SimpleServer {
         }, 30000);
 
         process.on('SIGINT', () => {
-            console.log('🔄 Получен SIGINT, сохраняем данные...');
+            console.log('🔄 Сохраняем данные...');
             this.saveData();
             process.exit(0);
         });
-
-        process.on('SIGTERM', () => {
-            console.log('🔄 Получен SIGTERM, сохраняем данные...');
-            this.saveData();
-            process.exit(0);
-        });
-
-        process.on('uncaughtException', (error) => {
-            console.log('🚨 Необработанная ошибка, сохраняем данные...', error);
-            this.saveData();
-            process.exit(1);
-        });
-
-        console.log('🔄 Автосохранение настроено');
-    }
-
-    ensureUploadDirs() {
-        const requiredDirs = [
-            'public/uploads/music',
-            'public/uploads/music/covers',
-            'public/uploads/avatars',
-            'public/uploads/gifts',
-            'public/uploads/posts',
-            'public/assets/emoji',
-            '/tmp'
-        ];
-        
-        requiredDirs.forEach(dir => {
-            const fullPath = path.join(__dirname, dir);
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-                console.log('✅ Создана папка:', fullPath);
-            }
-        });
-    }
-
-    async loadEmojiList() {
-        const now = Date.now();
-        
-        if (this.emojiCache && this.emojiCacheTime && 
-            (now - this.emojiCacheTime) < this.emojiCacheDuration) {
-            return this.emojiCache;
-        }
-
-        try {
-            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
-            
-            if (!fs.existsSync(emojiPath)) {
-                console.log('📁 Папка эмодзи не существует, создаем...');
-                fs.mkdirSync(emojiPath, { recursive: true });
-                this.emojiCache = [];
-                this.emojiCacheTime = now;
-                return [];
-            }
-
-            const files = fs.readdirSync(emojiPath);
-            console.log(`📁 Найдено файлов в папке эмодзи: ${files.length}`);
-            
-            const emojiList = files.filter(file => {
-                const isPng = file.toLowerCase().endsWith('.png');
-                if (isPng) {
-                    console.log(`😊 Найден эмодзи: ${file}`);
-                }
-                return isPng;
-            }).map(file => {
-                const name = path.parse(file).name;
-                return {
-                    name: name,
-                    url: `/assets/emoji/${file}`,
-                    filename: file,
-                    code: `:${name}:`
-                };
-            });
-
-            this.emojiCache = emojiList;
-            this.emojiCacheTime = now;
-            
-            console.log(`📦 Загружено ${emojiList.length} эмодзи в кэш`);
-            return emojiList;
-        } catch (error) {
-            console.log('❌ Эмодзи не загружены:', error.message);
-            return [];
-        }
-    }
-
-    processTextWithEmoji(text, emojiList) {
-        if (!text || typeof text !== 'string') return text;
-
-        let processedText = text;
-        
-        emojiList.forEach(emoji => {
-            const emojiCode = `:${emoji.name}:`;
-            const emojiHtml = `<img src="${emoji.url}" alt="${emoji.name}" class="emoji" style="width: 20px; height: 20px; vertical-align: middle; display: inline-block;">`;
-            const regex = new RegExp(this.escapeRegExp(emojiCode), 'g');
-            processedText = processedText.replace(regex, emojiHtml);
-        });
-
-        return processedText;
-    }
-
-    escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    validateMusicFile(filename) {
-        const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    validateCoverFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    encrypt(text) {
-        const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
-        let encrypted = cipher.update(text, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        return iv.toString('hex') + ':' + encrypted;
-    }
-
-    decrypt(encryptedText) {
-        const parts = encryptedText.split(':');
-        const iv = Buffer.from(parts[0], 'hex');
-        const encrypted = parts[1];
-        const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
-        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    }
-
-    hashPassword(password) {
-        return crypto.createHash('sha256').update(password).digest('hex');
-    }
-
-    getClientIP(req) {
-        return req.headers['x-forwarded-for'] || 
-               req.connection.remoteAddress || 
-               req.socket.remoteAddress ||
-               (req.connection.socket ? req.connection.socket.remoteAddress : null);
-    }
-
-    getDeviceInfo(req) {
-        const userAgent = req.headers['user-agent'] || '';
-        
-        let browser = 'Unknown';
-        if (userAgent.includes('Chrome')) browser = 'Chrome';
-        else if (userAgent.includes('Firefox')) browser = 'Firefox';
-        else if (userAgent.includes('Safari')) browser = 'Safari';
-        else if (userAgent.includes('Edge')) browser = 'Edge';
-        
-        let os = 'Unknown';
-        if (userAgent.includes('Windows')) os = 'Windows';
-        else if (userAgent.includes('Mac')) os = 'Mac OS';
-        else if (userAgent.includes('Linux')) os = 'Linux';
-        else if (userAgent.includes('Android')) os = 'Android';
-        else if (userAgent.includes('iOS')) os = 'iOS';
-        
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-        const deviceType = isMobile ? 'mobile' : 'desktop';
-        
-        return {
-            browser,
-            os,
-            deviceType,
-            userAgent,
-            isMobile
-        };
-    }
-
-    generateDeviceId(req) {
-        const ip = this.getClientIP(req);
-        const deviceInfo = this.getDeviceInfo(req);
-        const deviceString = `${ip}-${deviceInfo.browser}-${deviceInfo.os}`;
-        return crypto.createHash('md5').update(deviceString).digest('hex');
-    }
-
-    isIPBanned(ip) {
-        const banInfo = this.bannedIPs.get(ip);
-        if (!banInfo) return false;
-        
-        if (banInfo.expires && banInfo.expires < Date.now()) {
-            this.bannedIPs.delete(ip);
-            return false;
-        }
-        
-        return true;
-    }
-
-    banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) {
-        this.bannedIPs.set(ip, {
-            bannedAt: new Date(),
-            expires: Date.now() + duration
-        });
-        this.saveData();
-    }
-
-    validateAvatarFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    validateGiftFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    validatePostFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    sanitizeContent(content) {
-        if (typeof content !== 'string') return '';
-        
-        let sanitized = content;
-
-        sanitized = sanitized
-            .replace(/<[^>]*>/g, '')
-            .replace(/&[^;]+;/g, '')
-            .replace(/javascript:/gi, '[БЛОК]')
-            .replace(/data:/gi, '[БЛОК]')
-            .replace(/vbscript:/gi, '[БЛОК]')
-            .replace(/on\w+="[^"]*"/gi, '')
-            .replace(/on\w+='[^']*'/gi, '')
-            .replace(/on\w+=\w+/gi, '');
-
-        const dangerousKeywords = [
-            'script', 'iframe', 'object', 'embed', 'link', 'meta', 'style',
-            'expression', 'eval', 'exec', 'compile', 'function constructor',
-            'document.write', 'innerhtml', 'outerhtml', 'insertadjacent',
-            'setattribute', 'createelement', 'appendchild', 'removechild',
-            'window.open', 'location.href', 'document.domain', 'localstorage',
-            'sessionstorage', 'cookie', 'xmlhttprequest', 'fetch', 'websocket',
-            'postmessage', 'import', 'export', 'require', 'module'
-        ];
-
-        dangerousKeywords.forEach(keyword => {
-            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-            sanitized = sanitized.replace(regex, '[БЛОК]');
-        });
-
-        const dangerousPatterns = [
-            /<script[\s\S]*?<\/script>/gi,
-            /<iframe[\s\S]*?<\/iframe>/gi,
-            /<object[\s\S]*?<\/object>/gi,
-            /<embed[\s\S]*?<\/embed>/gi,
-            /<svg[\s\S]*?<\/svg>/gi,
-            /<link[\s\S]*?>/gi,
-            /<meta[\s\S]*?>/gi,
-            /<style[\s\S]*?<\/style>/gi,
-            /expression\([^)]*\)/gi,
-            /eval\([^)]*\)/gi,
-            /Function\([^)]*\)/gi,
-            /document\.write\([^)]*\)/gi,
-            /\.innerHTML\s*=/gi,
-            /\.outerHTML\s*=/gi,
-            /\.insertAdjacentHTML\([^)]*\)/gi,
-            /\.setAttribute\([^)]*\)/gi,
-            /document\.createElement\([^)]*\)/gi,
-            /window\.open\([^)]*\)/gi,
-            /location\.href\s*=/gi,
-            /document\.domain\s*=/gi,
-            /XMLHttpRequest/gi,
-            /Fetch/gi,
-            /WebSocket/gi,
-            /postMessage\([^)]*\)/gi
-        ];
-
-        dangerousPatterns.forEach(pattern => {
-            sanitized = sanitized.replace(pattern, '[БЛОК]');
-        });
-
-        sanitized = sanitized.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP]');
-        sanitized = sanitized.replace(/(https?|ftp):\/\/[^\s<>{}\[\]"']+/gi, '[ССЫЛКА]');
-
-        sanitized = sanitized.trim();
-
-        if (sanitized.length > 5000) {
-            sanitized = sanitized.substring(0, 5000);
-        }
-
-        return sanitized;
-    }
-
-    async saveFile(fileData, filename, type) {
-        return new Promise((resolve, reject) => {
-            try {
-                let uploadDir = 'uploads';
-                if (type === 'avatar') uploadDir = 'uploads/avatars';
-                else if (type === 'gift') uploadDir = 'uploads/gifts';
-                else if (type === 'post') uploadDir = 'uploads/posts';
-                else if (type === 'music') uploadDir = 'uploads/music';
-                else if (type === 'music/covers') uploadDir = 'uploads/music/covers';
-
-                const filePath = path.join(__dirname, 'public', uploadDir, filename);
-                
-                let buffer;
-                if (fileData.startsWith('data:')) {
-                    const base64Data = fileData.split(',')[1];
-                    buffer = Buffer.from(base64Data, 'base64');
-                } else {
-                    buffer = Buffer.from(fileData, 'base64');
-                }
-
-                const dirPath = path.dirname(filePath);
-                if (!fs.existsSync(dirPath)) {
-                    fs.mkdirSync(dirPath, { recursive: true });
-                }
-
-                fs.writeFile(filePath, buffer, (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(`/${uploadDir}/${filename}`);
-                    }
-                });
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    deleteFile(fileUrl) {
-        if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
-        
-        const filePath = path.join(__dirname, 'public', fileUrl.substring(1));
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
     }
 
     initializeData() {
         this.users = [];
-
+        this.messages = [];
+        this.posts = [
+            {
+                id: this.generateId(),
+                userId: 'system',
+                userName: 'Epic Messenger',
+                text: 'Добро пожаловать в Epic Messenger! 🚀\n\nЗдесь вы можете общаться с друзьями, делиться постами и отправлять подарки.',
+                image: null,
+                likes: [],
+                comments: [],
+                views: 0,
+                createdAt: new Date()
+            }
+        ];
+        
         this.gifts = [
             {
                 id: '1',
@@ -605,110 +117,59 @@ class SimpleServer {
                 preview: '⭐',
                 price: 200,
                 image: null
+            },
+            {
+                id: '4',
+                name: 'Подарок',
+                type: 'gift',
+                preview: '🎁',
+                price: 50,
+                image: null
+            },
+            {
+                id: '5',
+                name: 'Огонь',
+                type: 'fire',
+                preview: '🔥',
+                price: 150,
+                image: null
+            },
+            {
+                id: '6',
+                name: 'Кубок',
+                type: 'trophy',
+                preview: '🏆',
+                price: 300,
+                image: null
             }
         ];
 
         this.promoCodes = [
             {
                 id: '1',
-                code: 'WELCOME1000',
-                coins: 1000,
+                code: 'WELCOME100',
+                coins: 100,
                 max_uses: 0,
                 used_count: 0,
                 created_at: new Date()
             }
         ];
-
-        this.posts = [
-            {
-                id: '1',
-                userId: 'system',
-                text: 'Добро пожаловать в Epic Messenger! 🚀',
-                image: null,
-                likes: [],
-                comments: [],
-                views: 0,
-                createdAt: new Date()
-            }
-        ];
-
-        this.music = [];
-        this.playlists = [];
-
-        this.messages = [];
-        this.bannedIPs = new Map();
-        this.devices = new Map();
     }
 
     generateId() {
         return Date.now().toString() + Math.random().toString(36).substr(2, 9);
     }
 
+    hashPassword(password) {
+        return crypto.createHash('sha256').update(password).digest('hex');
+    }
+
     authenticateToken(token) {
         return this.users.find(u => u.id === token);
     }
 
-    registerDevice(userId, req) {
-        const deviceId = this.generateDeviceId(req);
-        const deviceInfo = this.getDeviceInfo(req);
-        const ip = this.getClientIP(req);
-        
-        const device = {
-            id: deviceId,
-            userId: userId,
-            name: `${deviceInfo.browser} on ${deviceInfo.os}`,
-            browser: deviceInfo.browser,
-            os: deviceInfo.os,
-            ip: ip,
-            userAgent: deviceInfo.userAgent,
-            lastActive: new Date(),
-            createdAt: new Date(),
-            isOwner: false
-        };
-        
-        const userDevices = Array.from(this.devices.values()).filter(d => d.userId === userId);
-        if (userDevices.length === 0) {
-            device.isOwner = true;
-        }
-        
-        this.devices.set(deviceId, device);
-        this.saveData();
-        return device;
-    }
-
-    getUserDevices(userId) {
-        return Array.from(this.devices.values()).filter(device => device.userId === userId);
-    }
-
-    terminateDevice(userId, deviceId) {
-        const device = this.devices.get(deviceId);
-        if (!device || device.userId !== userId) {
-            return false;
-        }
-        
-        const userDevices = this.getUserDevices(userId);
-        const isOwner = userDevices.some(d => d.isOwner);
-        const targetDevice = userDevices.find(d => d.id === deviceId);
-        
-        if (!targetDevice) return false;
-        
-        if (targetDevice.isOwner || isOwner) {
-            this.devices.delete(deviceId);
-            this.saveData();
-            return true;
-        } else {
-            const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
-            if (timeDiff > 24 * 60 * 60 * 1000) {
-                this.devices.delete(deviceId);
-                this.saveData();
-                return true;
-            }
-            return false;
-        }
-    }
-
     serveStaticFile(res, filePath, contentType) {
-        const fullPath = path.join(__dirname, filePath);
+        const fullPath = path.join(__dirname, 'public', filePath);
         
         fs.readFile(fullPath, (err, data) => {
             if (err) {
@@ -731,16 +192,7 @@ class SimpleServer {
         const pathname = parsedUrl.pathname;
         const method = req.method;
         
-        console.log(`=== API REQUEST ===`);
-        console.log(`Method: ${method}`);
-        console.log(`Path: ${pathname}`);
-
-        if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-            if (pathname === '/api/music/upload-full') {
-                this.handleUploadMusicFull(req, res);
-                return;
-            }
-        }
+        console.log(`API: ${method} ${pathname}`);
 
         let body = '';
         const decoder = new StringDecoder('utf-8');
@@ -753,29 +205,24 @@ class SimpleServer {
             body += decoder.end();
             
             let data = {};
-            if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
+            if (body && body.trim() !== '') {
                 try {
                     data = JSON.parse(body);
                 } catch (e) {
-                    console.log(`JSON parse error:`, e.message);
+                    console.log('JSON parse error:', e.message);
                 }
             }
 
-            console.log(`=== END REQUEST ===`);
-            
             this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
         });
     }
 
     processApiRequest(pathname, method, data, query, req, res) {
-        console.log(`🔄 Processing API: ${method} ${pathname}`);
-        
         const headers = {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
-            'Access-Control-Allow-Credentials': 'true'
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
         };
 
         if (method === 'OPTIONS') {
@@ -791,27 +238,21 @@ class SimpleServer {
 
         try {
             switch (pathname) {
-                case '/api/login':
-                    if (method === 'POST') {
-                        response = this.handleLogin(data, req);
-                    }
-                    break;
-                    
                 case '/api/register':
                     if (method === 'POST') {
-                        response = this.handleRegister(data, req);
+                        response = this.handleRegister(data);
                     }
                     break;
                     
-                case '/api/check-auth':
-                    if (method === 'GET') {
-                        response = this.handleCheckAuth(token, req);
+                case '/api/login':
+                    if (method === 'POST') {
+                        response = this.handleLogin(data);
                     }
                     break;
                     
                 case '/api/current-user':
                     if (method === 'GET') {
-                        response = this.handleCurrentUser(token, req);
+                        response = this.handleCurrentUser(token);
                     }
                     break;
                     
@@ -838,28 +279,18 @@ class SimpleServer {
                         response = this.handleGetPosts(token);
                     } else if (method === 'POST') {
                         response = this.handleCreatePost(token, data);
-                    } else if (method === 'DELETE') {
-                        response = this.handleDeletePost(token, query);
                     }
                     break;
                     
                 case '/api/gifts':
                     if (method === 'GET') {
                         response = this.handleGetGifts(token);
-                    } else if (method === 'POST') {
-                        response = this.handleCreateGift(token, data);
                     }
                     break;
                     
-                case '/api/promo-codes':
-                    if (method === 'GET') {
-                        response = this.handleGetPromoCodes(token);
-                    }
-                    break;
-                    
-                case '/api/promo-codes/create':
+                case '/api/gifts/buy':
                     if (method === 'POST') {
-                        response = this.handleCreatePromoCode(token, data);
+                        response = this.handleBuyGift(token, data);
                     }
                     break;
                     
@@ -868,175 +299,18 @@ class SimpleServer {
                         response = this.handleActivatePromoCode(token, data);
                     }
                     break;
-                    
+
                 case '/api/update-profile':
                     if (method === 'POST') {
                         response = this.handleUpdateProfile(token, data);
                     }
                     break;
 
-                case '/api/update-avatar':
-                    if (method === 'POST') {
-                        response = this.handleUpdateAvatar(token, data);
-                    }
-                    break;
-
-                case '/api/upload-avatar':
-                    if (method === 'POST') {
-                        response = this.handleUploadAvatar(token, data);
-                    }
-                    break;
-
-                case '/api/upload-gift':
-                    if (method === 'POST') {
-                        response = this.handleUploadGift(token, data);
-                    }
-                    break;
-
-                case '/api/upload-post-image':
-                    if (method === 'POST') {
-                        response = this.handleUploadPostImage(token, data);
-                    }
-                    break;
-
-                case '/api/admin/stats':
-                    if (method === 'GET') {
-                        response = this.handleAdminStats(token);
-                    }
-                    break;
-
-                case '/api/admin/delete-user':
-                    if (method === 'POST') {
-                        response = this.handleDeleteUser(token, data);
-                    }
-                    break;
-
-                case '/api/admin/ban-user':
-                    if (method === 'POST') {
-                        response = this.handleBanUser(token, data);
-                    }
-                    break;
-
-                case '/api/admin/toggle-verification':
-                    if (method === 'POST') {
-                        response = this.handleToggleVerification(token, data);
-                    }
-                    break;
-
-                case '/api/admin/toggle-developer':
-                    if (method === 'POST') {
-                        response = this.handleToggleDeveloper(token, data);
-                    }
-                    break;
-
-                case '/api/emoji':
-                    if (method === 'GET') {
-                        response = this.handleGetEmoji(token);
-                    }
-                    break;
-
-                case '/api/devices':
-                    if (method === 'GET') {
-                        response = this.handleGetDevices(token);
-                    }
-                    break;
-
-                case '/api/devices/terminate':
-                    if (method === 'POST') {
-                        response = this.handleTerminateDevice(token, data);
-                    }
-                    break;
-
-                case '/api/change-version':
-                    if (method === 'POST') {
-                        response = this.handleChangeVersion(token, data);
-                    }
-                    break;
-
-                case '/api/ping':
-                    if (method === 'GET') {
-                        response = { success: true, ping: Date.now(), timestamp: new Date().toISOString() };
-                    }
-                    break;
-
-                case '/api/music/upload-full':
-                    if (method === 'POST') {
-                        response = { success: false, message: 'Multipart request already processed' };
-                    }
-                    break;
-                    
-                case '/api/music':
-                    if (method === 'GET') {
-                        response = this.handleGetMusic(token);
-                    } else if (method === 'POST') {
-                        response = this.handleUploadMusic(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/upload':
-                    if (method === 'POST') {
-                        response = this.handleUploadMusicFile(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/upload-cover':
-                    if (method === 'POST') {
-                        response = this.handleUploadMusicCover(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/delete':
-                    if (method === 'POST') {
-                        response = this.handleDeleteMusic(token, data);
-                    }
-                    break;
-                    
-                case '/api/music/search':
-                    if (method === 'GET') {
-                        response = this.handleSearchMusic(token, query);
-                    }
-                    break;
-                    
-                case '/api/music/random':
-                    if (method === 'GET') {
-                        response = this.handleGetRandomMusic(token);
-                    }
-                    break;
-                    
-                case '/api/playlists':
-                    if (method === 'GET') {
-                        response = this.handleGetPlaylists(token);
-                    } else if (method === 'POST') {
-                        response = this.handleCreatePlaylist(token, data);
-                    }
-                    break;
-                    
-                case '/api/playlists/add':
-                    if (method === 'POST') {
-                        response = this.handleAddToPlaylist(token, data);
-                    }
-                    break;
-                    
                 default:
                     if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
                         const postId = pathname.split('/')[3];
                         if (method === 'POST') {
                             response = this.handleLikePost(token, postId);
-                        }
-                    } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
-                        const giftId = pathname.split('/')[3];
-                        if (method === 'POST') {
-                            response = this.handleBuyGift(token, giftId, data);
-                        }
-                    } else if (pathname.startsWith('/api/users/')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetUser(token, userId);
-                        }
-                    } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetTransactions(token, userId);
                         }
                     } else {
                         response = { success: false, message: 'API endpoint not found' };
@@ -1055,884 +329,73 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ СООБЩЕНИЙ
-    async handleGetMessages(token, query) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
+    handleRegister(data) {
+        const { username, password, displayName } = data;
+
+        if (!username || !password || !displayName) {
+            return { success: false, message: 'Все поля обязательны для заполнения' };
         }
 
-        const { userId, toUserId } = query;
+        if (username.length < 3) {
+            return { success: false, message: 'Имя пользователя должно содержать минимум 3 символа' };
+        }
+
+        if (password.length < 6) {
+            return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
+        }
+
+        const existingUser = this.users.find(u => u.username === username);
+        if (existingUser) {
+            return { success: false, message: 'Пользователь с таким именем уже существует' };
+        }
+
+        const isAdmin = username.toLowerCase() === 'admin' || username.toLowerCase() === 'bayrex';
         
-        // ИСПРАВЛЕНИЕ: Правильная проверка параметров
-        if (!userId || !toUserId) {
-            return { success: false, message: 'Не указаны ID пользователей' };
-        }
-
-        // ИСПРАВЛЕНИЕ: Правильная проверка прав доступа к чату
-        // Пользователь может видеть сообщения только если он участник чата
-        if (user.id !== userId && user.id !== toUserId && !user.isDeveloper) {
-            return { success: false, message: 'Доступ к этому чату запрещен' };
-        }
-
-        // ИСПРАВЛЕНИЕ: Правильная фильтрация сообщений
-        const chatMessages = this.messages.filter(msg => 
-            (msg.senderId === userId && msg.toUserId === toUserId) ||
-            (msg.senderId === toUserId && msg.toUserId === userId)
-        );
-
-        const decryptedMessages = chatMessages.map(msg => ({
-            ...msg,
-            text: msg.encrypted ? this.decrypt(msg.text) : msg.text,
-            isCurrentUser: msg.senderId === user.id
-        }));
-
-        decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        const emojiList = await this.loadEmojiList();
-
-        const processedMessages = decryptedMessages.map(msg => {
-            if (msg.type === 'text' && msg.text) {
-                const processedText = this.processTextWithEmoji(msg.text, emojiList);
-                
-                return {
-                    ...msg,
-                    text: processedText,
-                    containsEmoji: processedText !== msg.text,
-                    originalText: msg.text
-                };
-            }
-            return msg;
-        });
-
-        const otherUserId = user.id === userId ? toUserId : userId;
-        const otherUser = this.users.find(u => u.id === otherUserId);
-
-        return {
-            success: true,
-            messages: processedMessages,
-            chatInfo: {
-                otherUser: otherUser ? {
-                    id: otherUser.id,
-                    displayName: otherUser.displayName,
-                    avatar: otherUser.avatar,
-                    verified: otherUser.verified,
-                    status: otherUser.status,
-                    isDeveloper: otherUser.isDeveloper
-                } : null,
-                totalMessages: processedMessages.length,
-                emojiSupported: emojiList.length > 0
-            }
-        };
-    }
-
-    async handleGetEmoji(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const emojiList = await this.loadEmojiList();
-
-        return {
-            success: true,
-            emoji: emojiList
-        };
-    }
-
-    handleGetTransactions(token, userId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // Получаем подарки пользователя
-        const userGifts = user.gifts || [];
-        const transactions = userGifts.map(gift => {
-            const giftData = this.gifts.find(g => g.id === gift.giftId);
-            const fromUser = this.users.find(u => u.id === gift.fromUserId);
-            
-            return {
-                id: gift.id,
-                giftId: gift.giftId,
-                giftName: giftData ? giftData.name : 'Неизвестный подарок',
-                giftPreview: giftData ? giftData.preview : '🎁',
-                giftImage: giftData ? giftData.image : null,
-                giftPrice: giftData ? giftData.price : 0,
-                fromUserId: gift.fromUserId,
-                fromUserName: fromUser ? fromUser.displayName : 'Неизвестный',
-                receivedAt: gift.receivedAt,
-                type: 'gift'
-            };
-        });
-
-        // Добавляем бонус за регистрацию
-        transactions.push({
-            id: 'registration-bonus',
-            description: 'Регистрация бонус',
-            date: user.createdAt,
-            amount: user.coins >= 50000 ? 50000 : 1000,
-            type: 'bonus'
-        });
-
-        return {
-            success: true,
-            transactions: transactions
-        };
-    }
-
-    handleChangeVersion(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { version } = data;
-        if (version !== 'desktop' && version !== 'mobile') {
-            return { success: false, message: 'Неверная версия' };
-        }
-
-        user.preferredVersion = version;
-        this.saveData();
-
-        return {
-            success: true,
-            message: `Версия изменена на ${version === 'mobile' ? 'мобильную' : 'компьютерную'}`,
-            version: version
-        };
-    }
-
-    // НОВЫЙ МЕТОД ДЛЯ PUSH УВЕДОМЛЕНИЙ
-    async sendPushNotification(userId, title, message, type = 'message') {
-        // В реальном приложении здесь была бы интеграция с сервисом push-уведомлений
-        // Пока просто логируем
-        console.log(`📱 Push уведомление для ${userId}: ${title} - ${message}`);
-        
-        // Здесь можно добавить интеграцию с Firebase Cloud Messaging, OneSignal и т.д.
-        return { success: true };
-    }
-
-    // ОБНОВЛЕННЫЙ МЕТОД ДЛЯ ЛАЙКОВ ПОСТОВ
-    async handleLikePost(token, postId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const post = this.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const likeIndex = post.likes.indexOf(user.id);
-        if (likeIndex === -1) {
-            post.likes.push(user.id);
-            console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
-            
-            // ОТПРАВКА PUSH УВЕДОМЛЕНИЯ ВЛАДЕЛЬЦУ ПОСТА
-            if (post.userId !== user.id) {
-                const postOwner = this.users.find(u => u.id === post.userId);
-                if (postOwner) {
-                    this.sendPushNotification(
-                        postOwner.id,
-                        'Новый лайк!',
-                        `Пользователь ${user.displayName} поставил лайк вашей публикации`,
-                        'like'
-                    );
-                }
-            }
-        } else {
-            post.likes.splice(likeIndex, 1);
-            console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
-        }
-
-        this.saveData();
-
-        return {
-            success: true,
-            likes: post.likes
-        };
-    }
-
-    // ОБНОВЛЕННЫЙ МЕТОД ДЛЯ ОТПРАВКИ СООБЩЕНИЙ
-    handleSendMessage(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { toUserId, text, type, image } = data;
-
-        if (!text || text.trim() === '') {
-            return { success: false, message: 'Сообщение не может быть пустым' };
-        }
-
-        const sanitizedText = this.sanitizeContent(text.trim());
-
-        if (sanitizedText.length === 0) {
-            return { success: false, message: 'Сообщение содержит запрещенный контент' };
-        }
-
-        const containsCustomEmoji = /:\w+:/g.test(sanitizedText);
-
-        const encryptedText = this.encrypt(sanitizedText);
-
-        const message = {
+        const newUser = {
             id: this.generateId(),
-            senderId: user.id,
-            toUserId: toUserId,
-            text: encryptedText,
-            encrypted: true,
-            type: type || 'text',
-            image: image || null,
-            timestamp: new Date(),
-            displayName: user.displayName,
-            containsCustomEmoji: containsCustomEmoji
+            username: username,
+            displayName: displayName,
+            password: this.hashPassword(password),
+            avatar: null,
+            description: 'Новый пользователь Epic Messenger',
+            coins: isAdmin ? 10000 : 1000,
+            verified: isAdmin,
+            isDeveloper: isAdmin,
+            status: 'online',
+            lastSeen: new Date(),
+            createdAt: new Date(),
+            gifts: [],
+            friendsCount: 0,
+            postsCount: 0,
+            giftsCount: 0,
+            banned: false
         };
 
-        this.messages.push(message);
+        this.users.push(newUser);
         this.saveData();
 
-        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
-
-        // ОТПРАВКА PUSH УВЕДОМЛЕНИЯ ПОЛУЧАТЕЛЮ
-        const recipient = this.users.find(u => u.id === toUserId);
-        if (recipient) {
-            this.sendPushNotification(
-                recipient.id,
-                `Новое сообщение от ${user.displayName}`,
-                text.length > 50 ? text.substring(0, 50) + '...' : text,
-                'message'
-            );
+        if (isAdmin) {
+            console.log(`👑 Администратор зарегистрирован: ${username}`);
         }
 
         return {
             success: true,
-            message: {
-                ...message,
-                text: sanitizedText
+            message: 'Аккаунт успешно создан!',
+            token: newUser.id,
+            user: {
+                id: newUser.id,
+                username: newUser.username,
+                displayName: newUser.displayName,
+                avatar: newUser.avatar,
+                coins: newUser.coins,
+                verified: newUser.verified,
+                isDeveloper: newUser.isDeveloper,
+                status: newUser.status
             }
         };
     }
 
-    // ОБНОВЛЕННЫЙ МЕТОД ДЛЯ УДАЛЕНИЯ ПОСТОВ АДМИНАМИ
-    handleDeletePost(token, query) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { postId } = query;
-        const postIndex = this.posts.findIndex(p => p.id === postId);
-        
-        if (postIndex === -1) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const post = this.posts[postIndex];
-        
-        if (post.userId === 'system') {
-            return { success: false, message: 'Нельзя удалить системный пост' };
-        }
-
-        if (post.image && post.image.startsWith('/uploads/posts/')) {
-            this.deleteFile(post.image);
-        }
-
-        this.posts.splice(postIndex, 1);
-
-        const postUser = this.users.find(u => u.id === post.userId);
-        if (postUser && postUser.postsCount > 0) {
-            postUser.postsCount--;
-        }
-
-        this.saveData();
-
-        console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
-
-        // ОТПРАВКА УВЕДОМЛЕНИЯ ВЛАДЕЛЬЦУ ПОСТА
-        if (postUser && postUser.id !== user.id) {
-            this.sendPushNotification(
-                postUser.id,
-                'Пост удален',
-                'Ваш пост был удален администратором',
-                'admin'
-            );
-        }
-
-        return {
-            success: true,
-            message: 'Пост успешно удален'
-        };
-    }
-
-    // ОСТАЛЬНЫЕ МЕТОДЫ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ
-    handleUploadMusicFull(req, res) {
-        console.log('🎵 Начало обработки загрузки музыки...');
-
-        const headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-        };
-
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204, headers);
-            res.end();
-            return;
-        }
-
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        const user = this.authenticateToken(token);
-        
-        if (!user) {
-            res.writeHead(401, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
-            return;
-        }
-
-        console.log('🎵 Пользователь авторизован:', user.username);
-
-        let isResponseSent = false;
-
-        const sendErrorResponse = (message, statusCode = 500) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                console.error('❌ Ошибка загрузки:', message);
-                res.writeHead(statusCode, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify({ success: false, message }));
-            }
-        };
-
-        const sendSuccessResponse = (data) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(data));
-            }
-        };
-
-        try {
-            const bb = busboy({ 
-                headers: req.headers,
-                limits: {
-                    fileSize: 50 * 1024 * 1024,
-                    files: 2,
-                    fields: 10
-                }
-            });
-            
-            let fields = {};
-            let audioFile = null;
-            let coverFile = null;
-            let filesProcessed = 0;
-            let totalFilesExpected = 0;
-            let fieldsProcessed = 0;
-
-            bb.on('field', (name, val) => {
-                console.log(`📋 Поле формы: ${name} = ${val}`);
-                fields[name] = val;
-                fieldsProcessed++;
-            });
-
-            bb.on('file', (name, file, info) => {
-                const { filename, mimeType } = info;
-                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
-                
-                if (!filename) {
-                    console.log('📁 Пропускаем пустой файл');
-                    file.resume();
-                    return;
-                }
-
-                totalFilesExpected++;
-                const chunks = [];
-                
-                file.on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
-                
-                file.on('end', () => {
-                    filesProcessed++;
-                    console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
-                    
-                    if (chunks.length === 0) {
-                        console.log('⚠️ Файл пустой, пропускаем');
-                        return;
-                    }
-
-                    const buffer = Buffer.concat(chunks);
-                    console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
-                    
-                    if (name === 'audioFile') {
-                        if (!this.validateMusicFile(filename)) {
-                            sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
-                            return;
-                        }
-                        audioFile = { buffer, filename, mimeType };
-                        console.log('✅ Аудио файл сохранен в памяти');
-                    } else if (name === 'coverFile') {
-                        if (!this.validateCoverFile(filename)) {
-                            sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
-                            return;
-                        }
-                        coverFile = { buffer, filename, mimeType };
-                        console.log('✅ Обложка сохранена в памяти');
-                    }
-                });
-
-                file.on('error', (error) => {
-                    console.error('❌ Ошибка чтения файла:', error);
-                    sendErrorResponse('Ошибка чтения файла');
-                });
-
-                file.on('limit', () => {
-                    console.error('❌ Превышен лимит размера файла');
-                    sendErrorResponse('Размер файла превышает допустимый лимит', 400);
-                });
-            });
-
-            bb.on('close', async () => {
-                console.log('🔚 Завершение обработки формы');
-                console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
-                
-                setTimeout(async () => {
-                    try {
-                        if (!audioFile) {
-                            sendErrorResponse('Аудио файл обязателен', 400);
-                            return;
-                        }
-
-                        if (!fields.title || !fields.artist) {
-                            sendErrorResponse('Название и исполнитель обязательны', 400);
-                            return;
-                        }
-
-                        console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
-
-                        const audioExt = path.extname(audioFile.filename);
-                        const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                        const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
-                        
-                        console.log(`💾 Сохранение аудио файла: ${audioPath}`);
-                        try {
-                            await fs.promises.writeFile(audioPath, audioFile.buffer);
-                            const audioUrl = `/uploads/music/${audioFilename}`;
-                            console.log('✅ Аудио файл сохранен');
-
-                            let coverUrl = null;
-                            if (coverFile && coverFile.filename) {
-                                const coverExt = path.extname(coverFile.filename);
-                                const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
-                                const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
-                                
-                                console.log(`💾 Сохранение обложки: ${coverPath}`);
-                                await fs.promises.writeFile(coverPath, coverFile.buffer);
-                                coverUrl = `/uploads/music/covers/${coverFilename}`;
-                                console.log('✅ Обложка сохранена');
-                            }
-
-                            const track = {
-                                id: this.generateId(),
-                                userId: user.id,
-                                title: this.sanitizeContent(fields.title),
-                                artist: this.sanitizeContent(fields.artist),
-                                genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
-                                fileUrl: audioUrl,
-                                coverUrl: coverUrl,
-                                duration: 0,
-                                plays: 0,
-                                likes: [],
-                                createdAt: new Date()
-                            };
-
-                            this.music.unshift(track);
-                            this.saveData();
-
-                            console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
-
-                            sendSuccessResponse({
-                                success: true,
-                                track: {
-                                    ...track,
-                                    userName: user.displayName,
-                                    userAvatar: user.avatar,
-                                    userVerified: user.verified
-                                }
-                            });
-
-                        } catch (fileError) {
-                            console.error('❌ Ошибка при сохранении файлов:', fileError);
-                            sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
-                        }
-
-                    } catch (error) {
-                        console.error('❌ Ошибка при обработке формы:', error);
-                        sendErrorResponse('Ошибка при обработке формы: ' + error.message);
-                    }
-                }, 100);
-            });
-
-            bb.on('error', (error) => {
-                console.error('❌ Ошибка busboy:', error);
-                sendErrorResponse('Ошибка обработки формы: ' + error.message);
-            });
-
-            req.on('error', (error) => {
-                console.error('❌ Ошибка запроса:', error);
-                sendErrorResponse('Ошибка запроса: ' + error.message);
-            });
-
-            req.on('end', () => {
-                console.log('📨 Запрос полностью получен');
-            });
-
-            const timeout = setTimeout(() => {
-                console.error('⏰ Таймаут обработки запроса');
-                sendErrorResponse('Таймаут обработки запроса', 408);
-            }, 60000);
-
-            console.log('🔄 Начинаем парсинг формы...');
-            req.pipe(bb);
-
-            bb.on('close', () => {
-                clearTimeout(timeout);
-                console.log('✅ Таймаут очищен');
-            });
-
-        } catch (error) {
-            console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
-            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
-        }
-    }
-
-    handleGetMusic(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const musicWithUserInfo = this.music.map(track => {
-            const trackUser = this.users.find(u => u.id === track.userId);
-            return {
-                ...track,
-                userName: trackUser ? trackUser.displayName : 'Неизвестный',
-                userAvatar: trackUser ? trackUser.avatar : null,
-                userVerified: trackUser ? trackUser.verified : false
-            };
-        });
-
-        return {
-            success: true,
-            music: musicWithUserInfo
-        };
-    }
-
-    handleUploadMusic(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { title, artist, duration, fileUrl, coverUrl, genre } = data;
-        
-        if (!title || !artist || !fileUrl) {
-            return { success: false, message: 'Название, исполнитель и файл обязательны' };
-        }
-
-        const sanitizedTitle = this.sanitizeContent(title);
-        const sanitizedArtist = this.sanitizeContent(artist);
-        const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
-
-        const track = {
-            id: this.generateId(),
-            userId: user.id,
-            title: sanitizedTitle,
-            artist: sanitizedArtist,
-            duration: duration || 0,
-            fileUrl: fileUrl,
-            coverUrl: coverUrl || '/assets/default-cover.png',
-            genre: sanitizedGenre,
-            plays: 0,
-            likes: [],
-            createdAt: new Date()
-        };
-
-        this.music.unshift(track);
-        this.saveData();
-
-        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
-
-        return {
-            success: true,
-            track:{
-                ...track,
-                userName: user.displayName,
-                userAvatar: user.avatar,
-                userVerified: user.verified
-            }
-        };
-    }
-
-    async handleUploadMusicFile(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { fileData, filename } = data;
-        
-        if (!this.validateMusicFile(filename)) {
-            return { success: false, message: 'Недопустимый формат аудио файла' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
-
-            return {
-                success: true,
-                fileUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки аудио файла:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadMusicCover(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { fileData, filename } = data;
-        
-        if (!this.validateCoverFile(filename)) {
-            return { success: false, message: 'Недопустимый формат изображения' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
-
-            return {
-                success: true,
-                coverUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки обложки:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    handleDeleteMusic(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { trackId } = data;
-        const trackIndex = this.music.findIndex(t => t.id === trackId);
-        
-        if (trackIndex === -1) {
-            return { success: false, message: 'Трек не найден' };
-        }
-
-        const track = this.music[trackIndex];
-        
-        if (track.userId !== user.id && !user.isDeveloper) {
-            return { success: false, message: 'Вы можете удалять только свои треки' };
-        }
-
-        if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
-            this.deleteFile(track.fileUrl);
-        }
-
-        if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
-            this.deleteFile(track.coverUrl);
-        }
-
-        this.music.splice(trackIndex, 1);
-        this.saveData();
-
-        console.log(`🗑️ Трек удален: ${track.title}`);
-
-        return {
-            success: true,
-            message: 'Трек успешно удален'
-        };
-    }
-
-    handleSearchMusic(token, query) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { q } = query;
-        if (!q || q.trim() === '') {
-            return this.handleGetMusic(token);
-        }
-
-        const searchTerm = q.toLowerCase().trim();
-        const filteredMusic = this.music.filter(track => 
-            track.title.toLowerCase().includes(searchTerm) ||
-            track.artist.toLowerCase().includes(searchTerm) ||
-            track.genre.toLowerCase().includes(searchTerm)
-        );
-
-        const musicWithUserInfo = filteredMusic.map(track => {
-            const trackUser = this.users.find(u => u.id === track.userId);
-            return {
-                ...track,
-                userName: trackUser ? trackUser.displayName : 'Неизвестный',
-                userAvatar: trackUser ? trackUser.avatar : null,
-                userVerified: trackUser ? trackUser.verified : false
-            };
-        });
-
-        return {
-            success: true,
-            music: musicWithUserInfo,
-            searchTerm: q
-        };
-    }
-
-    handleGetRandomMusic(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (this.music.length === 0) {
-            return {
-                success: true,
-                music: []
-            };
-        }
-
-        const shuffled = [...this.music].sort(() => 0.5 - Math.random());
-        const randomMusic = shuffled.slice(0, 10);
-
-        const musicWithUserInfo = randomMusic.map(track => {
-            const trackUser = this.users.find(u => u.id === track.userId);
-            return {
-                ...track,
-                userName: trackUser ? trackUser.displayName : 'Неизвестный',
-                userAvatar: trackUser ? trackUser.avatar : null,
-                userVerified: trackUser ? trackUser.verified : false
-            };
-        });
-
-        return {
-            success: true,
-            music: musicWithUserInfo
-        };
-    }
-
-    handleGetPlaylists(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const userPlaylists = this.playlists.filter(p => p.userId === user.id);
-        return {
-            success: true,
-            playlists: userPlaylists
-        };
-    }
-
-    handleCreatePlaylist(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { name, description } = data;
-        
-        if (!name || name.trim() === '') {
-            return { success: false, message: 'Название плейлиста обязательно' };
-        }
-
-        const sanitizedName = this.sanitizeContent(name.trim());
-        const sanitizedDescription = description ? this.sanitizeContent(description) : '';
-
-        const playlist = {
-            id: this.generateId(),
-            userId: user.id,
-            name: sanitizedName,
-            description: sanitizedDescription,
-            tracks: [],
-            cover: null,
-            createdAt: new Date()
-        };
-
-        this.playlists.push(playlist);
-        this.saveData();
-
-        console.log(`🎵 Создан плейлист: ${sanitizedName}`);
-
-        return {
-            success: true,
-            playlist: playlist
-        };
-    }
-
-    handleAddToPlaylist(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { playlistId, trackId } = data;
-        
-        const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
-        if (!playlist) {
-            return { success: false, message: 'Плейлист не найден' };
-        }
-
-        const track = this.music.find(t => t.id === trackId);
-        if (!track) {
-            return { success: false, message: 'Трек не найден' };
-        }
-
-        if (playlist.tracks.includes(trackId)) {
-            return { success: false, message: 'Трек уже есть в плейлисте' };
-        }
-
-        playlist.tracks.push(trackId);
-
-        if (!playlist.cover && playlist.tracks.length === 1) {
-            playlist.cover = track.coverUrl;
-        }
-
-        this.saveData();
-
-        console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
-
-        return {
-            success: true,
-            playlist: playlist
-        };
-    }
-
-    handleLogin(data, req) {
+    handleLogin(data) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
         const user = this.users.find(u => u.username === username && u.password === hashedPassword);
@@ -1945,13 +408,6 @@ class SimpleServer {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
 
-        const clientIP = this.getClientIP(req);
-        if (this.isIPBanned(clientIP)) {
-            return { success: false, message: 'Ваш IP адрес заблокирован' };
-        }
-
-        const device = this.registerDevice(user.id, req);
-
         user.status = 'online';
         user.lastSeen = new Date();
         this.saveData();
@@ -1959,14 +415,11 @@ class SimpleServer {
         return {
             success: true,
             token: user.id,
-            deviceId: device.id,
             user: {
                 id: user.id,
                 username: user.username,
                 displayName: user.displayName,
-                email: user.email,
                 avatar: user.avatar,
-                description: user.description,
                 coins: user.coins,
                 verified: user.verified,
                 isDeveloper: user.isDeveloper,
@@ -1975,196 +428,23 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false,
-                deviceType: user.deviceType || 'desktop',
-                preferredVersion: user.preferredVersion || 'desktop'
+                giftsCount: user.giftsCount || 0
             }
         };
     }
 
-    handleRegister(data, req) {
-        const { username, displayName, email, password } = data;
-
-        const clientIP = this.getClientIP(req);
-        if (this.isIPBanned(clientIP)) {
-            return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
-        }
-
-        if (!username || !displayName || !email || !password) {
-            return { success: false, message: 'Все поля обязательны для заполнения' };
-        }
-
-        if (username.length < 3) {
-            return { success: false, message: 'Имя пользователя должно содержать минимум 3 символа' };
-        }
-
-        if (password.length < 6) {
-            return { success: false, message: 'Пароль должен содержать минимум 6 символов' };
-        }
-
-        const sanitizedUsername = this.sanitizeContent(username);
-        const sanitizedDisplayName = this.sanitizeContent(displayName);
-        const sanitizedEmail = this.sanitizeContent(email);
-
-        const existingUser = this.users.find(u => u.username === sanitizedUsername);
-        if (existingUser) {
-            return { success: false, message: 'Пользователь с таким именем уже существует' };
-        }
-
-        const existingEmail = this.users.find(u => u.email === sanitizedEmail);
-        if (existingEmail) {
-            return { success: false, message: 'Пользователь с таким email уже существует' };
-        }
-
-        const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
-        
-        const deviceInfo = this.getDeviceInfo(req);
-        
-        const newUser = {
-            id: this.generateId(),
-            username: sanitizedUsername,
-            displayName: sanitizedDisplayName,
-            email: sanitizedEmail,
-            password: this.hashPassword(password),
-            avatar: null,
-            description: 'Новый пользователь Epic Messenger',
-            coins: isBayRex ? 50000 : 1000,
-            verified: isBayRex,
-            isDeveloper: isBayRex,
-            status: 'online',
-            lastSeen: new Date(),
-            createdAt: new Date(),
-            gifts: [],
-            isProtected: isBayRex,
-            friendsCount: 0,
-            postsCount: 0,
-            giftsCount: 0,
-            banned: false,
-            deviceType: deviceInfo.deviceType,
-            preferredVersion: deviceInfo.isMobile ? 'mobile' : 'desktop',
-            registrationDevice: {
-                browser: deviceInfo.browser,
-                os: deviceInfo.os,
-                userAgent: deviceInfo.userAgent
-            }
-        };
-
-        this.users.push(newUser);
-
-        const device = this.registerDevice(newUser.id, req);
-        this.saveData();
-
-        if (isBayRex) {
-            console.log(`👑 BayRex зарегистрирован с правами администратора!`);
-        }
-
-        return {
-            success: true,
-            message: isBayRex ? 
-                'Аккаунт BayRex создан! Вы получили права администратора!' :
-                'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
-            token: newUser.id,
-            deviceId: device.id,
-            user: {
-                id: newUser.id,
-                username: newUser.username,
-                displayName: newUser.displayName,
-                email: newUser.email,
-                avatar: newUser.avatar,
-                description: newUser.description,
-                coins: newUser.coins,
-                verified: newUser.verified,
-                isDeveloper: newUser.isDeveloper,
-                status: newUser.status,
-                lastSeen: newUser.lastSeen,
-                createdAt: newUser.createdAt,
-                friendsCount: newUser.friendsCount,
-                postsCount: newUser.postsCount,
-                giftsCount: newUser.giftsCount,
-                banned: newUser.banned,
-                deviceType: newUser.deviceType,
-                preferredVersion: newUser.preferredVersion
-            }
-        };
-    }
-
-    handleCheckAuth(token, req) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { authenticated: false };
-        }
-
-        if (user.banned) {
-            return { authenticated: false, message: 'Аккаунт заблокирован' };
-        }
-
-        const clientIP = this.getClientIP(req);
-        if (this.isIPBanned(clientIP)) {
-            return { authenticated: false, message: 'IP адрес заблокирован' };
-        }
-
-        const deviceId = this.generateDeviceId(req);
-        const device = this.devices.get(deviceId);
-        if (device && device.userId === user.id) {
-            device.lastActive = new Date();
-            this.saveData();
-        }
-
-        return {
-            authenticated: true,
-            user: {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                email: user.email,
-                avatar: user.avatar,
-                description: user.description,
-                coins: user.coins,
-                verified: user.verified,
-                isDeveloper: user.isDeveloper,
-                status: user.status,
-                lastSeen: user.lastSeen,
-                createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
-                postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false,
-                deviceType: user.deviceType || 'desktop',
-                preferredVersion: user.preferredVersion || 'desktop'
-            }
-        };
-    }
-
-    handleCurrentUser(token, req) {
+    handleCurrentUser(token) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        if (user.banned) {
-            return { success: false, message: 'Аккаунт заблокирован' };
-        }
-
-        const clientIP = this.getClientIP(req);
-        if (this.isIPBanned(clientIP)) {
-            return { success: false, message: 'IP адрес заблокирован' };
-        }
-
-        const deviceId = this.generateDeviceId(req);
-        const device = this.devices.get(deviceId);
-        if (device && device.userId === user.id) {
-            device.lastActive = new Date();
-            this.saveData();
-        }
-
         return {
             success: true,
             user: {
                 id: user.id,
                 username: user.username,
                 displayName: user.displayName,
-                email: user.email,
                 avatar: user.avatar,
                 description: user.description,
                 coins: user.coins,
@@ -2175,10 +455,7 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false,
-                deviceType: user.deviceType || 'desktop',
-                preferredVersion: user.preferredVersion || 'desktop'
+                giftsCount: user.giftsCount || 0
             }
         };
     }
@@ -2189,24 +466,18 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const otherUsers = this.users.filter(u => u.id !== user.id).map(u => ({
-            id: u.id,
-            username: u.username,
-            displayName: u.displayName,
-            avatar: u.avatar,
-            description: u.description,
-            coins: u.coins,
-            verified: u.verified,
-            isDeveloper: u.isDeveloper,
-            status: u.status,
-            lastSeen: u.lastSeen,
-            createdAt: u.createdAt,
-            friendsCount: u.friendsCount || 0,
-            postsCount: u.postsCount || 0,
-            giftsCount: u.giftsCount || 0,
-            banned: u.banned || false,
-            deviceType: u.deviceType || 'desktop'
-        }));
+        const otherUsers = this.users
+            .filter(u => u.id !== user.id && !u.banned)
+            .map(u => ({
+                id: u.id,
+                username: u.username,
+                displayName: u.displayName,
+                avatar: u.avatar,
+                status: u.status,
+                lastSeen: u.lastSeen,
+                verified: u.verified,
+                isDeveloper: u.isDeveloper
+            }));
 
         return {
             success: true,
@@ -2214,37 +485,81 @@ class SimpleServer {
         };
     }
 
-    handleGetUser(token, userId) {
+    handleGetMessages(token, query) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
+        const { userId } = query;
+        
+        if (!userId) {
+            return { success: false, message: 'ID пользователя не указан' };
+        }
+
+        const otherUser = this.users.find(u => u.id === userId);
+        if (!otherUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
+        // Получаем сообщения между текущим пользователем и выбранным пользователем
+        const chatMessages = this.messages.filter(msg => 
+            (msg.senderId === user.id && msg.toUserId === userId) ||
+            (msg.senderId === userId && msg.toUserId === user.id)
+        );
+
+        // Сортируем по времени
+        chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
         return {
             success: true,
+            messages: chatMessages,
             user: {
-                id: targetUser.id,
-                username: targetUser.username,
-                displayName: targetUser.displayName,
-                avatar: targetUser.avatar,
-                description: targetUser.description,
-                coins: targetUser.coins,
-                verified: targetUser.verified,
-                isDeveloper: targetUser.isDeveloper,
-                status: targetUser.status,
-                lastSeen: targetUser.lastSeen,
-                createdAt: targetUser.createdAt,
-                friendsCount: targetUser.friendsCount || 0,
-                postsCount: targetUser.postsCount || 0,
-                giftsCount: targetUser.giftsCount || 0,
-                banned: targetUser.banned || false,
-                deviceType: targetUser.deviceType || 'desktop'
+                id: otherUser.id,
+                username: otherUser.username,
+                displayName: otherUser.displayName,
+                avatar: otherUser.avatar,
+                status: otherUser.status,
+                verified: otherUser.verified,
+                isDeveloper: otherUser.isDeveloper
             }
+        };
+    }
+
+    handleSendMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { toUserId, text } = data;
+
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Сообщение не может быть пустым' };
+        }
+
+        const toUser = this.users.find(u => u.id === toUserId);
+        if (!toUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        const message = {
+            id: this.generateId(),
+            senderId: user.id,
+            toUserId: toUserId,
+            text: text.trim(),
+            timestamp: new Date(),
+            read: false
+        };
+
+        this.messages.push(message);
+        this.saveData();
+
+        console.log(`💬 Сообщение от ${user.username} к ${toUser.username}`);
+
+        return {
+            success: true,
+            message: message
         };
     }
 
@@ -2289,23 +604,17 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { text, image } = data;
+        const { text } = data;
         
         if (!text || text.trim() === '') {
             return { success: false, message: 'Текст поста не может быть пустым' };
         }
 
-        const sanitizedText = this.sanitizeContent(text.trim());
-
-        if (sanitizedText.length === 0) {
-            return { success: false, message: 'Текст поста содержит запрещенный контент' };
-        }
-
         const post = {
             id: this.generateId(),
             userId: user.id,
-            text: sanitizedText,
-            image: image,
+            text: text.trim(),
+            image: null,
             likes: [],
             comments: [],
             views: 0,
@@ -2316,7 +625,7 @@ class SimpleServer {
         user.postsCount = (user.postsCount || 0) + 1;
         this.saveData();
 
-        console.log(`📝 Новый пост от ${user.displayName}`);
+        console.log(`📝 Новый пост от ${user.username}`);
 
         return {
             success: true,
@@ -2327,6 +636,32 @@ class SimpleServer {
                 userVerified: user.verified,
                 userDeveloper: user.isDeveloper
             }
+        };
+    }
+
+    handleLikePost(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const post = this.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const likeIndex = post.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            post.likes.push(user.id);
+        } else {
+            post.likes.splice(likeIndex, 1);
+        }
+
+        this.saveData();
+
+        return {
+            success: true,
+            likes: post.likes
         };
     }
 
@@ -2342,48 +677,13 @@ class SimpleServer {
         };
     }
 
-    handleCreateGift(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { name, price, type, image } = data;
-        
-        if (!name || !price) {
-            return { success: false, message: 'Название и цена обязательны' };
-        }
-
-        const sanitizedName = this.sanitizeContent(name);
-
-        const gift = {
-            id: this.generateId(),
-            name: sanitizedName,
-            type: type || 'custom',
-            preview: image ? '🖼️' : '🎁',
-            price: parseInt(price),
-            image: image,
-            createdAt: new Date()
-        };
-
-        this.gifts.push(gift);
-        this.saveData();
-
-        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
-
-        return {
-            success: true,
-            gift: gift
-        };
-    }
-
-    handleBuyGift(token, giftId, data) {
+    handleBuyGift(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { toUserId } = data;
+        const { giftId, toUserId } = data;
         const gift = this.gifts.find(g => g.id === giftId);
         
         if (!gift) {
@@ -2399,26 +699,27 @@ class SimpleServer {
             return { success: false, message: 'Получатель не найден' };
         }
 
+        // Списание средств
         user.coins -= gift.price;
 
+        // Создание сообщения о подарке
         const giftMessage = {
             id: this.generateId(),
             senderId: user.id,
             toUserId: toUserId,
             text: '',
-            encrypted: false,
             type: 'gift',
             giftId: gift.id,
             giftName: gift.name,
             giftPrice: gift.price,
-            giftImage: gift.image,
             giftPreview: gift.preview,
             timestamp: new Date(),
-            displayName: user.displayName
+            read: false
         };
 
         this.messages.push(giftMessage);
 
+        // Добавление подарка получателю
         if (!recipient.gifts) recipient.gifts = [];
         recipient.gifts.push({
             id: this.generateId(),
@@ -2432,71 +733,12 @@ class SimpleServer {
 
         this.saveData();
 
-        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
-
-        // ОТПРАВКА PUSH УВЕДОМЛЕНИЯ ПОЛУЧАТЕЛЮ ПОДАРКА
-        this.sendPushNotification(
-            recipient.id,
-            'Вам подарили подарок!',
-            `Пользователь ${user.displayName} подарил вам "${gift.name}"`,
-            'gift'
-        );
+        console.log(`🎁 Подарок отправлен: ${user.username} -> ${recipient.username}`);
 
         return {
             success: true,
             message: `Подарок "${gift.name}" успешно отправлен!`,
-            gift: gift
-        };
-    }
-
-    handleGetPromoCodes(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        return {
-            success: true,
-            promoCodes: this.promoCodes
-        };
-    }
-
-    handleCreatePromoCode(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { code, coins, max_uses } = data;
-        
-        if (!code || !coins) {
-            return { success: false, message: 'Код и количество коинов обязательны' };
-        }
-
-        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-
-        const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
-        if (existingPromo) {
-            return { success: false, message: 'Промокод с таким кодом уже существует' };
-        }
-
-        const promoCode = {
-            id: this.generateId(),
-            code: sanitizedCode,
-            coins: parseInt(coins),
-            max_uses: max_uses || 0,
-            used_count: 0,
-            created_at: new Date()
-        };
-
-        this.promoCodes.push(promoCode);
-        this.saveData();
-
-        console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
-
-        return {
-            success: true,
-            promoCode: promoCode
+            newBalance: user.coins
         };
     }
 
@@ -2507,8 +749,7 @@ class SimpleServer {
         }
 
         const { code } = data;
-        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-        const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
+        const promoCode = this.promoCodes.find(p => p.code === code.toUpperCase());
 
         if (!promoCode) {
             return { success: false, message: 'Промокод не найден' };
@@ -2522,12 +763,13 @@ class SimpleServer {
         promoCode.used_count++;
         this.saveData();
 
-        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
+        console.log(`💰 Промокод активирован: ${user.username} (+${promoCode.coins} coins)`);
 
         return {
             success: true,
             message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
-            coins: promoCode.coins
+            coins: promoCode.coins,
+            newBalance: user.coins
         };
     }
 
@@ -2537,37 +779,17 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { displayName, description, username, email } = data;
+        const { displayName, description } = data;
 
         if (displayName && displayName.trim()) {
-            user.displayName = this.sanitizeContent(displayName.trim());
+            user.displayName = displayName.trim();
         }
 
         if (description !== undefined) {
-            user.description = this.sanitizeContent(description);
-        }
-
-        if (username && username.trim() && username !== user.username) {
-            const sanitizedUsername = this.sanitizeContent(username.trim());
-            const existingUser = this.users.find(u => u.username === sanitizedUsername && u.id !== user.id);
-            if (existingUser) {
-                return { success: false, message: 'Имя пользователя уже занято' };
-            }
-            user.username = sanitizedUsername;
-        }
-
-        if (email && email.trim() && email !== user.email) {
-            const sanitizedEmail = this.sanitizeContent(email.trim());
-            const existingEmail = this.users.find(u => u.email === sanitizedEmail && u.id !== user.id);
-            if (existingEmail) {
-                return { success: false, message: 'Email уже используется' };
-            }
-            user.email = sanitizedEmail;
+            user.description = description;
         }
 
         this.saveData();
-
-        console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
         return {
             success: true,
@@ -2575,7 +797,6 @@ class SimpleServer {
                 id: user.id,
                 username: user.username,
                 displayName: user.displayName,
-                email: user.email,
                 avatar: user.avatar,
                 description: user.description,
                 coins: user.coins,
@@ -2586,378 +807,9 @@ class SimpleServer {
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false,
-                deviceType: user.deviceType || 'desktop',
-                preferredVersion: user.preferredVersion || 'desktop'
+                giftsCount: user.giftsCount || 0
             }
         };
-    }
-
-    handleUpdateAvatar(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { avatar } = data;
-
-        if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-            this.deleteFile(user.avatar);
-        }
-
-        user.avatar = avatar;
-        this.saveData();
-
-        console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
-
-        return {
-            success: true,
-            user: {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                email: user.email,
-                avatar: user.avatar,
-                description: user.description,
-                coins: user.coins,
-                verified: user.verified,
-                isDeveloper: user.isDeveloper,
-                status: user.status,
-                lastSeen: user.lastSeen,
-                createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
-                postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false,
-                deviceType: user.deviceType || 'desktop',
-                preferredVersion: user.preferredVersion || 'desktop'
-            }
-        };
-    }
-
-    async handleUploadAvatar(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.validateAvatarFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для аватара. Разрешены только изображения.' };
-        }
-
-        if (fileData.length > 5 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
-
-            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-                this.deleteFile(user.avatar);
-            }
-
-            user.avatar = fileUrl;
-            this.saveData();
-
-            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
-
-            return {
-                success: true,
-                avatarUrl: fileUrl,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    displayName: user.displayName,
-                    email: user.email,
-                    avatar: user.avatar,
-                    description: user.description,
-                    coins: user.coins,
-                    verified: user.verified,
-                    isDeveloper: user.isDeveloper,
-                    status: user.status,
-                    lastSeen: user.lastSeen,
-                    createdAt: user.createdAt,
-                    friendsCount: user.friendsCount || 0,
-                    postsCount: user.postsCount || 0,
-                    giftsCount: user.giftsCount || 0,
-                    banned: user.banned || false,
-                    deviceType: user.deviceType || 'desktop',
-                    preferredVersion: user.preferredVersion || 'desktop'
-                }
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки аватара:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadGift(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.validateGiftFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
-        }
-
-        if (fileData.length > 10 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
-
-            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки изображения подарка:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadPostImage(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.validatePostFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения.' };
-        }
-
-        if (fileData.length > 10 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
-
-            console.log(`📸 Пользователь ${user.username} загрузил изображение для поста: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки изображения для поста:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    handleAdminStats(token) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const fps = Math.floor(Math.random() * 60) + 30;
-        const ping = Math.floor(Math.random() * 100) + 10;
-
-        return {
-            success: true,
-            stats: {
-                totalUsers: this.users.length,
-                totalMessages: this.messages.length,
-                totalPosts: this.posts.length,
-                totalGifts: this.gifts.length,
-                totalPromoCodes: this.promoCodes.length,
-                totalMusic: this.music.length,
-                totalPlaylists: this.playlists.length,
-                onlineUsers: this.users.filter(u => u.status === 'online').length,
-                bannedUsers: this.users.filter(u => u.banned).length,
-                bannedIPs: this.bannedIPs.size,
-                activeDevices: this.devices.size,
-                fps: fps,
-                ping: ping,
-                serverUptime: process.uptime(),
-                memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024)
-            }
-        };
-    }
-
-    handleDeleteUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя удалить защищенного пользователя' };
-        }
-
-        if (targetUser.id === user.id) {
-            return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
-        }
-
-        if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
-            this.deleteFile(targetUser.avatar);
-        }
-
-        Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
-            if (device.userId === userId) {
-                this.devices.delete(deviceId);
-            }
-        });
-
-        this.users = this.users.filter(u => u.id !== userId);
-        this.saveData();
-
-        console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} успешно удален`
-        };
-    }
-
-    handleBanUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId, banned } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
-        }
-
-        targetUser.banned = banned;
-
-        if (banned) {
-            const userDevices = this.getUserDevices(userId);
-            if (userDevices.length > 0) {
-                const lastDevice = userDevices[userDevices.length - 1];
-                this.banIP(lastDevice.ip);
-            }
-        }
-
-        this.saveData();
-
-        console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${banned ? 'заблокирован' : 'разблокирован'}`
-        };
-    }
-
-    handleToggleVerification(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        targetUser.verified = !targetUser.verified;
-        this.saveData();
-
-        console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
-            verified: targetUser.verified
-        };
-    }
-
-    handleToggleDeveloper(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = this.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        targetUser.isDeveloper = !targetUser.isDeveloper;
-        this.saveData();
-
-        console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
-            isDeveloper: targetUser.isDeveloper
-        };
-    }
-
-    handleGetDevices(token) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const devices = this.getUserDevices(user.id);
-        return {
-            success: true,
-            devices: devices
-        };
-    }
-
-    handleTerminateDevice(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { deviceId } = data;
-        const success = this.terminateDevice(user.id, deviceId);
-
-        if (success) {
-            return {
-                success: true,
-                message: 'Сеанс устройства завершен'
-            };
-        } else {
-            return {
-                success: false,
-                message: 'Не удалось завершить сеанс устройства'
-            };
-        }
     }
 
     start(port = 3000) {
@@ -2972,69 +824,49 @@ class SimpleServer {
                 return;
             }
 
+            // Обслуживание статических файлов
             if (pathname === '/' || pathname === '/index.html') {
-                this.serveStaticFile(res, 'public/main.html', 'text/html');
+                this.serveStaticFile(res, 'index.html', 'text/html');
             } else if (pathname === '/login.html') {
-                this.serveStaticFile(res, 'public/login.html', 'text/html');
-            } else if (pathname === '/about.html' || pathname === '/about') {
-                this.serveStaticFile(res, 'public/about.html', 'text/html');
-            } else if (pathname === '/music.html' || pathname === '/music') {
-                this.serveStaticFile(res, 'public/music.html', 'text/html');
-            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
-                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                this.serveStaticFile(res, 'login.html', 'text/html');
+            } else if (pathname === '/register.html') {
+                this.serveStaticFile(res, 'register.html', 'text/html');
+            } else if (pathname === '/chat.html') {
+                this.serveStaticFile(res, 'chat.html', 'text/html');
+            } else if (pathname === '/gift.html') {
+                this.serveStaticFile(res, 'gift.html', 'text/html');
+            } else if (pathname === '/balance.html') {
+                this.serveStaticFile(res, 'balance.html', 'text/html');
+            } else if (pathname === '/settings.html') {
+                this.serveStaticFile(res, 'settings.html', 'text/html');
+            } else if (pathname === '/profile.html') {
+                this.serveStaticFile(res, 'profile.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
-                this.serveStaticFile(res, 'public' + pathname, 'text/css');
+                this.serveStaticFile(res, pathname.substring(1), 'text/css');
             } else if (pathname.endsWith('.js')) {
-                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
-                const ext = path.extname(pathname);
-                const contentType = {
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.gif': 'image/gif',
-                    '.svg': 'image/svg+xml',
-                    '.bmp': 'image/bmp',
-                    '.webp': 'image/webp',
-                    '.ico': 'image/x-icon',
-                    '.mp3': 'audio/mpeg',
-                    '.wav': 'audio/wav',
-                    '.ogg': 'audio/ogg',
-                    '.m4a': 'audio/mp4',
-                    '.aac': 'audio/aac'
-                }[ext] || 'application/octet-stream';
-                
-                this.serveStaticFile(res, 'public' + pathname, contentType);
+                this.serveStaticFile(res, pathname.substring(1), 'application/javascript');
             } else {
-                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                // Для любых других маршрутов возвращаем index.html (для SPA)
+                this.serveStaticFile(res, 'index.html', 'text/html');
             }
         });
-
-        const wsServer = new WebSocketServer(server);
 
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
             console.log(`💾 Система сохранения данных активирована`);
-            console.log(`🔒 Данные пользователей защищены шифрованием`);
-            console.log(`📁 Поддержка загрузки файлов включена`);
-            console.log(`🎵 Музыкальный модуль активирован`);
-            console.log(`🛡️  Система банов по IP и устройствам активирована`);
-            console.log(`📱 Поддержка мобильной версии включена`);
-            console.log(`😊 Поддержка кастомных эмодзи включена`);
-            console.log(`🔔 Система push-уведомлений активирована`);
-            console.log(`\n👑 Особый пользователь:`);
-            console.log(`   - BayRex - получает права администратора при регистрации`);
+            console.log(`\n👑 Администраторы:`);
+            console.log(`   - admin / bayrex - получают права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
-            console.log(`   - Основное приложение: http://localhost:${port}/`);
-            console.log(`   - Страница входа: http://localhost:${port}/login.html`);
-            console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
-            console.log(`   - О проекте: http://localhost:${port}/about`);
-            console.log(`   - Мобильная версия: http://localhost:${port}/mobile`);
+            console.log(`   - Главная: http://localhost:${port}/`);
+            console.log(`   - Вход: http://localhost:${port}/login.html`);
+            console.log(`   - Регистрация: http://localhost:${port}/register.html`);
+            console.log(`   - Чат: http://localhost:${port}/chat.html`);
+            console.log(`   - Подарки: http://localhost:${port}/gift.html`);
+            console.log(`   - Баланс: http://localhost:${port}/balance.html`);
+            console.log(`   - Настройки: http://localhost:${port}/settings.html`);
+            console.log(`   - Профиль: http://localhost:${port}/profile.html`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
-            console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
-            console.log(`😊 Для использования эмодзи в сообщениях используйте синтаксис :имя_файла_эмодзи:`);
-            console.log(`🔔 Push-уведомления работают для: лайков, сообщений, подарков и удаления постов`);
         });
 
         return server;
