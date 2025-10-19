@@ -6,7 +6,6 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const sharp = require('sharp');
 
 const app = express();
 const server = http.createServer(app);
@@ -93,7 +92,11 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 50 * 1024 * 1024 // 50MB limit
+        fileSize: 100 * 1024 * 1024 // 100MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        // Разрешаем все типы файлов
+        cb(null, true);
     }
 });
 
@@ -103,7 +106,7 @@ function authenticateToken(req, res, next) {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ success: false, message: 'Токен доступа отсутствует' });
+        return res.status(401).json({ success: false, message: 'Требуется авторизация' });
     }
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -121,12 +124,37 @@ function generateToken(user) {
         { 
             userId: user.id, 
             username: user.username,
-            isAdmin: user.isAdmin || false
+            displayName: user.displayName,
+            isAdmin: user.isAdmin || false,
+            isVerified: user.isVerified || false,
+            isDeveloper: user.isDeveloper || false
         }, 
         JWT_SECRET, 
         { expiresIn: '24h' }
     );
 }
+
+// Middleware для проверки аутентификации на всех страницах
+app.use((req, res, next) => {
+    if (req.path === '/login.html' || req.path === '/api/register' || req.path === '/api/login' || req.path.startsWith('/uploads/')) {
+        return next();
+    }
+    
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.redirect('/login.html');
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.redirect('/login.html');
+        }
+        req.user = user;
+        next();
+    });
+});
 
 // API Routes
 
@@ -152,6 +180,9 @@ app.post('/api/register', async (req, res) => {
         // Хеширование пароля
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Специальные права для @BayRex
+        const isBayRex = username === '@BayRex';
+        
         // Создание пользователя
         const newUser = {
             id: Date.now().toString(),
@@ -160,10 +191,13 @@ app.post('/api/register', async (req, res) => {
             email,
             password: hashedPassword,
             eCoins: 1000, // Начальный баланс
-            isVerified: username === '@BayRex',
-            isDeveloper: username === '@BayRex',
-            isAdmin: username === '@BayRex',
+            isVerified: isBayRex,
+            isDeveloper: isBayRex,
+            isAdmin: isBayRex,
             avatar: null,
+            theme: 'dark',
+            notifications: true,
+            language: 'ru',
             createdAt: new Date().toISOString()
         };
 
@@ -187,7 +221,8 @@ app.post('/api/register', async (req, res) => {
                 isVerified: newUser.isVerified,
                 isDeveloper: newUser.isDeveloper,
                 isAdmin: newUser.isAdmin,
-                avatar: newUser.avatar
+                avatar: newUser.avatar,
+                theme: newUser.theme
             }
         });
 
@@ -235,7 +270,8 @@ app.post('/api/login', async (req, res) => {
                 isVerified: user.isVerified,
                 isDeveloper: user.isDeveloper,
                 isAdmin: user.isAdmin,
-                avatar: user.avatar
+                avatar: user.avatar,
+                theme: user.theme
             }
         });
 
@@ -245,8 +281,62 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// Получение данных пользователя
+app.get('/api/user', authenticateToken, (req, res) => {
+    try {
+        const user = users.find(u => u.id === req.user.userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+        }
+
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                eCoins: user.eCoins,
+                isVerified: user.isVerified,
+                isDeveloper: user.isDeveloper,
+                isAdmin: user.isAdmin,
+                avatar: user.avatar,
+                theme: user.theme,
+                notifications: user.notifications,
+                language: user.language
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка получения пользователя:', error);
+        res.status(500).json({ success: false, message: 'Ошибка загрузки данных' });
+    }
+});
+
+// Сохранение настроек
+app.post('/api/settings', authenticateToken, (req, res) => {
+    try {
+        const { theme, notifications, language } = req.body;
+        const user = users.find(u => u.id === req.user.userId);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+        }
+
+        if (theme) user.theme = theme;
+        if (notifications !== undefined) user.notifications = notifications;
+        if (language) user.language = language;
+
+        saveData();
+
+        res.json({ success: true, message: 'Настройки сохранены' });
+    } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+        res.status(500).json({ success: false, message: 'Ошибка сохранения настроек' });
+    }
+});
+
 // Получение постов
-app.get('/api/posts', (req, res) => {
+app.get('/api/posts', authenticateToken, (req, res) => {
     try {
         const postsWithUsers = posts.map(post => {
             const user = users.find(u => u.id === post.userId);
@@ -285,7 +375,8 @@ app.post('/api/posts/create', authenticateToken, upload.single('media'), (req, r
             media = {
                 type: fileType,
                 url: `/uploads/${req.file.filename}`,
-                filename: req.file.filename
+                filename: req.file.filename,
+                originalName: req.file.originalname
             };
         }
 
@@ -400,7 +491,7 @@ app.get('/api/chats', authenticateToken, (req, res) => {
 // Отправка сообщения
 app.post('/api/messages/send', authenticateToken, upload.single('file'), (req, res) => {
     try {
-        const { text } = req.body;
+        const { chatId, text, receiverId } = req.body;
         const userId = req.user.userId;
         const file = req.file;
 
@@ -414,23 +505,35 @@ app.post('/api/messages/send', authenticateToken, upload.single('file'), (req, r
 
         if (file) {
             const fileType = file.mimetype.split('/')[0];
-            messageType = fileType;
+            messageType = fileType === 'image' ? 'image' : 
+                         fileType === 'video' ? 'video' : 
+                         fileType === 'audio' ? 'audio' : 'file';
             media = {
-                type: fileType,
+                type: messageType,
                 url: `/uploads/${file.filename}`,
-                filename: file.filename
+                filename: file.filename,
+                originalName: file.originalname,
+                size: file.size
             };
         }
 
         // Создание или поиск чата
-        let chat = chats.find(c => c.participants.includes(userId));
-        if (!chat) {
+        let chat = chats.find(c => 
+            c.participants.includes(userId) && 
+            (receiverId ? c.participants.includes(receiverId) : c.id === chatId)
+        );
+
+        if (!chat && receiverId) {
             chat = {
                 id: Date.now().toString(),
-                participants: [userId],
+                participants: [userId, receiverId],
                 createdAt: new Date().toISOString()
             };
             chats.push(chat);
+        }
+
+        if (!chat) {
+            return res.status(404).json({ success: false, message: 'Чат не найден' });
         }
 
         const newMessage = {
@@ -447,14 +550,16 @@ app.post('/api/messages/send', authenticateToken, upload.single('file'), (req, r
         saveData();
 
         // Отправка через WebSocket
+        const sender = users.find(u => u.id === userId);
         io.emit('newMessage', {
             ...newMessage,
             sender: {
                 id: userId,
-                displayName: req.user.displayName,
-                username: req.user.username,
-                isVerified: req.user.isVerified,
-                isDeveloper: req.user.isDeveloper
+                displayName: sender.displayName,
+                username: sender.username,
+                isVerified: sender.isVerified,
+                isDeveloper: sender.isDeveloper,
+                avatar: sender.avatar
             }
         });
 
@@ -499,6 +604,50 @@ app.get('/api/users/:username/profile', authenticateToken, (req, res) => {
     try {
         const { username } = req.params;
         const user = users.find(u => u.username === username);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+        }
+
+        // Статистика пользователя
+        const userPosts = posts.filter(p => p.userId === user.id);
+        const totalLikes = userPosts.reduce((sum, post) => sum + post.likes, 0);
+        const userGiftsCount = userGifts.filter(g => g.receiverId === user.id).length;
+
+        const userPostsWithDetails = userPosts.map(post => ({
+            ...post,
+            liked: post.likedBy.includes(req.user.userId)
+        }));
+
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                isVerified: user.isVerified,
+                isDeveloper: user.isDeveloper,
+                avatar: user.avatar,
+                eCoins: user.eCoins,
+                createdAt: user.createdAt
+            },
+            stats: {
+                posts: userPosts.length,
+                likes: totalLikes,
+                gifts: userGiftsCount
+            },
+            posts: userPostsWithDetails
+        });
+    } catch (error) {
+        console.error('Ошибка получения профиля:', error);
+        res.status(500).json({ success: false, message: 'Ошибка загрузки профиля' });
+    }
+});
+
+// Получение моего профиля
+app.get('/api/profile/me', authenticateToken, (req, res) => {
+    try {
+        const user = users.find(u => u.id === req.user.userId);
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'Пользователь не найден' });
@@ -627,8 +776,9 @@ app.get('/api/admin/stats', authenticateToken, (req, res) => {
             totalUsers: users.length,
             totalPosts: posts.length,
             totalMessages: messages.length,
-            ping: Math.floor(Math.random() * 50) + 10, // Пример пинга
-            fps: Math.floor(Math.random() * 30) + 60 // Пример FPS
+            totalGifts: userGifts.length,
+            ping: Math.floor(Math.random() * 50) + 10,
+            fps: Math.floor(Math.random() * 30) + 60
         };
 
         res.json({ success: true, stats });
@@ -797,6 +947,38 @@ app.post('/api/admin/promo-codes', authenticateToken, (req, res) => {
     }
 });
 
+// Админ панель - создание подарков
+app.post('/api/admin/gifts', authenticateToken, (req, res) => {
+    try {
+        const user = users.find(u => u.id === req.user.userId);
+        if (!user || !user.isAdmin) {
+            return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+        }
+
+        const { name, price, preview } = req.body;
+
+        if (!name || !price || !preview) {
+            return res.status(400).json({ success: false, message: 'Все поля обязательны' });
+        }
+
+        const newGift = {
+            id: Date.now().toString(),
+            name,
+            price: parseInt(price),
+            preview,
+            createdAt: new Date().toISOString()
+        };
+
+        gifts.push(newGift);
+        saveData();
+
+        res.json({ success: true, message: 'Подарок создан', gift: newGift });
+    } catch (error) {
+        console.error('Ошибка создания подарка:', error);
+        res.status(500).json({ success: false, message: 'Ошибка создания подарка' });
+    }
+});
+
 // Активация промокода
 app.post('/api/promo-codes/activate', authenticateToken, (req, res) => {
     try {
@@ -831,32 +1013,43 @@ app.post('/api/promo-codes/activate', authenticateToken, (req, res) => {
 
 // Инициализация данных
 function initializeData() {
-    // Создание начальных подарков
+    // Создание тестовых подарков
     if (gifts.length === 0) {
         gifts = [
             {
                 id: '1',
                 name: 'Сердечко',
-                price: 100,
-                preview: '❤️'
+                price: 10,
+                preview: '/assets/gift.svg',
+                createdAt: new Date().toISOString()
             },
             {
                 id: '2',
                 name: 'Звезда',
-                price: 200,
-                preview: '⭐'
+                price: 50,
+                preview: '/assets/gift.svg',
+                createdAt: new Date().toISOString()
             },
             {
                 id: '3',
-                name: 'Подарок',
-                price: 500,
-                preview: '🎁'
-            },
-            {
-                id: '4',
                 name: 'Корона',
-                price: 1000,
-                preview: '👑'
+                price: 100,
+                preview: '/assets/gift.svg',
+                createdAt: new Date().toISOString()
+            }
+        ];
+    }
+
+    // Создание тестовых промокодов
+    if (promoCodes.length === 0) {
+        promoCodes = [
+            {
+                id: '1',
+                code: 'WELCOME100',
+                reward: 100,
+                uses: 0,
+                maxUses: 1000,
+                createdAt: new Date().toISOString()
             }
         ];
     }
@@ -868,10 +1061,6 @@ function initializeData() {
 io.on('connection', (socket) => {
     console.log('Пользователь подключился');
 
-    socket.on('disconnect', () => {
-        console.log('Пользователь отключился');
-    });
-
     socket.on('joinChat', (chatId) => {
         socket.join(chatId);
     });
@@ -879,19 +1068,10 @@ io.on('connection', (socket) => {
     socket.on('leaveChat', (chatId) => {
         socket.leave(chatId);
     });
-});
 
-// Защита маршрутов
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.get('/about.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'about.html'));
+    socket.on('disconnect', () => {
+        console.log('Пользователь отключился');
+    });
 });
 
 // Запуск сервера
@@ -900,5 +1080,4 @@ initializeData();
 
 server.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
-    console.log(`Epic Messenger готов к работе!`);
 });
