@@ -178,14 +178,6 @@
         const captchaInput = document.getElementById('captchaInput');
         const refreshCaptcha = document.getElementById('refreshCaptcha');
 
-        // Проверка авторизации
-        function checkAuth() {
-            const token = localStorage.getItem('authToken');
-            if (token) {
-                window.location.href = '/';
-            }
-        }
-
         // Генерация случайного кода капчи
         function generateCaptcha() {
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -214,7 +206,7 @@
             loginForm.style.display = 'none';
             registerForm.style.display = 'block';
             errorMessage.textContent = '';
-            updateCaptcha();
+            updateCaptcha(); // Обновляем капчу при переключении
         });
 
         switchToLogin.addEventListener('click', (e) => {
@@ -240,8 +232,6 @@
 
                 if (data.success) {
                     localStorage.setItem('authToken', data.token);
-                    localStorage.setItem('deviceId', data.deviceId);
-                    localStorage.setItem('userData', JSON.stringify(data.user));
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.message;
@@ -259,6 +249,7 @@
             const password = document.getElementById('regPassword').value;
             const captcha = captchaInput.value;
 
+            // Проверка капчи
             if (captcha !== captchaCode.textContent) {
                 errorMessage.textContent = 'Неверный код с картинки';
                 updateCaptcha();
@@ -276,21 +267,16 @@
 
                 if (data.success) {
                     localStorage.setItem('authToken', data.token);
-                    localStorage.setItem('deviceId', data.deviceId);
-                    localStorage.setItem('userData', JSON.stringify(data.user));
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.message;
-                    updateCaptcha();
+                    updateCaptcha(); // Обновляем капчу при ошибке
                 }
             } catch (error) {
                 errorMessage.textContent = 'Ошибка соединения';
-                updateCaptcha();
+                updateCaptcha(); // Обновляем капчу при ошибке
             }
         });
-
-        // Проверить авторизацию при загрузке
-        checkAuth();
     </script>
 </body>
 </html>
