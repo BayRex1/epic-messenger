@@ -2755,7 +2755,9 @@ class SimpleServer {
             if (pathname === '/' || pathname === '/index.html') {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/login.html') {
-                this.serveStaticFile(res, 'public/login.html', 'text/html');
+                this.serveStaticFile(res, 'login.html', 'text/html');
+            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
+                this.serveStaticFile(res, 'mobile.html', 'text/html');
             } else if (pathname === '/about.html' || pathname === '/about') {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname === '/music.html' || pathname === '/music') {
@@ -2803,6 +2805,7 @@ class SimpleServer {
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
+            console.log(`   - Мобильная версия: http://localhost:${port}/mobile.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
