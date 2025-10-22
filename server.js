@@ -34,6 +34,7 @@ class WebSocketServer {
         const client = {
             id: clientId,
             socket: socket,
+            userId: null,
             rooms: new Set()
         };
         
@@ -45,7 +46,7 @@ class WebSocketServer {
         
         socket.on('close', () => {
             this.clients.delete(clientId);
-            this.broadcast('user_offline', { userId: clientId });
+            this.broadcast('user_offline', { userId: client.userId });
         });
         
         socket.on('error', () => {
@@ -69,6 +70,11 @@ class WebSocketServer {
         try {
             const message = this.decodeMessage(data);
             if (message && message.type && message.data) {
+                if (message.type === 'authenticate') {
+                    this.clients.get(clientId).userId = message.data.userId;
+                    return;
+                }
+                
                 this.broadcast(message.type, message.data, clientId);
             }
         } catch (error) {
@@ -77,32 +83,37 @@ class WebSocketServer {
     }
 
     decodeMessage(buffer) {
-        const firstByte = buffer.readUInt8(0);
-        const secondByte = buffer.readUInt8(1);
-        
-        const isFinalFrame = Boolean(firstByte & 0x80);
-        const opcode = firstByte & 0x0F;
-        
-        let payloadLength = secondByte & 0x7F;
-        let maskStart = 2;
-        
-        if (payloadLength === 126) {
-            payloadLength = buffer.readUInt16BE(2);
-            maskStart = 4;
-        } else if (payloadLength === 127) {
-            payloadLength = Number(buffer.readBigUInt64BE(2));
-            maskStart = 10;
+        try {
+            const firstByte = buffer.readUInt8(0);
+            const secondByte = buffer.readUInt8(1);
+            
+            const isFinalFrame = Boolean(firstByte & 0x80);
+            const opcode = firstByte & 0x0F;
+            
+            let payloadLength = secondByte & 0x7F;
+            let maskStart = 2;
+            
+            if (payloadLength === 126) {
+                payloadLength = buffer.readUInt16BE(2);
+                maskStart = 4;
+            } else if (payloadLength === 127) {
+                payloadLength = Number(buffer.readBigUInt64BE(2));
+                maskStart = 10;
+            }
+            
+            const masks = buffer.slice(maskStart, maskStart + 4);
+            const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
+            
+            const decoded = Buffer.alloc(payloadLength);
+            for (let i = 0; i < payloadLength; i++) {
+                decoded[i] = payload[i] ^ masks[i % 4];
+            }
+            
+            return JSON.parse(decoded.toString());
+        } catch (error) {
+            console.log('WebSocket decode error:', error);
+            return null;
         }
-        
-        const masks = buffer.slice(maskStart, maskStart + 4);
-        const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
-        
-        const decoded = Buffer.alloc(payloadLength);
-        for (let i = 0; i < payloadLength; i++) {
-            decoded[i] = payload[i] ^ masks[i % 4];
-        }
-        
-        return JSON.parse(decoded.toString());
     }
 
     encodeMessage(data) {
@@ -146,6 +157,14 @@ class WebSocketServer {
         }
     }
 
+    sendToUser(userId, type, data) {
+        for (const [clientId, client] of this.clients) {
+            if (client.userId === userId) {
+                this.sendToClient(clientId, type, data);
+            }
+        }
+    }
+
     broadcast(type, data, excludeClientId = null) {
         for (const [clientId, client] of this.clients) {
             if (clientId !== excludeClientId) {
@@ -157,9 +176,9 @@ class WebSocketServer {
 
 class SimpleServer {
     constructor() {
-        // Используем /tmp для Render, так как он сохраняется между деплоями
         this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
+        this.activeCalls = new Map();
         
         this.ensureUploadDirs();
         this.loadData();
@@ -180,7 +199,6 @@ class SimpleServer {
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
                 
-                // Восстанавливаем даты
                 this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
                 this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
                 this.users.forEach(user => {
@@ -226,12 +244,10 @@ class SimpleServer {
     }
 
     setupAutoSave() {
-        // Сохраняем каждые 30 секунд
         setInterval(() => {
             this.saveData();
         }, 30000);
 
-        // Сохраняем при graceful shutdown
         process.on('SIGINT', () => {
             console.log('🔄 Получен SIGINT, сохраняем данные...');
             this.saveData();
@@ -244,7 +260,6 @@ class SimpleServer {
             process.exit(0);
         });
 
-        // Сохраняем при необработанных ошибках
         process.on('uncaughtException', (error) => {
             console.log('🚨 Необработанная ошибка, сохраняем данные...', error);
             this.saveData();
@@ -262,7 +277,7 @@ class SimpleServer {
             'public/uploads/gifts',
             'public/uploads/posts',
             'public/assets/emoji',
-            '/tmp' // Убедимся что папка tmp существует
+            '/tmp'
         ];
         
         requiredDirs.forEach(dir => {
@@ -274,6 +289,144 @@ class SimpleServer {
         });
     }
 
+    // СИСТЕМА ЗВОНКОВ - НОВЫЕ МЕТОДЫ
+    handleCallOffer(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { targetUserId, offer, isVideo } = data;
+        
+        const targetUser = this.users.find(u => u.id === targetUserId);
+        if (!targetUser || targetUser.banned) {
+            return { success: false, message: 'Пользователь недоступен' };
+        }
+
+        const callId = this.generateId();
+        
+        const callData = {
+            id: callId,
+            callerId: user.id,
+            callerName: user.displayName,
+            callerAvatar: user.avatar,
+            targetUserId: targetUserId,
+            offer: offer,
+            isVideo: isVideo,
+            status: 'waiting',
+            createdAt: new Date()
+        };
+
+        this.activeCalls.set(callId, callData);
+
+        this.wsServer.sendToUser(targetUserId, 'incoming_call', {
+            callId: callId,
+            callerId: user.id,
+            callerName: user.displayName,
+            callerAvatar: user.avatar,
+            isVideo: isVideo,
+            offer: offer
+        });
+
+        return {
+            success: true,
+            callId: callId,
+            message: 'Звонок отправлен'
+        };
+    }
+
+    handleCallAnswer(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { callId, answer } = data;
+        const call = this.activeCalls.get(callId);
+        
+        if (!call) {
+            return { success: false, message: 'Звонок не найден' };
+        }
+
+        if (call.targetUserId !== user.id) {
+            return { success: false, message: 'Нет доступа к этому звонку' };
+        }
+
+        call.status = 'answered';
+        call.answer = answer;
+
+        this.wsServer.sendToUser(call.callerId, 'call_accepted', {
+            callId: callId,
+            answer: answer
+        });
+
+        return {
+            success: true,
+            message: 'Звонок принят'
+        };
+    }
+
+    handleCallReject(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { callId, reason = 'Занято' } = data;
+        const call = this.activeCalls.get(callId);
+        
+        if (!call) {
+            return { success: false, message: 'Звонок не найден' };
+        }
+
+        this.wsServer.sendToUser(call.callerId, 'call_rejected', {
+            callId: callId,
+            reason: reason
+        });
+
+        this.activeCalls.delete(callId);
+        return { success: true, message: 'Звонок отклонен' };
+    }
+
+    handleCallEnd(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { callId } = data;
+        const call = this.activeCalls.get(callId);
+        
+        if (!call) {
+            return { success: false, message: 'Звонок не найден' };
+        }
+
+        const otherUserId = call.callerId === user.id ? call.targetUserId : call.callerId;
+        this.wsServer.sendToUser(otherUserId, 'call_ended', {
+            callId: callId
+        });
+
+        this.activeCalls.delete(callId);
+        return { success: true, message: 'Звонок завершен' };
+    }
+
+    handleIceCandidate(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { callId, candidate, targetUserId } = data;
+        
+        this.wsServer.sendToUser(targetUserId, 'ice_candidate', {
+            callId: callId,
+            candidate: candidate
+        });
+
+        return { success: true };
+    }
+
+    // СУЩЕСТВУЮЩИЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
     validateMusicFile(filename) {
         const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
         const ext = path.extname(filename).toLowerCase();
@@ -362,7 +515,7 @@ class SimpleServer {
             bannedAt: new Date(),
             expires: Date.now() + duration
         });
-        this.saveData(); // Сохраняем при изменении банов
+        this.saveData();
     }
 
     validateAvatarFile(filename) {
@@ -388,10 +541,9 @@ class SimpleServer {
         
         let sanitized = content;
 
-        // Удаляем HTML теги и опасные атрибуты
         sanitized = sanitized
-            .replace(/<[^>]*>/g, '') // Удаляем все HTML теги
-            .replace(/&[^;]+;/g, '') // Удаляем HTML entities
+            .replace(/<[^>]*>/g, '')
+            .replace(/&[^;]+;/g, '')
             .replace(/javascript:/gi, '[БЛОК]')
             .replace(/data:/gi, '[БЛОК]')
             .replace(/vbscript:/gi, '[БЛОК]')
@@ -399,7 +551,6 @@ class SimpleServer {
             .replace(/on\w+='[^']*'/gi, '')
             .replace(/on\w+=\w+/gi, '');
 
-        // Фильтрация по опасным ключевым словам (регистронезависимая)
         const dangerousKeywords = [
             'script', 'iframe', 'object', 'embed', 'link', 'meta', 'style',
             'expression', 'eval', 'exec', 'compile', 'function constructor',
@@ -415,7 +566,6 @@ class SimpleServer {
             sanitized = sanitized.replace(regex, '[БЛОК]');
         });
 
-        // Фильтрация опасных паттернов
         const dangerousPatterns = [
             /<script[\s\S]*?<\/script>/gi,
             /<iframe[\s\S]*?<\/iframe>/gi,
@@ -447,13 +597,9 @@ class SimpleServer {
             sanitized = sanitized.replace(pattern, '[БЛОК]');
         });
 
-        // Фильтрация IP-адресов (опционально)
         sanitized = sanitized.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP]');
-
-        // Фильтрация URL (только явные http/https ссылки)
         sanitized = sanitized.replace(/(https?|ftp):\/\/[^\s<>{}\[\]"']+/gi, '[ССЫЛКА]');
 
-        // Удаляем лишние пробелы и обрезаем длину
         sanitized = sanitized.trim();
 
         if (sanitized.length > 5000) {
@@ -604,7 +750,7 @@ class SimpleServer {
         }
         
         this.devices.set(deviceId, device);
-        this.saveData(); // Сохраняем при добавлении устройства
+        this.saveData();
         return device;
     }
 
@@ -626,13 +772,13 @@ class SimpleServer {
         
         if (targetDevice.isOwner || isOwner) {
             this.devices.delete(deviceId);
-            this.saveData(); // Сохраняем при удалении устройства
+            this.saveData();
             return true;
         } else {
             const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
             if (timeDiff > 24 * 60 * 60 * 1000) {
                 this.devices.delete(deviceId);
-                this.saveData(); // Сохраняем при удалении устройства
+                this.saveData();
                 return true;
             }
             return false;
@@ -666,10 +812,7 @@ class SimpleServer {
         console.log(`=== API REQUEST ===`);
         console.log(`Method: ${method}`);
         console.log(`Path: ${pathname}`);
-        console.log(`Content-Type: ${req.headers['content-type']}`);
-        console.log(`Content-Length: ${req.headers['content-length']}`);
         
-        // Для multipart/form-data обрабатываем отдельно
         if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
             if (pathname === '/api/music/upload-full') {
                 this.handleUploadMusicFull(req, res);
@@ -687,17 +830,10 @@ class SimpleServer {
         req.on('end', () => {
             body += decoder.end();
             
-            // Для multipart/form-data не логируем тело, так как оно бинарное
-            if (req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
-                console.log(`Raw body:`, body);
-                console.log(`Body length: ${body.length}`);
-            }
-            
             let data = {};
             if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
                 try {
                     data = JSON.parse(body);
-                    console.log(`Parsed data:`, data);
                 } catch (e) {
                     console.log(`JSON parse error:`, e.message);
                 }
@@ -711,8 +847,6 @@ class SimpleServer {
 
     processApiRequest(pathname, method, data, query, req, res) {
         console.log(`🔄 Processing API: ${method} ${pathname}`);
-        console.log(`📦 Request data:`, data);
-        console.log(`❓ Query params:`, query);
         
         const headers = {
             'Content-Type': 'application/json',
@@ -891,9 +1025,39 @@ class SimpleServer {
                     }
                     break;
 
+                // НОВЫЕ API ДЛЯ ЗВОНКОВ
+                case '/api/call/offer':
+                    if (method === 'POST') {
+                        response = this.handleCallOffer(token, data);
+                    }
+                    break;
+                    
+                case '/api/call/answer':
+                    if (method === 'POST') {
+                        response = this.handleCallAnswer(token, data);
+                    }
+                    break;
+                    
+                case '/api/call/reject':
+                    if (method === 'POST') {
+                        response = this.handleCallReject(token, data);
+                    }
+                    break;
+                    
+                case '/api/call/end':
+                    if (method === 'POST') {
+                        response = this.handleCallEnd(token, data);
+                    }
+                    break;
+                    
+                case '/api/call/ice-candidate':
+                    if (method === 'POST') {
+                        response = this.handleIceCandidate(token, data);
+                    }
+                    break;
+
                 // API для музыки
                 case '/api/music/upload-full':
-                    // Обрабатывается в handleApiRequest для multipart/form-data
                     if (method === 'POST') {
                         response = { success: false, message: 'Multipart request already processed' };
                     }
@@ -985,12 +1149,11 @@ class SimpleServer {
             response = { success: false, message: 'Method not allowed' };
         }
 
-        console.log(`📤 Response data:`, response);
-        
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
     }
 
+    // СУЩЕСТВУЮЩИЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
     handleUploadMusicFull(req, res) {
         console.log('🎵 Начало обработки загрузки музыки...');
 
@@ -1050,9 +1213,9 @@ class SimpleServer {
             const bb = busboy({ 
                 headers: req.headers,
                 limits: {
-                    fileSize: 50 * 1024 * 1024, // 50MB максимум
-                    files: 2, // максимум 2 файла (аудио + обложка)
-                    fields: 10 // максимум 10 полей
+                    fileSize: 50 * 1024 * 1024,
+                    files: 2,
+                    fields: 10
                 }
             });
             
@@ -1130,7 +1293,6 @@ class SimpleServer {
                 console.log('🔚 Завершение обработки формы');
                 console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
                 
-                // Даем немного времени на завершение обработки файлов
                 setTimeout(async () => {
                     try {
                         if (!audioFile) {
@@ -1145,7 +1307,6 @@ class SimpleServer {
 
                         console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
 
-                        // Сохраняем аудио файл
                         const audioExt = path.extname(audioFile.filename);
                         const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
                         const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
@@ -1156,7 +1317,6 @@ class SimpleServer {
                             const audioUrl = `/uploads/music/${audioFilename}`;
                             console.log('✅ Аудио файл сохранен');
 
-                            // Сохраняем обложку если есть
                             let coverUrl = null;
                             if (coverFile && coverFile.filename) {
                                 const coverExt = path.extname(coverFile.filename);
@@ -1169,7 +1329,6 @@ class SimpleServer {
                                 console.log('✅ Обложка сохранена');
                             }
 
-                            // Сохраняем метаданные трека
                             const track = {
                                 id: this.generateId(),
                                 userId: user.id,
@@ -1185,7 +1344,7 @@ class SimpleServer {
                             };
 
                             this.music.unshift(track);
-                            this.saveData(); // Сохраняем данные
+                            this.saveData();
 
                             console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
 
@@ -1208,7 +1367,7 @@ class SimpleServer {
                         console.error('❌ Ошибка при обработке формы:', error);
                         sendErrorResponse('Ошибка при обработке формы: ' + error.message);
                     }
-                }, 100); // Небольшая задержка для завершения всех операций
+                }, 100);
             });
 
             bb.on('error', (error) => {
@@ -1216,7 +1375,6 @@ class SimpleServer {
                 sendErrorResponse('Ошибка обработки формы: ' + error.message);
             });
 
-            // Обработка ошибок запроса
             req.on('error', (error) => {
                 console.error('❌ Ошибка запроса:', error);
                 sendErrorResponse('Ошибка запроса: ' + error.message);
@@ -1226,16 +1384,14 @@ class SimpleServer {
                 console.log('📨 Запрос полностью получен');
             });
 
-            // Таймаут обработки
             const timeout = setTimeout(() => {
                 console.error('⏰ Таймаут обработки запроса');
                 sendErrorResponse('Таймаут обработки запроса', 408);
-            }, 60000); // 60 секунд
+            }, 60000);
 
             console.log('🔄 Начинаем парсинг формы...');
             req.pipe(bb);
 
-            // Очистка таймаута при успешной обработке
             bb.on('close', () => {
                 clearTimeout(timeout);
                 console.log('✅ Таймаут очищен');
@@ -1247,7 +1403,6 @@ class SimpleServer {
         }
     }
 
-    // Методы для музыки
     handleGetMusic(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1301,7 +1456,7 @@ class SimpleServer {
         };
 
         this.music.unshift(track);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
 
@@ -1400,7 +1555,7 @@ class SimpleServer {
         }
 
         this.music.splice(trackIndex, 1);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Трек удален: ${track.title}`);
 
@@ -1516,7 +1671,7 @@ class SimpleServer {
         };
 
         this.playlists.push(playlist);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Создан плейлист: ${sanitizedName}`);
 
@@ -1554,7 +1709,7 @@ class SimpleServer {
             playlist.cover = track.coverUrl;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
 
@@ -1564,7 +1719,6 @@ class SimpleServer {
         };
     }
 
-    // Остальные методы
     handleLogin(data, req) {
         const { username, password } = data;
         const hashedPassword = this.hashPassword(password);
@@ -1587,7 +1741,7 @@ class SimpleServer {
 
         user.status = 'online';
         user.lastSeen = new Date();
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         return {
             success: true,
@@ -1675,7 +1829,7 @@ class SimpleServer {
         this.users.push(newUser);
 
         const device = this.registerDevice(newUser.id, req);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
@@ -1728,7 +1882,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
-            this.saveData(); // Сохраняем данные
+            this.saveData();
         }
 
         return {
@@ -1773,7 +1927,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
-            this.saveData(); // Сохраняем данные
+            this.saveData();
         }
 
         return {
@@ -1920,7 +2074,7 @@ class SimpleServer {
         };
 
         this.messages.push(message);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
 
@@ -1999,7 +2153,7 @@ class SimpleServer {
 
         this.posts.unshift(post);
         user.postsCount = (user.postsCount || 0) + 1;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`📝 Новый пост от ${user.displayName}`);
 
@@ -2045,7 +2199,7 @@ class SimpleServer {
             postUser.postsCount--;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
 
@@ -2075,7 +2229,7 @@ class SimpleServer {
             console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         return {
             success: true,
@@ -2120,7 +2274,7 @@ class SimpleServer {
         };
 
         this.gifts.push(gift);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
 
@@ -2183,7 +2337,7 @@ class SimpleServer {
 
         recipient.giftsCount = (recipient.giftsCount || 0) + 1;
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
 
@@ -2235,7 +2389,7 @@ class SimpleServer {
         };
 
         this.promoCodes.push(promoCode);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
 
@@ -2265,7 +2419,7 @@ class SimpleServer {
 
         user.coins += promoCode.coins;
         promoCode.used_count++;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
 
@@ -2310,7 +2464,7 @@ class SimpleServer {
             user.email = sanitizedEmail;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
@@ -2350,7 +2504,7 @@ class SimpleServer {
         }
 
         user.avatar = avatar;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
 
@@ -2404,7 +2558,7 @@ class SimpleServer {
             }
 
             user.avatar = fileUrl;
-            this.saveData(); // Сохраняем данные
+            this.saveData();
 
             console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
@@ -2588,7 +2742,7 @@ class SimpleServer {
         });
 
         this.users = this.users.filter(u => u.id !== userId);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
 
@@ -2625,7 +2779,7 @@ class SimpleServer {
             }
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
 
@@ -2649,7 +2803,7 @@ class SimpleServer {
         }
 
         targetUser.verified = !targetUser.verified;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
 
@@ -2674,7 +2828,7 @@ class SimpleServer {
         }
 
         targetUser.isDeveloper = !targetUser.isDeveloper;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
 
@@ -2788,13 +2942,14 @@ class SimpleServer {
             }
         });
 
-        const wsServer = new WebSocketServer(server);
+        this.wsServer = new WebSocketServer(server);
 
         server.listen(port, () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
             console.log(`💾 Система сохранения данных активирована`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
+            console.log(`📞 Система видеозвонков активирована`);
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
@@ -2806,7 +2961,6 @@ class SimpleServer {
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
-            console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
         });
 
         return server;
