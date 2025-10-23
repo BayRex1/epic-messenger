@@ -990,6 +990,10 @@
             overflow: hidden;
         }
 
+        .post-user-info {
+            flex: 1;
+        }
+
         .post-user-info h4 {
             font-size: 14px;
             display: flex;
@@ -2248,6 +2252,11 @@
     </style>
 </head>
 <body class="theme-dark">
+    <!-- Кнопка для тестирования звонков (временно) -->
+    <button onclick="testIncomingCall()" style="position: fixed; top: 10px; right: 10px; z-index: 10000; padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Тест входящего звонка
+    </button>
+
     <!-- Сайдбар (полностью сохранен из оригинала) -->
     <div class="sidebar" id="sidebar">
         <div class="profile-section" id="profileSection">
@@ -3286,14 +3295,37 @@
                 }
 
                 try {
+                    // Показываем модальное окно звонка
                     this.showCallModal(currentChat, isVideo, true);
                     
-                    // В реальном приложении здесь будет отправка запроса на сервер
-                    // const callData = await this.webrtcManager.startCall(currentChat.id, isVideo);
+                    // Отправляем запрос на сервер для инициации звонка
+                    const token = localStorage.getItem('authToken');
+                    const response = await fetch('/api/call/offer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            targetUserId: currentChat.id,
+                            offer: {}, // В реальном приложении здесь будет WebRTC offer
+                            isVideo: isVideo
+                        })
+                    });
                     
-                    this.updateCallStatus('Звонок...');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.currentCallId = data.callId;
+                        this.updateCallStatus('Звонок...');
+                        console.log('Звонок инициирован:', data.callId);
+                    } else {
+                        showNotification(`Ошибка звонка: ${data.message}`, 'error');
+                        this.hideCallModal();
+                    }
                     
                 } catch (error) {
+                    console.error('Ошибка начала звонка:', error);
                     showNotification(`Ошибка звонка: ${error.message}`, 'error');
                     this.hideCallModal();
                 }
@@ -3361,19 +3393,37 @@
                 try {
                     this.currentCallId = callData.callId;
                     
-                    // В реальном приложении здесь будет принятие звонка через WebRTC
-                    // const answer = await this.webrtcManager.acceptCall(callData.offer, callData.isVideo);
+                    // Отправляем ответ на сервер
+                    const token = localStorage.getItem('authToken');
+                    const response = await fetch('/api/call/answer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            callId: callData.callId,
+                            answer: {} // В реальном приложении здесь будет WebRTC answer
+                        })
+                    });
                     
-                    this.showCallModal(
-                        { 
-                            id: callData.callerId, 
-                            displayName: callData.callerName,
-                            avatar: callData.callerAvatar 
-                        }, 
-                        callData.isVideo, 
-                        false
-                    );
-                    this.updateCallStatus('Соединение установлено');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showCallModal(
+                            { 
+                                id: callData.callerId, 
+                                displayName: callData.callerName,
+                                avatar: callData.callerAvatar 
+                            }, 
+                            callData.isVideo, 
+                            false
+                        );
+                        this.updateCallStatus('Соединение установлено');
+                    } else {
+                        showNotification(`Ошибка принятия звонка: ${data.message}`, 'error');
+                        this.hideCallModal();
+                    }
                     
                 } catch (error) {
                     showNotification(`Ошибка принятия звонка: ${error.message}`, 'error');
@@ -3384,6 +3434,22 @@
             rejectCall(callId, reason = 'Отклонено') {
                 // В реальном приложении здесь будет отправка запроса на сервер
                 console.log(`Звонок ${callId} отклонен: ${reason}`);
+                
+                // Отправляем запрос на отклонение звонка
+                const token = localStorage.getItem('authToken');
+                fetch('/api/call/reject', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        callId: callId,
+                        reason: reason
+                    })
+                }).catch(error => {
+                    console.error('Ошибка отправки отклонения звонка:', error);
+                });
             }
 
             showCallModal(user, isVideo, isCaller) {
@@ -3438,8 +3504,22 @@
 
             async endCall() {
                 if (this.currentCallId) {
-                    // В реальном приложении здесь будет отправка запроса на сервер
-                    console.log(`Завершение звонка ${this.currentCallId}`);
+                    // Отправляем запрос на завершение звонка
+                    const token = localStorage.getItem('authToken');
+                    try {
+                        await fetch('/api/call/end', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                callId: this.currentCallId
+                            })
+                        });
+                    } catch (error) {
+                        console.error('Ошибка отправки завершения звонка:', error);
+                    }
                 }
                 
                 this.hideCallModal();
@@ -3488,6 +3568,11 @@
 
             startStatsMonitoring() {
                 // Мониторинг статистики звонка
+                this.statsInterval = setInterval(() => {
+                    // Имитация статистики
+                    document.getElementById('callPing').textContent = Math.floor(Math.random() * 50) + 20;
+                    document.getElementById('callQuality').textContent = 'Хорошее';
+                }, 2000);
             }
 
             stopStatsMonitoring() {
@@ -3534,6 +3619,20 @@
                     clearInterval(this.ringtoneInterval);
                     this.ringtoneInterval = null;
                 }
+            }
+        }
+
+        // Временная функция для тестирования входящих звонков
+        function testIncomingCall() {
+            if (window.callManager) {
+                window.callManager.showIncomingCall({
+                    callId: 'test-call-' + Date.now(),
+                    callerId: 'test-user-123',
+                    callerName: 'Тестовый пользователь',
+                    callerAvatar: null,
+                    isVideo: true,
+                    offer: {}
+                });
             }
         }
 
@@ -3820,7 +3919,37 @@
 
         // ... и так далее - ВЕСЬ ВАШ ОСТАЛЬНОЙ JavaScript КОД СОХРАНЕН ПОЛНОСТЬЮ ...
         // [Здесь должен быть весь ваш оригинальный JavaScript код]
-                    function initializeFileUploads() {
+        
+        // ВАЖНОЕ ИСПРАВЛЕНИЕ: Обновленная функция selectUser для установки window.currentChat
+        function selectUser(user) {
+            currentChat = user;
+            // Сохраняем в глобальную переменную для доступа из других функций
+            window.currentChat = user;
+            
+            // Обновляем информацию о чате
+            const currentChatName = document.getElementById('currentChatName');
+            const currentChatStatus = document.getElementById('currentChatStatus');
+            const currentChatAvatar = document.getElementById('currentChatAvatar');
+            
+            if (currentChatName) currentChatName.textContent = user.displayName || 'Пользователь';
+            if (currentChatStatus) {
+                currentChatStatus.textContent = user.status === 'online' ? 'В сети' : `Был(а) в сети ${new Date(user.lastSeen).toLocaleString()}`;
+            }
+            
+            if (currentChatAvatar) {
+                if (user.avatar) {
+                    currentChatAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                } else {
+                    currentChatAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
+                }
+            }
+            
+            // Загружаем сообщения
+            loadChatMessages(user.id);
+        }
+
+        // ОСТАЛЬНЫЕ ФУНКЦИИ БЕЗ ИЗМЕНЕНИЙ
+        function initializeFileUploads() {
             // Загрузка аватара
             const avatarFileInput = document.getElementById('avatarFileInput');
             const avatarUploadArea = document.getElementById('avatarUploadArea');
@@ -4219,31 +4348,6 @@
                 giftElement.addEventListener('click', () => buyGift(gift.id));
                 giftsShopList.appendChild(giftElement);
             });
-        }
-
-        function selectUser(user) {
-            currentChat = user;
-            
-            // Обновляем информацию о чате
-            const currentChatName = document.getElementById('currentChatName');
-            const currentChatStatus = document.getElementById('currentChatStatus');
-            const currentChatAvatar = document.getElementById('currentChatAvatar');
-            
-            if (currentChatName) currentChatName.textContent = user.displayName || 'Пользователь';
-            if (currentChatStatus) {
-                currentChatStatus.textContent = user.status === 'online' ? 'В сети' : `Был(а) в сети ${new Date(user.lastSeen).toLocaleString()}`;
-            }
-            
-            if (currentChatAvatar) {
-                if (user.avatar) {
-                    currentChatAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
-                } else {
-                    currentChatAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
-                }
-            }
-            
-            // Загружаем сообщения
-            loadChatMessages(user.id);
         }
 
         async function loadChatMessages(userId) {
