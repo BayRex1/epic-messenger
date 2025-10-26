@@ -179,6 +179,7 @@ class SimpleServer {
                 this.playlists = data.playlists || [];
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
+                this.groups = data.groups || []; // Добавляем группы
                 
                 // Восстанавливаем даты
                 this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
@@ -189,9 +190,10 @@ class SimpleServer {
                 });
                 this.music.forEach(track => track.createdAt = new Date(track.createdAt));
                 this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
+                this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
                 
                 console.log('✅ Данные загружены из файла');
-                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов`);
+                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.groups.length} групп`);
             } else {
                 console.log('📁 Файл данных не найден, инициализируем пустые данные');
                 this.initializeData();
@@ -215,6 +217,7 @@ class SimpleServer {
                 playlists: this.playlists,
                 bannedIPs: Object.fromEntries(this.bannedIPs),
                 devices: Object.fromEntries(this.devices),
+                groups: this.groups, // Сохраняем группы
                 lastSave: new Date().toISOString()
             };
             
@@ -261,8 +264,12 @@ class SimpleServer {
             'public/uploads/avatars',
             'public/uploads/gifts',
             'public/uploads/posts',
+            'public/uploads/images',
+            'public/uploads/videos',
+            'public/uploads/audio',
+            'public/uploads/files',
             'public/assets/emoji',
-            '/tmp' // Убедимся что папка tmp существует
+            '/tmp'
         ];
         
         requiredDirs.forEach(dir => {
@@ -284,6 +291,33 @@ class SimpleServer {
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
+    }
+
+    validateImageFile(filename) {
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    validateVideoFile(filename) {
+        const allowedExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    validateAudioFile(filename) {
+        const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    validateFileType(filename, fileType) {
+        switch (fileType) {
+            case 'image': return this.validateImageFile(filename);
+            case 'video': return this.validateVideoFile(filename);
+            case 'audio': return this.validateAudioFile(filename);
+            default: return false;
+        }
     }
 
     encrypt(text) {
@@ -362,7 +396,7 @@ class SimpleServer {
             bannedAt: new Date(),
             expires: Date.now() + duration
         });
-        this.saveData(); // Сохраняем при изменении банов
+        this.saveData();
     }
 
     validateAvatarFile(filename) {
@@ -378,7 +412,7 @@ class SimpleServer {
     }
 
     validatePostFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.mp4', '.avi', '.mov', '.mp3', '.wav'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -472,6 +506,10 @@ class SimpleServer {
                 else if (type === 'post') uploadDir = 'uploads/posts';
                 else if (type === 'music') uploadDir = 'uploads/music';
                 else if (type === 'music/covers') uploadDir = 'uploads/music/covers';
+                else if (type === 'images') uploadDir = 'uploads/images';
+                else if (type === 'videos') uploadDir = 'uploads/videos';
+                else if (type === 'audio') uploadDir = 'uploads/audio';
+                else if (type === 'files') uploadDir = 'uploads/files';
 
                 const filePath = path.join(__dirname, 'public', uploadDir, filename);
                 
@@ -557,6 +595,9 @@ class SimpleServer {
                 userId: 'system',
                 text: 'Добро пожаловать в Epic Messenger! 🚀',
                 image: null,
+                file: null,
+                fileName: null,
+                fileType: null,
                 likes: [],
                 comments: [],
                 views: 0,
@@ -566,6 +607,7 @@ class SimpleServer {
 
         this.music = [];
         this.playlists = [];
+        this.groups = []; // Инициализируем группы
 
         this.messages = [];
         this.bannedIPs = new Map();
@@ -604,7 +646,7 @@ class SimpleServer {
         }
         
         this.devices.set(deviceId, device);
-        this.saveData(); // Сохраняем при добавлении устройства
+        this.saveData();
         return device;
     }
 
@@ -626,13 +668,13 @@ class SimpleServer {
         
         if (targetDevice.isOwner || isOwner) {
             this.devices.delete(deviceId);
-            this.saveData(); // Сохраняем при удалении устройства
+            this.saveData();
             return true;
         } else {
             const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
             if (timeDiff > 24 * 60 * 60 * 1000) {
                 this.devices.delete(deviceId);
-                this.saveData(); // Сохраняем при удалении устройства
+                this.saveData();
                 return true;
             }
             return false;
@@ -764,6 +806,12 @@ class SimpleServer {
                         response = this.handleGetUsers(token);
                     }
                     break;
+
+                case '/api/chats':
+                    if (method === 'GET') {
+                        response = this.handleGetChats(token);
+                    }
+                    break;
                     
                 case '/api/messages':
                     if (method === 'GET') {
@@ -774,6 +822,12 @@ class SimpleServer {
                 case '/api/messages/send':
                     if (method === 'POST') {
                         response = this.handleSendMessage(token, data);
+                    }
+                    break;
+
+                case '/api/messages/mark-read':
+                    if (method === 'POST') {
+                        response = this.handleMarkAsRead(token, data);
                     }
                     break;
                     
@@ -843,6 +897,12 @@ class SimpleServer {
                     }
                     break;
 
+                case '/api/upload-file':
+                    if (method === 'POST') {
+                        response = this.handleUploadFile(token, data);
+                    }
+                    break;
+
                 case '/api/admin/stats':
                     if (method === 'GET') {
                         response = this.handleAdminStats(token);
@@ -888,6 +948,33 @@ class SimpleServer {
                 case '/api/devices/terminate':
                     if (method === 'POST') {
                         response = this.handleTerminateDevice(token, data);
+                    }
+                    break;
+
+                case '/api/user-by-username':
+                    if (method === 'POST') {
+                        response = this.handleGetUserByUsername(token, data);
+                    }
+                    break;
+
+                case '/api/my-gifts':
+                    if (method === 'GET') {
+                        response = this.handleGetMyGifts(token);
+                    }
+                    break;
+
+                // API для групп
+                case '/api/groups':
+                    if (method === 'GET') {
+                        response = this.handleGetUserGroups(token);
+                    } else if (method === 'POST') {
+                        response = this.handleCreateGroup(token, data);
+                    }
+                    break;
+
+                case '/api/groups/add-member':
+                    if (method === 'POST') {
+                        response = this.handleAddToGroup(token, data);
                     }
                     break;
 
@@ -990,6 +1077,303 @@ class SimpleServer {
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
     }
+
+    // НОВЫЕ МЕТОДЫ ДЛЯ ФАЙЛОВ И ГРУПП
+
+    async handleUploadFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename, fileType } = data;
+        
+        // Проверяем тип файла
+        if (!this.validateFileType(filename, fileType)) {
+            return { success: false, message: 'Недопустимый тип файла' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, fileType + 's');
+
+            return {
+                success: true,
+                fileUrl: fileUrl,
+                fileName: filename,
+                fileType: fileType
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    handleGetChats(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // Находим всех пользователей, с которыми есть переписка
+        const chatUserIds = new Set();
+        this.messages.forEach(msg => {
+            if (msg.senderId === user.id) {
+                chatUserIds.add(msg.toUserId);
+            } else if (msg.toUserId === user.id) {
+                chatUserIds.add(msg.senderId);
+            }
+        });
+
+        const chatUsers = this.users
+            .filter(u => u.id !== user.id && chatUserIds.has(u.id))
+            .map(u => ({
+                id: u.id,
+                username: u.username,
+                displayName: u.displayName,
+                avatar: u.avatar,
+                description: u.description,
+                coins: u.coins,
+                verified: u.verified,
+                isDeveloper: u.isDeveloper,
+                status: u.status,
+                lastSeen: u.lastSeen,
+                createdAt: u.createdAt,
+                friendsCount: u.friendsCount || 0,
+                postsCount: u.postsCount || 0,
+                giftsCount: u.giftsCount || 0,
+                banned: u.banned || false,
+                lastMessage: this.getLastMessage(user.id, u.id),
+                unreadCount: this.getUnreadCount(user.id, u.id)
+            }));
+
+        // Сортируем по времени последнего сообщения
+        chatUsers.sort((a, b) => {
+            const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
+            const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
+            return timeB - timeA;
+        });
+
+        return {
+            success: true,
+            chats: chatUsers
+        };
+    }
+
+    getLastMessage(userId1, userId2) {
+        const messages = this.messages.filter(msg => 
+            (msg.senderId === userId1 && msg.toUserId === userId2) ||
+            (msg.senderId === userId2 && msg.toUserId === userId1)
+        );
+        
+        if (messages.length === 0) return null;
+        
+        return messages.reduce((latest, current) => 
+            new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
+        );
+    }
+
+    getUnreadCount(userId, otherUserId) {
+        return this.messages.filter(msg => 
+            msg.senderId === otherUserId && 
+            msg.toUserId === userId && 
+            !msg.read
+        ).length;
+    }
+
+    handleMarkAsRead(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fromUserId } = data;
+        
+        this.messages.forEach(msg => {
+            if (msg.senderId === fromUserId && msg.toUserId === user.id && !msg.read) {
+                msg.read = true;
+            }
+        });
+        
+        this.saveData();
+        
+        return {
+            success: true,
+            message: 'Сообщения отмечены как прочитанные'
+        };
+    }
+
+    handleGetUserByUsername(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { username } = data;
+        const targetUser = this.users.find(u => u.username === username);
+        
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        // Получаем подарки пользователя
+        const userGifts = this.messages
+            .filter(msg => msg.type === 'gift' && msg.toUserId === targetUser.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp
+            }));
+
+        // Получаем посты пользователя
+        const userPosts = this.posts.filter(post => post.userId === targetUser.id);
+
+        return {
+            success: true,
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                description: targetUser.description,
+                coins: targetUser.coins,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status,
+                lastSeen: targetUser.lastSeen,
+                createdAt: targetUser.createdAt,
+                friendsCount: targetUser.friendsCount || 0,
+                postsCount: targetUser.postsCount || 0,
+                giftsCount: targetUser.giftsCount || 0,
+                banned: targetUser.banned || false
+            },
+            gifts: userGifts,
+            posts: userPosts
+        };
+    }
+
+    handleGetMyGifts(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // Получаем подарки, которые подарили текущему пользователю
+        const myGifts = this.messages
+            .filter(msg => msg.type === 'gift' && msg.toUserId === user.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                giftPreview: msg.giftPreview,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp,
+                giftPrice: msg.giftPrice
+            }));
+
+        return {
+            success: true,
+            gifts: myGifts
+        };
+    }
+
+    // Методы для групп
+    handleCreateGroup(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { name, description, avatar } = data;
+        
+        if (!name || name.trim() === '') {
+            return { success: false, message: 'Название группы обязательно' };
+        }
+
+        const group = {
+            id: this.generateId(),
+            name: this.sanitizeContent(name.trim()),
+            description: description ? this.sanitizeContent(description) : '',
+            avatar: avatar || null,
+            ownerId: user.id,
+            members: [user.id],
+            admins: [user.id],
+            createdAt: new Date(),
+            isPublic: false
+        };
+
+        this.groups.push(group);
+        this.saveData();
+
+        console.log(`👥 Создана группа: ${group.name}`);
+
+        return {
+            success: true,
+            group: group
+        };
+    }
+
+    handleGetUserGroups(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const userGroups = this.groups.filter(group => 
+            group.members.includes(user.id)
+        );
+
+        return {
+            success: true,
+            groups: userGroups
+        };
+    }
+
+    handleAddToGroup(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { groupId, userId } = data;
+        
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) {
+            return { success: false, message: 'Группа не найдена' };
+        }
+
+        // Проверяем права
+        if (!group.admins.includes(user.id)) {
+            return { success: false, message: 'Недостаточно прав' };
+        }
+
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        if (group.members.includes(userId)) {
+            return { success: false, message: 'Пользователь уже в группе' };
+        }
+
+        group.members.push(userId);
+        this.saveData();
+
+        return {
+            success: true,
+            message: 'Пользователь добавлен в группу'
+        };
+    }
+
+    // ОСТАЛЬНЫЕ СУЩЕСТВУЮЩИЕ МЕТОДЫ...
 
     handleUploadMusicFull(req, res) {
         console.log('🎵 Начало обработки загрузки музыки...');
@@ -1185,7 +1569,7 @@ class SimpleServer {
                             };
 
                             this.music.unshift(track);
-                            this.saveData(); // Сохраняем данные
+                            this.saveData();
 
                             console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
 
@@ -1301,7 +1685,7 @@ class SimpleServer {
         };
 
         this.music.unshift(track);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
 
@@ -1400,7 +1784,7 @@ class SimpleServer {
         }
 
         this.music.splice(trackIndex, 1);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Трек удален: ${track.title}`);
 
@@ -1516,7 +1900,7 @@ class SimpleServer {
         };
 
         this.playlists.push(playlist);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Создан плейлист: ${sanitizedName}`);
 
@@ -1554,7 +1938,7 @@ class SimpleServer {
             playlist.cover = track.coverUrl;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
 
@@ -1587,7 +1971,7 @@ class SimpleServer {
 
         user.status = 'online';
         user.lastSeen = new Date();
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         return {
             success: true,
@@ -1675,7 +2059,7 @@ class SimpleServer {
         this.users.push(newUser);
 
         const device = this.registerDevice(newUser.id, req);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         if (isBayRex) {
             console.log(`👑 BayRex зарегистрирован с правами администратора!`);
@@ -1728,7 +2112,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
-            this.saveData(); // Сохраняем данные
+            this.saveData();
         }
 
         return {
@@ -1773,7 +2157,7 @@ class SimpleServer {
         const device = this.devices.get(deviceId);
         if (device && device.userId === user.id) {
             device.lastActive = new Date();
-            this.saveData(); // Сохраняем данные
+            this.saveData();
         }
 
         return {
@@ -1893,34 +2277,41 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { toUserId, text, type, image } = data;
+        const { toUserId, text, type, image, file, fileName, fileType } = data;
 
-        if (!text || text.trim() === '') {
+        // Проверяем что есть либо текст, либо файл
+        if ((!text || text.trim() === '') && !file && !image) {
             return { success: false, message: 'Сообщение не может быть пустым' };
         }
 
-        const sanitizedText = this.sanitizeContent(text.trim());
-
-        if (sanitizedText.length === 0) {
-            return { success: false, message: 'Сообщение содержит запрещенный контент' };
+        let sanitizedText = '';
+        if (text && text.trim() !== '') {
+            sanitizedText = this.sanitizeContent(text.trim());
+            if (sanitizedText.length === 0 && !file && !image) {
+                return { success: false, message: 'Сообщение содержит запрещенный контент' };
+            }
         }
 
-        const encryptedText = this.encrypt(sanitizedText);
+        const encryptedText = text ? this.encrypt(sanitizedText) : '';
 
         const message = {
             id: this.generateId(),
             senderId: user.id,
             toUserId: toUserId,
             text: encryptedText,
-            encrypted: true,
-            type: type || 'text',
+            encrypted: !!text,
+            type: type || (file ? 'file' : 'text'),
             image: image || null,
+            file: file || null,
+            fileName: fileName || null,
+            fileType: fileType || null,
             timestamp: new Date(),
-            displayName: user.displayName
+            displayName: user.displayName,
+            read: false
         };
 
         this.messages.push(message);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
 
@@ -1974,16 +2365,19 @@ class SimpleServer {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { text, image } = data;
+        const { text, image, file, fileName, fileType } = data;
         
-        if (!text || text.trim() === '') {
+        // Проверяем что есть либо текст, либо файл
+        if ((!text || text.trim() === '') && !file && !image) {
             return { success: false, message: 'Текст поста не может быть пустым' };
         }
 
-        const sanitizedText = this.sanitizeContent(text.trim());
-
-        if (sanitizedText.length === 0) {
-            return { success: false, message: 'Текст поста содержит запрещенный контент' };
+        let sanitizedText = '';
+        if (text && text.trim() !== '') {
+            sanitizedText = this.sanitizeContent(text.trim());
+            if (sanitizedText.length === 0 && !file && !image) {
+                return { success: false, message: 'Текст поста содержит запрещенный контент' };
+            }
         }
 
         const post = {
@@ -1991,6 +2385,9 @@ class SimpleServer {
             userId: user.id,
             text: sanitizedText,
             image: image,
+            file: file,
+            fileName: fileName,
+            fileType: fileType,
             likes: [],
             comments: [],
             views: 0,
@@ -1999,7 +2396,7 @@ class SimpleServer {
 
         this.posts.unshift(post);
         user.postsCount = (user.postsCount || 0) + 1;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`📝 Новый пост от ${user.displayName}`);
 
@@ -2038,6 +2435,10 @@ class SimpleServer {
             this.deleteFile(post.image);
         }
 
+        if (post.file && post.file.startsWith('/uploads/')) {
+            this.deleteFile(post.file);
+        }
+
         this.posts.splice(postIndex, 1);
 
         const postUser = this.users.find(u => u.id === post.userId);
@@ -2045,7 +2446,7 @@ class SimpleServer {
             postUser.postsCount--;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
 
@@ -2075,7 +2476,7 @@ class SimpleServer {
             console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         return {
             success: true,
@@ -2120,7 +2521,7 @@ class SimpleServer {
         };
 
         this.gifts.push(gift);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
 
@@ -2167,7 +2568,8 @@ class SimpleServer {
             giftImage: gift.image,
             giftPreview: gift.preview,
             timestamp: new Date(),
-            displayName: user.displayName
+            displayName: user.displayName,
+            read: false
         };
 
         this.messages.push(giftMessage);
@@ -2183,7 +2585,7 @@ class SimpleServer {
 
         recipient.giftsCount = (recipient.giftsCount || 0) + 1;
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
 
@@ -2235,7 +2637,7 @@ class SimpleServer {
         };
 
         this.promoCodes.push(promoCode);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
 
@@ -2265,7 +2667,7 @@ class SimpleServer {
 
         user.coins += promoCode.coins;
         promoCode.used_count++;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
 
@@ -2310,7 +2712,7 @@ class SimpleServer {
             user.email = sanitizedEmail;
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`📝 Пользователь ${user.username} обновил профиль`);
 
@@ -2350,7 +2752,7 @@ class SimpleServer {
         }
 
         user.avatar = avatar;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
 
@@ -2404,7 +2806,7 @@ class SimpleServer {
             }
 
             user.avatar = fileUrl;
-            this.saveData(); // Сохраняем данные
+            this.saveData();
 
             console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
@@ -2479,11 +2881,11 @@ class SimpleServer {
         const { fileData, filename } = data;
 
         if (!this.validatePostFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения.' };
+            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
         }
 
-        if (fileData.length > 10 * 1024 * 1024) {
-            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
+        if (fileData.length > 50 * 1024 * 1024) {
+            return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
         }
 
         try {
@@ -2492,14 +2894,14 @@ class SimpleServer {
             
             const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
 
-            console.log(`📸 Пользователь ${user.username} загрузил изображение для поста: ${filename}`);
+            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
 
             return {
                 success: true,
                 imageUrl: fileUrl
             };
         } catch (error) {
-            console.error('Ошибка загрузки изображения для поста:', error);
+            console.error('Ошибка загрузки файла для поста:', error);
             return { success: false, message: 'Ошибка загрузки файла' };
         }
     }
@@ -2548,6 +2950,7 @@ class SimpleServer {
                 totalPromoCodes: this.promoCodes.length,
                 totalMusic: this.music.length,
                 totalPlaylists: this.playlists.length,
+                totalGroups: this.groups.length,
                 onlineUsers: this.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.users.filter(u => u.banned).length,
                 bannedIPs: this.bannedIPs.size,
@@ -2588,7 +2991,7 @@ class SimpleServer {
         });
 
         this.users = this.users.filter(u => u.id !== userId);
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🗑️ Пользователь ${user.displayName} удалил аккаунт: ${targetUser.username}`);
 
@@ -2625,7 +3028,7 @@ class SimpleServer {
             }
         }
 
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`🔒 Пользователь ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
 
@@ -2649,7 +3052,7 @@ class SimpleServer {
         }
 
         targetUser.verified = !targetUser.verified;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`✅ Пользователь ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
 
@@ -2674,7 +3077,7 @@ class SimpleServer {
         }
 
         targetUser.isDeveloper = !targetUser.isDeveloper;
-        this.saveData(); // Сохраняем данные
+        this.saveData();
 
         console.log(`👑 Пользователь ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
 
@@ -2779,7 +3182,13 @@ class SimpleServer {
                     '.wav': 'audio/wav',
                     '.ogg': 'audio/ogg',
                     '.m4a': 'audio/mp4',
-                    '.aac': 'audio/aac'
+                    '.aac': 'audio/aac',
+                    '.mp4': 'video/mp4',
+                    '.avi': 'video/x-msvideo',
+                    '.mov': 'video/quicktime',
+                    '.wmv': 'video/x-ms-wmv',
+                    '.flv': 'video/x-flv',
+                    '.webm': 'video/webm'
                 }[ext] || 'application/octet-stream';
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
@@ -2798,6 +3207,7 @@ class SimpleServer {
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
+            console.log(`👥 Система групп активирована`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
