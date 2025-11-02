@@ -3329,7 +3329,7 @@ handleUpdateAvatar(token, data) {
     };
 }
 
-async handleUploadAvatar(token, data) {
+async handleUpdateAvatar(token, data) {
     const user = this.authenticateToken(token);
     if (!user) {
         return { success: false, message: 'Не авторизован' };
@@ -3337,36 +3337,35 @@ async handleUploadAvatar(token, data) {
 
     // 🔐 Проверяем что пользователь не забанен
     if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
         return { success: false, message: 'Ваш аккаунт заблокирован' };
     }
 
     const { fileData, filename } = data;
 
+    // Проверяем что это изображение
     if (!this.validateAvatarFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат файла для аватара. Разрешены только изображения.' };
-    }
-
-    if (fileData.length > 5 * 1024 * 1024) {
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-        return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат файла для аватара' };
     }
 
     try {
+        // Сохраняем файл на сервер
         const fileExt = path.extname(filename);
         const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
         
         const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
 
+        // Удаляем старый аватар если он был
         if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
             this.deleteFile(user.avatar);
         }
 
+        // Сохраняем URL файла вместо base64
         user.avatar = fileUrl;
         this.saveData();
 
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`);
 
         console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
@@ -3378,7 +3377,7 @@ async handleUploadAvatar(token, data) {
                 username: user.username,
                 displayName: user.displayName,
                 email: user.email,
-                avatar: user.avatar,
+                avatar: fileUrl, // Возвращаем URL, а не base64
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -3394,7 +3393,7 @@ async handleUploadAvatar(token, data) {
         };
     } catch (error) {
         console.error('Ошибка загрузки аватара:', error);
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
         return { success: false, message: 'Ошибка загрузки файла' };
     }
 }
