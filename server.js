@@ -3698,7 +3698,7 @@ if (pathname === '/' || pathname === '/index.html') {
         '.webm': 'video/webm'
     }[ext] || 'application/octet-stream';
     
-    this.serveStaticFile(res, 'public' + pathname, contentType);
+        this.serveStaticFile(res, 'public' + pathname, contentType);
 } else {
     // По умолчанию отдаем мобильную версию для мобильных устройств
     const userAgent = req.headers['user-agent'] || '';
@@ -3709,6 +3709,7 @@ if (pathname === '/' || pathname === '/index.html') {
     } else {
         this.serveStaticFile(res, 'public/main.html', 'text/html');
     }
+}
 });
 
         const wsServer = new WebSocketServer(server);
