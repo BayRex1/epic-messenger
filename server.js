@@ -3654,52 +3654,62 @@ handleTerminateDevice(token, data) {
             // 🔐 Устанавливаем безопасные заголовки для всех запросов
             this.setSecurityHeaders(res);
 
-            if (pathname.startsWith('/api/')) {
-                this.handleApiRequest(req, res);
-                return;
-            }
+if (pathname.startsWith('/api/')) {
+    this.handleApiRequest(req, res);
+    return;
+}
 
-            if (pathname === '/' || pathname === '/index.html') {
-                this.serveStaticFile(res, 'public/main.html', 'text/html');
-            } else if (pathname === '/login.html') {
-                this.serveStaticFile(res, 'public/login.html', 'text/html');
-            } else if (pathname === '/about.html' || pathname === '/about') {
-                this.serveStaticFile(res, 'public/about.html', 'text/html');
-            } else if (pathname === '/music.html' || pathname === '/music') {
-                this.serveStaticFile(res, 'public/music.html', 'text/html');
-            } else if (pathname.endsWith('.css')) {
-                this.serveStaticFile(res, 'public' + pathname, 'text/css');
-            } else if (pathname.endsWith('.js')) {
-                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
-                const ext = path.extname(pathname);
-                const contentType = {
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.gif': 'image/gif',
-                    '.svg': 'image/svg+xml',
-                    '.bmp': 'image/bmp',
-                    '.webp': 'image/webp',
-                    '.ico': 'image/x-icon',
-                    '.mp3': 'audio/mpeg',
-                    '.wav': 'audio/wav',
-                    '.ogg': 'audio/ogg',
-                    '.m4a': 'audio/mp4',
-                    '.aac': 'audio/aac',
-                    '.mp4': 'video/mp4',
-                    '.avi': 'video/x-msvideo',
-                    '.mov': 'video/quicktime',
-                    '.wmv': 'video/x-ms-wmv',
-                    '.flv': 'video/x-flv',
-                    '.webm': 'video/webm'
-                }[ext] || 'application/octet-stream';
-                
-                this.serveStaticFile(res, 'public' + pathname, contentType);
-            } else {
-                this.serveStaticFile(res, 'public/main.html', 'text/html');
-            }
-        });
+// Обработка статических файлов для мобильной и десктопной версий
+if (pathname === '/' || pathname === '/index.html') {
+    this.serveStaticFile(res, 'public/main.html', 'text/html');
+} else if (pathname === '/mobile.html' || pathname === '/mobile') {
+    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+} else if (pathname === '/login.html') {
+    this.serveStaticFile(res, 'public/login.html', 'text/html');
+} else if (pathname === '/about.html' || pathname === '/about') {
+    this.serveStaticFile(res, 'public/about.html', 'text/html');
+} else if (pathname === '/music.html' || pathname === '/music') {
+    this.serveStaticFile(res, 'public/music.html', 'text/html');
+} else if (pathname.endsWith('.css')) {
+    this.serveStaticFile(res, 'public' + pathname, 'text/css');
+} else if (pathname.endsWith('.js')) {
+    this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
+} else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
+    const ext = path.extname(pathname);
+    const contentType = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.bmp': 'image/bmp',
+        '.webp': 'image/webp',
+        '.ico': 'image/x-icon',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.m4a': 'audio/mp4',
+        '.aac': 'audio/aac',
+        '.mp4': 'video/mp4',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime',
+        '.wmv': 'video/x-ms-wmv',
+        '.flv': 'video/x-flv',
+        '.webm': 'video/webm'
+    }[ext] || 'application/octet-stream';
+    
+    this.serveStaticFile(res, 'public' + pathname, contentType);
+} else {
+    // По умолчанию отдаем мобильную версию для мобильных устройств
+    const userAgent = req.headers['user-agent'] || '';
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+    
+    if (isMobile) {
+        this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+    } else {
+        this.serveStaticFile(res, 'public/main.html', 'text/html');
+    }
+});
 
         const wsServer = new WebSocketServer(server);
 
