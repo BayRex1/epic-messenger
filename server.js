@@ -6,980 +6,9 @@ const url = require('url');
 const { StringDecoder } = require('string_decoder');
 const crypto = require('crypto');
 const busboy = require('busboy');
-const { Pool } = require('pg');
 
-// 🔐 Система rate limiting
+// Система rate limiting
 const requestCounts = new Map();
-
-// 🔌 Подключение к PostgreSQL
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
-
-// Проверка подключения к БД
-pool.on('connect', () => {
-  console.log('✅ Подключение к PostgreSQL установлено');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Ошибка подключения к PostgreSQL:', err);
-});
-
-class DatabaseManager {
-  constructor() {
-    this.pool = pool;
-    this.useDatabase = true;
-    this.fileData = {
-      users: [],
-      messages: [],
-      posts: [],
-      music: [],
-      groups: [],
-      gifts: [],
-      promo_codes: [],
-      devices: [],
-      banned_ips: [],
-      sessions: []
-    };
-    this.initDatabase();
-  }
-
-  async initDatabase() {
-    try {
-      await this.createTables();
-      console.log('✅ База данных инициализирована');
-    } catch (error) {
-      console.error('❌ Ошибка инициализации базы данных:', error);
-    }
-  }
-
-  async createTables() {
-    const client = await this.pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-
-      // Таблица пользователей
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS users (
-          id VARCHAR(50) PRIMARY KEY,
-          username VARCHAR(50) UNIQUE NOT NULL,
-          display_name VARCHAR(100) NOT NULL,
-          email VARCHAR(255) UNIQUE NOT NULL,
-          password VARCHAR(255) NOT NULL,
-          avatar TEXT,
-          description TEXT,
-          coins INTEGER DEFAULT 1000,
-          verified BOOLEAN DEFAULT FALSE,
-          is_developer BOOLEAN DEFAULT FALSE,
-          is_admin BOOLEAN DEFAULT FALSE,
-          status VARCHAR(20) DEFAULT 'offline',
-          last_seen TIMESTAMP DEFAULT NOW(),
-          created_at TIMESTAMP DEFAULT NOW(),
-          is_protected BOOLEAN DEFAULT FALSE,
-          friends_count INTEGER DEFAULT 0,
-          posts_count INTEGER DEFAULT 0,
-          gifts_count INTEGER DEFAULT 0,
-          banned BOOLEAN DEFAULT FALSE
-        )
-      `);
-
-      // Таблица сообщений
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS messages (
-          id VARCHAR(50) PRIMARY KEY,
-          sender_id VARCHAR(50) REFERENCES users(id),
-          to_user_id VARCHAR(50) REFERENCES users(id),
-          text TEXT,
-          encrypted BOOLEAN DEFAULT FALSE,
-          type VARCHAR(20) DEFAULT 'text',
-          image TEXT,
-          file TEXT,
-          file_name VARCHAR(255),
-          file_type VARCHAR(50),
-          timestamp TIMESTAMP DEFAULT NOW(),
-          display_name VARCHAR(100),
-          read BOOLEAN DEFAULT FALSE,
-          edited BOOLEAN DEFAULT FALSE,
-          edited_at TIMESTAMP,
-          edit_history JSONB
-        )
-      `);
-
-      // Таблица постов
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS posts (
-          id VARCHAR(50) PRIMARY KEY,
-          user_id VARCHAR(50) REFERENCES users(id),
-          text TEXT,
-          image TEXT,
-          file TEXT,
-          file_name VARCHAR(255),
-          file_type VARCHAR(50),
-          likes TEXT[], -- Массив ID пользователей
-          comments JSONB,
-          views INTEGER DEFAULT 0,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Таблица музыки
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS music (
-          id VARCHAR(50) PRIMARY KEY,
-          user_id VARCHAR(50) REFERENCES users(id),
-          title VARCHAR(255) NOT NULL,
-          artist VARCHAR(255) NOT NULL,
-          genre VARCHAR(100),
-          file_url TEXT NOT NULL,
-          cover_url TEXT,
-          duration INTEGER DEFAULT 0,
-          plays INTEGER DEFAULT 0,
-          likes TEXT[],
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Таблица плейлистов
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS playlists (
-          id VARCHAR(50) PRIMARY KEY,
-          user_id VARCHAR(50) REFERENCES users(id),
-          name VARCHAR(255) NOT NULL,
-          description TEXT,
-          tracks TEXT[], -- Массив ID треков
-          cover TEXT,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Таблица групп
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS groups (
-          id VARCHAR(50) PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          description TEXT,
-          avatar TEXT,
-          owner_id VARCHAR(50) REFERENCES users(id),
-          members TEXT[], -- Массив ID участников
-          admins TEXT[], -- Массив ID администраторов
-          created_at TIMESTAMP DEFAULT NOW(),
-          is_public BOOLEAN DEFAULT FALSE
-        )
-      `);
-
-      // Таблица подарков
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS gifts (
-          id VARCHAR(50) PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          type VARCHAR(50) DEFAULT 'custom',
-          preview VARCHAR(10),
-          price INTEGER NOT NULL,
-          image TEXT,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Таблица промокодов
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS promo_codes (
-          id VARCHAR(50) PRIMARY KEY,
-          code VARCHAR(100) UNIQUE NOT NULL,
-          coins INTEGER NOT NULL,
-          max_uses INTEGER DEFAULT 0,
-          used_count INTEGER DEFAULT 0,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Таблица устройств
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS devices (
-          id VARCHAR(100) PRIMARY KEY,
-          user_id VARCHAR(50) REFERENCES users(id),
-          name VARCHAR(255),
-          browser VARCHAR(100),
-          os VARCHAR(100),
-          ip VARCHAR(100),
-          user_agent TEXT,
-          last_active TIMESTAMP DEFAULT NOW(),
-          created_at TIMESTAMP DEFAULT NOW(),
-          is_owner BOOLEAN DEFAULT FALSE
-        )
-      `);
-
-      // Таблица забаненных IP
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS banned_ips (
-          ip VARCHAR(100) PRIMARY KEY,
-          banned_at TIMESTAMP DEFAULT NOW(),
-          expires TIMESTAMP
-        )
-      `);
-
-      // Таблица сессий
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS sessions (
-          token VARCHAR(100) PRIMARY KEY,
-          user_id VARCHAR(50) REFERENCES users(id),
-          expires TIMESTAMP NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW(),
-          last_active TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      await client.query('COMMIT');
-      console.log('✅ Все таблицы созданы успешно');
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('❌ Ошибка создания таблиц:', error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  // 🔄 Метод для преобразования дат из PostgreSQL
-  parsePostgresDate(dateValue) {
-    if (!dateValue) return new Date();
-    
-    // Если это уже Date объект
-    if (dateValue instanceof Date) return dateValue;
-    
-    // Если это строка
-    if (typeof dateValue === 'string') {
-      // Пробуем разные форматы
-      let date = new Date(dateValue);
-      if (!isNaN(date.getTime())) return date;
-      
-      // Пробуем парсить PostgreSQL timestamp
-      date = new Date(dateValue.replace(' ', 'T') + 'Z');
-      if (!isNaN(date.getTime())) return date;
-      
-      // Если все fails, возвращаем текущую дату
-      console.warn('⚠️ Не удалось распарсить дату:', dateValue);
-      return new Date();
-    }
-    
-    return new Date();
-  }
-
-  // 🔄 Преобразуем данные пользователя
-  sanitizeUserData(user) {
-    if (!user) return null;
-    
-    return {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name || user.displayName,
-      email: user.email,
-      avatar: user.avatar,
-      description: user.description,
-      coins: user.coins,
-      verified: user.verified || user.is_verified,
-      isDeveloper: user.is_developer || user.isDeveloper,
-      status: user.status,
-      lastSeen: this.parsePostgresDate(user.last_seen || user.lastSeen),
-      createdAt: this.parsePostgresDate(user.created_at || user.createdAt),
-      friendsCount: user.friends_count || user.friendsCount || 0,
-      postsCount: user.posts_count || user.postsCount || 0,
-      giftsCount: user.gifts_count || user.giftsCount || 0,
-      banned: user.banned || false
-    };
-  }
-
-  // 🔄 Преобразуем данные сообщения
-  sanitizeMessageData(message) {
-    if (!message) return null;
-    
-    return {
-      id: message.id,
-      senderId: message.sender_id || message.senderId,
-      toUserId: message.to_user_id || message.toUserId,
-      text: message.text,
-      encrypted: message.encrypted || false,
-      type: message.type || 'text',
-      image: message.image,
-      file: message.file,
-      fileName: message.file_name || message.fileName,
-      fileType: message.file_type || message.fileType,
-      timestamp: this.parsePostgresDate(message.timestamp),
-      displayName: message.display_name || message.displayName,
-      read: message.read || false,
-      edited: message.edited || false,
-      editedAt: message.edited_at ? this.parsePostgresDate(message.edited_at) : null,
-      editHistory: message.edit_history || message.editHistory || []
-    };
-  }
-
-  // 🔄 Преобразуем данные поста
-  sanitizePostData(post) {
-    if (!post) return null;
-    
-    return {
-      id: post.id,
-      userId: post.user_id || post.userId,
-      text: post.text,
-      image: post.image,
-      file: post.file,
-      fileName: post.file_name || post.fileName,
-      fileType: post.file_type || post.fileType,
-      likes: post.likes || [],
-      comments: post.comments || [],
-      views: post.views || 0,
-      createdAt: this.parsePostgresDate(post.created_at || post.createdAt),
-      // Дополнительные поля из JOIN запросов
-      userName: post.user_name || post.userName,
-      userAvatar: post.user_avatar || post.userAvatar,
-      userVerified: post.user_verified !== undefined ? post.user_verified : (post.userVerified || false),
-      userDeveloper: post.user_developer !== undefined ? post.user_developer : (post.userDeveloper || false)
-    };
-  }
-
-  // 🔄 Преобразуем данные музыки
-  sanitizeMusicData(track) {
-    if (!track) return null;
-    
-    return {
-      id: track.id,
-      userId: track.user_id || track.userId,
-      title: track.title,
-      artist: track.artist,
-      genre: track.genre,
-      fileUrl: track.file_url || track.fileUrl,
-      coverUrl: track.cover_url || track.coverUrl,
-      duration: track.duration || 0,
-      plays: track.plays || 0,
-      likes: track.likes || [],
-      createdAt: this.parsePostgresDate(track.created_at || track.createdAt),
-      // Дополнительные поля из JOIN запросов
-      userName: track.user_name || track.userName,
-      userAvatar: track.user_avatar || track.userAvatar,
-      userVerified: track.user_verified !== undefined ? track.user_verified : (track.userVerified || false)
-    };
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ
-
-  async getUserById(id) {
-    if (!this.useDatabase) {
-      const user = this.fileData.users.find(u => u.id === id);
-      return user ? this.sanitizeUserData(user) : null;
-    }
-
-    try {
-      const result = await this.pool.query(
-        'SELECT * FROM users WHERE id = $1',
-        [id]
-      );
-      return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
-    } catch (error) {
-      console.error('❌ Ошибка получения пользователя из БД:', error);
-      const user = this.fileData.users.find(u => u.id === id);
-      return user ? this.sanitizeUserData(user) : null;
-    }
-  }
-
-  async getUserByUsername(username) {
-    if (!this.useDatabase) {
-      const user = this.fileData.users.find(u => u.username === username);
-      return user ? this.sanitizeUserData(user) : null;
-    }
-
-    try {
-      const result = await this.pool.query(
-        'SELECT * FROM users WHERE username = $1',
-        [username]
-      );
-      return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
-    } catch (error) {
-      console.error('❌ Ошибка получения пользователя по имени из БД:', error);
-      const user = this.fileData.users.find(u => u.username === username);
-      return user ? this.sanitizeUserData(user) : null;
-    }
-  }
-
-  async getUserByEmail(email) {
-    const result = await this.pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
-    return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
-  }
-
-  async createUser(userData) {
-    const {
-      id, username, displayName, email, password, avatar, description,
-      coins, verified, isDeveloper, isAdmin, status
-    } = userData;
-
-    const result = await this.pool.query(
-      `INSERT INTO users (
-        id, username, display_name, email, password, avatar, description,
-        coins, verified, is_developer, is_admin, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING *`,
-      [
-        id, username, displayName, email, password, avatar, description,
-        coins, verified, isDeveloper, isAdmin, status
-      ]
-    );
-    return this.sanitizeUserData(result.rows[0]);
-  }
-
-  async updateUser(id, updates) {
-    const setClause = [];
-    const values = [];
-    let paramCount = 1;
-
-    Object.keys(updates).forEach(key => {
-      if (updates[key] !== undefined) {
-        // Конвертируем camelCase в snake_case для БД
-        const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        setClause.push(`${dbKey} = $${paramCount}`);
-        values.push(updates[key]);
-        paramCount++;
-      }
-    });
-
-    if (setClause.length === 0) return null;
-
-    values.push(id);
-    const query = `UPDATE users SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`;
-    
-    const result = await this.pool.query(query, values);
-    return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
-  }
-
-  async getAllUsers(excludeUserId = null) {
-    if (!this.useDatabase) {
-      let users = this.fileData.users;
-      if (excludeUserId) {
-        users = users.filter(u => u.id !== excludeUserId);
-      }
-      return users.map(user => this.sanitizeUserData(user));
-    }
-
-    try {
-      let query = 'SELECT * FROM users';
-      const values = [];
-
-      if (excludeUserId) {
-        query += ' WHERE id != $1';
-        values.push(excludeUserId);
-      }
-
-      query += ' ORDER BY created_at DESC';
-
-      const result = await this.pool.query(query, values);
-      return result.rows.map(row => this.sanitizeUserData(row));
-    } catch (error) {
-      console.error('❌ Ошибка получения пользователей из БД:', error);
-      let users = this.fileData.users;
-      if (excludeUserId) {
-        users = users.filter(u => u.id !== excludeUserId);
-      }
-      return users.map(user => this.sanitizeUserData(user));
-    }
-  }
-
-  async deleteUser(id) {
-    await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С СООБЩЕНИЯМИ
-
-  async createMessage(messageData) {
-    const {
-      id, senderId, toUserId, text, encrypted, type,
-      image, file, fileName, fileType, displayName
-    } = messageData;
-
-    const result = await this.pool.query(
-      `INSERT INTO messages (
-        id, sender_id, to_user_id, text, encrypted, type,
-        image, file, file_name, file_type, display_name
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *`,
-      [
-        id, senderId, toUserId, text, encrypted, type,
-        image, file, fileName, fileType, displayName
-      ]
-    );
-    return this.sanitizeMessageData(result.rows[0]);
-  }
-
-  async getMessagesBetweenUsers(userId1, userId2) {
-    if (!this.useDatabase) {
-      const messages = this.fileData.messages.filter(msg => 
-        (msg.senderId === userId1 && msg.toUserId === userId2) ||
-        (msg.senderId === userId2 && msg.toUserId === userId1)
-      );
-      return messages.map(msg => this.sanitizeMessageData(msg));
-    }
-
-    try {
-      const result = await this.pool.query(
-        `SELECT * FROM messages 
-         WHERE (sender_id = $1 AND to_user_id = $2) 
-            OR (sender_id = $2 AND to_user_id = $1)
-         ORDER BY timestamp ASC`,
-        [userId1, userId2]
-      );
-      return result.rows.map(row => this.sanitizeMessageData(row));
-    } catch (error) {
-      console.error('❌ Ошибка получения сообщений из БД:', error);
-      const messages = this.fileData.messages.filter(msg => 
-        (msg.senderId === userId1 && msg.toUserId === userId2) ||
-        (msg.senderId === userId2 && msg.toUserId === userId1)
-      );
-      return messages.map(msg => this.sanitizeMessageData(msg));
-    }
-  }
-
-  async updateMessage(id, updates) {
-    const setClause = [];
-    const values = [];
-    let paramCount = 1;
-
-    Object.keys(updates).forEach(key => {
-      if (updates[key] !== undefined) {
-        const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        setClause.push(`${dbKey} = $${paramCount}`);
-        values.push(updates[key]);
-        paramCount++;
-      }
-    });
-
-    if (setClause.length === 0) return null;
-
-    values.push(id);
-    const query = `UPDATE messages SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`;
-    
-    const result = await this.pool.query(query, values);
-    return result.rows[0] ? this.sanitizeMessageData(result.rows[0]) : null;
-  }
-
-  async deleteMessage(id) {
-    await this.pool.query('DELETE FROM messages WHERE id = $1', [id]);
-  }
-
-  async getUnreadCount(userId, otherUserId) {
-    const result = await this.pool.query(
-      `SELECT COUNT(*) FROM messages 
-       WHERE sender_id = $1 AND to_user_id = $2 AND read = FALSE`,
-      [otherUserId, userId]
-    );
-    return parseInt(result.rows[0].count);
-  }
-
-  async markMessagesAsRead(fromUserId, toUserId) {
-    await this.pool.query(
-      `UPDATE messages SET read = TRUE 
-       WHERE sender_id = $1 AND to_user_id = $2 AND read = FALSE`,
-      [fromUserId, toUserId]
-    );
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С СЕССИЯМИ
-
-  async createSession(token, userId, expires) {
-    await this.pool.query(
-      'INSERT INTO sessions (token, user_id, expires) VALUES ($1, $2, $3)',
-      [token, userId, new Date(expires)]
-    );
-  }
-
-  async getSession(token) {
-    const result = await this.pool.query(
-      'SELECT * FROM sessions WHERE token = $1 AND expires > NOW()',
-      [token]
-    );
-    return result.rows[0] || null;
-  }
-
-  async updateSessionActivity(token) {
-    await this.pool.query(
-      'UPDATE sessions SET last_active = NOW() WHERE token = $1',
-      [token]
-    );
-  }
-
-  async deleteSession(token) {
-    await this.pool.query('DELETE FROM sessions WHERE token = $1', [token]);
-  }
-
-  async cleanupExpiredSessions() {
-    await this.pool.query('DELETE FROM sessions WHERE expires < NOW()');
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С БАНАМИ
-
-  async banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) {
-    const expires = new Date(Date.now() + duration);
-    await this.pool.query(
-      `INSERT INTO banned_ips (ip, expires) 
-       VALUES ($1, $2) 
-       ON CONFLICT (ip) 
-       DO UPDATE SET expires = $2`,
-      [ip, expires]
-    );
-  }
-
-  async isIPBanned(ip) {
-    const result = await this.pool.query(
-      'SELECT * FROM banned_ips WHERE ip = $1 AND (expires IS NULL OR expires > NOW())',
-      [ip]
-    );
-    return result.rows.length > 0;
-  }
-
-  async unbanIP(ip) {
-    await this.pool.query('DELETE FROM banned_ips WHERE ip = $1', [ip]);
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С МУЗЫКОЙ
-
-  async createMusicTrack(trackData) {
-    const {
-      id, userId, title, artist, genre, fileUrl, coverUrl, duration
-    } = trackData;
-
-    const result = await this.pool.query(
-      `INSERT INTO music (
-        id, user_id, title, artist, genre, file_url, cover_url, duration
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *`,
-      [id, userId, title, artist, genre, fileUrl, coverUrl, duration]
-    );
-    return this.sanitizeMusicData(result.rows[0]);
-  }
-
-  async getAllMusic() {
-    if (!this.useDatabase) {
-      return this.fileData.music.map(track => this.sanitizeMusicData(track));
-    }
-
-    try {
-      const result = await this.pool.query(`
-        SELECT m.*, 
-               u.display_name as user_name, 
-               u.avatar as user_avatar, 
-               u.verified as user_verified
-        FROM music m
-        LEFT JOIN users u ON m.user_id = u.id
-        ORDER BY m.created_at DESC
-      `);
-      return result.rows.map(row => this.sanitizeMusicData(row));
-    } catch (error) {
-      console.error('❌ Ошибка получения музыки из БД:', error);
-      return this.fileData.music.map(track => this.sanitizeMusicData(track));
-    }
-  }
-
-  async searchMusic(searchTerm) {
-    const result = await this.pool.query(`
-      SELECT m.*, u.display_name as user_name, u.avatar as user_avatar, u.verified as user_verified
-      FROM music m
-      LEFT JOIN users u ON m.user_id = u.id
-      WHERE LOWER(m.title) LIKE LOWER($1) OR LOWER(m.artist) LIKE LOWER($1) OR LOWER(m.genre) LIKE LOWER($1)
-      ORDER BY m.created_at DESC
-    `, [`%${searchTerm}%`]);
-    return result.rows.map(row => this.sanitizeMusicData(row));
-  }
-
-  async getRandomMusic(limit = 10) {
-    const result = await this.pool.query(`
-      SELECT m.*, u.display_name as user_name, u.avatar as user_avatar, u.verified as user_verified
-      FROM music m
-      LEFT JOIN users u ON m.user_id = u.id
-      ORDER BY RANDOM()
-      LIMIT $1
-    `, [limit]);
-    return result.rows.map(row => this.sanitizeMusicData(row));
-  }
-
-  async deleteMusicTrack(id) {
-    await this.pool.query('DELETE FROM music WHERE id = $1', [id]);
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПОСТАМИ
-
-  async createPost(postData) {
-    const {
-      id, userId, text, image, file, fileName, fileType
-    } = postData;
-
-    if (!this.useDatabase) {
-      const post = {
-        id,
-        userId,
-        text,
-        image,
-        file,
-        fileName,
-        fileType,
-        likes: [],
-        comments: [],
-        views: 0,
-        createdAt: new Date()
-      };
-      this.fileData.posts.unshift(post);
-      this.saveDataToFile();
-      
-      // Добавляем информацию о пользователе
-      const userInfo = await this.getUserInfoForPost(userId);
-      return { ...post, ...userInfo };
-    }
-
-    try {
-      const result = await this.pool.query(
-        `INSERT INTO posts (
-          id, user_id, text, image, file, file_name, file_type
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING *`,
-        [id, userId, text, image, file, fileName, fileType]
-      );
-      
-      const post = this.sanitizePostData(result.rows[0]);
-      // Добавляем информацию о пользователе
-      const userInfo = await this.getUserInfoForPost(userId);
-      return { ...post, ...userInfo };
-    } catch (error) {
-      console.error('❌ Ошибка создания поста в БД:', error);
-      throw error;
-    }
-  }
-
-  async getAllPosts() {
-    if (!this.useDatabase) {
-      return this.fileData.posts.map(post => this.sanitizePostData(post));
-    }
-
-    try {
-      const result = await this.pool.query(`
-        SELECT p.*, 
-               u.display_name as user_name, 
-               u.avatar as user_avatar, 
-               u.verified as user_verified, 
-               u.is_developer as user_developer
-        FROM posts p
-        LEFT JOIN users u ON p.user_id = u.id
-        ORDER BY p.created_at DESC
-      `);
-      return result.rows.map(row => this.sanitizePostData(row));
-    } catch (error) {
-      console.error('❌ Ошибка получения постов из БД:', error);
-      return this.fileData.posts.map(post => this.sanitizePostData(post));
-    }
-  }
-
-  async updatePostLikes(postId, likes) {
-    await this.pool.query(
-      'UPDATE posts SET likes = $1 WHERE id = $2',
-      [likes, postId]
-    );
-  }
-
-  async deletePost(id) {
-    await this.pool.query('DELETE FROM posts WHERE id = $1', [id]);
-  }
-
-  // 🔄 Метод для получения информации о пользователе для постов/сообщений
-  async getUserInfoForPost(userId) {
-    if (!userId || userId === 'system') {
-      return {
-        userName: 'Epic Messenger',
-        userAvatar: null,
-        userVerified: true,
-        userDeveloper: true
-      };
-    }
-
-    const user = await this.getUserById(userId);
-    if (!user) {
-      return {
-        userName: 'Неизвестный',
-        userAvatar: null,
-        userVerified: false,
-        userDeveloper: false
-      };
-    }
-
-    return {
-      userName: user.displayName || user.username,
-      userAvatar: user.avatar,
-      userVerified: user.verified,
-      userDeveloper: user.isDeveloper
-    };
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПОДАРКАМИ
-
-  async getAllGifts() {
-    const result = await this.pool.query('SELECT * FROM gifts ORDER BY created_at DESC');
-    return result.rows;
-  }
-
-  async createGift(giftData) {
-    const { id, name, type, preview, price, image } = giftData;
-    const result = await this.pool.query(
-      'INSERT INTO gifts (id, name, type, preview, price, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [id, name, type, preview, price, image]
-    );
-    return result.rows[0];
-  }
-
-  async getGiftById(id) {
-    const result = await this.pool.query('SELECT * FROM gifts WHERE id = $1', [id]);
-    return result.rows[0] || null;
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПРОМОКОДАМИ
-
-  async getAllPromoCodes() {
-    const result = await this.pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC');
-    return result.rows;
-  }
-
-  async getPromoCodeByCode(code) {
-    const result = await this.pool.query('SELECT * FROM promo_codes WHERE code = $1', [code]);
-    return result.rows[0] || null;
-  }
-
-  async createPromoCode(promoData) {
-    const { id, code, coins, max_uses } = promoData;
-    const result = await this.pool.query(
-      'INSERT INTO promo_codes (id, code, coins, max_uses) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id, code, coins, max_uses]
-    );
-    return result.rows[0];
-  }
-
-  async updatePromoCodeUsage(code) {
-    await this.pool.query(
-      'UPDATE promo_codes SET used_count = used_count + 1 WHERE code = $1',
-      [code]
-    );
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С УСТРОЙСТВАМИ
-
-  async createDevice(deviceData) {
-    const { id, userId, name, browser, os, ip, userAgent, isOwner } = deviceData;
-    const result = await this.pool.query(
-      `INSERT INTO devices (id, user_id, name, browser, os, ip, user_agent, is_owner) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [id, userId, name, browser, os, ip, userAgent, isOwner]
-    );
-    return result.rows[0];
-  }
-
-  async getUserDevices(userId) {
-    const result = await this.pool.query(
-      'SELECT * FROM devices WHERE user_id = $1 ORDER BY last_active DESC',
-      [userId]
-    );
-    return result.rows;
-  }
-
-  async updateDeviceActivity(deviceId) {
-    await this.pool.query(
-      'UPDATE devices SET last_active = NOW() WHERE id = $1',
-      [deviceId]
-    );
-  }
-
-  async deleteDevice(deviceId) {
-    await this.pool.query('DELETE FROM devices WHERE id = $1', [deviceId]);
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ГРУППАМИ
-
-  async createGroup(groupData) {
-    const { id, name, description, avatar, ownerId, members, admins, isPublic } = groupData;
-    const result = await this.pool.query(
-      `INSERT INTO groups (id, name, description, avatar, owner_id, members, admins, is_public) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [id, name, description, avatar, ownerId, members, admins, isPublic]
-    );
-    return result.rows[0];
-  }
-
-  async getUserGroups(userId) {
-    const result = await this.pool.query(
-      'SELECT * FROM groups WHERE $1 = ANY(members) ORDER BY created_at DESC',
-      [userId]
-    );
-    return result.rows;
-  }
-
-  async updateGroupMembers(groupId, members) {
-    await this.pool.query(
-      'UPDATE groups SET members = $1 WHERE id = $2',
-      [members, groupId]
-    );
-  }
-
-  // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПЛЕЙЛИСТАМИ
-
-  async createPlaylist(playlistData) {
-    const { id, userId, name, description, tracks, cover } = playlistData;
-    const result = await this.pool.query(
-      `INSERT INTO playlists (id, user_id, name, description, tracks, cover) 
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [id, userId, name, description, tracks, cover]
-    );
-    return result.rows[0];
-  }
-
-  async getUserPlaylists(userId) {
-    const result = await this.pool.query(
-      'SELECT * FROM playlists WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
-    );
-    return result.rows;
-  }
-
-  async updatePlaylistTracks(playlistId, tracks) {
-    await this.pool.query(
-      'UPDATE playlists SET tracks = $1 WHERE id = $2',
-      [tracks, playlistId]
-    );
-  }
-
-  // 🔐 СТАТИСТИКА
-
-  async getStats() {
-    const usersCount = await this.pool.query('SELECT COUNT(*) FROM users');
-    const messagesCount = await this.pool.query('SELECT COUNT(*) FROM messages');
-    const postsCount = await this.pool.query('SELECT COUNT(*) FROM posts');
-    const musicCount = await this.pool.query('SELECT COUNT(*) FROM music');
-    const groupsCount = await this.pool.query('SELECT COUNT(*) FROM groups');
-    const onlineUsers = await this.pool.query("SELECT COUNT(*) FROM users WHERE status = 'online'");
-    const bannedUsers = await this.pool.query('SELECT COUNT(*) FROM users WHERE banned = TRUE');
-    const bannedIPs = await this.pool.query('SELECT COUNT(*) FROM banned_ips');
-    const activeDevices = await this.pool.query('SELECT COUNT(*) FROM devices');
-
-    return {
-      totalUsers: parseInt(usersCount.rows[0].count),
-      totalMessages: parseInt(messagesCount.rows[0].count),
-      totalPosts: parseInt(postsCount.rows[0].count),
-      totalMusic: parseInt(musicCount.rows[0].count),
-      totalGroups: parseInt(groupsCount.rows[0].count),
-      onlineUsers: parseInt(onlineUsers.rows[0].count),
-      bannedUsers: parseInt(bannedUsers.rows[0].count),
-      bannedIPs: parseInt(bannedIPs.rows[0].count),
-      activeDevices: parseInt(activeDevices.rows[0].count)
-    };
-  }
-}
 
 class WebSocketServer {
     constructor(server) {
@@ -1131,14 +160,16 @@ class WebSocketServer {
 
 class SimpleServer {
     constructor() {
-        this.db = new DatabaseManager();
+        // Используем /tmp для Render, так как он сохраняется между деплоями
+        this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
         // Система сессий
         this.sessions = new Map();
         
         this.ensureUploadDirs();
-        this.initializeDefaultData();
+        this.loadData();
+        this.setupAutoSave();
         
         // Очистка старых сессий каждые 5 минут
         setInterval(() => this.cleanupSessions(), 5 * 60 * 1000);
@@ -1181,33 +212,44 @@ class SimpleServer {
     }
 
     // Система сессий
-    async createSession(userId) {
+    createSession(userId) {
         const sessionId = crypto.randomBytes(32).toString('hex');
         const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 часа
         
-        await this.db.createSession(sessionId, userId, expires);
+        this.sessions.set(sessionId, {
+            userId,
+            expires,
+            createdAt: new Date(),
+            lastActive: new Date()
+        });
         
         return sessionId;
     }
 
-    async validateSession(token) {
-        const session = await this.db.getSession(token);
-        if (!session) {
+    validateSession(token) {
+        const session = this.sessions.get(token);
+        if (!session || session.expires < Date.now()) {
+            this.sessions.delete(token);
             return null;
         }
         
         // Обновляем время активности
-        await this.db.updateSessionActivity(token);
+        session.lastActive = new Date();
         return session;
     }
 
-    async cleanupSessions() {
-        await this.db.cleanupExpiredSessions();
+    cleanupSessions() {
+        const now = Date.now();
+        for (const [sessionId, session] of this.sessions.entries()) {
+            if (session.expires < now) {
+                this.sessions.delete(sessionId);
+            }
+        }
     }
 
     // Проверка прав администратора
     isAdmin(user) {
-        return user && user.is_developer && user.is_admin;
+        return user && user.isDeveloper && user.isAdmin;
     }
 
     // Проверка дружеских отношений
@@ -1262,95 +304,92 @@ class SimpleServer {
 
     // 🔚 КОНЕЦ СИСТЕМЫ БЕЗОПАСНОСТИ
 
-    async initializeDefaultData() {
+    loadData() {
         try {
-            // Проверяем, есть ли уже подарки
-            const gifts = await this.db.getAllGifts();
-            if (gifts.length === 0) {
-                await this.createDefaultGifts();
+            if (fs.existsSync(this.dataFile)) {
+                const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+                this.users = data.users || [];
+                this.messages = data.messages || [];
+                this.posts = data.posts || [];
+                this.gifts = data.gifts || [];
+                this.promoCodes = data.promoCodes || [];
+                this.music = data.music || [];
+                this.playlists = data.playlists || [];
+                this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
+                this.devices = new Map(Object.entries(data.devices || {}));
+                this.groups = data.groups || [];
+                
+                // Восстанавливаем даты
+                this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
+                this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
+                this.users.forEach(user => {
+                    user.lastSeen = new Date(user.lastSeen);
+                    user.createdAt = new Date(user.createdAt);
+                });
+                this.music.forEach(track => track.createdAt = new Date(track.createdAt));
+                this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
+                this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
+                
+                console.log('✅ Данные загружены из файла');
+                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.groups.length} групп`);
+            } else {
+                console.log('📁 Файл данных не найден, инициализируем пустые данные');
+                this.initializeData();
             }
-
-            // Проверяем, есть ли уже промокоды
-            const promoCodes = await this.db.getAllPromoCodes();
-            if (promoCodes.length === 0) {
-                await this.createDefaultPromoCodes();
-            }
-
-            // Проверяем, есть ли системный пост
-            const posts = await this.db.getAllPosts();
-            const systemPost = posts.find(post => post.user_id === 'system');
-            if (!systemPost) {
-                await this.createSystemPost();
-            }
-
-            console.log('✅ Данные по умолчанию инициализированы');
         } catch (error) {
-            console.error('❌ Ошибка инициализации данных:', error);
+            console.log('❌ Ошибка загрузки данных:', error);
+            console.log('🔄 Инициализируем пустые данные');
+            this.initializeData();
         }
     }
 
-    async createDefaultGifts() {
-        const defaultGifts = [
-            {
-                id: this.generateId(),
-                name: 'Золотая корона',
-                type: 'crown',
-                preview: '👑',
-                price: 500,
-                image: null
-            },
-            {
-                id: this.generateId(),
-                name: 'Сердечко',
-                type: 'heart',
-                preview: '❤️',
-                price: 100,
-                image: null
-            },
-            {
-                id: this.generateId(),
-                name: 'Звезда',
-                type: 'star',
-                preview: '⭐',
-                price: 200,
-                image: null
-            }
-        ];
-
-        for (const gift of defaultGifts) {
-            await this.db.createGift(gift);
+    saveData() {
+        try {
+            const data = {
+                users: this.users,
+                messages: this.messages,
+                posts: this.posts,
+                gifts: this.gifts,
+                promoCodes: this.promoCodes,
+                music: this.music,
+                playlists: this.playlists,
+                bannedIPs: Object.fromEntries(this.bannedIPs),
+                devices: Object.fromEntries(this.devices),
+                groups: this.groups,
+                lastSave: new Date().toISOString()
+            };
+            
+            fs.writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
+            console.log('💾 Данные сохранены');
+        } catch (error) {
+            console.log('❌ Ошибка сохранения данных:', error);
         }
     }
 
-    async createDefaultPromoCodes() {
-        const defaultPromoCodes = [
-            {
-                id: this.generateId(),
-                code: 'WELCOME1000',
-                coins: 1000,
-                max_uses: 0,
-                used_count: 0
-            }
-        ];
+    setupAutoSave() {
+        setInterval(() => {
+            this.saveData();
+        }, 30000);
 
-        for (const promo of defaultPromoCodes) {
-            await this.db.createPromoCode(promo);
-        }
-    }
+        process.on('SIGINT', () => {
+            console.log('🔄 Получен SIGINT, сохраняем данные...');
+            this.saveData();
+            process.exit(0);
+        });
 
-    async createSystemPost() {
-        const systemPost = {
-            id: this.generateId(),
-            userId: 'system',
-            text: 'Добро пожаловать в Epic Messenger! 🚀',
-            image: null,
-            file: null,
-            fileName: null,
-            fileType: null
-        };
+        process.on('SIGTERM', () => {
+            console.log('🔄 Получен SIGTERM, сохраняем данные...');
+            this.saveData();
+            process.exit(0);
+        });
 
-        await this.db.createPost(systemPost);
-        console.log('📝 Создан системный пост приветствия');
+        process.on('uncaughtException', (error) => {
+            console.log('🚨 Необработанная ошибка, сохраняем данные...', error);
+            this.saveData();
+            process.exit(1);
+        });
+
+        console.log('🔄 Автосохранение настроено');
     }
 
     ensureUploadDirs() {
@@ -1475,12 +514,24 @@ class SimpleServer {
         return crypto.createHash('md5').update(deviceString).digest('hex');
     }
 
-    async isIPBanned(ip) {
-        return await this.db.isIPBanned(ip);
+    isIPBanned(ip) {
+        const banInfo = this.bannedIPs.get(ip);
+        if (!banInfo) return false;
+        
+        if (banInfo.expires && banInfo.expires < Date.now()) {
+            this.bannedIPs.delete(ip);
+            return false;
+        }
+        
+        return true;
     }
 
-    async banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) {
-        await this.db.banIP(ip, duration);
+    banIP(ip, duration = 30 * 24 * 60 * 60 * 1000) {
+        this.bannedIPs.set(ip, {
+            bannedAt: new Date(),
+            expires: Date.now() + duration
+        });
+        this.saveData();
     }
 
     validateAvatarFile(filename) {
@@ -1632,26 +683,89 @@ class SimpleServer {
         }
     }
 
+    initializeData() {
+        this.users = [];
+
+        this.gifts = [
+            {
+                id: '1',
+                name: 'Золотая корона',
+                type: 'crown',
+                preview: '👑',
+                price: 500,
+                image: null
+            },
+            {
+                id: '2',
+                name: 'Сердечко',
+                type: 'heart',
+                preview: '❤️',
+                price: 100,
+                image: null
+            },
+            {
+                id: '3',
+                name: 'Звезда',
+                type: 'star',
+                preview: '⭐',
+                price: 200,
+                image: null
+            }
+        ];
+
+        this.promoCodes = [
+            {
+                id: '1',
+                code: 'WELCOME1000',
+                coins: 1000,
+                max_uses: 0,
+                used_count: 0,
+                created_at: new Date()
+            }
+        ];
+
+        this.posts = [
+            {
+                id: '1',
+                userId: 'system',
+                text: 'Добро пожаловать в Epic Messenger! 🚀',
+                image: null,
+                file: null,
+                fileName: null,
+                fileType: null,
+                likes: [],
+                comments: [],
+                views: 0,
+                createdAt: new Date()
+            }
+        ];
+
+        this.music = [];
+        this.playlists = [];
+        this.groups = [];
+
+        this.messages = [];
+        this.bannedIPs = new Map();
+        this.devices = new Map();
+    }
+
     generateId() {
         return Date.now().toString() + Math.random().toString(36).substr(2, 9);
     }
 
     // 🔐 ОБНОВЛЕННАЯ АУТЕНТИФИКАЦИЯ
-    async authenticateToken(token) {
-        const session = await this.validateSession(token);
+    authenticateToken(token) {
+        const session = this.validateSession(token);
         if (!session) return null;
         
-        return await this.db.getUserById(session.user_id);
+        return this.users.find(u => u.id === session.userId);
     }
 
-    async registerDevice(userId, req) {
+    registerDevice(userId, req) {
         const deviceId = this.generateDeviceId(req);
         const deviceInfo = this.getDeviceInfo(req);
         const ip = this.getClientIP(req);
         
-        const userDevices = await this.db.getUserDevices(userId);
-        const isOwner = userDevices.length === 0;
-
         const device = {
             id: deviceId,
             userId: userId,
@@ -1660,37 +774,46 @@ class SimpleServer {
             os: deviceInfo.os,
             ip: ip,
             userAgent: deviceInfo.userAgent,
-            isOwner: isOwner
+            lastActive: new Date(),
+            createdAt: new Date(),
+            isOwner: false
         };
         
-        await this.db.createDevice(device);
+        const userDevices = Array.from(this.devices.values()).filter(d => d.userId === userId);
+        if (userDevices.length === 0) {
+            device.isOwner = true;
+        }
+        
+        this.devices.set(deviceId, device);
+        this.saveData();
         return device;
     }
 
-    async getUserDevices(userId) {
-        return await this.db.getUserDevices(userId);
+    getUserDevices(userId) {
+        return Array.from(this.devices.values()).filter(device => device.userId === userId);
     }
 
-    async terminateDevice(userId, deviceId) {
-        const devices = await this.db.getUserDevices(userId);
-        const device = devices.find(d => d.id === deviceId);
-        
-        if (!device) {
+    terminateDevice(userId, deviceId) {
+        const device = this.devices.get(deviceId);
+        if (!device || device.userId !== userId) {
             return false;
         }
         
-        const isOwner = devices.some(d => d.is_owner);
-        const targetDevice = devices.find(d => d.id === deviceId);
+        const userDevices = this.getUserDevices(userId);
+        const isOwner = userDevices.some(d => d.isOwner);
+        const targetDevice = userDevices.find(d => d.id === deviceId);
         
         if (!targetDevice) return false;
         
-        if (targetDevice.is_owner || isOwner) {
-            await this.db.deleteDevice(deviceId);
+        if (targetDevice.isOwner || isOwner) {
+            this.devices.delete(deviceId);
+            this.saveData();
             return true;
         } else {
-            const timeDiff = Date.now() - new Date(targetDevice.created_at).getTime();
+            const timeDiff = Date.now() - new Date(targetDevice.createdAt).getTime();
             if (timeDiff > 24 * 60 * 60 * 1000) {
-                await this.db.deleteDevice(deviceId);
+                this.devices.delete(deviceId);
+                this.saveData();
                 return true;
             }
             return false;
@@ -1756,7 +879,7 @@ class SimpleServer {
             body += decoder.write(chunk);
         });
 
-        req.on('end', async () => {
+        req.on('end', () => {
             body += decoder.end();
             
             if (req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
@@ -1776,11 +899,11 @@ class SimpleServer {
 
             console.log(`=== END REQUEST ===`);
             
-            await this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
+            this.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
         });
     }
 
-    async processApiRequest(pathname, method, data, query, req, res) {
+    processApiRequest(pathname, method, data, query, req, res) {
         console.log(`🔄 Processing API: ${method} ${pathname}`);
         console.log(`📦 Request data:`, data);
         console.log(`❓ Query params:`, query);
@@ -1811,214 +934,214 @@ class SimpleServer {
             switch (pathname) {
                 case '/api/login':
                     if (method === 'POST') {
-                        response = await this.handleLogin(data, req);
+                        response = this.handleLogin(data, req);
                     }
                     break;
                     
                 case '/api/register':
                     if (method === 'POST') {
-                        response = await this.handleRegister(data, req);
+                        response = this.handleRegister(data, req);
                     }
                     break;
                     
                 case '/api/check-auth':
                     if (method === 'GET') {
-                        response = await this.handleCheckAuth(token, req);
+                        response = this.handleCheckAuth(token, req);
                     }
                     break;
                     
                 case '/api/current-user':
                     if (method === 'GET') {
-                        response = await this.handleCurrentUser(token, req);
+                        response = this.handleCurrentUser(token, req);
                     }
                     break;
                     
                 case '/api/users':
                     if (method === 'GET') {
-                        response = await this.handleGetUsers(token);
+                        response = this.handleGetUsers(token);
                     }
                     break;
 
                 case '/api/chats':
                     if (method === 'GET') {
-                        response = await this.handleGetChats(token);
+                        response = this.handleGetChats(token);
                     }
                     break;
                     
                 case '/api/messages':
                     if (method === 'GET') {
-                        response = await this.handleGetMessages(token, query);
+                        response = this.handleGetMessages(token, query);
                     }
                     break;
                     
                 case '/api/messages/send':
                     if (method === 'POST') {
-                        response = await this.handleSendMessage(token, data);
+                        response = this.handleSendMessage(token, data);
                     }
                     break;
 
                 case '/api/messages/edit':
                     if (method === 'POST') {
-                        response = await this.handleEditMessage(token, data);
+                        response = this.handleEditMessage(token, data);
                     }
                     break;
                     
                 case '/api/messages/delete':
                     if (method === 'POST') {
-                        response = await this.handleDeleteMessage(token, data);
+                        response = this.handleDeleteMessage(token, data);
                     }
                     break;
 
                 case '/api/messages/mark-read':
                     if (method === 'POST') {
-                        response = await this.handleMarkAsRead(token, data);
+                        response = this.handleMarkAsRead(token, data);
                     }
                     break;
                     
                 case '/api/posts':
                     if (method === 'GET') {
-                        response = await this.handleGetPosts(token);
+                        response = this.handleGetPosts(token);
                     } else if (method === 'POST') {
-                        response = await this.handleCreatePost(token, data);
+                        response = this.handleCreatePost(token, data);
                     } else if (method === 'DELETE') {
-                        response = await this.handleDeletePost(token, query);
+                        response = this.handleDeletePost(token, query);
                     }
                     break;
                     
                 case '/api/gifts':
                     if (method === 'GET') {
-                        response = await this.handleGetGifts(token);
+                        response = this.handleGetGifts(token);
                     } else if (method === 'POST') {
-                        response = await this.handleCreateGift(token, data);
+                        response = this.handleCreateGift(token, data);
                     }
                     break;
                     
                 case '/api/promo-codes':
                     if (method === 'GET') {
-                        response = await this.handleGetPromoCodes(token);
+                        response = this.handleGetPromoCodes(token);
                     }
                     break;
                     
                 case '/api/promo-codes/create':
                     if (method === 'POST') {
-                        response = await this.handleCreatePromoCode(token, data);
+                        response = this.handleCreatePromoCode(token, data);
                     }
                     break;
                     
                 case '/api/promo-codes/activate':
                     if (method === 'POST') {
-                        response = await this.handleActivatePromoCode(token, data);
+                        response = this.handleActivatePromoCode(token, data);
                     }
                     break;
                     
                 case '/api/update-profile':
                     if (method === 'POST') {
-                        response = await this.handleUpdateProfile(token, data);
+                        response = this.handleUpdateProfile(token, data);
                     }
                     break;
 
                 case '/api/update-avatar':
                     if (method === 'POST') {
-                        response = await this.handleUpdateAvatar(token, data);
+                        response = this.handleUpdateAvatar(token, data);
                     }
                     break;
 
                 case '/api/upload-avatar':
                     if (method === 'POST') {
-                        response = await this.handleUploadAvatar(token, data);
+                        response = this.handleUploadAvatar(token, data);
                     }
                     break;
 
                 case '/api/upload-gift':
                     if (method === 'POST') {
-                        response = await this.handleUploadGift(token, data);
+                        response = this.handleUploadGift(token, data);
                     }
                     break;
 
                 case '/api/upload-post-image':
                     if (method === 'POST') {
-                        response = await this.handleUploadPostImage(token, data);
+                        response = this.handleUploadPostImage(token, data);
                     }
                     break;
 
                 case '/api/upload-file':
                     if (method === 'POST') {
-                        response = await this.handleUploadFile(token, data);
+                        response = this.handleUploadFile(token, data);
                     }
                     break;
 
                 case '/api/admin/stats':
                     if (method === 'GET') {
-                        response = await this.handleAdminStats(token);
+                        response = this.handleAdminStats(token);
                     }
                     break;
 
                 case '/api/admin/delete-user':
                     if (method === 'POST') {
-                        response = await this.handleDeleteUser(token, data);
+                        response = this.handleDeleteUser(token, data);
                     }
                     break;
 
                 case '/api/admin/ban-user':
                     if (method === 'POST') {
-                        response = await this.handleBanUser(token, data);
+                        response = this.handleBanUser(token, data);
                     }
                     break;
 
                 case '/api/admin/toggle-verification':
                     if (method === 'POST') {
-                        response = await this.handleToggleVerification(token, data);
+                        response = this.handleToggleVerification(token, data);
                     }
                     break;
 
                 case '/api/admin/toggle-developer':
                     if (method === 'POST') {
-                        response = await this.handleToggleDeveloper(token, data);
+                        response = this.handleToggleDeveloper(token, data);
                     }
                     break;
 
                 case '/api/emoji':
                     if (method === 'GET') {
-                        response = await this.handleGetEmoji(token);
+                        response = this.handleGetEmoji(token);
                     }
                     break;
 
                 case '/api/devices':
                     if (method === 'GET') {
-                        response = await this.handleGetDevices(token);
+                        response = this.handleGetDevices(token);
                     }
                     break;
 
                 case '/api/devices/terminate':
                     if (method === 'POST') {
-                        response = await this.handleTerminateDevice(token, data);
+                        response = this.handleTerminateDevice(token, data);
                     }
                     break;
 
                 case '/api/user-by-username':
                     if (method === 'POST') {
-                        response = await this.handleGetUserByUsername(token, data);
+                        response = this.handleGetUserByUsername(token, data);
                     }
                     break;
 
                 case '/api/my-gifts':
                     if (method === 'GET') {
-                        response = await this.handleGetMyGifts(token);
+                        response = this.handleGetMyGifts(token);
                     }
                     break;
 
                 // API для групп
                 case '/api/groups':
                     if (method === 'GET') {
-                        response = await this.handleGetUserGroups(token);
+                        response = this.handleGetUserGroups(token);
                     } else if (method === 'POST') {
-                        response = await this.handleCreateGroup(token, data);
+                        response = this.handleCreateGroup(token, data);
                     }
                     break;
 
                 case '/api/groups/add-member':
                     if (method === 'POST') {
-                        response = await this.handleAddToGroup(token, data);
+                        response = this.handleAddToGroup(token, data);
                     }
                     break;
 
@@ -2031,53 +1154,53 @@ class SimpleServer {
                     
                 case '/api/music':
                     if (method === 'GET') {
-                        response = await this.handleGetMusic(token);
+                        response = this.handleGetMusic(token);
                     } else if (method === 'POST') {
-                        response = await this.handleUploadMusic(token, data);
+                        response = this.handleUploadMusic(token, data);
                     }
                     break;
                     
                 case '/api/music/upload':
                     if (method === 'POST') {
-                        response = await this.handleUploadMusicFile(token, data);
+                        response = this.handleUploadMusicFile(token, data);
                     }
                     break;
                     
                 case '/api/music/upload-cover':
                     if (method === 'POST') {
-                        response = await this.handleUploadMusicCover(token, data);
+                        response = this.handleUploadMusicCover(token, data);
                     }
                     break;
                     
                 case '/api/music/delete':
                     if (method === 'POST') {
-                        response = await this.handleDeleteMusic(token, data);
+                        response = this.handleDeleteMusic(token, data);
                     }
                     break;
                     
                 case '/api/music/search':
                     if (method === 'GET') {
-                        response = await this.handleSearchMusic(token, query);
+                        response = this.handleSearchMusic(token, query);
                     }
                     break;
                     
                 case '/api/music/random':
                     if (method === 'GET') {
-                        response = await this.handleGetRandomMusic(token);
+                        response = this.handleGetRandomMusic(token);
                     }
                     break;
                     
                 case '/api/playlists':
                     if (method === 'GET') {
-                        response = await this.handleGetPlaylists(token);
+                        response = this.handleGetPlaylists(token);
                     } else if (method === 'POST') {
-                        response = await this.handleCreatePlaylist(token, data);
+                        response = this.handleCreatePlaylist(token, data);
                     }
                     break;
                     
                 case '/api/playlists/add':
                     if (method === 'POST') {
-                        response = await this.handleAddToPlaylist(token, data);
+                        response = this.handleAddToPlaylist(token, data);
                     }
                     break;
                     
@@ -2085,22 +1208,22 @@ class SimpleServer {
                     if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
                         const postId = pathname.split('/')[3];
                         if (method === 'POST') {
-                            response = await this.handleLikePost(token, postId);
+                            response = this.handleLikePost(token, postId);
                         }
                     } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
                         const giftId = pathname.split('/')[3];
                         if (method === 'POST') {
-                            response = await this.handleBuyGift(token, giftId, data);
+                            response = this.handleBuyGift(token, giftId, data);
                         }
                     } else if (pathname.startsWith('/api/users/')) {
                         const userId = pathname.split('/')[3];
                         if (method === 'GET') {
-                            response = await this.handleGetUser(token, userId);
+                            response = this.handleGetUser(token, userId);
                         }
                     } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
                         const userId = pathname.split('/')[3];
                         if (method === 'GET') {
-                            response = await this.handleGetTransactions(token, userId);
+                            response = this.handleGetTransactions(token, userId);
                         }
                     } else {
                         response = { success: false, message: 'API endpoint not found' };
@@ -2121,33 +1244,10 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // 🔐 ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-
-    sanitizeUserData(user) {
-        return {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            email: user.email,
-            avatar: user.avatar,
-            description: user.description,
-            coins: user.coins,
-            verified: user.verified,
-            isDeveloper: user.isDeveloper,
-            status: user.status,
-            lastSeen: user.lastSeen,
-            createdAt: user.createdAt,
-            friendsCount: user.friendsCount || 0,
-            postsCount: user.postsCount || 0,
-            giftsCount: user.giftsCount || 0,
-            banned: user.banned || false
-        };
-    }
-
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКОЙ ПРАВ
 
     async handleUploadFile(token, data) {
-        const user = await this.authenticateToken(token);
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2176,33 +1276,46 @@ class SimpleServer {
         }
     }
 
-    async handleGetChats(token) {
-        const user = await this.authenticateToken(token);
+    handleGetChats(token) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Получаем всех пользователей
-        const allUsers = await this.db.getAllUsers(user.id);
-        const chats = [];
-
-        for (const otherUser of allUsers) {
-            // Проверяем есть ли сообщения между пользователями
-            const messages = await this.db.getMessagesBetweenUsers(user.id, otherUser.id);
-            if (messages.length > 0) {
-                const lastMessage = messages[messages.length - 1];
-                const unreadCount = await this.db.getUnreadCount(user.id, otherUser.id);
-                
-                chats.push({
-                    ...this.sanitizeUserData(otherUser),
-                    lastMessage: lastMessage,
-                    unreadCount: unreadCount
-                });
+        // Находим всех пользователей, с которыми есть переписка
+        const chatUserIds = new Set();
+        this.messages.forEach(msg => {
+            if (msg.senderId === user.id) {
+                chatUserIds.add(msg.toUserId);
+            } else if (msg.toUserId === user.id) {
+                chatUserIds.add(msg.senderId);
             }
-        }
+        });
+
+        const chatUsers = this.users
+            .filter(u => u.id !== user.id && chatUserIds.has(u.id))
+            .map(u => ({
+                id: u.id,
+                username: u.username,
+                displayName: u.displayName,
+                avatar: u.avatar,
+                description: u.description,
+                coins: u.coins,
+                verified: u.verified,
+                isDeveloper: u.isDeveloper,
+                status: u.status,
+                lastSeen: u.lastSeen,
+                createdAt: u.createdAt,
+                friendsCount: u.friendsCount || 0,
+                postsCount: u.postsCount || 0,
+                giftsCount: u.giftsCount || 0,
+                banned: u.banned || false,
+                lastMessage: this.getLastMessage(user.id, u.id),
+                unreadCount: this.getUnreadCount(user.id, u.id)
+            }));
 
         // Сортируем по времени последнего сообщения
-        chats.sort((a, b) => {
+        chatUsers.sort((a, b) => {
             const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
             const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
             return timeB - timeA;
@@ -2210,19 +1323,46 @@ class SimpleServer {
 
         return {
             success: true,
-            chats: chats
+            chats: chatUsers
         };
     }
 
-    async handleMarkAsRead(token, data) {
-        const user = await this.authenticateToken(token);
+    getLastMessage(userId1, userId2) {
+        const messages = this.messages.filter(msg => 
+            (msg.senderId === userId1 && msg.toUserId === userId2) ||
+            (msg.senderId === userId2 && msg.toUserId === userId1)
+        );
+        
+        if (messages.length === 0) return null;
+        
+        return messages.reduce((latest, current) => 
+            new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
+        );
+    }
+
+    getUnreadCount(userId, otherUserId) {
+        return this.messages.filter(msg => 
+            msg.senderId === otherUserId && 
+            msg.toUserId === userId && 
+            !msg.read
+        ).length;
+    }
+
+    handleMarkAsRead(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
         const { fromUserId } = data;
         
-        await this.db.markMessagesAsRead(fromUserId, user.id);
+        this.messages.forEach(msg => {
+            if (msg.senderId === fromUserId && msg.toUserId === user.id && !msg.read) {
+                msg.read = true;
+            }
+        });
+        
+        this.saveData();
         
         return {
             success: true,
@@ -2232,8 +1372,8 @@ class SimpleServer {
 
     // 🔐 МЕТОДЫ ДЛЯ РЕДАКТИРОВАНИЯ И УДАЛЕНИЯ СООБЩЕНИЙ
 
-    async handleEditMessage(token, data) {
-        const user = await this.authenticateToken(token);
+    handleEditMessage(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2255,21 +1395,19 @@ class SimpleServer {
             return { success: false, message: 'Некорректный текст сообщения' };
         }
 
-        const message = await this.db.pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
-        if (message.rows.length === 0) {
+        const message = this.messages.find(msg => msg.id === messageId);
+        if (!message) {
             return { success: false, message: 'Сообщение не найдено' };
         }
 
-        const messageData = message.rows[0];
-
         // 🔐 Проверяем права: пользователь может редактировать только свои сообщения
-        if (messageData.sender_id !== user.id) {
+        if (message.senderId !== user.id) {
             this.logSecurityEvent(user, 'EDIT_MESSAGE', `message:${messageId}`, false);
             return { success: false, message: 'Вы можете редактировать только свои сообщения' };
         }
 
         // Проверяем что сообщение не слишком старое (например, не старше 15 минут)
-        const messageAge = Date.now() - new Date(messageData.timestamp).getTime();
+        const messageAge = Date.now() - new Date(message.timestamp).getTime();
         const maxEditTime = 15 * 60 * 1000; // 15 минут
         
         if (messageAge > maxEditTime) {
@@ -2282,20 +1420,22 @@ class SimpleServer {
         }
 
         // Сохраняем оригинальный текст для истории
-        let editHistory = messageData.edit_history || [];
-        editHistory.push({
-            oldText: messageData.encrypted ? this.decrypt(messageData.text) : messageData.text,
+        if (!message.editHistory) {
+            message.editHistory = [];
+        }
+        
+        message.editHistory.push({
+            oldText: message.encrypted ? this.decrypt(message.text) : message.text,
             editedAt: new Date(),
             editedBy: user.id
         });
 
         // Обновляем сообщение
-        const updatedMessage = await this.db.updateMessage(messageId, {
-            text: this.encrypt(sanitizedText),
-            edited: true,
-            edited_at: new Date(),
-            edit_history: editHistory
-        });
+        message.text = this.encrypt(sanitizedText);
+        message.edited = true;
+        message.editedAt = new Date();
+
+        this.saveData();
 
         this.logSecurityEvent(user, 'EDIT_MESSAGE', `message:${messageId}, chars:${sanitizedText.length}`);
 
@@ -2304,14 +1444,14 @@ class SimpleServer {
         return {
             success: true,
             message: {
-                ...updatedMessage,
+                ...message,
                 text: sanitizedText
             }
         };
     }
 
-    async handleDeleteMessage(token, data) {
-        const user = await this.authenticateToken(token);
+    handleDeleteMessage(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2322,22 +1462,22 @@ class SimpleServer {
             return { success: false, message: 'ID сообщения обязателен' };
         }
 
-        const message = await this.db.pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
-        if (message.rows.length === 0) {
+        const messageIndex = this.messages.findIndex(msg => msg.id === messageId);
+        if (messageIndex === -1) {
             return { success: false, message: 'Сообщение не найдено' };
         }
 
-        const messageData = message.rows[0];
+        const message = this.messages[messageIndex];
         
         // 🔐 Проверяем права: пользователь может удалять только свои сообщения (или админ)
-        if (messageData.sender_id !== user.id && !this.isAdmin(user)) {
+        if (message.senderId !== user.id && !this.isAdmin(user)) {
             this.logSecurityEvent(user, 'DELETE_MESSAGE', `message:${messageId}`, false);
             return { success: false, message: 'Вы можете удалять только свои сообщения' };
         }
 
         // Проверяем что сообщение не слишком старое для обычных пользователей
-        if (messageData.sender_id === user.id && !this.isAdmin(user)) {
-            const messageAge = Date.now() - new Date(messageData.timestamp).getTime();
+        if (message.senderId === user.id && !this.isAdmin(user)) {
+            const messageAge = Date.now() - new Date(message.timestamp).getTime();
             const maxDeleteTime = 15 * 60 * 1000; // 15 минут
             
             if (messageAge > maxDeleteTime) {
@@ -2345,8 +1485,9 @@ class SimpleServer {
             }
         }
 
-        // Удаляем сообщение
-        await this.db.deleteMessage(messageId);
+        // Удаляем сообщение из массива
+        this.messages.splice(messageIndex, 1);
+        this.saveData();
 
         this.logSecurityEvent(user, 'DELETE_MESSAGE', `message:${messageId}`);
 
@@ -2358,8 +1499,8 @@ class SimpleServer {
         };
     }
 
-    async handleGetUserByUsername(token, data) {
-        const user = await this.authenticateToken(token);
+    handleGetUserByUsername(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2371,53 +1512,82 @@ class SimpleServer {
             return { success: false, message: 'Некорректное имя пользователя' };
         }
 
-        const targetUser = await this.db.getUserByUsername(username);
+        const targetUser = this.users.find(u => u.username === username);
         
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
         // Получаем подарки пользователя
-        const userGifts = await this.db.pool.query(
-            "SELECT * FROM messages WHERE type = 'gift' AND to_user_id = $1 ORDER BY timestamp DESC",
-            [targetUser.id]
-        );
+        const userGifts = this.messages
+            .filter(msg => msg.type === 'gift' && msg.toUserId === targetUser.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp
+            }));
 
         // Получаем посты пользователя
-        const userPosts = await this.db.pool.query(
-            'SELECT * FROM posts WHERE user_id = $1 ORDER BY created_at DESC',
-            [targetUser.id]
-        );
+        const userPosts = this.posts.filter(post => post.userId === targetUser.id);
 
         return {
             success: true,
-            user: this.sanitizeUserData(targetUser),
-            gifts: userGifts.rows,
-            posts: userPosts.rows
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                description: targetUser.description,
+                coins: targetUser.coins,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status,
+                lastSeen: targetUser.lastSeen,
+                createdAt: targetUser.createdAt,
+                friendsCount: targetUser.friendsCount || 0,
+                postsCount: targetUser.postsCount || 0,
+                giftsCount: targetUser.giftsCount || 0,
+                banned: targetUser.banned || false
+            },
+            gifts: userGifts,
+            posts: userPosts
         };
     }
 
-    async handleGetMyGifts(token) {
-        const user = await this.authenticateToken(token);
+    handleGetMyGifts(token) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
         // Получаем подарки, которые подарили текущему пользователю
-        const myGifts = await this.db.pool.query(
-            "SELECT * FROM messages WHERE type = 'gift' AND to_user_id = $1 ORDER BY timestamp DESC",
-            [user.id]
-        );
+        const myGifts = this.messages
+            .filter(msg => msg.type === 'gift' && msg.toUserId === user.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                giftPreview: msg.giftPreview,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp,
+                giftPrice: msg.giftPrice
+            }));
 
         return {
             success: true,
-            gifts: myGifts.rows
+            gifts: myGifts
         };
     }
 
     // Методы для групп
-    async handleCreateGroup(token, data) {
-        const user = await this.authenticateToken(token);
+    handleCreateGroup(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2441,10 +1611,12 @@ class SimpleServer {
             ownerId: user.id,
             members: [user.id],
             admins: [user.id],
+            createdAt: new Date(),
             isPublic: false
         };
 
-        await this.db.createGroup(group);
+        this.groups.push(group);
+        this.saveData();
 
         console.log(`👥 Создана группа: ${group.name}`);
 
@@ -2454,13 +1626,15 @@ class SimpleServer {
         };
     }
 
-    async handleGetUserGroups(token) {
-        const user = await this.authenticateToken(token);
+    handleGetUserGroups(token) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const userGroups = await this.db.getUserGroups(user.id);
+        const userGroups = this.groups.filter(group => 
+            group.members.includes(user.id)
+        );
 
         return {
             success: true,
@@ -2468,38 +1642,36 @@ class SimpleServer {
         };
     }
 
-    async handleAddToGroup(token, data) {
-        const user = await this.authenticateToken(token);
+    handleAddToGroup(token, data) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
         const { groupId, userId } = data;
         
-        const group = await this.db.pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
-        if (group.rows.length === 0) {
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) {
             return { success: false, message: 'Группа не найдена' };
         }
 
-        const groupData = group.rows[0];
-
         // 🔐 Проверяем права - только админы группы могут добавлять
-        if (!groupData.admins.includes(user.id)) {
+        if (!group.admins.includes(user.id)) {
             this.logSecurityEvent(user, 'ADD_TO_GROUP', `group:${groupId}`, false);
             return { success: false, message: 'Недостаточно прав' };
         }
 
-        const targetUser = await this.db.getUserById(userId);
+        const targetUser = this.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        if (groupData.members.includes(userId)) {
+        if (group.members.includes(userId)) {
             return { success: false, message: 'Пользователь уже в группе' };
         }
 
-        const updatedMembers = [...groupData.members, userId];
-        await this.db.updateGroupMembers(groupId, updatedMembers);
+        group.members.push(userId);
+        this.saveData();
 
         this.logSecurityEvent(user, 'ADD_TO_GROUP', `group:${groupId}, user:${userId}`);
 
@@ -2511,8 +1683,8 @@ class SimpleServer {
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКОЙ ПРАВ ДОСТУПА
 
-    async handleGetUser(token, userId) {
-        const user = await this.authenticateToken(token);
+    handleGetUser(token, userId) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2523,7 +1695,7 @@ class SimpleServer {
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        const targetUser = await this.db.getUserById(userId);
+        const targetUser = this.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
@@ -2532,12 +1704,28 @@ class SimpleServer {
 
         return {
             success: true,
-            user: this.sanitizeUserData(targetUser)
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                description: targetUser.description,
+                coins: targetUser.coins,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status,
+                lastSeen: targetUser.lastSeen,
+                createdAt: targetUser.createdAt,
+                friendsCount: targetUser.friendsCount || 0,
+                postsCount: targetUser.postsCount || 0,
+                giftsCount: targetUser.giftsCount || 0,
+                banned: targetUser.banned || false
+            }
         };
     }
 
-    async handleGetMessages(token, query) {
-        const user = await this.authenticateToken(token);
+    handleGetMessages(token, query) {
+        const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
@@ -2550,12 +1738,17 @@ class SimpleServer {
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        const chatMessages = await this.db.getMessagesBetweenUsers(userId, toUserId);
+        const chatMessages = this.messages.filter(msg => 
+            (msg.senderId === userId && msg.toUserId === toUserId) ||
+            (msg.senderId === toUserId && msg.toUserId === userId)
+        );
 
         const decryptedMessages = chatMessages.map(msg => ({
             ...msg,
             text: msg.encrypted ? this.decrypt(msg.text) : msg.text
         }));
+
+        decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         this.logSecurityEvent(user, 'GET_MESSAGES', `chat:${userId}-${toUserId}`);
 
@@ -2567,8 +1760,8 @@ class SimpleServer {
 
     // 🔐 ОБНОВЛЕННЫЕ АДМИНИСТРАТИВНЫЕ МЕТОДЫ
 
-    async handleDeleteUser(token, data) {
-        const user = await this.authenticateToken(token);
+    handleDeleteUser(token, data) {
+        const user = this.authenticateToken(token);
         
         // 🔐 Только администраторы могут удалять пользователей
         if (!user || !this.isAdmin(user)) {
@@ -2578,12 +1771,12 @@ class SimpleServer {
 
         const { userId } = data;
         
-        const targetUser = await this.db.getUserById(userId);
+        const targetUser = this.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        if (targetUser.is_protected) {
+        if (targetUser.isProtected) {
             return { success: false, message: 'Нельзя удалить защищенного пользователя' };
         }
 
@@ -2595,13 +1788,14 @@ class SimpleServer {
             this.deleteFile(targetUser.avatar);
         }
 
-        // Удаляем устройства пользователя
-        const userDevices = await this.db.getUserDevices(userId);
-        for (const device of userDevices) {
-            await this.db.deleteDevice(device.id);
-        }
+        Array.from(this.devices.entries()).forEach(([deviceId, device]) => {
+            if (device.userId === userId) {
+                this.devices.delete(deviceId);
+            }
+        });
 
-        await this.db.deleteUser(userId);
+        this.users = this.users.filter(u => u.id !== userId);
+        this.saveData();
 
         this.logSecurityEvent(user, 'DELETE_USER', `user:${targetUser.username}`);
 
@@ -2613,8 +1807,8 @@ class SimpleServer {
         };
     }
 
-    async handleBanUser(token, data) {
-        const user = await this.authenticateToken(token);
+    handleBanUser(token, data) {
+        const user = this.authenticateToken(token);
         
         // 🔐 Только администраторы могут банить пользователей
         if (!user || !this.isAdmin(user)) {
@@ -2624,24 +1818,26 @@ class SimpleServer {
 
         const { userId, banned } = data;
         
-        const targetUser = await this.db.getUserById(userId);
+        const targetUser = this.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        if (targetUser.is_protected) {
+        if (targetUser.isProtected) {
             return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
         }
 
-        await this.db.updateUser(userId, { banned });
+        targetUser.banned = banned;
 
         if (banned) {
-            const userDevices = await this.db.getUserDevices(userId);
+            const userDevices = this.getUserDevices(userId);
             if (userDevices.length > 0) {
                 const lastDevice = userDevices[userDevices.length - 1];
-                await this.banIP(lastDevice.ip);
+                this.banIP(lastDevice.ip);
             }
         }
+
+        this.saveData();
 
         this.logSecurityEvent(user, banned ? 'BAN_USER' : 'UNBAN_USER', `user:${targetUser.username}`);
 
@@ -2653,8 +1849,8 @@ class SimpleServer {
         };
     }
 
-    async handleAdminStats(token) {
-        const user = await this.authenticateToken(token);
+    handleAdminStats(token) {
+        const user = this.authenticateToken(token);
         
         // 🔐 Только администраторы могут смотреть статистику
         if (!user || !this.isAdmin(user)) {
@@ -2662,19 +1858,30 @@ class SimpleServer {
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        const stats = await this.db.getStats();
-
         this.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM');
 
         return {
             success: true,
-            stats: stats
+            stats: {
+                totalUsers: this.users.length,
+                totalMessages: this.messages.length,
+                totalPosts: this.posts.length,
+                totalGifts: this.gifts.length,
+                totalPromoCodes: this.promoCodes.length,
+                totalMusic: this.music.length,
+                totalPlaylists: this.playlists.length,
+                totalGroups: this.groups.length,
+                onlineUsers: this.users.filter(u => u.status === 'online').length,
+                bannedUsers: this.users.filter(u => u.banned).length,
+                bannedIPs: this.bannedIPs.size,
+                activeDevices: this.devices.size
+            }
         };
     }
 
     // 🔐 ОБНОВЛЕННАЯ АУТЕНТИФИКАЦИЯ И РЕГИСТРАЦИЯ
 
-    async handleLogin(data, req) {
+    handleLogin(data, req) {
         const { username, password } = data;
         
         // 🔐 Валидация входных данных
@@ -2683,9 +1890,9 @@ class SimpleServer {
         }
 
         const hashedPassword = this.hashPassword(password);
-        const user = await this.db.getUserByUsername(username);
+        const user = this.users.find(u => u.username === username && u.password === hashedPassword);
         
-        if (!user || user.password !== hashedPassword) {
+        if (!user) {
             this.logSecurityEvent({ username }, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
@@ -2696,20 +1903,19 @@ class SimpleServer {
         }
 
         const clientIP = this.getClientIP(req);
-        if (await this.isIPBanned(clientIP)) {
+        if (this.isIPBanned(clientIP)) {
             this.logSecurityEvent(user, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
-        const device = await this.registerDevice(user.id, req);
+        const device = this.registerDevice(user.id, req);
         
         // 🔐 Создаем сессию вместо возврата ID пользователя
-        const sessionToken = await this.createSession(user.id);
+        const sessionToken = this.createSession(user.id);
 
-        await this.db.updateUser(user.id, {
-            status: 'online',
-            last_seen: new Date()
-        });
+        user.status = 'online';
+        user.lastSeen = new Date();
+        this.saveData();
 
         this.logSecurityEvent(user, 'LOGIN', 'SYSTEM');
 
@@ -2717,15 +1923,32 @@ class SimpleServer {
             success: true,
             token: sessionToken, // Возвращаем токен сессии, а не ID пользователя
             deviceId: device.id,
-            user: this.sanitizeUserData(user)
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
         };
     }
 
-    async handleRegister(data, req) {
+    handleRegister(data, req) {
         const { username, displayName, email, password } = data;
 
         const clientIP = this.getClientIP(req);
-        if (await this.isIPBanned(clientIP)) {
+        if (this.isIPBanned(clientIP)) {
             this.logSecurityEvent({ username }, 'REGISTER', 'SYSTEM', false);
             return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
         }
@@ -2757,12 +1980,12 @@ class SimpleServer {
         const sanitizedDisplayName = this.sanitizeContent(displayName);
         const sanitizedEmail = this.sanitizeContent(email);
 
-        const existingUser = await this.db.getUserByUsername(sanitizedUsername);
+        const existingUser = this.users.find(u => u.username === sanitizedUsername);
         if (existingUser) {
             return { success: false, message: 'Пользователь с таким именем уже существует' };
         }
 
-        const existingEmail = await this.db.getUserByEmail(sanitizedEmail);
+        const existingEmail = this.users.find(u => u.email === sanitizedEmail);
         if (existingEmail) {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
@@ -2782,16 +2005,25 @@ class SimpleServer {
             isDeveloper: isBayRex,
             isAdmin: isBayRex, // 🔐 BayRex получает права администратора
             status: 'online',
-            isProtected: isBayRex
+            lastSeen: new Date(),
+            createdAt: new Date(),
+            gifts: [],
+            isProtected: isBayRex,
+            friendsCount: 0,
+            postsCount: 0,
+            giftsCount: 0,
+            banned: false
         };
 
-        await this.db.createUser(newUser);
+        this.users.push(newUser);
 
-        const device = await this.registerDevice(newUser.id, req);
+        const device = this.registerDevice(newUser.id, req);
         
         // 🔐 Создаем сессию для нового пользователя
-        const sessionToken = await this.createSession(newUser.id);
+        const sessionToken = this.createSession(newUser.id);
         
+        this.saveData();
+
         this.logSecurityEvent(newUser, 'REGISTER', 'SYSTEM');
 
         if (isBayRex) {
@@ -2805,1567 +2037,1755 @@ class SimpleServer {
                 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
             token: sessionToken, // Возвращаем токен сессии
             deviceId: device.id,
-            user: this.sanitizeUserData(newUser)
+            user: {
+                id: newUser.id,
+                username: newUser.username,
+                displayName: newUser.displayName,
+                email: newUser.email,
+                avatar: newUser.avatar,
+                description: newUser.description,
+                coins: newUser.coins,
+                verified: newUser.verified,
+                isDeveloper: newUser.isDeveloper,
+                status: newUser.status,
+                lastSeen: newUser.lastSeen,
+                createdAt: newUser.createdAt,
+                friendsCount: newUser.friendsCount,
+                postsCount: newUser.postsCount,
+                giftsCount: newUser.giftsCount,
+                banned: newUser.banned
+            }
         };
     }
 
-    // 🎵 МЕТОДЫ ДЛЯ МУЗЫКИ
+// 🎵 МЕТОДЫ ДЛЯ МУЗЫКИ (восстановленные)
 
-    async handleUploadMusicFull(req, res) {
-        console.log('🎵 Начало обработки загрузки музыки...');
+handleUploadMusicFull(req, res) {
+    console.log('🎵 Начало обработки загрузки музыки...');
 
-        const headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-        };
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+    };
 
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204, headers);
-            res.end();
-            return;
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204, headers);
+        res.end();
+        return;
+    }
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const user = this.authenticateToken(token);
+    
+    if (!user) {
+        res.writeHead(401, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+        return;
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC', 'SYSTEM', false);
+        res.writeHead(403, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ success: false, message: 'Ваш аккаунт заблокирован' }));
+        return;
+    }
+
+    console.log('🎵 Пользователь авторизован:', user.username);
+
+    let isResponseSent = false;
+
+    const sendErrorResponse = (message, statusCode = 500) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            console.error('❌ Ошибка загрузки:', message);
+            res.writeHead(statusCode, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message }));
         }
+    };
 
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        const user = await this.authenticateToken(token);
+    const sendSuccessResponse = (data) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify(data));
+        }
+    };
+
+    try {
+        const bb = busboy({ 
+            headers: req.headers,
+            limits: {
+                fileSize: 50 * 1024 * 1024, // 50MB максимум
+                files: 2, // максимум 2 файла (аудио + обложка)
+                fields: 10 // максимум 10 полей
+            }
+        });
         
-        if (!user) {
-            res.writeHead(401, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
-            return;
-        }
+        let fields = {};
+        let audioFile = null;
+        let coverFile = null;
+        let filesProcessed = 0;
+        let totalFilesExpected = 0;
+        let fieldsProcessed = 0;
 
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC', 'SYSTEM', false);
-            res.writeHead(403, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ success: false, message: 'Ваш аккаунт заблокирован' }));
-            return;
-        }
+        bb.on('field', (name, val) => {
+            console.log(`📋 Поле формы: ${name} = ${val}`);
+            fields[name] = val;
+            fieldsProcessed++;
+        });
 
-        console.log('🎵 Пользователь авторизован:', user.username);
-
-        let isResponseSent = false;
-
-        const sendErrorResponse = (message, statusCode = 500) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                console.error('❌ Ошибка загрузки:', message);
-                res.writeHead(statusCode, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify({ success: false, message }));
+        bb.on('file', (name, file, info) => {
+            const { filename, mimeType } = info;
+            console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+            
+            if (!filename) {
+                console.log('📁 Пропускаем пустой файл');
+                file.resume();
+                return;
             }
-        };
 
-        const sendSuccessResponse = (data) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(data));
-            }
-        };
-
-        try {
-            const bb = busboy({ 
-                headers: req.headers,
-                limits: {
-                    fileSize: 50 * 1024 * 1024, // 50MB максимум
-                    files: 2, // максимум 2 файла (аудио + обложка)
-                    fields: 10 // максимум 10 полей
-                }
+            totalFilesExpected++;
+            const chunks = [];
+            
+            file.on('data', (chunk) => {
+                chunks.push(chunk);
             });
             
-            let fields = {};
-            let audioFile = null;
-            let coverFile = null;
-            let filesProcessed = 0;
-            let totalFilesExpected = 0;
-            let fieldsProcessed = 0;
-
-            bb.on('field', (name, val) => {
-                console.log(`📋 Поле формы: ${name} = ${val}`);
-                fields[name] = val;
-                fieldsProcessed++;
-            });
-
-            bb.on('file', (name, file, info) => {
-                const { filename, mimeType } = info;
-                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+            file.on('end', () => {
+                filesProcessed++;
+                console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
                 
-                if (!filename) {
-                    console.log('📁 Пропускаем пустой файл');
-                    file.resume();
+                if (chunks.length === 0) {
+                    console.log('⚠️ Файл пустой, пропускаем');
                     return;
                 }
 
-                totalFilesExpected++;
-                const chunks = [];
+                const buffer = Buffer.concat(chunks);
+                console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
                 
-                file.on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
-                
-                file.on('end', () => {
-                    filesProcessed++;
-                    console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
-                    
-                    if (chunks.length === 0) {
-                        console.log('⚠️ Файл пустой, пропускаем');
+                if (name === 'audioFile') {
+                    if (!this.validateMusicFile(filename)) {
+                        sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
+                        return;
+                    }
+                    audioFile = { buffer, filename, mimeType };
+                    console.log('✅ Аудио файл сохранен в памяти');
+                } else if (name === 'coverFile') {
+                    if (!this.validateCoverFile(filename)) {
+                        sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
+                        return;
+                    }
+                    coverFile = { buffer, filename, mimeType };
+                    console.log('✅ Обложка сохранена в памяти');
+                }
+            });
+
+            file.on('error', (error) => {
+                console.error('❌ Ошибка чтения файла:', error);
+                sendErrorResponse('Ошибка чтения файла');
+            });
+
+            file.on('limit', () => {
+                console.error('❌ Превышен лимит размера файла');
+                sendErrorResponse('Размер файла превышает допустимый лимит', 400);
+            });
+        });
+
+        bb.on('close', async () => {
+            console.log('🔚 Завершение обработки формы');
+            console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
+            
+            // Даем немного времени на завершение обработки файлов
+            setTimeout(async () => {
+                try {
+                    if (!audioFile) {
+                        sendErrorResponse('Аудио файл обязателен', 400);
                         return;
                     }
 
-                    const buffer = Buffer.concat(chunks);
-                    console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
+                    if (!fields.title || !fields.artist) {
+                        sendErrorResponse('Название и исполнитель обязательны', 400);
+                        return;
+                    }
+
+                    console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
+
+                    // Сохраняем аудио файл
+                    const audioExt = path.extname(audioFile.filename);
+                    const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                    const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
                     
-                    if (name === 'audioFile') {
-                        if (!this.validateMusicFile(filename)) {
-                            sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
-                            return;
-                        }
-                        audioFile = { buffer, filename, mimeType };
-                        console.log('✅ Аудио файл сохранен в памяти');
-                    } else if (name === 'coverFile') {
-                        if (!this.validateCoverFile(filename)) {
-                            sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
-                            return;
-                        }
-                        coverFile = { buffer, filename, mimeType };
-                        console.log('✅ Обложка сохранена в памяти');
-                    }
-                });
-
-                file.on('error', (error) => {
-                    console.error('❌ Ошибка чтения файла:', error);
-                    sendErrorResponse('Ошибка чтения файла');
-                });
-
-                file.on('limit', () => {
-                    console.error('❌ Превышен лимит размера файла');
-                    sendErrorResponse('Размер файла превышает допустимый лимит', 400);
-                });
-            });
-
-            bb.on('close', async () => {
-                console.log('🔚 Завершение обработки формы');
-                console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
-                
-                // Даем немного времени на завершение обработки файлов
-                setTimeout(async () => {
+                    console.log(`💾 Сохранение аудио файла: ${audioPath}`);
                     try {
-                        if (!audioFile) {
-                            sendErrorResponse('Аудио файл обязателен', 400);
-                            return;
+                        await fs.promises.writeFile(audioPath, audioFile.buffer);
+                        const audioUrl = `/uploads/music/${audioFilename}`;
+                        console.log('✅ Аудио файл сохранен');
+
+                        // Сохраняем обложку если есть
+                        let coverUrl = null;
+                        if (coverFile && coverFile.filename) {
+                            const coverExt = path.extname(coverFile.filename);
+                            const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                            const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
+                            
+                            console.log(`💾 Сохранение обложки: ${coverPath}`);
+                            await fs.promises.writeFile(coverPath, coverFile.buffer);
+                            coverUrl = `/uploads/music/covers/${coverFilename}`;
+                            console.log('✅ Обложка сохранена');
                         }
 
-                        if (!fields.title || !fields.artist) {
-                            sendErrorResponse('Название и исполнитель обязательны', 400);
-                            return;
-                        }
+                        // Сохраняем метаданные трека
+                        const track = {
+                            id: this.generateId(),
+                            userId: user.id,
+                            title: this.sanitizeContent(fields.title),
+                            artist: this.sanitizeContent(fields.artist),
+                            genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
+                            fileUrl: audioUrl,
+                            coverUrl: coverUrl,
+                            duration: 0,
+                            plays: 0,
+                            likes: [],
+                            createdAt: new Date()
+                        };
 
-                        console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
+                        this.music.unshift(track);
+                        this.saveData();
 
-                        // Сохраняем аудио файл
-                        const audioExt = path.extname(audioFile.filename);
-                        const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                        const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
-                        
-                        console.log(`💾 Сохранение аудио файла: ${audioPath}`);
-                        try {
-                            await fs.promises.writeFile(audioPath, audioFile.buffer);
-                            const audioUrl = `/uploads/music/${audioFilename}`;
-                            console.log('✅ Аудио файл сохранен');
+                        this.logSecurityEvent(user, 'UPLOAD_MUSIC', `track:${track.title} - ${track.artist}`);
 
-                            // Сохраняем обложку если есть
-                            let coverUrl = null;
-                            if (coverFile && coverFile.filename) {
-                                const coverExt = path.extname(coverFile.filename);
-                                const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
-                                const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
-                                
-                                console.log(`💾 Сохранение обложки: ${coverPath}`);
-                                await fs.promises.writeFile(coverPath, coverFile.buffer);
-                                coverUrl = `/uploads/music/covers/${coverFilename}`;
-                                console.log('✅ Обложка сохранена');
+                        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
+
+                        sendSuccessResponse({
+                            success: true,
+                            track: {
+                                ...track,
+                                userName: user.displayName,
+                                userAvatar: user.avatar,
+                                userVerified: user.verified
                             }
+                        });
 
-                            // Сохраняем метаданные трека
-                            const track = {
-                                id: this.generateId(),
-                                userId: user.id,
-                                title: this.sanitizeContent(fields.title),
-                                artist: this.sanitizeContent(fields.artist),
-                                genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
-                                fileUrl: audioUrl,
-                                coverUrl: coverUrl,
-                                duration: 0
-                            };
-
-                            await this.db.createMusicTrack(track);
-
-                            this.logSecurityEvent(user, 'UPLOAD_MUSIC', `track:${track.title} - ${track.artist}`);
-
-                            console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
-
-                            sendSuccessResponse({
-                                success: true,
-                                track: {
-                                    ...track,
-                                    userName: user.displayName,
-                                    userAvatar: user.avatar,
-                                    userVerified: user.verified
-                                }
-                            });
-
-                        } catch (fileError) {
-                            console.error('❌ Ошибка при сохранении файлов:', fileError);
-                            sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
-                        }
-
-                    } catch (error) {
-                        console.error('❌ Ошибка при обработке формы:', error);
-                        sendErrorResponse('Ошибка при обработке формы: ' + error.message);
+                    } catch (fileError) {
+                        console.error('❌ Ошибка при сохранении файлов:', fileError);
+                        sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
                     }
-                }, 100); // Небольшая задержка для завершения всех операций
-            });
 
-            bb.on('error', (error) => {
-                console.error('❌ Ошибка busboy:', error);
-                sendErrorResponse('Ошибка обработки формы: ' + error.message);
-            });
-
-            // Обработка ошибок запроса
-            req.on('error', (error) => {
-                console.error('❌ Ошибка запроса:', error);
-                sendErrorResponse('Ошибка запроса: ' + error.message);
-            });
-
-            req.on('end', () => {
-                console.log('📨 Запрос полностью получен');
-            });
-
-            // Таймаут обработки
-            const timeout = setTimeout(() => {
-                console.error('⏰ Таймаут обработки запроса');
-                sendErrorResponse('Таймаут обработки запроса', 408);
-            }, 60000); // 60 секунд
-
-            console.log('🔄 Начинаем парсинг формы...');
-            req.pipe(bb);
-
-            // Очистка таймаута при успешной обработке
-            bb.on('close', () => {
-                clearTimeout(timeout);
-                console.log('✅ Таймаут очищен');
-            });
-
-        } catch (error) {
-            console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
-            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
-        }
-    }
-
-    async handleGetMusic(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const music = await this.db.getAllMusic();
-
-        this.logSecurityEvent(user, 'GET_MUSIC', `count:${music.length}`);
-
-        return {
-            success: true,
-            music: music
-        };
-    }
-
-    async handleUploadMusic(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { title, artist, duration, fileUrl, coverUrl, genre } = data;
-        
-        if (!title || !artist || !fileUrl) {
-            return { success: false, message: 'Название, исполнитель и файл обязательны' };
-        }
-
-        const sanitizedTitle = this.sanitizeContent(title);
-        const sanitizedArtist = this.sanitizeContent(artist);
-        const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
-
-        const track = {
-            id: this.generateId(),
-            userId: user.id,
-            title: sanitizedTitle,
-            artist: sanitizedArtist,
-            duration: duration || 0,
-            fileUrl: fileUrl,
-            coverUrl: coverUrl || '/assets/default-cover.png',
-            genre: sanitizedGenre
-        };
-
-        await this.db.createMusicTrack(track);
-
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', `track:${sanitizedTitle} - ${sanitizedArtist}`);
-
-        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
-
-        return {
-            success: true,
-            track:{
-                ...track,
-                userName: user.displayName,
-                userAvatar: user.avatar,
-                userVerified: user.verified
-            }
-        };
-    }
-
-    async handleUploadMusicFile(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-        
-        if (!this.validateMusicFile(filename)) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат аудио файла' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
-
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
-
-            return {
-                success: true,
-                fileUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки аудио файла:', error);
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadMusicCover(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-        
-        if (!this.validateCoverFile(filename)) {
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат изображения' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
-
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
-
-            return {
-                success: true,
-                coverUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки обложки:', error);
-            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleDeleteMusic(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { trackId } = data;
-        const track = await this.db.pool.query('SELECT * FROM music WHERE id = $1', [trackId]);
-        
-        if (track.rows.length === 0) {
-            return { success: false, message: 'Трек не найден' };
-        }
-
-        const trackData = track.rows[0];
-        
-        // 🔐 Проверяем права: пользователь может удалять только свои треки (или админ)
-        if (trackData.user_id !== user.id && !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
-            return { success: false, message: 'Вы можете удалять только свои треки' };
-        }
-
-        if (trackData.file_url && trackData.file_url.startsWith('/uploads/music/')) {
-            this.deleteFile(trackData.file_url);
-        }
-
-        if (trackData.cover_url && trackData.cover_url.startsWith('/uploads/music/covers/')) {
-            this.deleteFile(trackData.cover_url);
-        }
-
-        await this.db.deleteMusicTrack(trackId);
-
-        this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackData.title}`);
-
-        console.log(`🗑️ Трек удален: ${trackData.title}`);
-
-        return {
-            success: true,
-            message: 'Трек успешно удален'
-        };
-    }
-
-    async handleSearchMusic(token, query) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { q } = query;
-        if (!q || q.trim() === '') {
-            return this.handleGetMusic(token);
-        }
-
-        const searchTerm = q.toLowerCase().trim();
-        const filteredMusic = await this.db.searchMusic(searchTerm);
-
-        this.logSecurityEvent(user, 'SEARCH_MUSIC', `term:${q}, results:${filteredMusic.length}`);
-
-        return {
-            success: true,
-            music: filteredMusic,
-            searchTerm: q
-        };
-    }
-
-    async handleGetRandomMusic(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const randomMusic = await this.db.getRandomMusic(10);
-
-        this.logSecurityEvent(user, 'GET_RANDOM_MUSIC', `count:${randomMusic.length}`);
-
-        return {
-            success: true,
-            music: randomMusic
-        };
-    }
-
-    async handleGetPlaylists(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const userPlaylists = await this.db.getUserPlaylists(user.id);
-        
-        this.logSecurityEvent(user, 'GET_PLAYLISTS', `count:${userPlaylists.length}`);
-
-        return {
-            success: true,
-            playlists: userPlaylists
-        };
-    }
-
-    async handleCreatePlaylist(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'CREATE_PLAYLIST', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { name, description } = data;
-        
-        if (!name || name.trim() === '') {
-            return { success: false, message: 'Название плейлиста обязательно' };
-        }
-
-        const sanitizedName = this.sanitizeContent(name.trim());
-        const sanitizedDescription = description ? this.sanitizeContent(description) : '';
-
-        const playlist = {
-            id: this.generateId(),
-            userId: user.id,
-            name: sanitizedName,
-            description: sanitizedDescription,
-            tracks: [],
-            cover: null
-        };
-
-        await this.db.createPlaylist(playlist);
-
-        this.logSecurityEvent(user, 'CREATE_PLAYLIST', `name:${sanitizedName}`);
-
-        console.log(`🎵 Создан плейлист: ${sanitizedName}`);
-
-        return {
-            success: true,
-            playlist: playlist
-        };
-    }
-
-    async handleAddToPlaylist(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { playlistId, trackId } = data;
-        
-        const playlist = await this.db.pool.query('SELECT * FROM playlists WHERE id = $1 AND user_id = $2', [playlistId, user.id]);
-        if (playlist.rows.length === 0) {
-            return { success: false, message: 'Плейлист не найден' };
-        }
-
-        const playlistData = playlist.rows[0];
-        const track = await this.db.pool.query('SELECT * FROM music WHERE id = $1', [trackId]);
-        if (track.rows.length === 0) {
-            return { success: false, message: 'Трек не найден' };
-        }
-
-        if (playlistData.tracks.includes(trackId)) {
-            return { success: false, message: 'Трек уже есть в плейлисте' };
-        }
-
-        const updatedTracks = [...playlistData.tracks, trackId];
-        await this.db.updatePlaylistTracks(playlistId, updatedTracks);
-
-        if (!playlistData.cover && updatedTracks.length === 1) {
-            await this.db.pool.query(
-                'UPDATE playlists SET cover = $1 WHERE id = $2',
-                [track.rows[0].cover_url, playlistId]
-            );
-        }
-
-        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlistData.name}, track:${track.rows[0].title}`);
-
-        console.log(`🎵 Трек добавлен в плейлист: ${playlistData.name}`);
-
-        return {
-            success: true,
-            playlist: {
-                ...playlistData,
-                tracks: updatedTracks
-            }
-        };
-    }
-
-    // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
-
-    async handleCheckAuth(token, req) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { authenticated: false };
-        }
-
-        if (user.banned) {
-            this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
-            return { authenticated: false, message: 'Аккаунт заблокирован' };
-        }
-
-        const clientIP = this.getClientIP(req);
-        if (await this.isIPBanned(clientIP)) {
-            this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
-            return { authenticated: false, message: 'IP адрес заблокирован' };
-        }
-
-        const deviceId = this.generateDeviceId(req);
-        const devices = await this.db.getUserDevices(user.id);
-        const device = devices.find(d => d.id === deviceId);
-        if (device) {
-            await this.db.updateDeviceActivity(deviceId);
-        }
-
-        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM');
-
-        return {
-            authenticated: true,
-            user: this.sanitizeUserData(user)
-        };
-    }
-
-    async handleCurrentUser(token, req) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
-            return { success: false, message: 'Аккаунт заблокирован' };
-        }
-
-        const clientIP = this.getClientIP(req);
-        if (await this.isIPBanned(clientIP)) {
-            this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
-            return { success: false, message: 'IP адрес заблокирован' };
-        }
-
-        const deviceId = this.generateDeviceId(req);
-        const devices = await this.db.getUserDevices(user.id);
-        const device = devices.find(d => d.id === deviceId);
-        if (device) {
-            await this.db.updateDeviceActivity(deviceId);
-        }
-
-        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM');
-
-        return {
-            success: true,
-            user: this.sanitizeUserData(user)
-        };
-    }
-
-    async handleGetUsers(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Возвращаем только базовую информацию о пользователях, без чувствительных данных
-        const otherUsers = await this.db.getAllUsers(user.id);
-        const sanitizedUsers = otherUsers.map(u => this.sanitizeUserData(u));
-
-        this.logSecurityEvent(user, 'GET_USERS_LIST', `count:${sanitizedUsers.length}`);
-
-        return {
-            success: true,
-            users: sanitizedUsers
-        };
-    }
-
-    async handleSendMessage(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { toUserId, text, type, image, file, fileName, fileType } = data;
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        // Проверяем что есть либо текст, либо файл
-        if ((!text || text.trim() === '') && !file && !image) {
-            return { success: false, message: 'Сообщение не может быть пустым' };
-        }
-
-        // 🔐 Проверяем существование получателя
-        const recipient = await this.db.getUserById(toUserId);
-        if (!recipient) {
-            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-            return { success: false, message: 'Получатель не найден' };
-        }
-
-        // 🔐 Проверяем что получатель не забанен
-        if (recipient.banned) {
-            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-            return { success: false, message: 'Нельзя отправлять сообщения заблокированным пользователям' };
-        }
-
-        let sanitizedText = '';
-        if (text && text.trim() !== '') {
-            sanitizedText = this.sanitizeContent(text.trim());
-            if (sanitizedText.length === 0 && !file && !image) {
-                this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-                return { success: false, message: 'Сообщение содержит запрещенный контент' };
-            }
-        }
-
-        const encryptedText = text ? this.encrypt(sanitizedText) : '';
-
-        const message = {
-            id: this.generateId(),
-            senderId: user.id,
-            toUserId: toUserId,
-            text: encryptedText,
-            encrypted: !!text,
-            type: type || (file ? 'file' : 'text'),
-            image: image || null,
-            file: file || null,
-            fileName: fileName || null,
-            fileType: fileType || null,
-            displayName: user.displayName
-        };
-
-        await this.db.createMessage(message);
-
-        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
-
-        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
-
-        // Возвращаем сообщение с правильными данными
-        const createdMessage = await this.db.getMessagesBetweenUsers(user.id, toUserId);
-        const lastMessage = createdMessage[createdMessage.length - 1];
-
-        return {
-            success: true,
-            message: {
-                ...lastMessage,
-                text: sanitizedText
-            }
-        };
-    }
-
-    // 🔄 Исправляем метод получения постов
-    async handleGetPosts(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const posts = await this.db.getAllPosts();
-
-        // Убеждаемся, что у всех постов есть информация о пользователе
-        const postsWithUserInfo = await Promise.all(
-            posts.map(async post => {
-                if (post.userName) {
-                    return post;
+                } catch (error) {
+                    console.error('❌ Ошибка при обработке формы:', error);
+                    sendErrorResponse('Ошибка при обработке формы: ' + error.message);
                 }
-                
-                // Если информации о пользователе нет, загружаем её
-                const userInfo = await this.db.getUserInfoForPost(post.userId);
-                return { ...post, ...userInfo };
-            })
-        );
+            }, 100); // Небольшая задержка для завершения всех операций
+        });
 
-        this.logSecurityEvent(user, 'GET_POSTS', `count:${postsWithUserInfo.length}`);
+        bb.on('error', (error) => {
+            console.error('❌ Ошибка busboy:', error);
+            sendErrorResponse('Ошибка обработки формы: ' + error.message);
+        });
+
+        // Обработка ошибок запроса
+        req.on('error', (error) => {
+            console.error('❌ Ошибка запроса:', error);
+            sendErrorResponse('Ошибка запроса: ' + error.message);
+        });
+
+        req.on('end', () => {
+            console.log('📨 Запрос полностью получен');
+        });
+
+        // Таймаут обработки
+        const timeout = setTimeout(() => {
+            console.error('⏰ Таймаут обработки запроса');
+            sendErrorResponse('Таймаут обработки запроса', 408);
+        }, 60000); // 60 секунд
+
+        console.log('🔄 Начинаем парсинг формы...');
+        req.pipe(bb);
+
+        // Очистка таймаута при успешной обработке
+        bb.on('close', () => {
+            clearTimeout(timeout);
+            console.log('✅ Таймаут очищен');
+        });
+
+    } catch (error) {
+        console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
+        sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+    }
+}
+
+handleGetMusic(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const musicWithUserInfo = this.music.map(track => {
+        const trackUser = this.users.find(u => u.id === track.userId);
+        return {
+            ...track,
+            userName: trackUser ? trackUser.displayName : 'Неизвестный',
+            userAvatar: trackUser ? trackUser.avatar : null,
+            userVerified: trackUser ? trackUser.verified : false
+        };
+    });
+
+    this.logSecurityEvent(user, 'GET_MUSIC', `count:${musicWithUserInfo.length}`);
+
+    return {
+        success: true,
+        music: musicWithUserInfo
+    };
+}
+
+handleUploadMusic(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { title, artist, duration, fileUrl, coverUrl, genre } = data;
+    
+    if (!title || !artist || !fileUrl) {
+        return { success: false, message: 'Название, исполнитель и файл обязательны' };
+    }
+
+    const sanitizedTitle = this.sanitizeContent(title);
+    const sanitizedArtist = this.sanitizeContent(artist);
+    const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
+
+    const track = {
+        id: this.generateId(),
+        userId: user.id,
+        title: sanitizedTitle,
+        artist: sanitizedArtist,
+        duration: duration || 0,
+        fileUrl: fileUrl,
+        coverUrl: coverUrl || '/assets/default-cover.png',
+        genre: sanitizedGenre,
+        plays: 0,
+        likes: [],
+        createdAt: new Date()
+    };
+
+    this.music.unshift(track);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', `track:${sanitizedTitle} - ${sanitizedArtist}`);
+
+    console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
+
+    return {
+        success: true,
+        track:{
+            ...track,
+            userName: user.displayName,
+            userAvatar: user.avatar,
+            userVerified: user.verified
+        }
+    };
+}
+
+async handleUploadMusicFile(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { fileData, filename } = data;
+    
+    if (!this.validateMusicFile(filename)) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат аудио файла' };
+    }
+
+    try {
+        const fileExt = path.extname(filename);
+        const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+        
+        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
 
         return {
             success: true,
-            posts: postsWithUserInfo
+            fileUrl: fileUrl
+        };
+    } catch (error) {
+        console.error('Ошибка загрузки аудио файла:', error);
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
+        return { success: false, message: 'Ошибка загрузки файла' };
+    }
+}
+
+async handleUploadMusicCover(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { fileData, filename } = data;
+    
+    if (!this.validateCoverFile(filename)) {
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат изображения' };
+    }
+
+    try {
+        const fileExt = path.extname(filename);
+        const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+        
+        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
+
+        return {
+            success: true,
+            coverUrl: fileUrl
+        };
+    } catch (error) {
+        console.error('Ошибка загрузки обложки:', error);
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
+        return { success: false, message: 'Ошибка загрузки файла' };
+    }
+}
+
+handleDeleteMusic(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const { trackId } = data;
+    const trackIndex = this.music.findIndex(t => t.id === trackId);
+    
+    if (trackIndex === -1) {
+        return { success: false, message: 'Трек не найден' };
+    }
+
+    const track = this.music[trackIndex];
+    
+    // 🔐 Проверяем права: пользователь может удалять только свои треки (или админ)
+    if (track.userId !== user.id && !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
+        return { success: false, message: 'Вы можете удалять только свои треки' };
+    }
+
+    if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
+        this.deleteFile(track.fileUrl);
+    }
+
+    if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
+        this.deleteFile(track.coverUrl);
+    }
+
+    this.music.splice(trackIndex, 1);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${track.title}`);
+
+    console.log(`🗑️ Трек удален: ${track.title}`);
+
+    return {
+        success: true,
+        message: 'Трек успешно удален'
+    };
+}
+
+handleSearchMusic(token, query) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const { q } = query;
+    if (!q || q.trim() === '') {
+        return this.handleGetMusic(token);
+    }
+
+    const searchTerm = q.toLowerCase().trim();
+    const filteredMusic = this.music.filter(track => 
+        track.title.toLowerCase().includes(searchTerm) ||
+        track.artist.toLowerCase().includes(searchTerm) ||
+        track.genre.toLowerCase().includes(searchTerm)
+    );
+
+    const musicWithUserInfo = filteredMusic.map(track => {
+        const trackUser = this.users.find(u => u.id === track.userId);
+        return {
+            ...track,
+            userName: trackUser ? trackUser.displayName : 'Неизвестный',
+            userAvatar: trackUser ? trackUser.avatar : null,
+            userVerified: trackUser ? trackUser.verified : false
+        };
+    });
+
+    this.logSecurityEvent(user, 'SEARCH_MUSIC', `term:${q}, results:${musicWithUserInfo.length}`);
+
+    return {
+        success: true,
+        music: musicWithUserInfo,
+        searchTerm: q
+    };
+}
+
+handleGetRandomMusic(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    if (this.music.length === 0) {
+        return {
+            success: true,
+            music: []
         };
     }
 
-    async handleCreatePost(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
+    const shuffled = [...this.music].sort(() => 0.5 - Math.random());
+    const randomMusic = shuffled.slice(0, 10);
 
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
+    const musicWithUserInfo = randomMusic.map(track => {
+        const trackUser = this.users.find(u => u.id === track.userId);
+        return {
+            ...track,
+            userName: trackUser ? trackUser.displayName : 'Неизвестный',
+            userAvatar: trackUser ? trackUser.avatar : null,
+            userVerified: trackUser ? trackUser.verified : false
+        };
+    });
+
+    this.logSecurityEvent(user, 'GET_RANDOM_MUSIC', `count:${musicWithUserInfo.length}`);
+
+    return {
+        success: true,
+        music: musicWithUserInfo
+    };
+}
+
+handleGetPlaylists(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const userPlaylists = this.playlists.filter(p => p.userId === user.id);
+    
+    this.logSecurityEvent(user, 'GET_PLAYLISTS', `count:${userPlaylists.length}`);
+
+    return {
+        success: true,
+        playlists: userPlaylists
+    };
+}
+
+handleCreatePlaylist(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'CREATE_PLAYLIST', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { name, description } = data;
+    
+    if (!name || name.trim() === '') {
+        return { success: false, message: 'Название плейлиста обязательно' };
+    }
+
+    const sanitizedName = this.sanitizeContent(name.trim());
+    const sanitizedDescription = description ? this.sanitizeContent(description) : '';
+
+    const playlist = {
+        id: this.generateId(),
+        userId: user.id,
+        name: sanitizedName,
+        description: sanitizedDescription,
+        tracks: [],
+        cover: null,
+        createdAt: new Date()
+    };
+
+    this.playlists.push(playlist);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'CREATE_PLAYLIST', `name:${sanitizedName}`);
+
+    console.log(`🎵 Создан плейлист: ${sanitizedName}`);
+
+    return {
+        success: true,
+        playlist: playlist
+    };
+}
+
+handleAddToPlaylist(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { playlistId, trackId } = data;
+    
+    const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
+    if (!playlist) {
+        return { success: false, message: 'Плейлист не найден' };
+    }
+
+    const track = this.music.find(t => t.id === trackId);
+    if (!track) {
+        return { success: false, message: 'Трек не найден' };
+    }
+
+    if (playlist.tracks.includes(trackId)) {
+        return { success: false, message: 'Трек уже есть в плейлисте' };
+    }
+
+    playlist.tracks.push(trackId);
+
+    if (!playlist.cover && playlist.tracks.length === 1) {
+        playlist.cover = track.coverUrl;
+    }
+
+    this.saveData();
+
+    this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
+
+    console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
+
+    return {
+        success: true,
+        playlist: playlist
+    };
+}
+
+// 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
+
+handleCheckAuth(token, req) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { authenticated: false };
+    }
+
+    if (user.banned) {
+        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
+        return { authenticated: false, message: 'Аккаунт заблокирован' };
+    }
+
+    const clientIP = this.getClientIP(req);
+    if (this.isIPBanned(clientIP)) {
+        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
+        return { authenticated: false, message: 'IP адрес заблокирован' };
+    }
+
+    const deviceId = this.generateDeviceId(req);
+    const device = this.devices.get(deviceId);
+    if (device && device.userId === user.id) {
+        device.lastActive = new Date();
+        this.saveData();
+    }
+
+    this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM');
+
+    return {
+        authenticated: true,
+        user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            email: user.email,
+            avatar: user.avatar,
+            description: user.description,
+            coins: user.coins,
+            verified: user.verified,
+            isDeveloper: user.isDeveloper,
+            status: user.status,
+            lastSeen: user.lastSeen,
+            createdAt: user.createdAt,
+            friendsCount: user.friendsCount || 0,
+            postsCount: user.postsCount || 0,
+            giftsCount: user.giftsCount || 0,
+            banned: user.banned || false
+        }
+    };
+}
+
+handleCurrentUser(token, req) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    if (user.banned) {
+        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
+        return { success: false, message: 'Аккаунт заблокирован' };
+    }
+
+    const clientIP = this.getClientIP(req);
+    if (this.isIPBanned(clientIP)) {
+        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
+        return { success: false, message: 'IP адрес заблокирован' };
+    }
+
+    const deviceId = this.generateDeviceId(req);
+    const device = this.devices.get(deviceId);
+    if (device && device.userId === user.id) {
+        device.lastActive = new Date();
+        this.saveData();
+    }
+
+    this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM');
+
+    return {
+        success: true,
+        user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            email: user.email,
+            avatar: user.avatar,
+            description: user.description,
+            coins: user.coins,
+            verified: user.verified,
+            isDeveloper: user.isDeveloper,
+            status: user.status,
+            lastSeen: user.lastSeen,
+            createdAt: user.createdAt,
+            friendsCount: user.friendsCount || 0,
+            postsCount: user.postsCount || 0,
+            giftsCount: user.giftsCount || 0,
+            banned: user.banned || false
+        }
+    };
+}
+
+handleGetUsers(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Возвращаем только базовую информацию о пользователях, без чувствительных данных
+    const otherUsers = this.users
+        .filter(u => u.id !== user.id)
+        .map(u => ({
+            id: u.id,
+            username: u.username,
+            displayName: u.displayName,
+            avatar: u.avatar,
+            description: u.description,
+            coins: u.coins,
+            verified: u.verified,
+            isDeveloper: u.isDeveloper,
+            status: u.status,
+            lastSeen: u.lastSeen,
+            createdAt: u.createdAt,
+            friendsCount: u.friendsCount || 0,
+            postsCount: u.postsCount || 0,
+            giftsCount: u.giftsCount || 0,
+            banned: u.banned || false
+        }));
+
+    this.logSecurityEvent(user, 'GET_USERS_LIST', `count:${otherUsers.length}`);
+
+    return {
+        success: true,
+        users: otherUsers
+    };
+}
+
+handleSendMessage(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const { toUserId, text, type, image, file, fileName, fileType } = data;
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    // Проверяем что есть либо текст, либо файл
+    if ((!text || text.trim() === '') && !file && !image) {
+        return { success: false, message: 'Сообщение не может быть пустым' };
+    }
+
+    // 🔐 Проверяем существование получателя
+    const recipient = this.users.find(u => u.id === toUserId);
+    if (!recipient) {
+        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+        return { success: false, message: 'Получатель не найден' };
+    }
+
+    // 🔐 Проверяем что получатель не забанен
+    if (recipient.banned) {
+        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+        return { success: false, message: 'Нельзя отправлять сообщения заблокированным пользователям' };
+    }
+
+    let sanitizedText = '';
+    if (text && text.trim() !== '') {
+        sanitizedText = this.sanitizeContent(text.trim());
+        if (sanitizedText.length === 0 && !file && !image) {
+            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+            return { success: false, message: 'Сообщение содержит запрещенный контент' };
+        }
+    }
+
+    const encryptedText = text ? this.encrypt(sanitizedText) : '';
+
+    const message = {
+        id: this.generateId(),
+        senderId: user.id,
+        toUserId: toUserId,
+        text: encryptedText,
+        encrypted: !!text,
+        type: type || (file ? 'file' : 'text'),
+        image: image || null,
+        file: file || null,
+        fileName: fileName || null,
+        fileType: fileType || null,
+        timestamp: new Date(),
+        displayName: user.displayName,
+        read: false
+    };
+
+    this.messages.push(message);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
+
+    console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
+
+    return {
+        success: true,
+        message: {
+            ...message,
+            text: sanitizedText
+        }
+    };
+}
+
+handleGetPosts(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const postsWithUserInfo = this.posts.map(post => {
+        if (post.userId === 'system') {
+            return {
+                ...post,
+                userName: 'Epic Messenger',
+                userAvatar: null,
+                userVerified: true,
+                userDeveloper: true
+            };
+        }
+        
+        const postUser = this.users.find(u => u.id === post.userId);
+        return {
+            ...post,
+            userName: postUser ? postUser.displayName : 'Неизвестный',
+            userAvatar: postUser ? postUser.avatar : null,
+            userVerified: postUser ? postUser.verified : false,
+            userDeveloper: postUser ? postUser.isDeveloper : false
+        };
+    });
+
+    postsWithUserInfo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    this.logSecurityEvent(user, 'GET_POSTS', `count:${postsWithUserInfo.length}`);
+
+    return {
+        success: true,
+        posts: postsWithUserInfo
+    };
+}
+
+handleCreatePost(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { text, image, file, fileName, fileType } = data;
+    
+    // Проверяем что есть либо текст, либо файл
+    if ((!text || text.trim() === '') && !file && !image) {
+        return { success: false, message: 'Текст поста не может быть пустым' };
+    }
+
+    let sanitizedText = '';
+    if (text && text.trim() !== '') {
+        sanitizedText = this.sanitizeContent(text.trim());
+        if (sanitizedText.length === 0 && !file && !image) {
             this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
+            return { success: false, message: 'Текст поста содержит запрещенный контент' };
         }
-
-        const { text, image, file, fileName, fileType } = data;
-        
-        // Проверяем что есть либо текст, либо файл
-        if ((!text || text.trim() === '') && !file && !image) {
-            return { success: false, message: 'Текст поста не может быть пустым' };
-        }
-
-        let sanitizedText = '';
-        if (text && text.trim() !== '') {
-            sanitizedText = this.sanitizeContent(text.trim());
-            if (sanitizedText.length === 0 && !file && !image) {
-                this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
-                return { success: false, message: 'Текст поста содержит запрещенный контент' };
-            }
-        }
-
-        const post = {
-            id: this.generateId(),
-            userId: user.id,
-            text: sanitizedText,
-            image: image,
-            file: file,
-            fileName: fileName,
-            fileType: fileType
-        };
-
-        const createdPost = await this.db.createPost(post);
-        await this.db.updateUser(user.id, { posts_count: (user.posts_count || 0) + 1 });
-
-        this.logSecurityEvent(user, 'CREATE_POST', `chars:${sanitizedText.length}`);
-
-        console.log(`📝 Новый пост от ${user.displayName}`);
-
-        return {
-            success: true,
-            post: createdPost
-        };
     }
 
-    async handleDeletePost(token, query) {
-        const user = await this.authenticateToken(token);
-        
-        // 🔐 Только администраторы могут удалять посты
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
+    const post = {
+        id: this.generateId(),
+        userId: user.id,
+        text: sanitizedText,
+        image: image,
+        file: file,
+        fileName: fileName,
+        fileType: fileType,
+        likes: [],
+        comments: [],
+        views: 0,
+        createdAt: new Date()
+    };
+
+    this.posts.unshift(post);
+    user.postsCount = (user.postsCount || 0) + 1;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'CREATE_POST', `chars:${sanitizedText.length}`);
+
+    console.log(`📝 Новый пост от ${user.displayName}`);
+
+    return {
+        success: true,
+        post: {
+            ...post,
+            userName: user.displayName,
+            userAvatar: user.avatar,
+            userVerified: user.verified,
+            userDeveloper: user.isDeveloper
         }
+    };
+}
 
-        const { postId } = query;
-        const post = await this.db.pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
-        
-        if (post.rows.length === 0) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const postData = post.rows[0];
-        
-        if (postData.user_id === 'system') {
-            return { success: false, message: 'Нельзя удалить системный пост' };
-        }
-
-        if (postData.image && postData.image.startsWith('/uploads/posts/')) {
-            this.deleteFile(postData.image);
-        }
-
-        if (postData.file && postData.file.startsWith('/uploads/')) {
-            this.deleteFile(postData.file);
-        }
-
-        await this.db.deletePost(postId);
-
-        const postUser = await this.db.getUserById(postData.user_id);
-        if (postUser && postUser.posts_count > 0) {
-            await this.db.updateUser(postData.user_id, { posts_count: postUser.posts_count - 1 });
-        }
-
-        this.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
-
-        console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
-
-        return {
-            success: true,
-            message: 'Пост успешно удален'
-        };
+handleDeletePost(token, query) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут удалять посты
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
     }
 
-    async handleLikePost(token, postId) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const post = await this.db.pool.query('SELECT * FROM posts WHERE id = $1', [postId]);
-        if (post.rows.length === 0) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const postData = post.rows[0];
-        let likes = postData.likes || [];
-
-        const likeIndex = likes.indexOf(user.id);
-        if (likeIndex === -1) {
-            likes.push(user.id);
-            console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
-            this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`);
-        } else {
-            likes.splice(likeIndex, 1);
-            console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
-            this.logSecurityEvent(user, 'UNLIKE_POST', `post:${postId}`);
-        }
-
-        await this.db.updatePostLikes(postId, likes);
-
-        return {
-            success: true,
-            likes: likes
-        };
+    const { postId } = query;
+    const postIndex = this.posts.findIndex(p => p.id === postId);
+    
+    if (postIndex === -1) {
+        return { success: false, message: 'Пост не найден' };
     }
 
-    async handleGetGifts(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const gifts = await this.db.getAllGifts();
-
-        this.logSecurityEvent(user, 'GET_GIFTS', `count:${gifts.length}`);
-
-        return {
-            success: true,
-            gifts: gifts
-        };
+    const post = this.posts[postIndex];
+    
+    if (post.userId === 'system') {
+        return { success: false, message: 'Нельзя удалить системный пост' };
     }
 
-    async handleCreateGift(token, data) {
-        const user = await this.authenticateToken(token);
+    if (post.image && post.image.startsWith('/uploads/posts/')) {
+        this.deleteFile(post.image);
+    }
+
+    if (post.file && post.file.startsWith('/uploads/')) {
+        this.deleteFile(post.file);
+    }
+
+    this.posts.splice(postIndex, 1);
+
+    const postUser = this.users.find(u => u.id === post.userId);
+    if (postUser && postUser.postsCount > 0) {
+        postUser.postsCount--;
+    }
+
+    this.saveData();
+
+    this.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
+
+    console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
+
+    return {
+        success: true,
+        message: 'Пост успешно удален'
+    };
+}
+
+handleLikePost(token, postId) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`, false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) {
+        return { success: false, message: 'Пост не найден' };
+    }
+
+    const likeIndex = post.likes.indexOf(user.id);
+    if (likeIndex === -1) {
+        post.likes.push(user.id);
+        console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
+        this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`);
+    } else {
+        post.likes.splice(likeIndex, 1);
+        console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
+        this.logSecurityEvent(user, 'UNLIKE_POST', `post:${postId}`);
+    }
+
+    this.saveData();
+
+    return {
+        success: true,
+        likes: post.likes
+    };
+}
+
+handleGetGifts(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    this.logSecurityEvent(user, 'GET_GIFTS', `count:${this.gifts.length}`);
+
+    return {
+        success: true,
+        gifts: this.gifts
+    };
+}
+
+handleCreateGift(token, data) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут создавать подарки
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
+    }
+
+    const { name, price, type, image } = data;
+    
+    if (!name || !price) {
+        return { success: false, message: 'Название и цена обязательны' };
+    }
+
+    const sanitizedName = this.sanitizeContent(name);
+
+    const gift = {
+        id: this.generateId(),
+        name: sanitizedName,
+        type: type || 'custom',
+        preview: image ? '🖼️' : '🎁',
+        price: parseInt(price),
+        image: image,
+        createdAt: new Date()
+    };
+
+    this.gifts.push(gift);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'CREATE_GIFT', `name:${sanitizedName}, price:${price}`);
+
+    console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
+
+    return {
+        success: true,
+        gift: gift
+    };
+}
+
+handleBuyGift(token, giftId, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { toUserId } = data;
+    const gift = this.gifts.find(g => g.id === giftId);
+    
+    if (!gift) {
+        return { success: false, message: 'Подарок не найден' };
+    }
+
+    if (user.coins < gift.price) {
+        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
+        return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
+    }
+
+    const recipient = this.users.find(u => u.id === toUserId);
+    if (!recipient) {
+        return { success: false, message: 'Получатель не найден' };
+    }
+
+    // 🔐 Проверяем что получатель не забанен
+    if (recipient.banned) {
+        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
+        return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
+    }
+
+    user.coins -= gift.price;
+
+    const giftMessage = {
+        id: this.generateId(),
+        senderId: user.id,
+        toUserId: toUserId,
+        text: '',
+        encrypted: false,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftPrice: gift.price,
+        giftImage: gift.image,
+        giftPreview: gift.preview,
+        timestamp: new Date(),
+        displayName: user.displayName,
+        read: false
+    };
+
+    this.messages.push(giftMessage);
+
+    if (!recipient.gifts) recipient.gifts = [];
+    recipient.gifts.push({
+        id: this.generateId(),
+        giftId: gift.id,
+        fromUserId: user.id,
+        fromUserName: user.displayName,
+        receivedAt: new Date()
+    });
+
+    recipient.giftsCount = (recipient.giftsCount || 0) + 1;
+
+    this.saveData();
+
+    this.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
+
+    console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
+
+    return {
+        success: true,
+        message: `Подарок "${gift.name}" успешно отправлен!`,
+        gift: gift
+    };
+}
+
+handleGetPromoCodes(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    this.logSecurityEvent(user, 'GET_PROMOCODES', `count:${this.promoCodes.length}`);
+
+    return {
+        success: true,
+        promoCodes: this.promoCodes
+    };
+}
+
+handleCreatePromoCode(token, data) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут создавать промокоды
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
+    }
+
+    const { code, coins, max_uses } = data;
+    
+    if (!code || !coins) {
+        return { success: false, message: 'Код и количество коинов обязательны' };
+    }
+
+    const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+
+    const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
+    if (existingPromo) {
+        return { success: false, message: 'Промокод с таким кодом уже существует' };
+    }
+
+    const promoCode = {
+        id: this.generateId(),
+        code: sanitizedCode,
+        coins: parseInt(coins),
+        max_uses: max_uses || 0,
+        used_count: 0,
+        created_at: new Date()
+    };
+
+    this.promoCodes.push(promoCode);
+    this.saveData();
+
+    this.logSecurityEvent(user, 'CREATE_PROMOCODE', `code:${sanitizedCode}, coins:${coins}`);
+
+    console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
+
+    return {
+        success: true,
+        promoCode: promoCode
+    };
+}
+
+handleActivatePromoCode(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { code } = data;
+    
+    // 🔐 Валидация входных данных
+    if (!this.validateInput(code, 'text')) {
+        return { success: false, message: 'Некорректный промокод' };
+    }
+
+    const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+    const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
+
+    if (!promoCode) {
+        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
+        return { success: false, message: 'Промокод не найден' };
+    }
+
+    if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
+        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
+        return { success: false, message: 'Промокод уже использован максимальное количество раз' };
+    }
+
+    user.coins += promoCode.coins;
+    promoCode.used_count++;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}, coins:${promoCode.coins}`);
+
+    console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
+
+    return {
+        success: true,
+        message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
+        coins: promoCode.coins
+    };
+}
+
+handleUpdateProfile(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { displayName, description, username, email } = data;
+
+    if (displayName && displayName.trim()) {
+        // 🔐 Валидация отображаемого имени
+        if (!this.validateInput(displayName, 'displayName')) {
+            return { success: false, message: 'Некорректное отображаемое имя' };
+        }
+        user.displayName = this.sanitizeContent(displayName.trim());
+    }
+
+    if (description !== undefined) {
+        user.description = this.sanitizeContent(description);
+    }
+
+    if (username && username.trim() && username !== user.username) {
+        const sanitizedUsername = this.sanitizeContent(username.trim());
         
-        // 🔐 Только администраторы могут создавать подарки
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
+        // 🔐 Валидация имени пользователя
+        if (!this.validateInput(sanitizedUsername, 'username')) {
+            return { success: false, message: 'Некорректное имя пользователя' };
         }
-
-        const { name, price, type, image } = data;
         
-        if (!name || !price) {
-            return { success: false, message: 'Название и цена обязательны' };
+        const existingUser = this.users.find(u => u.username === sanitizedUsername && u.id !== user.id);
+        if (existingUser) {
+            this.logSecurityEvent(user, 'UPDATE_PROFILE', `username:${sanitizedUsername}`, false);
+            return { success: false, message: 'Имя пользователя уже занято' };
         }
-
-        const sanitizedName = this.sanitizeContent(name);
-
-        const gift = {
-            id: this.generateId(),
-            name: sanitizedName,
-            type: type || 'custom',
-            preview: image ? '🖼️' : '🎁',
-            price: parseInt(price),
-            image: image
-        };
-
-        await this.db.createGift(gift);
-
-        this.logSecurityEvent(user, 'CREATE_GIFT', `name:${sanitizedName}, price:${price}`);
-
-        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
-
-        return {
-            success: true,
-            gift: gift
-        };
+        user.username = sanitizedUsername;
     }
 
-    async handleBuyGift(token, giftId, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { toUserId } = data;
-        const gift = await this.db.getGiftById(giftId);
+    if (email && email.trim() && email !== user.email) {
+        const sanitizedEmail = this.sanitizeContent(email.trim());
         
-        if (!gift) {
-            return { success: false, message: 'Подарок не найден' };
+        // 🔐 Валидация email
+        if (!this.validateInput(sanitizedEmail, 'email')) {
+            return { success: false, message: 'Некорректный email' };
         }
-
-        if (user.coins < gift.price) {
-            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
-            return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
-        }
-
-        const recipient = await this.db.getUserById(toUserId);
-        if (!recipient) {
-            return { success: false, message: 'Получатель не найден' };
-        }
-
-        // 🔐 Проверяем что получатель не забанен
-        if (recipient.banned) {
-            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
-            return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
-        }
-
-        await this.db.updateUser(user.id, { coins: user.coins - gift.price });
-
-        const giftMessage = {
-            id: this.generateId(),
-            senderId: user.id,
-            toUserId: toUserId,
-            text: '',
-            encrypted: false,
-            type: 'gift',
-            giftId: gift.id,
-            giftName: gift.name,
-            giftPrice: gift.price,
-            giftImage: gift.image,
-            giftPreview: gift.preview,
-            displayName: user.displayName
-        };
-
-        await this.db.createMessage(giftMessage);
-
-        await this.db.updateUser(recipient.id, { gifts_count: (recipient.gifts_count || 0) + 1 });
-
-        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
-
-        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
-
-        return {
-            success: true,
-            message: `Подарок "${gift.name}" успешно отправлен!`,
-            gift: gift
-        };
-    }
-
-    async handleGetPromoCodes(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const promoCodes = await this.db.getAllPromoCodes();
-
-        this.logSecurityEvent(user, 'GET_PROMOCODES', `count:${promoCodes.length}`);
-
-        return {
-            success: true,
-            promoCodes: promoCodes
-        };
-    }
-
-    async handleCreatePromoCode(token, data) {
-        const user = await this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут создавать промокоды
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
+        const existingEmail = this.users.find(u => u.email === sanitizedEmail && u.id !== user.id);
+        if (existingEmail) {
+            this.logSecurityEvent(user, 'UPDATE_PROFILE', `email:${sanitizedEmail}`, false);
+            return { success: false, message: 'Email уже используется' };
         }
+        user.email = sanitizedEmail;
+    }
 
-        const { code, coins, max_uses } = data;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM');
+
+    console.log(`📝 Пользователь ${user.username} обновил профиль`);
+
+    return {
+        success: true,
+        user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            email: user.email,
+            avatar: user.avatar,
+            description: user.description,
+            coins: user.coins,
+            verified: user.verified,
+            isDeveloper: user.isDeveloper,
+            status: user.status,
+            lastSeen: user.lastSeen,
+            createdAt: user.createdAt,
+            friendsCount: user.friendsCount || 0,
+            postsCount: user.postsCount || 0,
+            giftsCount: user.giftsCount || 0,
+            banned: user.banned || false
+        }
+    };
+}
+
+handleUpdateAvatar(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { avatar } = data;
+
+    if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+        this.deleteFile(user.avatar);
+    }
+
+    user.avatar = avatar;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
+
+    console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
+
+    return {
+        success: true,
+        user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            email: user.email,
+            avatar: user.avatar,
+            description: user.description,
+            coins: user.coins,
+            verified: user.verified,
+            isDeveloper: user.isDeveloper,
+            status: user.status,
+            lastSeen: user.lastSeen,
+            createdAt: user.createdAt,
+            friendsCount: user.friendsCount || 0,
+            postsCount: user.postsCount || 0,
+            giftsCount: user.giftsCount || 0,
+            banned: user.banned || false
+        }
+    };
+}
+
+async handleUploadAvatar(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { fileData, filename } = data;
+
+    // Проверяем что это изображение
+    if (!this.validateAvatarFile(filename)) {
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат файла для аватара' };
+    }
+
+    try {
+        // Сохраняем файл на сервер
+        const fileExt = path.extname(filename);
+        const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
         
-        if (!code || !coins) {
-            return { success: false, message: 'Код и количество коинов обязательны' };
-        }
+        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
 
-        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-
-        const existingPromo = await this.db.getPromoCodeByCode(sanitizedCode);
-        if (existingPromo) {
-            return { success: false, message: 'Промокод с таким кодом уже существует' };
-        }
-
-        const promoCode = {
-            id: this.generateId(),
-            code: sanitizedCode,
-            coins: parseInt(coins),
-            max_uses: max_uses || 0
-        };
-
-        await this.db.createPromoCode(promoCode);
-
-        this.logSecurityEvent(user, 'CREATE_PROMOCODE', `code:${sanitizedCode}, coins:${coins}`);
-
-        console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
-
-        return {
-            success: true,
-            promoCode: promoCode
-        };
-    }
-
-    async handleActivatePromoCode(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { code } = data;
-        
-        // 🔐 Валидация входных данных
-        if (!this.validateInput(code, 'text')) {
-            return { success: false, message: 'Некорректный промокод' };
-        }
-
-        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-        const promoCode = await this.db.getPromoCodeByCode(sanitizedCode);
-
-        if (!promoCode) {
-            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
-            return { success: false, message: 'Промокод не найден' };
-        }
-
-        if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
-            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
-            return { success: false, message: 'Промокод уже использован максимальное количество раз' };
-        }
-
-        await this.db.updateUser(user.id, { coins: user.coins + promoCode.coins });
-        await this.db.updatePromoCodeUsage(sanitizedCode);
-
-        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}, coins:${promoCode.coins}`);
-
-        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
-
-        return {
-            success: true,
-            message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
-            coins: promoCode.coins
-        };
-    }
-
-    async handleUpdateProfile(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { displayName, description, username, email } = data;
-
-        const updates = {};
-
-        if (displayName && displayName.trim()) {
-            // 🔐 Валидация отображаемого имени
-            if (!this.validateInput(displayName, 'displayName')) {
-                return { success: false, message: 'Некорректное отображаемое имя' };
-            }
-            updates.display_name = this.sanitizeContent(displayName.trim());
-        }
-
-        if (description !== undefined) {
-            updates.description = this.sanitizeContent(description);
-        }
-
-        if (username && username.trim() && username !== user.username) {
-            const sanitizedUsername = this.sanitizeContent(username.trim());
-            
-            // 🔐 Валидация имени пользователя
-            if (!this.validateInput(sanitizedUsername, 'username')) {
-                return { success: false, message: 'Некорректное имя пользователя' };
-            }
-            
-            const existingUser = await this.db.getUserByUsername(sanitizedUsername);
-            if (existingUser && existingUser.id !== user.id) {
-                this.logSecurityEvent(user, 'UPDATE_PROFILE', `username:${sanitizedUsername}`, false);
-                return { success: false, message: 'Имя пользователя уже занято' };
-            }
-            updates.username = sanitizedUsername;
-        }
-
-        if (email && email.trim() && email !== user.email) {
-            const sanitizedEmail = this.sanitizeContent(email.trim());
-            
-            // 🔐 Валидация email
-            if (!this.validateInput(sanitizedEmail, 'email')) {
-                return { success: false, message: 'Некорректный email' };
-            }
-            
-            const existingEmail = await this.db.getUserByEmail(sanitizedEmail);
-            if (existingEmail && existingEmail.id !== user.id) {
-                this.logSecurityEvent(user, 'UPDATE_PROFILE', `email:${sanitizedEmail}`, false);
-                return { success: false, message: 'Email уже используется' };
-            }
-            updates.email = sanitizedEmail;
-        }
-
-        if (Object.keys(updates).length > 0) {
-            await this.db.updateUser(user.id, updates);
-        }
-
-        this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM');
-
-        console.log(`📝 Пользователь ${user.username} обновил профиль`);
-
-        // Получаем обновленные данные пользователя
-        const updatedUser = await this.db.getUserById(user.id);
-
-        return {
-            success: true,
-            user: this.sanitizeUserData(updatedUser)
-        };
-    }
-
-    async handleUpdateAvatar(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { avatar } = data;
-
+        // Удаляем старый аватар если он был
         if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
             this.deleteFile(user.avatar);
         }
 
-        await this.db.updateUser(user.id, { avatar });
+        // Сохраняем URL файла вместо base64
+        user.avatar = fileUrl;
+        this.saveData();
 
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`);
 
-        console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
-
-        const updatedUser = await this.db.getUserById(user.id);
+        console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
         return {
             success: true,
-            user: this.sanitizeUserData(updatedUser)
-        };
-    }
-
-    async handleUploadAvatar(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-
-        // Проверяем что это изображение
-        if (!this.validateAvatarFile(filename)) {
-            this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для аватара' };
-        }
-
-        try {
-            // Сохраняем файл на сервер
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
-
-            // Удаляем старый аватар если он был
-            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-                this.deleteFile(user.avatar);
+            avatarUrl: fileUrl,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: fileUrl, // Возвращаем URL, а не base64
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
             }
+        };
+    } catch (error) {
+        console.error('Ошибка загрузки аватара:', error);
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
+        return { success: false, message: 'Ошибка загрузки файла' };
+    }
+}
 
-            // Сохраняем URL файла вместо base64
-            await this.db.updateUser(user.id, { avatar: fileUrl });
-
-            this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`);
-
-            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
-
-            const updatedUser = await this.db.getUserById(user.id);
-
-            return {
-                success: true,
-                avatarUrl: fileUrl,
-                user: this.sanitizeUserData(updatedUser)
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки аватара:', error);
-            this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
+async handleUploadGift(token, data) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут загружать подарки
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
     }
 
-    async handleUploadGift(token, data) {
-        const user = await this.authenticateToken(token);
+    const { fileData, filename } = data;
+
+    if (!this.validateGiftFile(filename)) {
+        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
+    }
+
+    if (fileData.length > 10 * 1024 * 1024) {
+        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+        return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
+    }
+
+    try {
+        const fileExt = path.extname(filename);
+        const uniqueFilename = `gift_${Date.now()}${fileExt}`;
         
-        // 🔐 Только администраторы могут загружать подарки
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
+        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
 
-        const { fileData, filename } = data;
+        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
 
-        if (!this.validateGiftFile(filename)) {
-            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
-        }
-
-        if (fileData.length > 10 * 1024 * 1024) {
-            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
-
-            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
-
-            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки изображения подарка:', error);
-            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadPostImage(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.validatePostFile(filename)) {
-            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
-        }
-
-        if (fileData.length > 50 * 1024 * 1024) {
-            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
-
-            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
-
-            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки файла для поста:', error);
-            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleGetEmoji(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        try {
-            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
-            const files = fs.readdirSync(emojiPath);
-            const emojiList = files.filter(file => 
-                file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
-            ).map(file => ({
-                name: file,
-                url: `/assets/emoji/${file}`
-            }));
-
-            this.logSecurityEvent(user, 'GET_EMOJI', `count:${emojiList.length}`);
-
-            return {
-                success: true,
-                emoji: emojiList
-            };
-        } catch (error) {
-            this.logSecurityEvent(user, 'GET_EMOJI', 'SYSTEM', false);
-            return {
-                success: true,
-                emoji: []
-            };
-        }
-    }
-
-    async handleToggleVerification(token, data) {
-        const user = await this.authenticateToken(token);
-        
-        // 🔐 Только администраторы могут управлять верификацией
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        
-        const targetUser = await this.db.getUserById(userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        await this.db.updateUser(userId, { verified: !targetUser.verified });
-
-        this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${!targetUser.verified}`);
-
-        console.log(`✅ Администратор ${user.displayName} ${!targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
+        console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
 
         return {
             success: true,
-            message: `Пользователь ${targetUser.username} ${!targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
-            verified: !targetUser.verified
+            imageUrl: fileUrl
         };
+    } catch (error) {
+        console.error('Ошибка загрузки изображения подарка:', error);
+        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+        return { success: false, message: 'Ошибка загрузки файла' };
+    }
+}
+
+async handleUploadPostImage(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
     }
 
-    async handleToggleDeveloper(token, data) {
-        const user = await this.authenticateToken(token);
+    // 🔐 Проверяем что пользователь не забанен
+    if (user.banned) {
+        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
+        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    }
+
+    const { fileData, filename } = data;
+
+    if (!this.validatePostFile(filename)) {
+        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+        return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
+    }
+
+    if (fileData.length > 50 * 1024 * 1024) {
+        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+        return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
+    }
+
+    try {
+        const fileExt = path.extname(filename);
+        const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
         
-        // 🔐 Только администраторы могут управлять правами разработчика
-        if (!user || !this.isAdmin(user)) {
-            this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
+        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
 
-        const { userId } = data;
-        
-        const targetUser = await this.db.getUserById(userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
+        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
 
-        await this.db.updateUser(userId, { is_developer: !targetUser.is_developer });
-
-        this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${!targetUser.is_developer}`);
-
-        console.log(`👑 Администратор ${user.displayName} ${!targetUser.is_developer ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
+        console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
 
         return {
             success: true,
-            message: `Пользователь ${targetUser.username} ${!targetUser.is_developer ? 'получил права разработчика' : 'лишен прав разработчика'}`,
-            isDeveloper: !targetUser.is_developer
+            imageUrl: fileUrl
         };
+    } catch (error) {
+        console.error('Ошибка загрузки файла для поста:', error);
+        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+        return { success: false, message: 'Ошибка загрузки файла' };
+    }
+}
+
+handleGetEmoji(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
     }
 
-    async handleGetTransactions(token, userId) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
+    try {
+        const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
+        const files = fs.readdirSync(emojiPath);
+        const emojiList = files.filter(file => 
+            file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
+        ).map(file => ({
+            name: file,
+            url: `/assets/emoji/${file}`
+        }));
 
-        // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ транзакции
-        if (user.id !== userId) {
-            this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`, false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const transactions = [
-            {
-                description: 'Регистрация бонус',
-                date: user.createdAt,
-                amount: user.coins >= 50000 ? 50000 : 1000
-            }
-        ];
-
-        this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`);
+        this.logSecurityEvent(user, 'GET_EMOJI', `count:${emojiList.length}`);
 
         return {
             success: true,
-            transactions: transactions
+            emoji: emojiList
         };
-    }
-
-    async handleGetDevices(token) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const devices = await this.db.getUserDevices(user.id);
-        
-        this.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
-
+    } catch (error) {
+        this.logSecurityEvent(user, 'GET_EMOJI', 'SYSTEM', false);
         return {
             success: true,
-            devices: devices
+            emoji: []
         };
     }
+}
 
-    async handleTerminateDevice(token, data) {
-        const user = await this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { deviceId } = data;
-        const success = await this.terminateDevice(user.id, deviceId);
-
-        if (success) {
-            this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`);
-            return {
-                success: true,
-                message: 'Сеанс устройства завершен'
-            };
-        } else {
-            this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`, false);
-            return {
-                success: false,
-                message: 'Не удалось завершить сеанс устройства'
-            };
-        }
+handleToggleVerification(token, data) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут управлять верификацией
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
     }
+
+    const { userId } = data;
+    
+    const targetUser = this.users.find(u => u.id === userId);
+    if (!targetUser) {
+        return { success: false, message: 'Пользователь не найден' };
+    }
+
+    targetUser.verified = !targetUser.verified;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${targetUser.verified}`);
+
+    console.log(`✅ Администратор ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
+
+    return {
+        success: true,
+        message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
+        verified: targetUser.verified
+    };
+}
+
+handleToggleDeveloper(token, data) {
+    const user = this.authenticateToken(token);
+    
+    // 🔐 Только администраторы могут управлять правами разработчика
+    if (!user || !this.isAdmin(user)) {
+        this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
+        return { success: false, message: 'Доступ запрещен' };
+    }
+
+    const { userId } = data;
+    
+    const targetUser = this.users.find(u => u.id === userId);
+    if (!targetUser) {
+        return { success: false, message: 'Пользователь не найден' };
+    }
+
+    targetUser.isDeveloper = !targetUser.isDeveloper;
+    this.saveData();
+
+    this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${targetUser.isDeveloper}`);
+
+    console.log(`👑 Администратор ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
+
+    return {
+        success: true,
+        message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
+        isDeveloper: targetUser.isDeveloper
+    };
+}
+
+handleGetTransactions(token, userId) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ транзакции
+    if (user.id !== userId) {
+        this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`, false);
+        return { success: false, message: 'Доступ запрещен' };
+    }
+
+    const transactions = [
+        {
+            description: 'Регистрация бонус',
+            date: user.createdAt,
+            amount: user.coins >= 50000 ? 50000 : 1000
+        }
+    ];
+
+    this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`);
+
+    return {
+        success: true,
+        transactions: transactions
+    };
+}
+
+handleGetDevices(token) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const devices = this.getUserDevices(user.id);
+    
+    this.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
+
+    return {
+        success: true,
+        devices: devices
+    };
+}
+
+handleTerminateDevice(token, data) {
+    const user = this.authenticateToken(token);
+    if (!user) {
+        return { success: false, message: 'Не авторизован' };
+    }
+
+    const { deviceId } = data;
+    const success = this.terminateDevice(user.id, deviceId);
+
+    if (success) {
+        this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`);
+        return {
+            success: true,
+            message: 'Сеанс устройства завершен'
+        };
+    } else {
+        this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`, false);
+        return {
+            success: false,
+            message: 'Не удалось завершить сеанс устройства'
+        };
+    }
+}
   
-    start(port = 3000) {
+      start(port = 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = url.parse(req.url, true);
             const pathname = parsedUrl.pathname;
@@ -4375,63 +3795,63 @@ class SimpleServer {
             // 🔐 Устанавливаем безопасные заголовки для всех запросов
             this.setSecurityHeaders(res);
 
-            if (pathname.startsWith('/api/')) {
-                this.handleApiRequest(req, res);
-                return;
-            }
+if (pathname.startsWith('/api/')) {
+    this.handleApiRequest(req, res);
+    return;
+}
 
-            // Обработка статических файлов для мобильной и десктопной версий
-            if (pathname === '/' || pathname === '/index.html') {
-                this.serveStaticFile(res, 'public/main.html', 'text/html');
-            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
-                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-            } else if (pathname === '/login.html') {
-                this.serveStaticFile(res, 'public/login.html', 'text/html');
-            } else if (pathname === '/about.html' || pathname === '/about') {
-                this.serveStaticFile(res, 'public/about.html', 'text/html');
-            } else if (pathname === '/music.html' || pathname === '/music') {
-                this.serveStaticFile(res, 'public/music.html', 'text/html');
-            } else if (pathname.endsWith('.css')) {
-                this.serveStaticFile(res, 'public' + pathname, 'text/css');
-            } else if (pathname.endsWith('.js')) {
-                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
-                const ext = path.extname(pathname);
-                const contentType = {
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.gif': 'image/gif',
-                    '.svg': 'image/svg+xml',
-                    '.bmp': 'image/bmp',
-                    '.webp': 'image/webp',
-                    '.ico': 'image/x-icon',
-                    '.mp3': 'audio/mpeg',
-                    '.wav': 'audio/wav',
-                    '.ogg': 'audio/ogg',
-                    '.m4a': 'audio/mp4',
-                    '.aac': 'audio/aac',
-                    '.mp4': 'video/mp4',
-                    '.avi': 'video/x-msvideo',
-                    '.mov': 'video/quicktime',
-                    '.wmv': 'video/x-ms-wmv',
-                    '.flv': 'video/x-flv',
-                    '.webm': 'video/webm'
-                }[ext] || 'application/octet-stream';
-                
-                this.serveStaticFile(res, 'public' + pathname, contentType);
-            } else {
-                // По умолчанию отдаем мобильную версию для мобильных устройств
-                const userAgent = req.headers['user-agent'] || '';
-                const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-                
-                if (isMobile) {
-                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-                } else {
-                    this.serveStaticFile(res, 'public/main.html', 'text/html');
-                }
-            }
-        });
+// Обработка статических файлов для мобильной и десктопной версий
+if (pathname === '/' || pathname === '/index.html') {
+    this.serveStaticFile(res, 'public/main.html', 'text/html');
+} else if (pathname === '/mobile.html' || pathname === '/mobile') {
+    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+} else if (pathname === '/login.html') {
+    this.serveStaticFile(res, 'public/login.html', 'text/html');
+} else if (pathname === '/about.html' || pathname === '/about') {
+    this.serveStaticFile(res, 'public/about.html', 'text/html');
+} else if (pathname === '/music.html' || pathname === '/music') {
+    this.serveStaticFile(res, 'public/music.html', 'text/html');
+} else if (pathname.endsWith('.css')) {
+    this.serveStaticFile(res, 'public' + pathname, 'text/css');
+} else if (pathname.endsWith('.js')) {
+    this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
+} else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
+    const ext = path.extname(pathname);
+    const contentType = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.bmp': 'image/bmp',
+        '.webp': 'image/webp',
+        '.ico': 'image/x-icon',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.m4a': 'audio/mp4',
+        '.aac': 'audio/aac',
+        '.mp4': 'video/mp4',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime',
+        '.wmv': 'video/x-ms-wmv',
+        '.flv': 'video/x-flv',
+        '.webm': 'video/webm'
+    }[ext] || 'application/octet-stream';
+    
+        this.serveStaticFile(res, 'public' + pathname, contentType);
+} else {
+    // По умолчанию отдаем мобильную версию для мобильных устройств
+    const userAgent = req.headers['user-agent'] || '';
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+    
+    if (isMobile) {
+        this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+    } else {
+        this.serveStaticFile(res, 'public/main.html', 'text/html');
+    }
+}
+});
 
         const wsServer = new WebSocketServer(server);
 
@@ -4445,7 +3865,7 @@ class SimpleServer {
             console.log(`   ✅ Валидация входных данных активна`);
             console.log(`   ✅ Безопасные заголовки установлены`);
             console.log(`   ✅ Логирование безопасности включено`);
-            console.log(`💾 PostgreSQL база данных подключена`);
+            console.log(`💾 Система сохранения данных активирована`);
             console.log(`🔒 Данные пользователей защищены шифрованием`);
             console.log(`📁 Поддержка загрузки файлов включена`);
             console.log(`🎵 Музыкальный модуль активирован`);
@@ -4459,7 +3879,7 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
-            console.log(`\n💾 База данных: PostgreSQL`);
+            console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
             console.log(`✏️  Для редактирования сообщений: /api/messages/edit`);
