@@ -198,6 +198,7 @@
 
         .content-area {
             display: none;
+            padding: 15px;
             height: 100%;
             overflow-y: auto;
         }
@@ -210,35 +211,20 @@
             font-size: 24px;
             margin-bottom: 20px;
             color: var(--text-primary);
-            padding: 0 15px;
         }
 
-        /* Чат - ПОЛНЫЙ ЭКРАН */
+        /* Чат */
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--bg-primary);
-            z-index: 1001;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-        }
-
-        .chat-container.active {
-            transform: translateX(0);
+            height: 100%;
         }
 
         .chats-sidebar {
             background: var(--bg-secondary);
             border-radius: 12px;
-            margin: 15px;
+            margin-bottom: 15px;
             overflow: hidden;
-            flex: 1;
         }
 
         .chats-header {
@@ -282,7 +268,7 @@
         }
 
         .chats-list {
-            height: calc(100% - 80px);
+            max-height: 300px;
             overflow-y: auto;
         }
 
@@ -361,10 +347,13 @@
         }
 
         .chat-area {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            background: var(--bg-primary);
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 15px;
         }
 
         .chat-header {
@@ -374,9 +363,6 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 10;
         }
 
         .chat-messages {
@@ -385,7 +371,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            min-height: 0;
+            min-height: 200px;
         }
 
         .message {
@@ -396,6 +382,7 @@
             word-wrap: break-word;
             word-break: break-word;
             position: relative;
+            cursor: pointer;
         }
 
         .message.incoming {
@@ -438,9 +425,7 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            position: sticky;
-            bottom: 0;
-            z-index: 10;
+            position: relative;
         }
 
         .message-input-wrapper {
@@ -500,18 +485,21 @@
             background: var(--accent-hover);
         }
 
-        /* Посты - ИСПРАВЛЕНА ПРОКРУТКА */
+        .send-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        /* Посты */
         .posts-container {
             padding: 0;
-            height: 100%;
-            overflow-y: auto;
         }
 
         .post {
             background: var(--bg-secondary);
             border-radius: 12px;
             padding: 20px;
-            margin: 0 15px 16px 15px;
+            margin-bottom: 16px;
             border: 1px solid var(--border-color);
         }
 
@@ -641,9 +629,7 @@
 
         /* Поиск */
         .search-container {
-            padding: 0 15px;
-            height: 100%;
-            overflow-y: auto;
+            padding: 0;
         }
 
         .search-results {
@@ -667,9 +653,7 @@
 
         /* E-COIN */
         .ecoins-container {
-            padding: 0 15px;
-            height: 100%;
-            overflow-y: auto;
+            padding: 0;
         }
 
         .balance-card {
@@ -694,42 +678,81 @@
             margin-top: 15px;
         }
 
-        /* Музыка - УПРОЩЕННАЯ ВЕРСИЯ */
+        /* Музыка */
         .music-container {
-            padding: 0 15px;
-            height: 100%;
+            padding: 0;
+        }
+
+        .music-player {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .now-playing {
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
-            text-align: center;
+            gap: 15px;
+            margin-bottom: 15px;
         }
 
-        .music-player-btn {
-            padding: 20px 40px;
+        .track-cover {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
             background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: 600;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-            margin-top: 20px;
+            font-size: 24px;
         }
 
-        .music-player-btn:hover {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
+        .track-info {
+            flex: 1;
+        }
+
+        .track-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .track-artist {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .audio-play-btn {
+            background: var(--accent-color);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+        }
+
+        .audio-waveform {
+            flex: 1;
+            height: 20px;
+            background: linear-gradient(90deg, var(--accent-color) 50%, var(--bg-secondary) 50%);
+            background-size: 4px 100%;
+            border-radius: 10px;
         }
 
         /* Меню */
         .menu-container {
-            padding: 0 15px;
-            height: 100%;
-            overflow-y: auto;
+            padding: 0;
         }
 
         .menu-section {
@@ -836,100 +859,6 @@
             display: none;
         }
 
-        /* Контекстное меню сообщения */
-        .message-context-menu {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            overflow: hidden;
-            min-width: 120px;
-        }
-
-        .context-menu-item {
-            padding: 10px 15px;
-            background: none;
-            border: none;
-            color: var(--text-primary);
-            cursor: pointer;
-            font-size: 14px;
-            text-align: left;
-            width: 100%;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .context-menu-item:hover {
-            background: var(--bg-tertiary);
-        }
-
-        .context-menu-item.delete {
-            color: var(--error-color);
-        }
-
-        .message {
-            position: relative;
-        }
-
-        .message-actions {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .message:hover .message-actions {
-            opacity: 1;
-        }
-
-        .message-action-btn {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: var(--text-secondary);
-            font-size: 12px;
-        }
-
-        .message-action-btn:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .editing-message {
-            background: var(--warning-color) !important;
-            opacity: 0.8;
-        }
-
-        .edit-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--accent-color);
-            border-radius: 8px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 14px;
-            margin-bottom: 5px;
-        }
-
-        .edit-actions {
-            display: flex;
-            gap: 5px;
-            justify-content: flex-end;
-        }
-
         /* Адаптивность */
         @media (max-width: 480px) {
             .mobile-nav-item {
@@ -943,21 +872,15 @@
             }
             
             .content-area {
-                padding: 0;
+                padding: 10px;
             }
             
             .post {
                 padding: 15px;
-                margin: 0 10px 12px 10px;
             }
             
             .message {
                 max-width: 90%;
-            }
-
-            .music-player-btn {
-                padding: 15px 30px;
-                font-size: 16px;
             }
         }
 
@@ -977,6 +900,231 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--accent-hover);
+        }
+
+        /* Эмодзи панель */
+        .emoji-picker {
+            position: absolute;
+            bottom: 70px;
+            left: 10px;
+            right: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            display: none;
+        }
+
+        .emoji-picker.active {
+            display: block;
+        }
+
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .emoji-item {
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .emoji-item img {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        }
+
+        .emoji-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Меню сообщения */
+        .message-menu {
+            position: absolute;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 0;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            min-width: 120px;
+        }
+
+        .message-menu-item {
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            text-align: left;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .message-menu-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .message-menu-item.delete {
+            color: var(--error-color);
+        }
+
+        /* Меню чата */
+        .chat-menu {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 0;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            min-width: 150px;
+        }
+
+        .chat-menu-item {
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            text-align: left;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .chat-menu-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .chat-menu-item.delete {
+            color: var(--error-color);
+        }
+
+        /* Редактирование профиля */
+        .edit-profile-form {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Модальное окно подарков */
+        .gifts-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1002;
+            padding: 20px;
+        }
+
+        .gifts-container {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .gifts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .gift-item {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .gift-item:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .gift-preview {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .gift-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .gift-price {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Загрузка */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -1005,71 +1153,84 @@
     <div class="main-content">
         <!-- Сообщения -->
         <div class="content-area active" id="messages">
-            <div class="chats-sidebar">
-                <div class="chats-header">
-                    <button class="chats-menu-btn" onclick="toggleGroupCreation()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
-                        </svg>
-                    </button>
-                    <div class="search-box">
-                        <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
+            <div class="chat-container">
+                <div class="chats-sidebar">
+                    <div class="chats-header">
+                        <button class="chats-menu-btn" onclick="toggleGroupCreation()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="18" x2="21" y2="18"></line>
+                            </svg>
+                        </button>
+                        <div class="search-box">
+                            <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
+                        </div>
+                    </div>
+                    <div class="chats-list" id="chatsList">
+                        <div class="system-message">Загрузка чатов...</div>
                     </div>
                 </div>
-                <div class="chats-list" id="chatsList">
-                    <div class="system-message">Загрузка чатов...</div>
+
+                <div class="chat-area" id="chatArea" style="display: none;">
+                    <div class="chat-header">
+                        <div class="chat-user-info">
+                            <h3 id="currentChatName">Выберите чат</h3>
+                            <span id="currentChatStatus">Начните общение</span>
+                        </div>
+                        <div class="chat-actions">
+                            <button class="mobile-header-btn" id="chatMenuBtn" onclick="toggleChatMenu()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="1"></circle>
+                                    <circle cx="12" cy="5" r="1"></circle>
+                                    <circle cx="12" cy="19" r="1"></circle>
+                                </svg>
+                            </button>
+                            <button class="mobile-header-btn" onclick="closeChat()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="system-message">
+                            Выберите чат для начала общения
+                        </div>
+                    </div>
+                    
+                    <div class="message-input-container">
+                        <div class="file-upload-buttons">
+                            <button class="file-upload-btn" onclick="toggleEmojiPicker()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="message-input-wrapper">
+                            <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
+                        </div>
+                        
+                        <button class="send-btn" onclick="sendMessage()" id="sendMessageBtn">Отправить</button>
+                    </div>
+
+                    <!-- Эмодзи панель -->
+                    <div class="emoji-picker" id="emojiPicker">
+                        <div class="emoji-grid" id="emojiGrid">
+                            <!-- Эмодзи будут загружены динамически -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Чат в полном экране -->
-        <div class="chat-container" id="chatContainer">
-            <div class="chat-area">
-                <div class="chat-header">
-                    <div class="chat-user-info">
-                        <h3 id="currentChatName">Выберите чат</h3>
-                        <span id="currentChatStatus">Начните общение</span>
-                    </div>
-                    <div class="chat-actions">
-                        <button class="mobile-header-btn" onclick="closeChat()">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="chat-messages" id="chatMessages">
-                    <div class="system-message">
-                        Выберите чат для начала общения
-                    </div>
-                </div>
-                
-                <div class="message-input-container">
-                    <div class="file-upload-buttons">
-                        <button class="file-upload-btn" onclick="toggleEmojiPicker()">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                                <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                                <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <div class="message-input-wrapper">
-                        <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
-                    </div>
-                    
-                    <button class="send-btn" onclick="sendMessage()">Отправить</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Посы -->
+        <!-- Посты -->
         <div class="content-area" id="posts">
             <div class="posts-container">
                 <h2 class="section-title">Лента постов</h2>
@@ -1097,7 +1258,7 @@
                             </svg>
                             Файл
                         </button>
-                        <button class="send-btn" onclick="publishPost()">Опубликовать</button>
+                        <button class="send-btn" onclick="publishPost()" id="publishPostBtn">Опубликовать</button>
                     </div>
                     <input type="file" id="postFileInput" style="display: none;" onchange="handlePostFileSelect(this.files)">
                 </div>
@@ -1125,54 +1286,49 @@
         <!-- E-COIN -->
         <div class="content-area" id="ecoins">
             <div class="ecoins-container">
-                <h2 class="section-title">E-COIN Кошелек</h2>
+                <h2 class="section-title">E-COIN кошелек</h2>
                 
                 <div class="balance-card">
                     <div>Ваш баланс</div>
-                    <div class="balance-amount" id="ecoinBalance">0 E-COIN</div>
+                    <div class="balance-amount" id="userBalance">0 E-COIN</div>
                     <div class="balance-actions">
-                        <button class="send-btn" onclick="showNotification('Функция в разработке', 'info')">Пополнить</button>
-                        <button class="send-btn" onclick="showNotification('Функция в разработке', 'info')">Вывести</button>
+                        <button class="send-btn" onclick="showGiftModal()">Отправить подарок</button>
+                        <button class="send-btn" onclick="activatePromoCode()">Активировать промокод</button>
                     </div>
                 </div>
-
+                
                 <div class="menu-section">
-                    <h3 style="margin-bottom: 15px;">История операций</h3>
-                    <div id="transactionsList">
-                        <div class="system-message">История операций пуста</div>
+                    <div class="menu-item" onclick="loadMyGifts()">
+                        <div class="menu-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
+                        </div>
+                        Мои подарки
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Музыка - УПРОЩЕННАЯ ВЕРСИЯ -->
+        <!-- Музыка -->
         <div class="content-area" id="music">
             <div class="music-container">
                 <h2 class="section-title">Музыка</h2>
-                <div style="color: var(--text-secondary); margin-bottom: 30px; font-size: 16px;">
-                    Откройте музыкальный плеер для прослушивания музыки
+                
+                <div class="system-message">
+                    Музыкальный раздел в разработке
                 </div>
-                <a href="https://epic-messenger.onrender.com/music" class="music-player-btn">
-                    Открыть музыкальный плеер
-                </a>
             </div>
         </div>
 
         <!-- Меню -->
         <div class="content-area" id="menu">
             <div class="menu-container">
+                <h2 class="section-title">Настройки</h2>
+                
                 <div class="menu-section">
-                    <button class="menu-item" onclick="switchSection('settings')">
-                        <div class="menu-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                            </svg>
-                        </div>
-                        Настройки
-                    </button>
-                    
-                    <button class="menu-item" onclick="switchSection('profile')">
+                    <button class="menu-item" onclick="openProfile()">
                         <div class="menu-icon">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -1181,7 +1337,17 @@
                         </div>
                         Мой профиль
                     </button>
-                    
+                    <button class="menu-item" onclick="toggleTheme()">
+                        <div class="menu-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </div>
+                        Сменить тему
+                    </button>
+                </div>
+                
+                <div class="menu-section">
                     <button class="menu-item" onclick="logout()">
                         <div class="menu-icon">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1195,72 +1361,20 @@
                 </div>
             </div>
         </div>
-
-        <!-- Настройки -->
-        <div class="content-area" id="settings">
-            <div class="menu-container">
-                <h2 class="section-title">Настройки</h2>
-                
-                <div class="menu-section">
-                    <h3 style="margin-bottom: 15px;">Тема оформления</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <button class="send-btn" onclick="changeTheme('dark')">Темная</button>
-                        <button class="send-btn" onclick="changeTheme('light')">Светлая</button>
-                    </div>
-                </div>
-
-                <div class="menu-section">
-                    <h3 style="margin-bottom: 15px;">Уведомления</h3>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
-                        <div>Push-уведомления</div>
-                        <input type="checkbox" id="notificationsEnabled" checked>
-                    </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
-                        <div>Звук уведомлений</div>
-                        <input type="checkbox" id="soundEnabled" checked>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Профиль -->
-        <div class="content-area" id="profile">
-            <div class="menu-container">
-                <div class="balance-card">
-                    <div class="mobile-header-avatar" style="width: 80px; height: 80px; margin: 0 auto 15px;">
-                        <span id="profileAvatar">U</span>
-                    </div>
-                    <h2 id="profileName">Пользователь</h2>
-                    <div style="color: var(--text-secondary); margin-bottom: 15px;" id="profileUsername">@username</div>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;" id="profilePostsCount">0</div>
-                            <div style="font-size: 12px; color: var(--text-secondary);">Постов</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;" id="profileGiftsCount">0</div>
-                            <div style="font-size: 12px; color: var(--text-secondary);">Подарков</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 18px; font-weight: bold;" id="profileCoinsCount">0</div>
-                            <div style="font-size: 12px; color: var(--text-secondary);">E-COIN</div>
-                        </div>
-                    </div>
-                    
-                    <div class="balance-actions">
-                        <button class="send-btn" onclick="editProfile()">Редактировать</button>
-                        <button class="send-btn" onclick="changeAvatar()">Сменить аватар</button>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Мобильная навигация -->
     <div class="mobile-nav">
         <div class="mobile-nav-items">
+            <button class="mobile-nav-item active" data-section="messages" onclick="switchSection('messages')">
+                <div class="mobile-nav-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <span>Чаты</span>
+            </button>
+            
             <button class="mobile-nav-item" data-section="posts" onclick="switchSection('posts')">
                 <div class="mobile-nav-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1269,7 +1383,7 @@
                         <line x1="12" y1="8" x2="12" y2="16"></line>
                     </svg>
                 </div>
-                <span>Посы</span>
+                <span>Посты</span>
             </button>
             
             <button class="mobile-nav-item" data-section="search" onclick="switchSection('search')">
@@ -1282,20 +1396,11 @@
                 <span>Поиск</span>
             </button>
             
-            <button class="mobile-nav-item active" data-section="messages" onclick="switchSection('messages')">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                </div>
-                <span>Сообщения</span>
-            </button>
-            
             <button class="mobile-nav-item" data-section="ecoins" onclick="switchSection('ecoins')">
                 <div class="mobile-nav-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M12 6v12M9 9.5a3 3 0 0 1 0 3"></path>
+                        <path d="m9 12 2 2 4-4"></path>
                     </svg>
                 </div>
                 <span>E-COIN</span>
@@ -1325,8 +1430,74 @@
         </div>
     </div>
 
-    <!-- Контейнер для уведомлений -->
-    <div id="notificationsContainer"></div>
+    <!-- Модальное окно подарков -->
+    <div class="gifts-modal" id="giftsModal" style="display: none;">
+        <div class="gifts-container">
+            <h3>Отправить подарок</h3>
+            <p>Выберите подарок для отправки</p>
+            
+            <div class="gifts-grid" id="giftsGrid">
+                <!-- Подарки будут загружены динамически -->
+            </div>
+            
+            <div class="balance-actions" style="margin-top: 20px;">
+                <button class="send-btn" onclick="closeGiftModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования профиля -->
+    <div class="gifts-modal" id="profileModal" style="display: none;">
+        <div class="gifts-container">
+            <h3>Редактирование профиля</h3>
+            
+            <div class="edit-profile-form">
+                <div class="form-group">
+                    <label class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-input" id="editUsername" placeholder="Введите имя пользователя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Отображаемое имя</label>
+                    <input type="text" class="form-input" id="editDisplayName" placeholder="Введите отображаемое имя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-input" id="editDescription" rows="3" placeholder="Расскажите о себе..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Аватар</label>
+                    <input type="file" class="form-input" id="editAvatar" accept="image/*">
+                </div>
+            </div>
+            
+            <div class="balance-actions" style="margin-top: 20px;">
+                <button class="send-btn" onclick="saveProfile()" id="saveProfileBtn">Сохранить</button>
+                <button class="send-btn" onclick="closeProfileModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно активации промокода -->
+    <div class="gifts-modal" id="promoModal" style="display: none;">
+        <div class="gifts-container">
+            <h3>Активация промокода</h3>
+            
+            <div class="edit-profile-form">
+                <div class="form-group">
+                    <label class="form-label">Промокод</label>
+                    <input type="text" class="form-input" id="promoCode" placeholder="Введите промокод">
+                </div>
+            </div>
+            
+            <div class="balance-actions" style="margin-top: 20px;">
+                <button class="send-btn" onclick="activatePromoCodeSubmit()" id="activatePromoBtn">Активировать</button>
+                <button class="send-btn" onclick="closePromoModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Глобальные переменные
@@ -1335,16 +1506,15 @@
         let allUsers = [];
         let posts = [];
         let chats = [];
+        let gifts = [];
         let socket = null;
+        let selectedMessage = null;
 
         // Основная функция инициализации
         async function initializeApp() {
             try {
                 // Проверяем авторизацию
                 await checkAuth();
-                
-                // Инициализируем WebSocket
-                initializeWebSocket();
                 
                 // Загружаем начальные данные
                 await loadInitialData();
@@ -1390,62 +1560,14 @@
             }
         }
 
-        // Инициализация WebSocket
-        function initializeWebSocket() {
-            const token = localStorage.getItem('authToken');
-            if (!token) return;
-
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
-            
-            socket = new WebSocket(wsUrl);
-
-            socket.onopen = function() {
-                console.log('WebSocket соединение установлено');
-            };
-
-            socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
-            };
-
-            socket.onclose = function() {
-                console.log('WebSocket соединение закрыто');
-                setTimeout(initializeWebSocket, 5000);
-            };
-
-            socket.onerror = function(error) {
-                console.error('WebSocket ошибка:', error);
-            };
-        }
-
-        // Обработка сообщений WebSocket
-        function handleWebSocketMessage(data) {
-            switch(data.type) {
-                case 'new_message':
-                    handleNewMessage(data.message);
-                    break;
-                case 'message_read':
-                    handleMessageRead(data.messageId, data.userId);
-                    break;
-                case 'user_online':
-                    handleUserOnline(data.userId);
-                    break;
-                case 'user_offline':
-                    handleUserOffline(data.userId);
-                    break;
-                case 'new_post':
-                    handleNewPost(data.post);
-                    break;
-            }
-        }
-
         // Загрузка начальных данных
         async function loadInitialData() {
             await Promise.all([
                 loadChats(),
                 loadPosts(),
-                loadUsers()
+                loadUsers(),
+                loadGifts(),
+                loadEmojis()
             ]);
         }
 
@@ -1464,9 +1586,12 @@
                 if (data.success) {
                     chats = data.chats;
                     renderChats();
+                } else {
+                    showNotification('Ошибка загрузки чатов', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка загрузки чатов:', error);
+                showNotification('Ошибка загрузки чатов', 'error');
             }
         }
 
@@ -1485,9 +1610,12 @@
                 if (data.success) {
                     posts = data.posts;
                     renderPosts();
+                } else {
+                    showNotification('Ошибка загрузки постов', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка загрузки постов:', error);
+                showNotification('Ошибка загрузки постов', 'error');
             }
         }
 
@@ -1505,9 +1633,55 @@
                 
                 if (data.success) {
                     allUsers = data.users;
+                } else {
+                    console.error('Ошибка загрузки пользователей');
                 }
             } catch (error) {
                 console.error('Ошибка загрузки пользователей:', error);
+            }
+        }
+
+        // Загрузка подарков
+        async function loadGifts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    gifts = data.gifts;
+                } else {
+                    console.error('Ошибка загрузки подарков');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+            }
+        }
+
+        // Загрузка эмодзи
+        async function loadEmojis() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/emoji', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderEmojis(data.emoji);
+                } else {
+                    console.error('Ошибка загрузки эмодзи');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки эмодзи:', error);
             }
         }
 
@@ -1534,21 +1708,8 @@
             // Обновляем имя для постов
             document.getElementById('postUserName').textContent = currentUser.displayName;
 
-            // Обновляем профиль
-            updateProfile();
-        }
-
-        // Обновление профиля
-        function updateProfile() {
-            if (!currentUser) return;
-
-            document.getElementById('profileAvatar').textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
-            document.getElementById('profileName').textContent = currentUser.displayName || 'Пользователь';
-            document.getElementById('profileUsername').textContent = `@${currentUser.username}`;
-            document.getElementById('profilePostsCount').textContent = currentUser.postsCount || 0;
-            document.getElementById('profileGiftsCount').textContent = currentUser.giftsCount || 0;
-            document.getElementById('profileCoinsCount').textContent = currentUser.coins || 0;
-            document.getElementById('ecoinBalance').textContent = `${currentUser.coins || 0} E-COIN`;
+            // Обновляем баланс
+            document.getElementById('userBalance').textContent = `${currentUser.coins || 0} E-COIN`;
         }
 
         // Рендер чатов
@@ -1643,6 +1804,8 @@
                 `;
             }
             
+            const isLiked = post.likes && post.likes.includes(currentUser.id);
+            
             postElement.innerHTML = `
                 <div class="post-header">
                     <div class="post-user">
@@ -1667,8 +1830,8 @@
                     ${mediaHtml}
                 </div>
                 <div class="post-actions">
-                    <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <button class="post-action like-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="${isLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                         </svg>
                         <span>${post.likes ? post.likes.length : 0}</span>
@@ -1677,6 +1840,23 @@
             `;
             
             return postElement;
+        }
+
+        // Рендер эмодзи
+        function renderEmojis(emojiList) {
+            const emojiGrid = document.getElementById('emojiGrid');
+            if (!emojiGrid) return;
+            
+            emojiGrid.innerHTML = '';
+            
+            emojiList.forEach(emoji => {
+                const emojiItem = document.createElement('div');
+                emojiItem.className = 'emoji-item';
+                emojiItem.innerHTML = `<img src="${emoji.url}" alt="${emoji.name}" title="${emoji.name}">`;
+                emojiItem.onclick = () => insertEmoji(emoji.url);
+                
+                emojiGrid.appendChild(emojiItem);
+            });
         }
 
         // Переключение между разделами
@@ -1698,13 +1878,11 @@
             // Обновляем заголовок
             const titles = {
                 'messages': 'Сообщения',
-                'posts': 'Посы',
+                'posts': 'Посты',
                 'search': 'Поиск',
                 'ecoins': 'E-COIN',
                 'music': 'Музыка',
-                'menu': 'Меню',
-                'settings': 'Настройки',
-                'profile': 'Профиль'
+                'menu': 'Меню'
             };
             
             if (titles[sectionId]) {
@@ -1719,12 +1897,12 @@
             }
         }
 
-        // Открытие чата в полном экране
+        // Открытие чата
         async function openChat(chat) {
             currentChat = chat;
             
-            // Показываем чат в полном экране
-            document.getElementById('chatContainer').classList.add('active');
+            // Показываем область чата
+            document.getElementById('chatArea').style.display = 'flex';
             
             // Обновляем информацию о чате
             document.getElementById('currentChatName').textContent = chat.displayName || 'Пользователь';
@@ -1739,7 +1917,7 @@
 
         // Закрытие чата
         function closeChat() {
-            document.getElementById('chatContainer').classList.remove('active');
+            document.getElementById('chatArea').style.display = 'none';
             currentChat = null;
         }
 
@@ -1757,9 +1935,12 @@
                 
                 if (data.success) {
                     renderChatMessages(data.messages);
+                } else {
+                    showNotification('Ошибка загрузки сообщений', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка загрузки сообщений:', error);
+                showNotification('Ошибка загрузки сообщений', 'error');
             }
         }
 
@@ -1791,7 +1972,7 @@
             const messageElement = document.createElement('div');
             const isOutgoing = message.senderId === currentUser.id;
             messageElement.className = `message ${isOutgoing ? 'outgoing' : 'incoming'} fade-in`;
-            messageElement.dataset.messageId = message.id;
+            messageElement.onclick = (e) => showMessageMenu(e, message);
             
             let readStatus = '';
             if (isOutgoing) {
@@ -1800,23 +1981,10 @@
                 </div>`;
             }
             
-            // Добавляем кнопки действий для исходящих сообщений
-            let actionsHtml = '';
-            if (isOutgoing) {
-                actionsHtml = `
-                    <div class="message-actions">
-                        <button class="message-action-btn" onclick="showMessageContextMenu('${message.id}', event)">
-                            ⋮
-                        </button>
-                    </div>
-                `;
-            }
-            
             if (message.type === 'gift') {
                 messageElement.innerHTML = `
-                    ${actionsHtml}
                     <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 12px;">
-                        <div style="font-size: 24px;">🎁</div>
+                        <div style="font-size: 24px;">${message.giftPreview || '🎁'}</div>
                         <div>
                             <div style="font-weight: bold;">${message.giftName || 'Подарок'}</div>
                             <div style="font-size: 12px; color: var(--text-secondary);">Цена: ${message.giftPrice || 0} E-COIN</div>
@@ -1826,9 +1994,12 @@
                     ${readStatus}
                 `;
             } else {
+                // Заменяем эмодзи-ссылки на изображения
+                let messageText = message.text || '';
+                messageText = messageText.replace(/\/assets\/emoji\/([^"\s]+)/g, '<img src="/assets/emoji/$1" style="width: 20px; height: 20px; vertical-align: middle;" alt="emoji">');
+                
                 messageElement.innerHTML = `
-                    ${actionsHtml}
-                    <div class="message-text">${message.text || ''}</div>
+                    <div class="message-text">${messageText}</div>
                     <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
                     ${readStatus}
                 `;
@@ -1838,179 +2009,25 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Показать контекстное меню сообщения
-        function showMessageContextMenu(messageId, event) {
-            // Удаляем существующее меню
-            const existingMenu = document.querySelector('.message-context-menu');
-            if (existingMenu) {
-                existingMenu.remove();
-            }
-            
-            const menu = document.createElement('div');
-            menu.className = 'message-context-menu';
-            menu.style.top = `${event.clientY}px`;
-            menu.style.left = `${event.clientX}px`;
-            
-            menu.innerHTML = `
-                <button class="context-menu-item" onclick="editMessage('${messageId}')">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    Редактировать
-                </button>
-                <button class="context-menu-item delete" onclick="deleteMessage('${messageId}')">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"></path>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                    Удалить
-                </button>
-            `;
-            
-            document.body.appendChild(menu);
-            
-            // Закрываем меню при клике вне его
-            const closeMenu = (e) => {
-                if (!menu.contains(e.target)) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            };
-            
-            setTimeout(() => {
-                document.addEventListener('click', closeMenu);
-            }, 100);
-        }
-
-        // Удалить сообщение
-        async function deleteMessage(messageId) {
-            if (!confirm('Удалить это сообщение?')) return;
-            
-            try {
-                const authToken = localStorage.getItem('authToken');
-                const response = await fetch('/api/messages/delete', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        messageId: messageId
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Сообщение удалено', 'success');
-                    // Перезагружаем сообщения
-                    if (currentChat) {
-                        await loadChatMessages(currentChat.id);
-                    }
-                } else {
-                    showNotification(data.message || 'Ошибка удаления сообщения', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting message:', error);
-                showNotification('Ошибка удаления сообщения', 'error');
-            }
-        }
-
-        // Изменить сообщение
-        async function editMessage(messageId) {
-            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-            const messageText = messageElement.querySelector('.message-text');
-            const currentText = messageText.textContent;
-            
-            // Создаем поле ввода для редактирования
-            const editInput = document.createElement('textarea');
-            editInput.className = 'edit-input';
-            editInput.value = currentText;
-            
-            const editActions = document.createElement('div');
-            editActions.className = 'edit-actions';
-            editActions.innerHTML = `
-                <button class="send-btn" onclick="saveMessageEdit('${messageId}', this)">Сохранить</button>
-                <button class="send-btn" onclick="cancelMessageEdit('${messageId}', '${currentText}')" style="background: var(--error-color);">Отмена</button>
-            `;
-            
-            // Заменяем текст на поле ввода
-            messageText.replaceWith(editInput);
-            messageElement.querySelector('.message-time').insertAdjacentElement('beforebegin', editActions);
-            messageElement.classList.add('editing-message');
-            
-            // Фокусируем на поле ввода
-            editInput.focus();
-        }
-
-        // Сохранить редактирование сообщения
-        async function saveMessageEdit(messageId, button) {
-            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-            const editInput = messageElement.querySelector('.edit-input');
-            const newText = editInput.value.trim();
-            
-            if (!newText) {
-                showNotification('Сообщение не может быть пустым', 'warning');
-                return;
-            }
-            
-            try {
-                const authToken = localStorage.getItem('authToken');
-                const response = await fetch('/api/messages/edit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        messageId: messageId,
-                        newText: newText
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Сообщение изменено', 'success');
-                    // Перезагружаем сообщения
-                    if (currentChat) {
-                        await loadChatMessages(currentChat.id);
-                    }
-                } else {
-                    showNotification(data.message || 'Ошибка изменения сообщения', 'error');
-                }
-            } catch (error) {
-                console.error('Error editing message:', error);
-                showNotification('Ошибка изменения сообщения', 'error');
-            }
-        }
-
-        // Отменить редактирование сообщения
-        function cancelMessageEdit(messageId, originalText) {
-            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-            const editInput = messageElement.querySelector('.edit-input');
-            const editActions = messageElement.querySelector('.edit-actions');
-            
-            // Восстанавливаем оригинальный текст
-            const messageText = document.createElement('div');
-            messageText.className = 'message-text';
-            messageText.textContent = originalText;
-            
-            editInput.replaceWith(messageText);
-            editActions.remove();
-            messageElement.classList.remove('editing-message');
-        }
-
         // Отправка сообщения
         async function sendMessage() {
-            if (!currentChat) return;
+            if (!currentChat) {
+                showNotification('Выберите чат для отправки сообщения', 'warning');
+                return;
+            }
             
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
             
-            if (!text) return;
+            if (!text) {
+                showNotification('Введите текст сообщения', 'warning');
+                return;
+            }
+            
+            const sendBtn = document.getElementById('sendMessageBtn');
+            const originalText = sendBtn.textContent;
+            sendBtn.innerHTML = '<div class="loading"></div>';
+            sendBtn.disabled = true;
             
             try {
                 const token = localStorage.getItem('authToken');
@@ -2031,24 +2048,17 @@
                 
                 if (data.success) {
                     messageInput.value = '';
-                    
-                    // Отправляем через WebSocket
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({
-                            type: 'new_message',
-                            message: data.message
-                        }));
-                    }
-                    
-                    // Обновляем интерфейс
                     renderNewMessage(data.message);
                     loadChats();
                 } else {
-                    showNotification('Ошибка отправки сообщения', 'error');
+                    showNotification(data.message || 'Ошибка отправки сообщения', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка отправки сообщения:', error);
                 showNotification('Ошибка отправки сообщения', 'error');
+            } finally {
+                sendBtn.textContent = originalText;
+                sendBtn.disabled = false;
             }
         }
 
@@ -2069,6 +2079,11 @@
                 return;
             }
             
+            const publishBtn = document.getElementById('publishPostBtn');
+            const originalText = publishBtn.textContent;
+            publishBtn.innerHTML = '<div class="loading"></div>';
+            publishBtn.disabled = true;
+            
             try {
                 const token = localStorage.getItem('authToken');
                 const response = await fetch('/api/posts', {
@@ -2086,23 +2101,17 @@
                 
                 if (data.success) {
                     postText.value = '';
-                    
-                    // Отправляем через WebSocket
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({
-                            type: 'new_post',
-                            post: data.post
-                        }));
-                    }
-                    
                     loadPosts();
                     showNotification('Пост опубликован!', 'success');
                 } else {
-                    showNotification('Ошибка публикации поста', 'error');
+                    showNotification(data.message || 'Ошибка публикации поста', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка публикации поста:', error);
                 showNotification('Ошибка публикации поста', 'error');
+            } finally {
+                publishBtn.textContent = originalText;
+                publishBtn.disabled = false;
             }
         }
 
@@ -2121,9 +2130,12 @@
                 
                 if (data.success) {
                     loadPosts();
+                } else {
+                    showNotification('Ошибка лайка', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка лайка:', error);
+                showNotification('Ошибка лайка', 'error');
             }
         }
 
@@ -2134,12 +2146,30 @@
                 return;
             }
 
-            const results = allUsers.filter(user => 
-                user.username.toLowerCase().includes(query.toLowerCase()) ||
-                user.displayName.toLowerCase().includes(query.toLowerCase())
-            );
-
-            renderSearchResults(results);
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/user-by-username', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: query
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderSearchResults([data.user]);
+                } else {
+                    document.getElementById('searchResults').innerHTML = '<div class="system-message">Пользователь не найден</div>';
+                }
+            } catch (error) {
+                console.error('Ошибка поиска пользователей:', error);
+                showNotification('Ошибка поиска пользователей', 'error');
+            }
         }
 
         // Рендер результатов поиска
@@ -2203,6 +2233,7 @@
                 }
                 
                 openChat(chat);
+                switchSection('messages');
             }
         }
 
@@ -2214,7 +2245,90 @@
 
         // Открытие своего профиля
         function openProfile() {
-            switchSection('profile');
+            document.getElementById('profileModal').style.display = 'flex';
+            
+            // Заполняем форму текущими данными
+            document.getElementById('editUsername').value = currentUser.username || '';
+            document.getElementById('editDisplayName').value = currentUser.displayName || '';
+            document.getElementById('editDescription').value = currentUser.description || '';
+        }
+
+        // Закрытие модального окна профиля
+        function closeProfileModal() {
+            document.getElementById('profileModal').style.display = 'none';
+        }
+
+        // Сохранение профиля
+        async function saveProfile() {
+            const username = document.getElementById('editUsername').value.trim();
+            const displayName = document.getElementById('editDisplayName').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            const avatarFile = document.getElementById('editAvatar').files[0];
+            
+            if (!username || !displayName) {
+                showNotification('Заполните обязательные поля', 'warning');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveProfileBtn');
+            const originalText = saveBtn.textContent;
+            saveBtn.innerHTML = '<div class="loading"></div>';
+            saveBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                
+                // Сначала загружаем аватар если выбран
+                let avatarUrl = currentUser.avatar;
+                if (avatarFile) {
+                    const formData = new FormData();
+                    formData.append('file', avatarFile);
+                    
+                    const uploadResponse = await fetch('/api/upload-avatar', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadResponse.json();
+                    if (uploadData.success) {
+                        avatarUrl = uploadData.avatarUrl;
+                    }
+                }
+                
+                // Обновляем профиль
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        displayName: displayName,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    closeProfileModal();
+                    showNotification('Профиль успешно обновлен!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка обновления профиля', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения профиля:', error);
+                showNotification('Ошибка сохранения профиля', 'error');
+            } finally {
+                saveBtn.textContent = originalText;
+                saveBtn.disabled = false;
+            }
         }
 
         // Отметка сообщений как прочитанных
@@ -2231,13 +2345,6 @@
                         fromUserId: fromUserId
                     })
                 });
-
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify({
-                        type: 'mark_read',
-                        fromUserId: fromUserId
-                    }));
-                }
             } catch (error) {
                 console.error('Ошибка отметки сообщений как прочитанных:', error);
             }
@@ -2258,36 +2365,13 @@
             });
         }
 
-        // Обработка новых сообщений через WebSocket
-        function handleNewMessage(message) {
-            if (currentChat && currentChat.id === message.senderId) {
-                renderNewMessage(message);
-                markAsRead(message.senderId);
-            }
-            
-            loadChats();
-            
-            if (message.senderId !== currentUser.id) {
-                const sender = allUsers.find(u => u.id === message.senderId);
-                if (sender) {
-                    showPushNotification(sender.displayName, message.text || 'Новое сообщение');
-                }
-            }
-        }
-
-        // Обработка новых постов через WebSocket
-        function handleNewPost(post) {
-            loadPosts();
-        }
-
         // Показ уведомлений
         function showNotification(message, type = 'success') {
-            const notificationsContainer = document.getElementById('notificationsContainer');
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
             
-            notificationsContainer.appendChild(notification);
+            document.body.appendChild(notification);
             
             setTimeout(() => {
                 if (notification.parentNode) {
@@ -2296,32 +2380,20 @@
             }, 3000);
         }
 
-        // Push уведомления
-        function showPushNotification(title, message) {
-            if (!document.getElementById('notificationsEnabled').checked) return;
-
-            if (Notification.permission === 'granted') {
-                new Notification(title, {
-                    body: message,
-                    icon: currentUser?.avatar || '/assets/logo.png'
-                });
-            } else if (Notification.permission !== 'denied') {
-                Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        new Notification(title, {
-                            body: message,
-                            icon: currentUser?.avatar || '/assets/logo.png'
-                        });
-                    }
-                });
-            }
-        }
-
         // Смена темы
         function changeTheme(theme) {
-            document.body.className = `theme-${theme}`;
-            localStorage.setItem('theme', theme);
-            showNotification('Тема изменена', 'success');
+            const currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.classList.remove(`theme-${currentTheme}`);
+            document.body.classList.add(`theme-${newTheme}`);
+            localStorage.setItem('theme', newTheme);
+            
+            showNotification(`Тема изменена на ${newTheme === 'dark' ? 'темную' : 'светлую'}`, 'success');
+        }
+
+        function toggleTheme() {
+            changeTheme();
         }
 
         // Выход
@@ -2329,6 +2401,457 @@
             if (confirm('Вы уверены, что хотите выйти?')) {
                 localStorage.removeItem('authToken');
                 window.location.href = '/login.html';
+            }
+        }
+
+        // Переключение поиска
+        function toggleSearch() {
+            switchSection('search');
+        }
+
+        // Переключение создания группы
+        function toggleGroupCreation() {
+            showNotification('Создание групп в разработке', 'info');
+        }
+
+        // Переключение панели эмодзи
+        function toggleEmojiPicker() {
+            const emojiPicker = document.getElementById('emojiPicker');
+            emojiPicker.classList.toggle('active');
+        }
+
+        // Вставка эмодзи в поле ввода
+        function insertEmoji(emojiUrl) {
+            const messageInput = document.getElementById('messageInput');
+            messageInput.value += ` ${emojiUrl} `;
+            messageInput.focus();
+            
+            // Скрыть панель эмодзи после выбора
+            document.getElementById('emojiPicker').classList.remove('active');
+        }
+
+        // Показать модальное окно подарков
+        function showGiftModal() {
+            if (!currentChat) {
+                showNotification('Выберите чат для отправки подарка', 'warning');
+                return;
+            }
+            
+            const giftsGrid = document.getElementById('giftsGrid');
+            giftsGrid.innerHTML = '';
+            
+            gifts.forEach(gift => {
+                const giftItem = document.createElement('div');
+                giftItem.className = 'gift-item';
+                giftItem.onclick = () => sendGift(gift.id);
+                
+                giftItem.innerHTML = `
+                    <div class="gift-preview">${gift.preview || '🎁'}</div>
+                    <div class="gift-name">${gift.name}</div>
+                    <div class="gift-price">${gift.price} E-COIN</div>
+                `;
+                
+                giftsGrid.appendChild(giftItem);
+            });
+            
+            document.getElementById('giftsModal').style.display = 'flex';
+        }
+
+        // Закрыть модальное окно подарков
+        function closeGiftModal() {
+            document.getElementById('giftsModal').style.display = 'none';
+        }
+
+        // Отправить подарок
+        async function sendGift(giftId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/gifts/${giftId}/buy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        toUserId: currentChat.id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeGiftModal();
+                    showNotification('Подарок отправлен!', 'success');
+                    loadChats();
+                    
+                    // Обновляем баланс
+                    if (data.user) {
+                        currentUser.coins = data.user.coins;
+                        updateUserInterface();
+                    }
+                } else {
+                    showNotification(data.message || 'Ошибка отправки подарка', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка отправки подарка:', error);
+                showNotification('Ошибка отправки подарка', 'error');
+            }
+        }
+
+        // Переключение меню чата
+        function toggleChatMenu() {
+            // Удаляем существующее меню
+            document.querySelectorAll('.chat-menu').forEach(menu => menu.remove());
+            
+            const chatMenuBtn = document.getElementById('chatMenuBtn');
+            const rect = chatMenuBtn.getBoundingClientRect();
+            
+            const chatMenu = document.createElement('div');
+            chatMenu.className = 'chat-menu';
+            chatMenu.innerHTML = `
+                <button class="chat-menu-item delete" onclick="deleteChat()">Удалить чат</button>
+                <button class="chat-menu-item" onclick="blockUser()">Заблокировать</button>
+                <button class="chat-menu-item" onclick="showGiftModal(); closeChatMenu()">Отправить подарок</button>
+            `;
+            
+            chatMenu.style.position = 'fixed';
+            chatMenu.style.top = rect.bottom + 'px';
+            chatMenu.style.right = (window.innerWidth - rect.right) + 'px';
+            
+            document.body.appendChild(chatMenu);
+            
+            // Закрытие меню при клике вне его
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!chatMenu.contains(e.target) && e.target.id !== 'chatMenuBtn') {
+                        chatMenu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
+        }
+
+        // Закрытие меню чата
+        function closeChatMenu() {
+            document.querySelectorAll('.chat-menu').forEach(menu => menu.remove());
+        }
+
+        // Удаление чата
+        async function deleteChat() {
+            if (!currentChat) return;
+            
+            if (confirm('Вы уверены, что хотите удалить этот чат? Все сообщения будут удалены.')) {
+                try {
+                    // В реальном приложении здесь был бы запрос на удаление чата
+                    // Пока просто закрываем чат
+                    closeChat();
+                    showNotification('Чат удален', 'success');
+                    loadChats();
+                } catch (error) {
+                    console.error('Ошибка удаления чата:', error);
+                    showNotification('Ошибка удаления чата', 'error');
+                }
+            }
+            closeChatMenu();
+        }
+
+        // Блокировка пользователя
+        async function blockUser() {
+            if (!currentChat) return;
+            
+            if (confirm(`Вы уверены, что хотите заблокировать пользователя ${currentChat.displayName}?`)) {
+                try {
+                    // В реальном приложении здесь был бы запрос на блокировку
+                    showNotification('Пользователь заблокирован', 'success');
+                    closeChat();
+                    loadChats();
+                } catch (error) {
+                    console.error('Ошибка блокировки пользователя:', error);
+                    showNotification('Ошибка блокировки пользователя', 'error');
+                }
+            }
+            closeChatMenu();
+        }
+
+        // Показать меню сообщения
+        function showMessageMenu(event, message) {
+            // Удаляем существующее меню
+            document.querySelectorAll('.message-menu').forEach(menu => menu.remove());
+            
+            // Сохраняем выбранное сообщение
+            selectedMessage = message;
+            
+            const isOutgoing = message.senderId === currentUser.id;
+            
+            if (!isOutgoing) {
+                return; // Меню только для своих сообщений
+            }
+            
+            const messageElement = event.currentTarget;
+            const rect = messageElement.getBoundingClientRect();
+            
+            const messageMenu = document.createElement('div');
+            messageMenu.className = 'message-menu';
+            messageMenu.innerHTML = `
+                <button class="message-menu-item" onclick="editMessage()">Редактировать</button>
+                <button class="message-menu-item delete" onclick="deleteMessage()">Удалить</button>
+            `;
+            
+            messageMenu.style.position = 'fixed';
+            messageMenu.style.top = rect.top + 'px';
+            messageMenu.style.left = rect.left + 'px';
+            
+            document.body.appendChild(messageMenu);
+            
+            // Закрытие меню при клике вне его
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!messageMenu.contains(e.target) && !messageElement.contains(e.target)) {
+                        messageMenu.remove();
+                        document.removeEventListener('click', closeMenu);
+                        selectedMessage = null;
+                    }
+                });
+            }, 100);
+        }
+
+        // Редактирование сообщения
+        function editMessage() {
+            if (!selectedMessage) return;
+            
+            const messageText = selectedMessage.text || '';
+            const messageElement = document.querySelector('.message:hover');
+            
+            if (messageElement) {
+                const messageTextElement = messageElement.querySelector('.message-text');
+                const originalText = messageTextElement.innerHTML;
+                
+                // Заменяем текст на поле ввода
+                messageTextElement.innerHTML = `
+                    <input type="text" value="${messageText.replace(/<img[^>]*>/g, '')}" class="form-input" style="margin-bottom: 5px; width: 100%;">
+                    <div>
+                        <button class="send-btn" onclick="saveMessageEdit('${selectedMessage.id}')" style="padding: 5px 10px; font-size: 12px;">Сохранить</button>
+                        <button class="send-btn" onclick="cancelMessageEdit(this)" style="padding: 5px 10px; font-size: 12px; background: var(--error-color);">Отмена</button>
+                    </div>
+                `;
+                
+                // Удаляем меню
+                document.querySelectorAll('.message-menu').forEach(menu => menu.remove());
+            }
+        }
+
+        // Сохранение редактирования сообщения
+        async function saveMessageEdit(messageId) {
+            const messageElement = document.querySelector('.message:hover');
+            if (!messageElement) return;
+            
+            const input = messageElement.querySelector('input');
+            const newText = input.value.trim();
+            
+            if (!newText) {
+                showNotification('Введите текст сообщения', 'warning');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/messages/edit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        messageId: messageId,
+                        newText: newText
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Сообщение отредактировано', 'success');
+                    loadChatMessages(currentChat.id);
+                } else {
+                    showNotification(data.message || 'Ошибка редактирования сообщения', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка редактирования сообщения:', error);
+                showNotification('Ошибка редактирования сообщения', 'error');
+            }
+        }
+
+        // Отмена редактирования сообщения
+        function cancelMessageEdit(button) {
+            const messageElement = button.closest('.message');
+            if (messageElement) {
+                loadChatMessages(currentChat.id);
+            }
+        }
+
+        // Удаление сообщения
+        async function deleteMessage() {
+            if (!selectedMessage) return;
+            
+            if (confirm('Вы уверены, что хотите удалить это сообщение?')) {
+                try {
+                    const token = localStorage.getItem('authToken');
+                    const response = await fetch('/api/messages/delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            messageId: selectedMessage.id
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification('Сообщение удалено', 'success');
+                        loadChatMessages(currentChat.id);
+                    } else {
+                        showNotification(data.message || 'Ошибка удаления сообщения', 'error');
+                    }
+                } catch (error) {
+                    console.error('Ошибка удаления сообщения:', error);
+                    showNotification('Ошибка удаления сообщения', 'error');
+                }
+            }
+            
+            // Удаляем меню
+            document.querySelectorAll('.message-menu').forEach(menu => menu.remove());
+            selectedMessage = null;
+        }
+
+        // Активация промокода
+        function activatePromoCode() {
+            document.getElementById('promoModal').style.display = 'flex';
+        }
+
+        // Закрытие модального окна промокода
+        function closePromoModal() {
+            document.getElementById('promoModal').style.display = 'none';
+        }
+
+        // Отправка промокода
+        async function activatePromoCodeSubmit() {
+            const promoCode = document.getElementById('promoCode').value.trim();
+            
+            if (!promoCode) {
+                showNotification('Введите промокод', 'warning');
+                return;
+            }
+            
+            const activateBtn = document.getElementById('activatePromoBtn');
+            const originalText = activateBtn.textContent;
+            activateBtn.innerHTML = '<div class="loading"></div>';
+            activateBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        code: promoCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closePromoModal();
+                    showNotification(data.message || 'Промокод активирован!', 'success');
+                    
+                    // Обновляем баланс
+                    if (data.user) {
+                        currentUser.coins = data.user.coins;
+                        updateUserInterface();
+                    }
+                } else {
+                    showNotification(data.message || 'Ошибка активации промокода', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка активации промокода:', error);
+                showNotification('Ошибка активации промокода', 'error');
+            } finally {
+                activateBtn.textContent = originalText;
+                activateBtn.disabled = false;
+            }
+        }
+
+        // Загрузка моих подарков
+        async function loadMyGifts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/my-gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMyGiftsModal(data.gifts);
+                } else {
+                    showNotification('Ошибка загрузки подарков', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                showNotification('Ошибка загрузки подарков', 'error');
+            }
+        }
+
+        // Показать модальное окно с моими подарками
+        function showMyGiftsModal(gifts) {
+            const modal = document.createElement('div');
+            modal.className = 'gifts-modal';
+            modal.style.display = 'flex';
+            
+            let giftsHtml = '';
+            if (gifts.length === 0) {
+                giftsHtml = '<div class="system-message">У вас пока нет подарков</div>';
+            } else {
+                gifts.forEach(gift => {
+                    giftsHtml += `
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 10px;">
+                            <div style="font-size: 24px;">${gift.giftPreview || '🎁'}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold;">${gift.giftName}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">От: ${gift.fromUserName}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${new Date(gift.timestamp).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            modal.innerHTML = `
+                <div class="gifts-container">
+                    <h3>Мои подарки</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        ${giftsHtml}
+                    </div>
+                    <div class="balance-actions" style="margin-top: 20px;">
+                        <button class="send-btn" onclick="this.closest('.gifts-modal').remove()" style="background: var(--error-color);">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+
+        // Обработка выбора файла для поста
+        function handlePostFileSelect(files) {
+            if (files.length > 0) {
+                showNotification('Файл выбран: ' + files[0].name, 'success');
             }
         }
 
@@ -2343,33 +2866,6 @@
             loadTheme();
             initializeApp();
         });
-
-        // Заглушки для функций, которые будут реализованы позже
-        function toggleSearch() {
-            switchSection('search');
-        }
-
-        function toggleGroupCreation() {
-            showNotification('Создание групп в разработке', 'info');
-        }
-
-        function toggleEmojiPicker() {
-            showNotification('Эмодзи в разработке', 'info');
-        }
-
-        function editProfile() {
-            showNotification('Редактирование профиля в разработке', 'info');
-        }
-
-        function changeAvatar() {
-            showNotification('Смена аватара в разработке', 'info');
-        }
-
-        function handlePostFileSelect(files) {
-            if (files.length > 0) {
-                showNotification('Файл выбран: ' + files[0].name, 'success');
-            }
-        }
     </script>
 </body>
 </html>
