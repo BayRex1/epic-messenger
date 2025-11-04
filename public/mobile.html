@@ -69,6 +69,11 @@
             border-top: 1px solid var(--border-color);
             z-index: 1000;
             padding: 8px 0;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-nav.hidden {
+            transform: translateY(100%);
         }
 
         .mobile-nav-items {
@@ -122,6 +127,11 @@
             padding: 12px 16px;
             z-index: 999;
             height: 60px;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-header.hidden {
+            transform: translateY(-100%);
         }
 
         .mobile-header-content {
@@ -346,14 +356,21 @@
             font-weight: bold;
         }
 
+        /* Полноэкранный чат */
         .chat-area {
-            flex: 1;
-            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 1001;
+            display: none;
             flex-direction: column;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-top: 15px;
+        }
+
+        .chat-area.active {
+            display: flex;
         }
 
         .chat-header {
@@ -363,6 +380,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding-top: 30px;
         }
 
         .chat-messages {
@@ -371,7 +389,6 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            min-height: 200px;
         }
 
         .message {
@@ -914,7 +931,7 @@
             padding: 15px;
             max-height: 200px;
             overflow-y: auto;
-            z-index: 1001;
+            z-index: 1002;
             display: none;
         }
 
@@ -956,7 +973,7 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 8px 0;
-            z-index: 1000;
+            z-index: 1003;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             min-width: 120px;
         }
@@ -984,13 +1001,13 @@
         /* Меню чата */
         .chat-menu {
             position: absolute;
-            top: 60px;
+            top: 70px;
             right: 10px;
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 8px 0;
-            z-index: 1000;
+            z-index: 1003;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             min-width: 150px;
         }
@@ -1060,7 +1077,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1002;
+            z-index: 1004;
             padding: 20px;
         }
 
@@ -1130,7 +1147,7 @@
 </head>
 <body class="theme-dark">
     <!-- Мобильный хедер -->
-    <div class="mobile-header">
+    <div class="mobile-header" id="mobileHeader">
         <div class="mobile-header-content">
             <div class="mobile-header-left">
                 <div class="mobile-header-avatar" id="mobileHeaderAvatar" onclick="openProfile()">
@@ -1169,62 +1186,6 @@
                     </div>
                     <div class="chats-list" id="chatsList">
                         <div class="system-message">Загрузка чатов...</div>
-                    </div>
-                </div>
-
-                <div class="chat-area" id="chatArea" style="display: none;">
-                    <div class="chat-header">
-                        <div class="chat-user-info">
-                            <h3 id="currentChatName">Выберите чат</h3>
-                            <span id="currentChatStatus">Начните общение</span>
-                        </div>
-                        <div class="chat-actions">
-                            <button class="mobile-header-btn" id="chatMenuBtn" onclick="toggleChatMenu()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="1"></circle>
-                                    <circle cx="12" cy="5" r="1"></circle>
-                                    <circle cx="12" cy="19" r="1"></circle>
-                                </svg>
-                            </button>
-                            <button class="mobile-header-btn" onclick="closeChat()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="system-message">
-                            Выберите чат для начала общения
-                        </div>
-                    </div>
-                    
-                    <div class="message-input-container">
-                        <div class="file-upload-buttons">
-                            <button class="file-upload-btn" onclick="toggleEmojiPicker()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                                </svg>
-                            </button>
-                        </div>
-                        
-                        <div class="message-input-wrapper">
-                            <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
-                        </div>
-                        
-                        <button class="send-btn" onclick="sendMessage()" id="sendMessageBtn">Отправить</button>
-                    </div>
-
-                    <!-- Эмодзи панель -->
-                    <div class="emoji-picker" id="emojiPicker">
-                        <div class="emoji-grid" id="emojiGrid">
-                            <!-- Эмодзи будут загружены динамически -->
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1363,8 +1324,65 @@
         </div>
     </div>
 
+    <!-- Полноэкранный чат -->
+    <div class="chat-area" id="chatArea">
+        <div class="chat-header">
+            <div class="chat-user-info">
+                <h3 id="currentChatName">Выберите чат</h3>
+                <span id="currentChatStatus">Начните общение</span>
+            </div>
+            <div class="chat-actions">
+                <button class="mobile-header-btn" id="chatMenuBtn" onclick="toggleChatMenu()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                    </svg>
+                </button>
+                <button class="mobile-header-btn" onclick="closeChat()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="system-message">
+                Выберите чат для начала общения
+            </div>
+        </div>
+        
+        <div class="message-input-container">
+            <div class="file-upload-buttons">
+                <button class="file-upload-btn" onclick="toggleEmojiPicker()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="message-input-wrapper">
+                <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
+            </div>
+            
+            <button class="send-btn" onclick="sendMessage()" id="sendMessageBtn">Отправить</button>
+        </div>
+
+        <!-- Эмодзи панель -->
+        <div class="emoji-picker" id="emojiPicker">
+            <div class="emoji-grid" id="emojiGrid">
+                <!-- Эмодзи будут загружены динамически -->
+            </div>
+        </div>
+    </div>
+
     <!-- Мобильная навигация -->
-    <div class="mobile-nav">
+    <div class="mobile-nav" id="mobileNav">
         <div class="mobile-nav-items">
             <button class="mobile-nav-item active" data-section="messages" onclick="switchSection('messages')">
                 <div class="mobile-nav-icon">
@@ -1897,12 +1915,16 @@
             }
         }
 
-        // Открытие чата
+        // Открытие чата (полноэкранный режим)
         async function openChat(chat) {
             currentChat = chat;
             
-            // Показываем область чата
-            document.getElementById('chatArea').style.display = 'flex';
+            // Скрываем навигацию и хедер
+            document.getElementById('mobileNav').classList.add('hidden');
+            document.getElementById('mobileHeader').classList.add('hidden');
+            
+            // Показываем полноэкранный чат
+            document.getElementById('chatArea').classList.add('active');
             
             // Обновляем информацию о чате
             document.getElementById('currentChatName').textContent = chat.displayName || 'Пользователь';
@@ -1917,7 +1939,13 @@
 
         // Закрытие чата
         function closeChat() {
-            document.getElementById('chatArea').style.display = 'none';
+            // Скрываем полноэкранный чат
+            document.getElementById('chatArea').classList.remove('active');
+            
+            // Показываем навигацию и хедер
+            document.getElementById('mobileNav').classList.remove('hidden');
+            document.getElementById('mobileHeader').classList.remove('hidden');
+            
             currentChat = null;
         }
 
@@ -2233,7 +2261,6 @@
                 }
                 
                 openChat(chat);
-                switchSection('messages');
             }
         }
 
