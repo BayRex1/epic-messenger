@@ -32,6 +32,19 @@ pool.on('error', (err) => {
 class DatabaseManager {
   constructor() {
     this.pool = pool;
+    this.useDatabase = true;
+    this.fileData = {
+      users: [],
+      messages: [],
+      posts: [],
+      music: [],
+      groups: [],
+      gifts: [],
+      promo_codes: [],
+      devices: [],
+      banned_ips: [],
+      sessions: []
+    };
     this.initDatabase();
   }
 
@@ -232,22 +245,164 @@ class DatabaseManager {
     }
   }
 
+  // 🔄 Метод для преобразования дат из PostgreSQL
+  parsePostgresDate(dateValue) {
+    if (!dateValue) return new Date();
+    
+    // Если это уже Date объект
+    if (dateValue instanceof Date) return dateValue;
+    
+    // Если это строка
+    if (typeof dateValue === 'string') {
+      // Пробуем разные форматы
+      let date = new Date(dateValue);
+      if (!isNaN(date.getTime())) return date;
+      
+      // Пробуем парсить PostgreSQL timestamp
+      date = new Date(dateValue.replace(' ', 'T') + 'Z');
+      if (!isNaN(date.getTime())) return date;
+      
+      // Если все fails, возвращаем текущую дату
+      console.warn('⚠️ Не удалось распарсить дату:', dateValue);
+      return new Date();
+    }
+    
+    return new Date();
+  }
+
+  // 🔄 Преобразуем данные пользователя
+  sanitizeUserData(user) {
+    if (!user) return null;
+    
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name || user.displayName,
+      email: user.email,
+      avatar: user.avatar,
+      description: user.description,
+      coins: user.coins,
+      verified: user.verified || user.is_verified,
+      isDeveloper: user.is_developer || user.isDeveloper,
+      status: user.status,
+      lastSeen: this.parsePostgresDate(user.last_seen || user.lastSeen),
+      createdAt: this.parsePostgresDate(user.created_at || user.createdAt),
+      friendsCount: user.friends_count || user.friendsCount || 0,
+      postsCount: user.posts_count || user.postsCount || 0,
+      giftsCount: user.gifts_count || user.giftsCount || 0,
+      banned: user.banned || false
+    };
+  }
+
+  // 🔄 Преобразуем данные сообщения
+  sanitizeMessageData(message) {
+    if (!message) return null;
+    
+    return {
+      id: message.id,
+      senderId: message.sender_id || message.senderId,
+      toUserId: message.to_user_id || message.toUserId,
+      text: message.text,
+      encrypted: message.encrypted || false,
+      type: message.type || 'text',
+      image: message.image,
+      file: message.file,
+      fileName: message.file_name || message.fileName,
+      fileType: message.file_type || message.fileType,
+      timestamp: this.parsePostgresDate(message.timestamp),
+      displayName: message.display_name || message.displayName,
+      read: message.read || false,
+      edited: message.edited || false,
+      editedAt: message.edited_at ? this.parsePostgresDate(message.edited_at) : null,
+      editHistory: message.edit_history || message.editHistory || []
+    };
+  }
+
+  // 🔄 Преобразуем данные поста
+  sanitizePostData(post) {
+    if (!post) return null;
+    
+    return {
+      id: post.id,
+      userId: post.user_id || post.userId,
+      text: post.text,
+      image: post.image,
+      file: post.file,
+      fileName: post.file_name || post.fileName,
+      fileType: post.file_type || post.fileType,
+      likes: post.likes || [],
+      comments: post.comments || [],
+      views: post.views || 0,
+      createdAt: this.parsePostgresDate(post.created_at || post.createdAt),
+      // Дополнительные поля из JOIN запросов
+      userName: post.user_name || post.userName,
+      userAvatar: post.user_avatar || post.userAvatar,
+      userVerified: post.user_verified !== undefined ? post.user_verified : (post.userVerified || false),
+      userDeveloper: post.user_developer !== undefined ? post.user_developer : (post.userDeveloper || false)
+    };
+  }
+
+  // 🔄 Преобразуем данные музыки
+  sanitizeMusicData(track) {
+    if (!track) return null;
+    
+    return {
+      id: track.id,
+      userId: track.user_id || track.userId,
+      title: track.title,
+      artist: track.artist,
+      genre: track.genre,
+      fileUrl: track.file_url || track.fileUrl,
+      coverUrl: track.cover_url || track.coverUrl,
+      duration: track.duration || 0,
+      plays: track.plays || 0,
+      likes: track.likes || [],
+      createdAt: this.parsePostgresDate(track.created_at || track.createdAt),
+      // Дополнительные поля из JOIN запросов
+      userName: track.user_name || track.userName,
+      userAvatar: track.user_avatar || track.userAvatar,
+      userVerified: track.user_verified !== undefined ? track.user_verified : (track.userVerified || false)
+    };
+  }
+
   // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ
 
   async getUserById(id) {
-    const result = await this.pool.query(
-      'SELECT * FROM users WHERE id = $1',
-      [id]
-    );
-    return result.rows[0] || null;
+    if (!this.useDatabase) {
+      const user = this.fileData.users.find(u => u.id === id);
+      return user ? this.sanitizeUserData(user) : null;
+    }
+
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM users WHERE id = $1',
+        [id]
+      );
+      return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
+    } catch (error) {
+      console.error('❌ Ошибка получения пользователя из БД:', error);
+      const user = this.fileData.users.find(u => u.id === id);
+      return user ? this.sanitizeUserData(user) : null;
+    }
   }
 
   async getUserByUsername(username) {
-    const result = await this.pool.query(
-      'SELECT * FROM users WHERE username = $1',
-      [username]
-    );
-    return result.rows[0] || null;
+    if (!this.useDatabase) {
+      const user = this.fileData.users.find(u => u.username === username);
+      return user ? this.sanitizeUserData(user) : null;
+    }
+
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM users WHERE username = $1',
+        [username]
+      );
+      return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
+    } catch (error) {
+      console.error('❌ Ошибка получения пользователя по имени из БД:', error);
+      const user = this.fileData.users.find(u => u.username === username);
+      return user ? this.sanitizeUserData(user) : null;
+    }
   }
 
   async getUserByEmail(email) {
@@ -255,7 +410,7 @@ class DatabaseManager {
       'SELECT * FROM users WHERE email = $1',
       [email]
     );
-    return result.rows[0] || null;
+    return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
   }
 
   async createUser(userData) {
@@ -275,7 +430,7 @@ class DatabaseManager {
         coins, verified, isDeveloper, isAdmin, status
       ]
     );
-    return result.rows[0];
+    return this.sanitizeUserData(result.rows[0]);
   }
 
   async updateUser(id, updates) {
@@ -299,22 +454,39 @@ class DatabaseManager {
     const query = `UPDATE users SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`;
     
     const result = await this.pool.query(query, values);
-    return result.rows[0] || null;
+    return result.rows[0] ? this.sanitizeUserData(result.rows[0]) : null;
   }
 
   async getAllUsers(excludeUserId = null) {
-    let query = 'SELECT * FROM users';
-    const values = [];
-
-    if (excludeUserId) {
-      query += ' WHERE id != $1';
-      values.push(excludeUserId);
+    if (!this.useDatabase) {
+      let users = this.fileData.users;
+      if (excludeUserId) {
+        users = users.filter(u => u.id !== excludeUserId);
+      }
+      return users.map(user => this.sanitizeUserData(user));
     }
 
-    query += ' ORDER BY created_at DESC';
+    try {
+      let query = 'SELECT * FROM users';
+      const values = [];
 
-    const result = await this.pool.query(query, values);
-    return result.rows;
+      if (excludeUserId) {
+        query += ' WHERE id != $1';
+        values.push(excludeUserId);
+      }
+
+      query += ' ORDER BY created_at DESC';
+
+      const result = await this.pool.query(query, values);
+      return result.rows.map(row => this.sanitizeUserData(row));
+    } catch (error) {
+      console.error('❌ Ошибка получения пользователей из БД:', error);
+      let users = this.fileData.users;
+      if (excludeUserId) {
+        users = users.filter(u => u.id !== excludeUserId);
+      }
+      return users.map(user => this.sanitizeUserData(user));
+    }
   }
 
   async deleteUser(id) {
@@ -340,18 +512,35 @@ class DatabaseManager {
         image, file, fileName, fileType, displayName
       ]
     );
-    return result.rows[0];
+    return this.sanitizeMessageData(result.rows[0]);
   }
 
   async getMessagesBetweenUsers(userId1, userId2) {
-    const result = await this.pool.query(
-      `SELECT * FROM messages 
-       WHERE (sender_id = $1 AND to_user_id = $2) 
-          OR (sender_id = $2 AND to_user_id = $1)
-       ORDER BY timestamp ASC`,
-      [userId1, userId2]
-    );
-    return result.rows;
+    if (!this.useDatabase) {
+      const messages = this.fileData.messages.filter(msg => 
+        (msg.senderId === userId1 && msg.toUserId === userId2) ||
+        (msg.senderId === userId2 && msg.toUserId === userId1)
+      );
+      return messages.map(msg => this.sanitizeMessageData(msg));
+    }
+
+    try {
+      const result = await this.pool.query(
+        `SELECT * FROM messages 
+         WHERE (sender_id = $1 AND to_user_id = $2) 
+            OR (sender_id = $2 AND to_user_id = $1)
+         ORDER BY timestamp ASC`,
+        [userId1, userId2]
+      );
+      return result.rows.map(row => this.sanitizeMessageData(row));
+    } catch (error) {
+      console.error('❌ Ошибка получения сообщений из БД:', error);
+      const messages = this.fileData.messages.filter(msg => 
+        (msg.senderId === userId1 && msg.toUserId === userId2) ||
+        (msg.senderId === userId2 && msg.toUserId === userId1)
+      );
+      return messages.map(msg => this.sanitizeMessageData(msg));
+    }
   }
 
   async updateMessage(id, updates) {
@@ -374,7 +563,7 @@ class DatabaseManager {
     const query = `UPDATE messages SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`;
     
     const result = await this.pool.query(query, values);
-    return result.rows[0] || null;
+    return result.rows[0] ? this.sanitizeMessageData(result.rows[0]) : null;
   }
 
   async deleteMessage(id) {
@@ -469,17 +658,29 @@ class DatabaseManager {
       RETURNING *`,
       [id, userId, title, artist, genre, fileUrl, coverUrl, duration]
     );
-    return result.rows[0];
+    return this.sanitizeMusicData(result.rows[0]);
   }
 
   async getAllMusic() {
-    const result = await this.pool.query(`
-      SELECT m.*, u.display_name as user_name, u.avatar as user_avatar, u.verified as user_verified
-      FROM music m
-      LEFT JOIN users u ON m.user_id = u.id
-      ORDER BY m.created_at DESC
-    `);
-    return result.rows;
+    if (!this.useDatabase) {
+      return this.fileData.music.map(track => this.sanitizeMusicData(track));
+    }
+
+    try {
+      const result = await this.pool.query(`
+        SELECT m.*, 
+               u.display_name as user_name, 
+               u.avatar as user_avatar, 
+               u.verified as user_verified
+        FROM music m
+        LEFT JOIN users u ON m.user_id = u.id
+        ORDER BY m.created_at DESC
+      `);
+      return result.rows.map(row => this.sanitizeMusicData(row));
+    } catch (error) {
+      console.error('❌ Ошибка получения музыки из БД:', error);
+      return this.fileData.music.map(track => this.sanitizeMusicData(track));
+    }
   }
 
   async searchMusic(searchTerm) {
@@ -490,7 +691,7 @@ class DatabaseManager {
       WHERE LOWER(m.title) LIKE LOWER($1) OR LOWER(m.artist) LIKE LOWER($1) OR LOWER(m.genre) LIKE LOWER($1)
       ORDER BY m.created_at DESC
     `, [`%${searchTerm}%`]);
-    return result.rows;
+    return result.rows.map(row => this.sanitizeMusicData(row));
   }
 
   async getRandomMusic(limit = 10) {
@@ -501,7 +702,7 @@ class DatabaseManager {
       ORDER BY RANDOM()
       LIMIT $1
     `, [limit]);
-    return result.rows;
+    return result.rows.map(row => this.sanitizeMusicData(row));
   }
 
   async deleteMusicTrack(id) {
@@ -515,25 +716,68 @@ class DatabaseManager {
       id, userId, text, image, file, fileName, fileType
     } = postData;
 
-    const result = await this.pool.query(
-      `INSERT INTO posts (
-        id, user_id, text, image, file, file_name, file_type
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *`,
-      [id, userId, text, image, file, fileName, fileType]
-    );
-    return result.rows[0];
+    if (!this.useDatabase) {
+      const post = {
+        id,
+        userId,
+        text,
+        image,
+        file,
+        fileName,
+        fileType,
+        likes: [],
+        comments: [],
+        views: 0,
+        createdAt: new Date()
+      };
+      this.fileData.posts.unshift(post);
+      this.saveDataToFile();
+      
+      // Добавляем информацию о пользователе
+      const userInfo = await this.getUserInfoForPost(userId);
+      return { ...post, ...userInfo };
+    }
+
+    try {
+      const result = await this.pool.query(
+        `INSERT INTO posts (
+          id, user_id, text, image, file, file_name, file_type
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *`,
+        [id, userId, text, image, file, fileName, fileType]
+      );
+      
+      const post = this.sanitizePostData(result.rows[0]);
+      // Добавляем информацию о пользователе
+      const userInfo = await this.getUserInfoForPost(userId);
+      return { ...post, ...userInfo };
+    } catch (error) {
+      console.error('❌ Ошибка создания поста в БД:', error);
+      throw error;
+    }
   }
 
   async getAllPosts() {
-    const result = await this.pool.query(`
-      SELECT p.*, u.display_name as user_name, u.avatar as user_avatar, 
-             u.verified as user_verified, u.is_developer as user_developer
-      FROM posts p
-      LEFT JOIN users u ON p.user_id = u.id
-      ORDER BY p.created_at DESC
-    `);
-    return result.rows;
+    if (!this.useDatabase) {
+      return this.fileData.posts.map(post => this.sanitizePostData(post));
+    }
+
+    try {
+      const result = await this.pool.query(`
+        SELECT p.*, 
+               u.display_name as user_name, 
+               u.avatar as user_avatar, 
+               u.verified as user_verified, 
+               u.is_developer as user_developer
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        ORDER BY p.created_at DESC
+      `);
+      return result.rows.map(row => this.sanitizePostData(row));
+    } catch (error) {
+      console.error('❌ Ошибка получения постов из БД:', error);
+      return this.fileData.posts.map(post => this.sanitizePostData(post));
+    }
   }
 
   async updatePostLikes(postId, likes) {
@@ -545,6 +789,35 @@ class DatabaseManager {
 
   async deletePost(id) {
     await this.pool.query('DELETE FROM posts WHERE id = $1', [id]);
+  }
+
+  // 🔄 Метод для получения информации о пользователе для постов/сообщений
+  async getUserInfoForPost(userId) {
+    if (!userId || userId === 'system') {
+      return {
+        userName: 'Epic Messenger',
+        userAvatar: null,
+        userVerified: true,
+        userDeveloper: true
+      };
+    }
+
+    const user = await this.getUserById(userId);
+    if (!user) {
+      return {
+        userName: 'Неизвестный',
+        userAvatar: null,
+        userVerified: false,
+        userDeveloper: false
+      };
+    }
+
+    return {
+      userName: user.displayName || user.username,
+      userAvatar: user.avatar,
+      userVerified: user.verified,
+      userDeveloper: user.isDeveloper
+    };
   }
 
   // 🔐 МЕТОДЫ ДЛЯ РАБОТЫ С ПОДАРКАМИ
@@ -1077,6 +1350,7 @@ class SimpleServer {
         };
 
         await this.db.createPost(systemPost);
+        console.log('📝 Создан системный пост приветствия');
     }
 
     ensureUploadDirs() {
@@ -1853,19 +2127,19 @@ class SimpleServer {
         return {
             id: user.id,
             username: user.username,
-            displayName: user.display_name,
+            displayName: user.displayName,
             email: user.email,
             avatar: user.avatar,
             description: user.description,
             coins: user.coins,
             verified: user.verified,
-            isDeveloper: user.is_developer,
+            isDeveloper: user.isDeveloper,
             status: user.status,
-            lastSeen: user.last_seen,
-            createdAt: user.created_at,
-            friendsCount: user.friends_count || 0,
-            postsCount: user.posts_count || 0,
-            giftsCount: user.gifts_count || 0,
+            lastSeen: user.lastSeen,
+            createdAt: user.createdAt,
+            friendsCount: user.friendsCount || 0,
+            postsCount: user.postsCount || 0,
+            giftsCount: user.giftsCount || 0,
             banned: user.banned || false
         };
     }
@@ -2025,7 +2299,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'EDIT_MESSAGE', `message:${messageId}, chars:${sanitizedText.length}`);
 
-        console.log(`✏️ Пользователь ${user.display_name} отредактировал сообщение: ${messageId}`);
+        console.log(`✏️ Пользователь ${user.displayName} отредактировал сообщение: ${messageId}`);
 
         return {
             success: true,
@@ -2076,7 +2350,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'DELETE_MESSAGE', `message:${messageId}`);
 
-        console.log(`🗑️ Пользователь ${user.display_name} удалил сообщение: ${messageId}`);
+        console.log(`🗑️ Пользователь ${user.displayName} удалил сообщение: ${messageId}`);
 
         return {
             success: true,
@@ -2331,7 +2605,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'DELETE_USER', `user:${targetUser.username}`);
 
-        console.log(`🗑️ Администратор ${user.display_name} удалил аккаунт: ${targetUser.username}`);
+        console.log(`🗑️ Администратор ${user.displayName} удалил аккаунт: ${targetUser.username}`);
 
         return {
             success: true,
@@ -2371,7 +2645,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, banned ? 'BAN_USER' : 'UNBAN_USER', `user:${targetUser.username}`);
 
-        console.log(`🔒 Администратор ${user.display_name} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
+        console.log(`🔒 Администратор ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
 
         return {
             success: true,
@@ -2742,13 +3016,13 @@ class SimpleServer {
 
                             this.logSecurityEvent(user, 'UPLOAD_MUSIC', `track:${track.title} - ${track.artist}`);
 
-                            console.log(`🎵 Пользователь ${user.display_name} загрузил трек: ${track.title} - ${track.artist}`);
+                            console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
 
                             sendSuccessResponse({
                                 success: true,
                                 track: {
                                     ...track,
-                                    userName: user.display_name,
+                                    userName: user.displayName,
                                     userAvatar: user.avatar,
                                     userVerified: user.verified
                                 }
@@ -2855,13 +3129,13 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', `track:${sanitizedTitle} - ${sanitizedArtist}`);
 
-        console.log(`🎵 Пользователь ${user.display_name} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
+        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
 
         return {
             success: true,
             track:{
                 ...track,
-                userName: user.display_name,
+                userName: user.displayName,
                 userAvatar: user.avatar,
                 userVerified: user.verified
             }
@@ -3272,24 +3546,29 @@ class SimpleServer {
             file: file || null,
             fileName: fileName || null,
             fileType: fileType || null,
-            displayName: user.display_name
+            displayName: user.displayName
         };
 
         await this.db.createMessage(message);
 
         this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
 
-        console.log(`💬 Новое сообщение от ${user.display_name} к пользователю ${toUserId}`);
+        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
+
+        // Возвращаем сообщение с правильными данными
+        const createdMessage = await this.db.getMessagesBetweenUsers(user.id, toUserId);
+        const lastMessage = createdMessage[createdMessage.length - 1];
 
         return {
             success: true,
             message: {
-                ...message,
+                ...lastMessage,
                 text: sanitizedText
             }
         };
     }
 
+    // 🔄 Исправляем метод получения постов
     async handleGetPosts(token) {
         const user = await this.authenticateToken(token);
         if (!user) {
@@ -3298,11 +3577,24 @@ class SimpleServer {
 
         const posts = await this.db.getAllPosts();
 
-        this.logSecurityEvent(user, 'GET_POSTS', `count:${posts.length}`);
+        // Убеждаемся, что у всех постов есть информация о пользователе
+        const postsWithUserInfo = await Promise.all(
+            posts.map(async post => {
+                if (post.userName) {
+                    return post;
+                }
+                
+                // Если информации о пользователе нет, загружаем её
+                const userInfo = await this.db.getUserInfoForPost(post.userId);
+                return { ...post, ...userInfo };
+            })
+        );
+
+        this.logSecurityEvent(user, 'GET_POSTS', `count:${postsWithUserInfo.length}`);
 
         return {
             success: true,
-            posts: posts
+            posts: postsWithUserInfo
         };
     }
 
@@ -3344,22 +3636,16 @@ class SimpleServer {
             fileType: fileType
         };
 
-        await this.db.createPost(post);
+        const createdPost = await this.db.createPost(post);
         await this.db.updateUser(user.id, { posts_count: (user.posts_count || 0) + 1 });
 
         this.logSecurityEvent(user, 'CREATE_POST', `chars:${sanitizedText.length}`);
 
-        console.log(`📝 Новый пост от ${user.display_name}`);
+        console.log(`📝 Новый пост от ${user.displayName}`);
 
         return {
             success: true,
-            post: {
-                ...post,
-                userName: user.display_name,
-                userAvatar: user.avatar,
-                userVerified: user.verified,
-                userDeveloper: user.is_developer
-            }
+            post: createdPost
         };
     }
 
@@ -3402,7 +3688,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
 
-        console.log(`🗑️ Администратор ${user.display_name} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
+        console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
 
         return {
             success: true,
@@ -3433,11 +3719,11 @@ class SimpleServer {
         const likeIndex = likes.indexOf(user.id);
         if (likeIndex === -1) {
             likes.push(user.id);
-            console.log(`❤️ Пользователь ${user.display_name} лайкнул пост`);
+            console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
             this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`);
         } else {
             likes.splice(likeIndex, 1);
-            console.log(`💔 Пользователь ${user.display_name} убрал лайк с поста`);
+            console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
             this.logSecurityEvent(user, 'UNLIKE_POST', `post:${postId}`);
         }
 
@@ -3495,7 +3781,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'CREATE_GIFT', `name:${sanitizedName}, price:${price}`);
 
-        console.log(`🎁 Администратор ${user.display_name} создал новый подарок: ${sanitizedName}`);
+        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
 
         return {
             success: true,
@@ -3552,7 +3838,7 @@ class SimpleServer {
             giftPrice: gift.price,
             giftImage: gift.image,
             giftPreview: gift.preview,
-            displayName: user.display_name
+            displayName: user.displayName
         };
 
         await this.db.createMessage(giftMessage);
@@ -3561,7 +3847,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
 
-        console.log(`🎁 Пользователь ${user.display_name} отправил подарок "${gift.name}" пользователю ${recipient.display_name}`);
+        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
 
         return {
             success: true,
@@ -3664,7 +3950,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}, coins:${promoCode.coins}`);
 
-        console.log(`💰 Пользователь ${user.display_name} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
+        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
 
         return {
             success: true,
@@ -3973,7 +4259,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${!targetUser.verified}`);
 
-        console.log(`✅ Администратор ${user.display_name} ${!targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
+        console.log(`✅ Администратор ${user.displayName} ${!targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
 
         return {
             success: true,
@@ -4002,7 +4288,7 @@ class SimpleServer {
 
         this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${!targetUser.is_developer}`);
 
-        console.log(`👑 Администратор ${user.display_name} ${!targetUser.is_developer ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
+        console.log(`👑 Администратор ${user.displayName} ${!targetUser.is_developer ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
 
         return {
             success: true,
@@ -4026,7 +4312,7 @@ class SimpleServer {
         const transactions = [
             {
                 description: 'Регистрация бонус',
-                date: user.created_at,
+                date: user.createdAt,
                 amount: user.coins >= 50000 ? 50000 : 1000
             }
         ];
