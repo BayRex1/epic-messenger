@@ -198,7 +198,6 @@
 
         .content-area {
             display: none;
-            padding: 15px;
             height: 100%;
             overflow-y: auto;
         }
@@ -211,20 +210,35 @@
             font-size: 24px;
             margin-bottom: 20px;
             color: var(--text-primary);
+            padding: 0 15px;
         }
 
-        /* Чат */
+        /* Чат - ПОЛНЫЙ ЭКРАН */
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 100%;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .chat-container.active {
+            transform: translateX(0);
         }
 
         .chats-sidebar {
             background: var(--bg-secondary);
             border-radius: 12px;
-            margin-bottom: 15px;
+            margin: 15px;
             overflow: hidden;
+            flex: 1;
         }
 
         .chats-header {
@@ -268,7 +282,7 @@
         }
 
         .chats-list {
-            max-height: 300px;
+            height: calc(100% - 80px);
             overflow-y: auto;
         }
 
@@ -347,13 +361,10 @@
         }
 
         .chat-area {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-top: 15px;
+            height: 100vh;
+            background: var(--bg-primary);
         }
 
         .chat-header {
@@ -363,6 +374,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         .chat-messages {
@@ -371,7 +385,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            min-height: 200px;
+            min-height: 0;
         }
 
         .message {
@@ -424,7 +438,9 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            position: relative;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
         }
 
         .message-input-wrapper {
@@ -484,16 +500,18 @@
             background: var(--accent-hover);
         }
 
-        /* Посты */
+        /* Посты - ИСПРАВЛЕНА ПРОКРУТКА */
         .posts-container {
             padding: 0;
+            height: 100%;
+            overflow-y: auto;
         }
 
         .post {
             background: var(--bg-secondary);
             border-radius: 12px;
             padding: 20px;
-            margin-bottom: 16px;
+            margin: 0 15px 16px 15px;
             border: 1px solid var(--border-color);
         }
 
@@ -623,7 +641,9 @@
 
         /* Поиск */
         .search-container {
-            padding: 0;
+            padding: 0 15px;
+            height: 100%;
+            overflow-y: auto;
         }
 
         .search-results {
@@ -647,7 +667,9 @@
 
         /* E-COIN */
         .ecoins-container {
-            padding: 0;
+            padding: 0 15px;
+            height: 100%;
+            overflow-y: auto;
         }
 
         .balance-card {
@@ -672,81 +694,42 @@
             margin-top: 15px;
         }
 
-        /* Музыка */
+        /* Музыка - УПРОЩЕННАЯ ВЕРСИЯ */
         .music-container {
-            padding: 0;
-        }
-
-        .music-player {
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .now-playing {
+            padding: 0 15px;
+            height: 100%;
             display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .track-cover {
-            width: 60px;
-            height: 60px;
-            border-radius: 8px;
-            background: var(--accent-color);
-            display: flex;
-            align-items: center;
+            flex-direction: column;
             justify-content: center;
-            color: white;
-            font-size: 24px;
-        }
-
-        .track-info {
-            flex: 1;
-        }
-
-        .track-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .track-artist {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        .audio-controls {
-            display: flex;
             align-items: center;
-            gap: 10px;
+            text-align: center;
         }
 
-        .audio-play-btn {
+        .music-player-btn {
+            padding: 20px 40px;
             background: var(--accent-color);
+            color: white;
             border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
+            border-radius: 25px;
             cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
         }
 
-        .audio-waveform {
-            flex: 1;
-            height: 20px;
-            background: linear-gradient(90deg, var(--accent-color) 50%, var(--bg-secondary) 50%);
-            background-size: 4px 100%;
-            border-radius: 10px;
+        .music-player-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
         }
 
         /* Меню */
         .menu-container {
-            padding: 0;
+            padding: 0 15px;
+            height: 100%;
+            overflow-y: auto;
         }
 
         .menu-section {
@@ -960,15 +943,21 @@
             }
             
             .content-area {
-                padding: 10px;
+                padding: 0;
             }
             
             .post {
                 padding: 15px;
+                margin: 0 10px 12px 10px;
             }
             
             .message {
                 max-width: 90%;
+            }
+
+            .music-player-btn {
+                padding: 15px 30px;
+                font-size: 16px;
             }
         }
 
@@ -1016,65 +1005,66 @@
     <div class="main-content">
         <!-- Сообщения -->
         <div class="content-area active" id="messages">
-            <div class="chat-container">
-                <div class="chats-sidebar">
-                    <div class="chats-header">
-                        <button class="chats-menu-btn" onclick="toggleGroupCreation()">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="3" y1="12" x2="21" y2="12"></line>
-                                <line x1="3" y1="6" x2="21" y2="6"></line>
-                                <line x1="3" y1="18" x2="21" y2="18"></line>
-                            </svg>
-                        </button>
-                        <div class="search-box">
-                            <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
-                        </div>
-                    </div>
-                    <div class="chats-list" id="chatsList">
-                        <div class="system-message">Загрузка чатов...</div>
+            <div class="chats-sidebar">
+                <div class="chats-header">
+                    <button class="chats-menu-btn" onclick="toggleGroupCreation()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="search-box">
+                        <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
                     </div>
                 </div>
+                <div class="chats-list" id="chatsList">
+                    <div class="system-message">Загрузка чатов...</div>
+                </div>
+            </div>
+        </div>
 
-                <div class="chat-area" id="chatArea" style="display: none;">
-                    <div class="chat-header">
-                        <div class="chat-user-info">
-                            <h3 id="currentChatName">Выберите чат</h3>
-                            <span id="currentChatStatus">Начните общение</span>
-                        </div>
-                        <div class="chat-actions">
-                            <button class="mobile-header-btn" onclick="closeChat()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
+        <!-- Чат в полном экране -->
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-area">
+                <div class="chat-header">
+                    <div class="chat-user-info">
+                        <h3 id="currentChatName">Выберите чат</h3>
+                        <span id="currentChatStatus">Начните общение</span>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="mobile-header-btn" onclick="closeChat()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="system-message">
+                        Выберите чат для начала общения
+                    </div>
+                </div>
+                
+                <div class="message-input-container">
+                    <div class="file-upload-buttons">
+                        <button class="file-upload-btn" onclick="toggleEmojiPicker()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                            </svg>
+                        </button>
                     </div>
                     
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="system-message">
-                            Выберите чат для начала общения
-                        </div>
+                    <div class="message-input-wrapper">
+                        <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
                     </div>
                     
-                    <div class="message-input-container">
-                        <div class="file-upload-buttons">
-                            <button class="file-upload-btn" onclick="toggleEmojiPicker()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                                </svg>
-                            </button>
-                        </div>
-                        
-                        <div class="message-input-wrapper">
-                            <input type="text" placeholder="Введите сообщение..." id="messageInput" onkeypress="handleMessageKeypress(event)">
-                        </div>
-                        
-                        <button class="send-btn" onclick="sendMessage()">Отправить</button>
-                    </div>
+                    <button class="send-btn" onclick="sendMessage()">Отправить</button>
                 </div>
             </div>
         </div>
@@ -1155,41 +1145,16 @@
             </div>
         </div>
 
-        <!-- Музыка -->
+        <!-- Музыка - УПРОЩЕННАЯ ВЕРСИЯ -->
         <div class="content-area" id="music">
             <div class="music-container">
                 <h2 class="section-title">Музыка</h2>
-                
-                <div class="music-player">
-                    <div class="now-playing">
-                        <div class="track-cover">♫</div>
-                        <div class="track-info">
-                            <div class="track-title">Название трека</div>
-                            <div class="track-artist">Исполнитель</div>
-                        </div>
-                    </div>
-                    
-                    <div class="audio-controls">
-                        <button class="audio-play-btn">▶</button>
-                        <div class="audio-waveform"></div>
-                        <div style="font-size: 12px; color: var(--text-secondary);">0:00 / 0:00</div>
-                    </div>
+                <div style="color: var(--text-secondary); margin-bottom: 30px; font-size: 16px;">
+                    Откройте музыкальный плеер для прослушивания музыки
                 </div>
-
-                <div class="menu-section">
-                    <h3 style="margin-bottom: 15px;">Плейлисты</h3>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                        <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center; cursor: pointer;">
-                            <div style="font-size: 24px; margin-bottom: 8px;">🎵</div>
-                            <div style="font-size: 14px; font-weight: 600;">Популярное</div>
-                        </div>
-                        
-                        <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center; cursor: pointer;">
-                            <div style="font-size: 24px; margin-bottom: 8px;">🎧</div>
-                            <div style="font-size: 14px; font-weight: 600;">Мои треки</div>
-                        </div>
-                    </div>
-                </div>
+                <a href="https://epic-messenger.onrender.com/music" class="music-player-btn">
+                    Открыть музыкальный плеер
+                </a>
             </div>
         </div>
 
@@ -1754,12 +1719,12 @@
             }
         }
 
-        // Открытие чата
+        // Открытие чата в полном экране
         async function openChat(chat) {
             currentChat = chat;
             
-            // Показываем область чата
-            document.getElementById('chatArea').style.display = 'flex';
+            // Показываем чат в полном экране
+            document.getElementById('chatContainer').classList.add('active');
             
             // Обновляем информацию о чате
             document.getElementById('currentChatName').textContent = chat.displayName || 'Пользователь';
@@ -1774,7 +1739,7 @@
 
         // Закрытие чата
         function closeChat() {
-            document.getElementById('chatArea').style.display = 'none';
+            document.getElementById('chatContainer').classList.remove('active');
             currentChat = null;
         }
 
@@ -2238,7 +2203,6 @@
                 }
                 
                 openChat(chat);
-                switchSection('messages');
             }
         }
 
