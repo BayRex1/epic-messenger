@@ -980,6 +980,18 @@ class SimpleServer {
                     }
                     break;
 
+                case '/api/messages/edit':
+                    if (method === 'POST') {
+                        response = this.handleEditMessage(token, data);
+                    }
+                    break;
+                    
+                case '/api/messages/delete':
+                    if (method === 'POST') {
+                        response = this.handleDeleteMessage(token, data);
+                    }
+                    break;
+
                 case '/api/messages/mark-read':
                     if (method === 'POST') {
                         response = this.handleMarkAsRead(token, data);
@@ -1355,6 +1367,135 @@ class SimpleServer {
         return {
             success: true,
             message: 'Сообщения отмечены как прочитанные'
+        };
+    }
+
+    // 🔐 МЕТОДЫ ДЛЯ РЕДАКТИРОВАНИЯ И УДАЛЕНИЯ СООБЩЕНИЙ
+
+    handleEditMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'EDIT_MESSAGE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { messageId, newText } = data;
+        
+        if (!messageId || !newText || newText.trim() === '') {
+            return { success: false, message: 'ID сообщения и новый текст обязательны' };
+        }
+
+        // 🔐 Валидация входных данных
+        if (!this.validateInput(newText, 'text')) {
+            return { success: false, message: 'Некорректный текст сообщения' };
+        }
+
+        const message = this.messages.find(msg => msg.id === messageId);
+        if (!message) {
+            return { success: false, message: 'Сообщение не найдено' };
+        }
+
+        // 🔐 Проверяем права: пользователь может редактировать только свои сообщения
+        if (message.senderId !== user.id) {
+            this.logSecurityEvent(user, 'EDIT_MESSAGE', `message:${messageId}`, false);
+            return { success: false, message: 'Вы можете редактировать только свои сообщения' };
+        }
+
+        // Проверяем что сообщение не слишком старое (например, не старше 15 минут)
+        const messageAge = Date.now() - new Date(message.timestamp).getTime();
+        const maxEditTime = 15 * 60 * 1000; // 15 минут
+        
+        if (messageAge > maxEditTime) {
+            return { success: false, message: 'Сообщение можно редактировать только в течение 15 минут после отправки' };
+        }
+
+        const sanitizedText = this.sanitizeContent(newText.trim());
+        if (sanitizedText.length === 0) {
+            return { success: false, message: 'Текст сообщения содержит запрещенный контент' };
+        }
+
+        // Сохраняем оригинальный текст для истории
+        if (!message.editHistory) {
+            message.editHistory = [];
+        }
+        
+        message.editHistory.push({
+            oldText: message.encrypted ? this.decrypt(message.text) : message.text,
+            editedAt: new Date(),
+            editedBy: user.id
+        });
+
+        // Обновляем сообщение
+        message.text = this.encrypt(sanitizedText);
+        message.edited = true;
+        message.editedAt = new Date();
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'EDIT_MESSAGE', `message:${messageId}, chars:${sanitizedText.length}`);
+
+        console.log(`✏️ Пользователь ${user.displayName} отредактировал сообщение: ${messageId}`);
+
+        return {
+            success: true,
+            message: {
+                ...message,
+                text: sanitizedText
+            }
+        };
+    }
+
+    handleDeleteMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { messageId } = data;
+        
+        if (!messageId) {
+            return { success: false, message: 'ID сообщения обязателен' };
+        }
+
+        const messageIndex = this.messages.findIndex(msg => msg.id === messageId);
+        if (messageIndex === -1) {
+            return { success: false, message: 'Сообщение не найдено' };
+        }
+
+        const message = this.messages[messageIndex];
+        
+        // 🔐 Проверяем права: пользователь может удалять только свои сообщения (или админ)
+        if (message.senderId !== user.id && !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'DELETE_MESSAGE', `message:${messageId}`, false);
+            return { success: false, message: 'Вы можете удалять только свои сообщения' };
+        }
+
+        // Проверяем что сообщение не слишком старое для обычных пользователей
+        if (message.senderId === user.id && !this.isAdmin(user)) {
+            const messageAge = Date.now() - new Date(message.timestamp).getTime();
+            const maxDeleteTime = 15 * 60 * 1000; // 15 минут
+            
+            if (messageAge > maxDeleteTime) {
+                return { success: false, message: 'Сообщение можно удалить только в течение 15 минут после отправки' };
+            }
+        }
+
+        // Удаляем сообщение из массива
+        this.messages.splice(messageIndex, 1);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'DELETE_MESSAGE', `message:${messageId}`);
+
+        console.log(`🗑️ Пользователь ${user.displayName} удалил сообщение: ${messageId}`);
+
+        return {
+            success: true,
+            message: 'Сообщение успешно удалено'
         };
     }
 
@@ -3329,7 +3470,7 @@ handleUpdateAvatar(token, data) {
     };
 }
 
-async handleUpdateAvatar(token, data) {
+async handleUploadAvatar(token, data) {
     const user = this.authenticateToken(token);
     if (!user) {
         return { success: false, message: 'Не авторизован' };
@@ -3730,6 +3871,7 @@ if (pathname === '/' || pathname === '/index.html') {
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`👥 Система групп активирована`);
+            console.log(`✏️  Редактирование и удаление сообщений активировано`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
@@ -3740,6 +3882,8 @@ if (pathname === '/' || pathname === '/index.html') {
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
+            console.log(`✏️  Для редактирования сообщений: /api/messages/edit`);
+            console.log(`🗑️  Для удаления сообщений: /api/messages/delete`);
         });
 
         return server;
