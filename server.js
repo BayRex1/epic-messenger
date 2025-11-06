@@ -633,45 +633,77 @@ class SimpleServer {
     }
 
     async saveFile(fileData, filename, type) {
-        return new Promise((resolve, reject) => {
-            try {
-                let uploadDir = 'uploads';
-                if (type === 'avatar') uploadDir = 'uploads/avatars';
-                else if (type === 'gift') uploadDir = 'uploads/gifts';
-                else if (type === 'post') uploadDir = 'uploads/posts';
-                else if (type === 'music') uploadDir = 'uploads/music';
-                else if (type === 'music/covers') uploadDir = 'uploads/music/covers';
-                else if (type === 'images') uploadDir = 'uploads/images';
-                else if (type === 'videos') uploadDir = 'uploads/videos';
-                else if (type === 'audio') uploadDir = 'uploads/audio';
-                else if (type === 'files') uploadDir = 'uploads/files';
-
-                const filePath = path.join(__dirname, 'public', uploadDir, filename);
-                
-                let buffer;
+        try {
+            console.log('💾 Начало сохранения файла:', { filename, type, dataLength: fileData?.length });
+            
+            // Определяем директорию для сохранения
+            let uploadDir = 'uploads';
+            const dirMap = {
+                'avatar': 'uploads/avatars',
+                'gift': 'uploads/gifts', 
+                'post': 'uploads/posts',
+                'music': 'uploads/music',
+                'music/covers': 'uploads/music/covers',
+                'images': 'uploads/images',
+                'videos': 'uploads/videos',
+                'audio': 'uploads/audio',
+                'files': 'uploads/files'
+            };
+            
+            uploadDir = dirMap[type] || 'uploads';
+            const filePath = path.join(__dirname, 'public', uploadDir, filename);
+            
+            console.log('📁 Полный путь к файлу:', filePath);
+            
+            // Обрабатываем данные файла
+            let buffer;
+            if (typeof fileData === 'string') {
                 if (fileData.startsWith('data:')) {
                     const base64Data = fileData.split(',')[1];
+                    if (!base64Data) {
+                        throw new Error('Invalid data URL format: no base64 data');
+                    }
                     buffer = Buffer.from(base64Data, 'base64');
                 } else {
-                    buffer = Buffer.from(fileData, 'base64');
-                }
-
-                const dirPath = path.dirname(filePath);
-                if (!fs.existsSync(dirPath)) {
-                    fs.mkdirSync(dirPath, { recursive: true });
-                }
-
-                fs.writeFile(filePath, buffer, (err) => {
-                    if (err) {
-                        reject(err);
+                    // Проверяем валидность чистого base64
+                    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+                    if (fileData && base64Regex.test(fileData.replace(/\s/g, ''))) {
+                        buffer = Buffer.from(fileData, 'base64');
                     } else {
-                        resolve(`/${uploadDir}/${filename}`);
+                        throw new Error('Invalid base64 data format');
                     }
-                });
-            } catch (error) {
-                reject(error);
+                }
+            } else if (Buffer.isBuffer(fileData)) {
+                buffer = fileData;
+            } else {
+                throw new Error('Unsupported file data type');
             }
-        });
+
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Empty file data');
+            }
+
+            console.log('📊 Размер буфера:', buffer.length, 'байт');
+
+            // Создаем директорию если не существует
+            const dirPath = path.dirname(filePath);
+            if (!fs.existsSync(dirPath)) {
+                console.log('📁 Создание директории:', dirPath);
+                fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+            }
+
+            // Сохраняем файл
+            console.log('💾 Запись файла...');
+            await fs.promises.writeFile(filePath, buffer);
+            console.log('✅ Файл успешно сохранен:', filePath);
+
+            const fileUrl = `/${uploadDir}/${filename}`;
+            return fileUrl;
+            
+        } catch (error) {
+            console.error('❌ Ошибка в saveFile:', error);
+            throw error;
+        }
     }
 
     deleteFile(fileUrl) {
@@ -866,8 +898,26 @@ class SimpleServer {
 
         // Для multipart/form-data обрабатываем отдельно
         if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-            if (pathname === '/api/music/upload-full') {
-                this.handleUploadMusicFull(req, res);
+            const multipartEndpoints = [
+                '/api/music/upload-full',
+                '/api/upload-avatar',
+                '/api/upload-gift',
+                '/api/upload-post-image',
+                '/api/upload-file'
+            ];
+            
+            if (multipartEndpoints.includes(pathname)) {
+                if (pathname === '/api/music/upload-full') {
+                    this.handleUploadMusicFull(req, res);
+                } else if (pathname === '/api/upload-avatar') {
+                    this.handleUploadAvatarMultipart(req, res);
+                } else if (pathname === '/api/upload-post-image') {
+                    this.handleUploadPostImageMultipart(req, res);
+                } else if (pathname === '/api/upload-gift') {
+                    this.handleUploadGiftMultipart(req, res);
+                } else if (pathname === '/api/upload-file') {
+                    this.handleUploadFileMultipart(req, res);
+                }
                 return;
             }
         }
@@ -1272,7 +1322,7 @@ class SimpleServer {
             };
         } catch (error) {
             console.error('Ошибка загрузки файла:', error);
-            return { success: false, message: 'Ошибка загрузки файла' };
+            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
         }
     }
 
@@ -2441,7 +2491,7 @@ async handleUploadMusicFile(token, data) {
     } catch (error) {
         console.error('Ошибка загрузки аудио файла:', error);
         this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
+        return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
     }
 }
 
@@ -2479,7 +2529,7 @@ async handleUploadMusicCover(token, data) {
     } catch (error) {
         console.error('Ошибка загрузки обложки:', error);
         this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
+        return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
     }
 }
 
@@ -3490,12 +3540,20 @@ async handleUploadAvatar(token, data) {
         return { success: false, message: 'Недопустимый формат файла для аватара' };
     }
 
+    // Проверяем размер файла (5MB максимум)
+    const maxSize = 5 * 1024 * 1024;
+    if (!fileData || fileData.length > maxSize) {
+        return { success: false, message: 'Размер файла не должен превышать 5 МБ' };
+    }
+
     try {
         // Сохраняем файл на сервер
         const fileExt = path.extname(filename);
         const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
         
+        console.log('💾 Сохранение аватара...');
         const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
+        console.log('✅ Аватар сохранен:', fileUrl);
 
         // Удаляем старый аватар если он был
         if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
@@ -3535,7 +3593,390 @@ async handleUploadAvatar(token, data) {
     } catch (error) {
         console.error('Ошибка загрузки аватара:', error);
         this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
+        return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
+    }
+}
+
+// Multipart обработчики для загрузки файлов
+handleUploadAvatarMultipart(req, res) {
+    console.log('🔄 Multipart загрузка аватара...');
+
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    };
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const user = this.authenticateToken(token);
+    
+    if (!user) {
+        res.writeHead(401, headers);
+        res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+        return;
+    }
+
+    let isResponseSent = false;
+
+    const sendResponse = (success, data) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            res.writeHead(success ? 200 : 400, headers);
+            res.end(JSON.stringify(data));
+        }
+    };
+
+    try {
+        const bb = busboy({ headers: req.headers });
+        let fileBuffer = null;
+        let filename = null;
+
+        bb.on('file', (name, file, info) => {
+            if (name === 'fileData') {
+                filename = info.filename;
+                const chunks = [];
+                
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    fileBuffer = Buffer.concat(chunks);
+                });
+            } else {
+                file.resume();
+            }
+        });
+
+        bb.on('close', async () => {
+            try {
+                if (!fileBuffer || !filename) {
+                    sendResponse(false, { success: false, message: 'Файл не получен' });
+                    return;
+                }
+
+                if (!this.validateAvatarFile(filename)) {
+                    sendResponse(false, { success: false, message: 'Недопустимый формат файла' });
+                    return;
+                }
+
+                const fileExt = path.extname(filename);
+                const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+                
+                const fileUrl = await this.saveFile(fileBuffer, uniqueFilename, 'avatar');
+
+                // Удаляем старый аватар
+                if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                    this.deleteFile(user.avatar);
+                }
+
+                user.avatar = fileUrl;
+                this.saveData();
+
+                sendResponse(true, {
+                    success: true,
+                    avatarUrl: fileUrl,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        avatar: fileUrl,
+                        description: user.description,
+                        coins: user.coins,
+                        verified: user.verified,
+                        isDeveloper: user.isDeveloper,
+                        status: user.status,
+                        lastSeen: user.lastSeen,
+                        createdAt: user.createdAt,
+                        friendsCount: user.friendsCount || 0,
+                        postsCount: user.postsCount || 0,
+                        giftsCount: user.giftsCount || 0,
+                        banned: user.banned || false
+                    }
+                });
+
+            } catch (error) {
+                console.error('Ошибка обработки аватара:', error);
+                sendResponse(false, { success: false, message: error.message });
+            }
+        });
+
+        req.pipe(bb);
+
+    } catch (error) {
+        console.error('Ошибка multipart обработки:', error);
+        sendResponse(false, { success: false, message: error.message });
+    }
+}
+
+handleUploadPostImageMultipart(req, res) {
+    console.log('🔄 Multipart загрузка изображения для поста...');
+
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    };
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const user = this.authenticateToken(token);
+    
+    if (!user) {
+        res.writeHead(401, headers);
+        res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+        return;
+    }
+
+    let isResponseSent = false;
+
+    const sendResponse = (success, data) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            res.writeHead(success ? 200 : 400, headers);
+            res.end(JSON.stringify(data));
+        }
+    };
+
+    try {
+        const bb = busboy({ headers: req.headers });
+        let fileBuffer = null;
+        let filename = null;
+
+        bb.on('file', (name, file, info) => {
+            if (name === 'fileData') {
+                filename = info.filename;
+                const chunks = [];
+                
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    fileBuffer = Buffer.concat(chunks);
+                });
+            } else {
+                file.resume();
+            }
+        });
+
+        bb.on('close', async () => {
+            try {
+                if (!fileBuffer || !filename) {
+                    sendResponse(false, { success: false, message: 'Файл не получен' });
+                    return;
+                }
+
+                if (!this.validatePostFile(filename)) {
+                    sendResponse(false, { success: false, message: 'Недопустимый формат файла' });
+                    return;
+                }
+
+                const fileExt = path.extname(filename);
+                const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+                
+                const fileUrl = await this.saveFile(fileBuffer, uniqueFilename, 'post');
+
+                sendResponse(true, {
+                    success: true,
+                    imageUrl: fileUrl
+                });
+
+            } catch (error) {
+                console.error('Ошибка обработки изображения:', error);
+                sendResponse(false, { success: false, message: error.message });
+            }
+        });
+
+        req.pipe(bb);
+
+    } catch (error) {
+        console.error('Ошибка multipart обработки:', error);
+        sendResponse(false, { success: false, message: error.message });
+    }
+}
+
+handleUploadGiftMultipart(req, res) {
+    console.log('🔄 Multipart загрузка изображения подарка...');
+
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    };
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const user = this.authenticateToken(token);
+    
+    if (!user || !this.isAdmin(user)) {
+        res.writeHead(401, headers);
+        res.end(JSON.stringify({ success: false, message: 'Доступ запрещен' }));
+        return;
+    }
+
+    let isResponseSent = false;
+
+    const sendResponse = (success, data) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            res.writeHead(success ? 200 : 400, headers);
+            res.end(JSON.stringify(data));
+        }
+    };
+
+    try {
+        const bb = busboy({ headers: req.headers });
+        let fileBuffer = null;
+        let filename = null;
+
+        bb.on('file', (name, file, info) => {
+            if (name === 'fileData') {
+                filename = info.filename;
+                const chunks = [];
+                
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    fileBuffer = Buffer.concat(chunks);
+                });
+            } else {
+                file.resume();
+            }
+        });
+
+        bb.on('close', async () => {
+            try {
+                if (!fileBuffer || !filename) {
+                    sendResponse(false, { success: false, message: 'Файл не получен' });
+                    return;
+                }
+
+                if (!this.validateGiftFile(filename)) {
+                    sendResponse(false, { success: false, message: 'Недопустимый формат файла' });
+                    return;
+                }
+
+                const fileExt = path.extname(filename);
+                const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+                
+                const fileUrl = await this.saveFile(fileBuffer, uniqueFilename, 'gift');
+
+                sendResponse(true, {
+                    success: true,
+                    imageUrl: fileUrl
+                });
+
+            } catch (error) {
+                console.error('Ошибка обработки изображения подарка:', error);
+                sendResponse(false, { success: false, message: error.message });
+            }
+        });
+
+        req.pipe(bb);
+
+    } catch (error) {
+        console.error('Ошибка multipart обработки:', error);
+        sendResponse(false, { success: false, message: error.message });
+    }
+}
+
+handleUploadFileMultipart(req, res) {
+    console.log('🔄 Multipart загрузка файла...');
+
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    };
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const user = this.authenticateToken(token);
+    
+    if (!user) {
+        res.writeHead(401, headers);
+        res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+        return;
+    }
+
+    let isResponseSent = false;
+
+    const sendResponse = (success, data) => {
+        if (!isResponseSent) {
+            isResponseSent = true;
+            res.writeHead(success ? 200 : 400, headers);
+            res.end(JSON.stringify(data));
+        }
+    };
+
+    try {
+        const bb = busboy({ headers: req.headers });
+        let fileBuffer = null;
+        let filename = null;
+        let fileType = null;
+
+        bb.on('field', (name, val) => {
+            if (name === 'fileType') {
+                fileType = val;
+            }
+        });
+
+        bb.on('file', (name, file, info) => {
+            if (name === 'fileData') {
+                filename = info.filename;
+                const chunks = [];
+                
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    fileBuffer = Buffer.concat(chunks);
+                });
+            } else {
+                file.resume();
+            }
+        });
+
+        bb.on('close', async () => {
+            try {
+                if (!fileBuffer || !filename) {
+                    sendResponse(false, { success: false, message: 'Файл не получен' });
+                    return;
+                }
+
+                if (!fileType) {
+                    fileType = 'files';
+                }
+
+                if (!this.validateFileType(filename, fileType)) {
+                    sendResponse(false, { success: false, message: 'Недопустимый тип файла' });
+                    return;
+                }
+
+                const fileExt = path.extname(filename);
+                const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
+                
+                const fileUrl = await this.saveFile(fileBuffer, uniqueFilename, fileType + 's');
+
+                sendResponse(true, {
+                    success: true,
+                    fileUrl: fileUrl,
+                    fileName: filename,
+                    fileType: fileType
+                });
+
+            } catch (error) {
+                console.error('Ошибка обработки файла:', error);
+                sendResponse(false, { success: false, message: error.message });
+            }
+        });
+
+        req.pipe(bb);
+
+    } catch (error) {
+        console.error('Ошибка multipart обработки:', error);
+        sendResponse(false, { success: false, message: error.message });
     }
 }
 
@@ -3577,7 +4018,7 @@ async handleUploadGift(token, data) {
     } catch (error) {
         console.error('Ошибка загрузки изображения подарка:', error);
         this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
+        return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
     }
 }
 
@@ -3622,7 +4063,7 @@ async handleUploadPostImage(token, data) {
     } catch (error) {
         console.error('Ошибка загрузки файла для поста:', error);
         this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
+        return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
     }
 }
 
