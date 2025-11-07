@@ -25,10 +25,10 @@ class SimpleServer {
         // Инициализируем модули
         this.security = new SecurityManager(this);
         this.auth = new AuthManager(this);
-        this.users = new UsersManager(this);
-        this.messages = new MessagesManager(this);
-        this.posts = new PostsManager(this);
-        this.music = new MusicManager(this);
+        this.usersManager = new UsersManager(this);
+        this.messagesManager = new MessagesManager(this);
+        this.postsManager = new PostsManager(this);
+        this.musicManager = new MusicManager(this);
         this.files = new FileManager(this);
         this.admin = new AdminManager(this);
         
@@ -217,6 +217,11 @@ class SimpleServer {
         this.saveData();
     }
 
+    // 🔧 ДОБАВЛЕННЫЙ МЕТОД ДЛЯ РЕГИСТРАЦИИ УСТРОЙСТВА
+    registerDevice(userId, req) {
+        return this.usersManager.registerDevice(userId, req);
+    }
+
     // 🔄 ОБРАБОТКА ЗАПРОСОВ
 
     handleApiRequest(req, res) {
@@ -240,22 +245,6 @@ class SimpleServer {
                 message: 'Слишком много запросов. Попробуйте позже.' 
             }));
             return;
-        }
-
-        // Для multipart/form-data обрабатываем отдельно
-        if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-            const multipartEndpoints = [
-                '/api/music/upload-full',
-                '/api/upload-avatar',
-                '/api/upload-gift',
-                '/api/upload-post-image',
-                '/api/upload-file'
-            ];
-            
-            if (multipartEndpoints.includes(pathname)) {
-                // Здесь можно добавить multipart обработчики
-                console.log('📎 Multipart request detected, but handlers not implemented yet');
-            }
         }
 
         let body = '';
@@ -307,6 +296,8 @@ class SimpleServer {
 
         try {
             // 🔄 РОУТИНГ API
+            const token = data.token || query.token;
+
             switch (pathname) {
                 // Аутентификация
                 case '/api/login':
@@ -316,134 +307,134 @@ class SimpleServer {
                     if (method === 'POST') response = this.auth.handleRegister(data, req);
                     break;
                 case '/api/check-auth':
-                    if (method === 'GET') response = this.auth.handleCheckAuth(query.token, req);
+                    if (method === 'GET') response = this.auth.handleCheckAuth(token, req);
                     break;
                 case '/api/current-user':
-                    if (method === 'GET') response = this.auth.handleCurrentUser(query.token, req);
+                    if (method === 'GET') response = this.auth.handleCurrentUser(token, req);
                     break;
                 
                 // Пользователи
                 case '/api/users':
-                    if (method === 'GET') response = this.users.handleGetUsers(query.token);
+                    if (method === 'GET') response = this.usersManager.handleGetUsers(token);
                     break;
                 case '/api/user-by-username':
-                    if (method === 'POST') response = this.users.handleGetUserByUsername(data.token, data);
+                    if (method === 'POST') response = this.usersManager.handleGetUserByUsername(token, data);
                     break;
                 case '/api/update-profile':
-                    if (method === 'POST') response = this.users.handleUpdateProfile(data.token, data);
+                    if (method === 'POST') response = this.usersManager.handleUpdateProfile(token, data);
                     break;
                 case '/api/update-avatar':
-                    if (method === 'POST') response = this.users.handleUpdateAvatar(data.token, data);
+                    if (method === 'POST') response = this.usersManager.handleUpdateAvatar(token, data);
                     break;
                 case '/api/upload-avatar':
-                    if (method === 'POST') response = this.users.handleUploadAvatar(data.token, data);
+                    if (method === 'POST') response = this.usersManager.handleUploadAvatar(token, data);
                     break;
                 case '/api/devices':
-                    if (method === 'GET') response = this.users.handleGetDevices(query.token);
+                    if (method === 'GET') response = this.usersManager.handleGetDevices(token);
                     break;
                 case '/api/devices/terminate':
-                    if (method === 'POST') response = this.users.handleTerminateDevice(data.token, data);
+                    if (method === 'POST') response = this.usersManager.handleTerminateDevice(token, data);
+                    break;
+                case '/api/my-gifts':
+                    if (method === 'GET') response = this.usersManager.handleGetMyGifts(token);
                     break;
                 
                 // Сообщения
                 case '/api/chats':
-                    if (method === 'GET') response = this.messages.handleGetChats(query.token);
+                    if (method === 'GET') response = this.messagesManager.handleGetChats(token);
                     break;
                 case '/api/messages':
-                    if (method === 'GET') response = this.messages.handleGetMessages(query.token, query);
+                    if (method === 'GET') response = this.messagesManager.handleGetMessages(token, query);
                     break;
                 case '/api/messages/send':
-                    if (method === 'POST') response = this.messages.handleSendMessage(data.token, data);
+                    if (method === 'POST') response = this.messagesManager.handleSendMessage(token, data);
                     break;
                 case '/api/messages/edit':
-                    if (method === 'POST') response = this.messages.handleEditMessage(data.token, data);
+                    if (method === 'POST') response = this.messagesManager.handleEditMessage(token, data);
                     break;
                 case '/api/messages/delete':
-                    if (method === 'POST') response = this.messages.handleDeleteMessage(data.token, data);
+                    if (method === 'POST') response = this.messagesManager.handleDeleteMessage(token, data);
                     break;
                 case '/api/messages/mark-read':
-                    if (method === 'POST') response = this.messages.handleMarkAsRead(data.token, data);
+                    if (method === 'POST') response = this.messagesManager.handleMarkAsRead(token, data);
                     break;
                 
                 // Посты
                 case '/api/posts':
-                    if (method === 'GET') response = this.posts.handleGetPosts(query.token);
-                    else if (method === 'POST') response = this.posts.handleCreatePost(data.token, data);
+                    if (method === 'GET') response = this.postsManager.handleGetPosts(token);
+                    else if (method === 'POST') response = this.postsManager.handleCreatePost(token, data);
                     break;
                 case '/api/upload-post-image':
-                    if (method === 'POST') response = this.posts.handleUploadPostImage(data.token, data);
+                    if (method === 'POST') response = this.postsManager.handleUploadPostImage(token, data);
                     break;
                 
                 // Музыка
                 case '/api/music':
-                    if (method === 'GET') response = this.music.handleGetMusic(query.token);
-                    else if (method === 'POST') response = this.music.handleUploadMusic(data.token, data);
+                    if (method === 'GET') response = this.musicManager.handleGetMusic(token);
+                    else if (method === 'POST') response = this.musicManager.handleUploadMusic(token, data);
                     break;
                 case '/api/music/upload':
-                    if (method === 'POST') response = this.music.handleUploadMusicFile(data.token, data);
+                    if (method === 'POST') response = this.musicManager.handleUploadMusicFile(token, data);
                     break;
                 case '/api/music/upload-cover':
-                    if (method === 'POST') response = this.music.handleUploadMusicCover(data.token, data);
+                    if (method === 'POST') response = this.musicManager.handleUploadMusicCover(token, data);
                     break;
                 case '/api/music/delete':
-                    if (method === 'POST') response = this.music.handleDeleteMusic(data.token, data);
+                    if (method === 'POST') response = this.musicManager.handleDeleteMusic(token, data);
                     break;
                 case '/api/music/search':
-                    if (method === 'GET') response = this.music.handleSearchMusic(query.token, query);
+                    if (method === 'GET') response = this.musicManager.handleSearchMusic(token, query);
                     break;
                 case '/api/music/random':
-                    if (method === 'GET') response = this.music.handleGetRandomMusic(query.token);
+                    if (method === 'GET') response = this.musicManager.handleGetRandomMusic(token);
                     break;
                 case '/api/playlists':
-                    if (method === 'GET') response = this.music.handleGetPlaylists(query.token);
-                    else if (method === 'POST') response = this.music.handleCreatePlaylist(data.token, data);
+                    if (method === 'GET') response = this.musicManager.handleGetPlaylists(token);
+                    else if (method === 'POST') response = this.musicManager.handleCreatePlaylist(token, data);
                     break;
                 case '/api/playlists/add':
-                    if (method === 'POST') response = this.music.handleAddToPlaylist(data.token, data);
+                    if (method === 'POST') response = this.musicManager.handleAddToPlaylist(token, data);
                     break;
                 
                 // Админ
                 case '/api/admin/stats':
-                    if (method === 'GET') response = this.admin.handleAdminStats(query.token);
+                    if (method === 'GET') response = this.admin.handleAdminStats(token);
                     break;
                 case '/api/admin/delete-user':
-                    if (method === 'POST') response = this.admin.handleDeleteUser(data.token, data);
+                    if (method === 'POST') response = this.admin.handleDeleteUser(token, data);
                     break;
                 case '/api/admin/ban-user':
-                    if (method === 'POST') response = this.admin.handleBanUser(data.token, data);
+                    if (method === 'POST') response = this.admin.handleBanUser(token, data);
                     break;
                 case '/api/admin/toggle-verification':
-                    if (method === 'POST') response = this.admin.handleToggleVerification(data.token, data);
+                    if (method === 'POST') response = this.admin.handleToggleVerification(token, data);
                     break;
                 case '/api/admin/toggle-developer':
-                    if (method === 'POST') response = this.admin.handleToggleDeveloper(data.token, data);
+                    if (method === 'POST') response = this.admin.handleToggleDeveloper(token, data);
                     break;
                 
                 // Дополнительные endpoints
                 case '/api/gifts':
-                    if (method === 'GET') response = this.handleGetGifts(query.token);
+                    if (method === 'GET') response = this.handleGetGifts(token);
                     break;
                 case '/api/promo-codes':
-                    if (method === 'GET') response = this.handleGetPromoCodes(query.token);
-                    break;
-                case '/api/my-gifts':
-                    if (method === 'GET') response = this.users.handleGetMyGifts(query.token);
+                    if (method === 'GET') response = this.handleGetPromoCodes(token);
                     break;
                 case '/api/emoji':
-                    if (method === 'GET') response = this.handleGetEmoji(query.token);
+                    if (method === 'GET') response = this.handleGetEmoji(token);
                     break;
                 case '/api/upload-file':
-                    if (method === 'POST') response = this.files.handleUploadFile(data.token, data);
+                    if (method === 'POST') response = this.files.handleUploadFile(token, data);
                     break;
                 
                 // Динамические routes
                 default:
                     if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
                         const postId = pathname.split('/')[3];
-                        if (method === 'POST') response = this.posts.handleLikePost(query.token, postId);
+                        if (method === 'POST') response = this.postsManager.handleLikePost(token, postId);
                     } else if (pathname.startsWith('/api/users/')) {
                         const userId = pathname.split('/')[3];
-                        if (method === 'GET') response = this.users.handleGetUser(query.token, userId);
+                        if (method === 'GET') response = this.usersManager.handleGetUser(token, userId);
                     } else {
                         response = { success: false, message: 'API endpoint not found' };
                     }
