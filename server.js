@@ -43,7 +43,7 @@ class SimpleServer {
         console.log('✅ Все модули загружены');
     }
 
-    // 🔄 МЕТОДЫ ДАННЫХ (остаются без изменений)
+    // 🔄 МЕТОДЫ ДАННЫХ
     loadData() {
         try {
             if (fs.existsSync(this.dataFile)) {
@@ -479,7 +479,7 @@ class SimpleServer {
         this.files.serveStaticFile(res, filePath, contentType);
     }
 
-    // 🎁 ВРЕМЕННЫЕ МЕТОДЫ (остаются без изменений)
+    // 🎁 ВРЕМЕННЫЕ МЕТОДЫ
     handleGetGifts(token) {
         const user = this.auth.authenticateToken(token);
         if (!user) {
@@ -555,7 +555,7 @@ class SimpleServer {
                 return;
             }
 
-            // Обработка статических файлов (без изменений)
+            // Обработка статических файлов
             if (pathname === '/' || pathname === '/index.html') {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/mobile.html' || pathname === '/mobile') {
@@ -596,15 +596,8 @@ class SimpleServer {
                 
                 this.serveStaticFile(res, 'public' + pathname, contentType);
             } else {
-                // По умолчанию отдаем мобильную версию для мобильных устройств
-                const userAgent = req.headers['user-agent'] || '';
-                const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-                
-                if (isMobile) {
-                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-                } else {
-                    this.serveStaticFile(res, 'public/main.html', 'text/html');
-                }
+                // ВСЕГДА отдаем основную версию для всех пользователей
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
             }
         });
 
