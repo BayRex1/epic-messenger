@@ -8,7 +8,9 @@ class SecurityManager {
         this.requestCounts = new Map();
         this.sessions = new Map();
         
+        // Очистка сессий и rate limits
         setInterval(() => this.cleanupSessions(), 5 * 60 * 1000);
+        setInterval(() => this.cleanupRateLimits(), 10 * 60 * 1000);
     }
 
     // Rate limiting
@@ -41,6 +43,21 @@ class SecurityManager {
         recentRequests.push(now);
         this.requestCounts.set(key, recentRequests);
         return true;
+    }
+
+    // Очистка старых rate limits
+    cleanupRateLimits() {
+        const now = Date.now();
+        const windowStart = now - 60000;
+        
+        for (const [key, requests] of this.requestCounts.entries()) {
+            const recentRequests = requests.filter(time => time > windowStart);
+            if (recentRequests.length === 0) {
+                this.requestCounts.delete(key);
+            } else {
+                this.requestCounts.set(key, recentRequests);
+            }
+        }
     }
 
     // Система сессий
@@ -215,7 +232,29 @@ class SecurityManager {
         return decrypted;
     }
 
+    // БЕЗОПАСНОЕ ХЭШИРОВАНИЕ ПАРОЛЕЙ
     hashPassword(password) {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+        return `${salt}:${hash}`;
+    }
+
+    verifyPassword(password, hashedPassword) {
+        try {
+            if (!hashedPassword || !hashedPassword.includes(':')) {
+                return false;
+            }
+            const [salt, hash] = hashedPassword.split(':');
+            const verifyHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+            return hash === verifyHash;
+        } catch (error) {
+            console.error('Ошибка проверки пароля:', error);
+            return false;
+        }
+    }
+
+    // СТАРЫЙ МЕТОД ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+    hashPasswordSHA256(password) {
         return crypto.createHash('sha256').update(password).digest('hex');
     }
 
