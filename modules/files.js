@@ -84,7 +84,10 @@ class FileManager {
             };
             
             uploadDir = dirMap[type] || 'uploads';
-            const filePath = path.join(__dirname, '..', 'public', uploadDir, filename);
+            
+            // Используем правильный путь относительно корня проекта
+            const projectRoot = path.join(__dirname, '..');
+            const filePath = path.join(projectRoot, 'public', uploadDir, filename);
             
             console.log('📁 Полный путь к файлу:', filePath);
             
@@ -138,9 +141,15 @@ class FileManager {
     deleteFile(fileUrl) {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         
-        const filePath = path.join(__dirname, '..', 'public', fileUrl.substring(1));
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        try {
+            const projectRoot = path.join(__dirname, '..');
+            const filePath = path.join(projectRoot, 'public', fileUrl.substring(1));
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log(`🗑️ Файл удален: ${fileUrl}`);
+            }
+        } catch (error) {
+            console.error('❌ Ошибка удаления файла:', error);
         }
     }
 
@@ -148,7 +157,8 @@ class FileManager {
     serveStaticFile(res, filePath, contentType) {
         console.log('📁 Serving static file:', filePath);
         
-        const fullPath = path.join(__dirname, '..', filePath);
+        const projectRoot = path.join(__dirname, '..');
+        const fullPath = path.join(projectRoot, filePath);
         console.log('📁 Full path:', fullPath);
         
         if (!fs.existsSync(fullPath)) {
@@ -176,6 +186,7 @@ class FileManager {
     }
 
     ensureUploadDirs() {
+        const projectRoot = path.join(__dirname, '..');
         const requiredDirs = [
             'public/uploads/music',
             'public/uploads/music/covers',
@@ -191,7 +202,7 @@ class FileManager {
         ];
         
         requiredDirs.forEach(dir => {
-            const fullPath = path.join(__dirname, '..', dir);
+            const fullPath = dir.startsWith('/') ? dir : path.join(projectRoot, dir);
             if (!fs.existsSync(fullPath)) {
                 fs.mkdirSync(fullPath, { recursive: true });
                 console.log('✅ Создана папка:', fullPath);
@@ -593,6 +604,67 @@ class FileManager {
         } catch (error) {
             console.error('Ошибка multipart обработки:', error);
             sendResponse(false, { success: false, message: error.message });
+        }
+    }
+
+    // Дополнительные методы для работы с файлами
+    getFileStats(fileUrl) {
+        if (!fileUrl || !fileUrl.startsWith('/uploads/')) return null;
+        
+        try {
+            const projectRoot = path.join(__dirname, '..');
+            const filePath = path.join(projectRoot, 'public', fileUrl.substring(1));
+            if (fs.existsSync(filePath)) {
+                const stats = fs.statSync(filePath);
+                return {
+                    size: stats.size,
+                    modified: stats.mtime,
+                    created: stats.birthtime
+                };
+            }
+        } catch (error) {
+            console.error('Ошибка получения статистики файла:', error);
+        }
+        return null;
+    }
+
+    // Очистка временных файлов
+    cleanupTempFiles() {
+        try {
+            const tempDir = '/tmp';
+            const files = fs.readdirSync(tempDir);
+            const now = Date.now();
+            const maxAge = 24 * 60 * 60 * 1000; // 24 часа
+            
+            files.forEach(file => {
+                if (file.startsWith('epic-messenger-')) {
+                    const filePath = path.join(tempDir, file);
+                    const stats = fs.statSync(filePath);
+                    if (now - stats.mtime.getTime() > maxAge) {
+                        fs.unlinkSync(filePath);
+                        console.log(`🗑️ Удален временный файл: ${file}`);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Ошибка очистки временных файлов:', error);
+        }
+    }
+
+    // Проверка доступного места
+    checkDiskSpace() {
+        try {
+            const projectRoot = path.join(__dirname, '..');
+            const stats = fs.statSync(projectRoot);
+            const freeSpace = stats.blocks * stats.blksize;
+            return {
+                free: freeSpace,
+                freeMB: Math.round(freeSpace / (1024 * 1024)),
+                sufficient: freeSpace > 100 * 1024 * 1024 // 100MB минимум
+            };
+        } catch (error) {
+            console.error('Ошибка проверки дискового пространства:', error);
+            return { free: 0, freeMB: 0, sufficient: false };
         }
     }
 }
