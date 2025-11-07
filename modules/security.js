@@ -8,7 +8,6 @@ class SecurityManager {
         this.requestCounts = new Map();
         this.sessions = new Map();
         
-        // Очистка сессий и rate limits
         setInterval(() => this.cleanupSessions(), 5 * 60 * 1000);
         setInterval(() => this.cleanupRateLimits(), 10 * 60 * 1000);
     }
@@ -36,7 +35,6 @@ class SecurityManager {
         const limit = limits[endpoint] || limits.default;
         
         if (recentRequests.length >= limit) {
-            console.log(`🚨 Rate limit exceeded: ${ip} -> ${endpoint}`);
             return false;
         }
         
@@ -45,7 +43,6 @@ class SecurityManager {
         return true;
     }
 
-    // Очистка старых rate limits
     cleanupRateLimits() {
         const now = Date.now();
         const windowStart = now - 60000;
@@ -60,8 +57,12 @@ class SecurityManager {
         }
     }
 
-    // Система сессий
+    // СИСТЕМА СЕССИЙ - ФИКС
     createSession(userId) {
+        if (!userId) {
+            return null;
+        }
+
         const sessionId = crypto.randomBytes(32).toString('hex');
         const expires = Date.now() + 24 * 60 * 60 * 1000;
         
@@ -76,9 +77,13 @@ class SecurityManager {
     }
 
     validateSession(token) {
+        if (!token) return null;
+        
         const session = this.sessions.get(token);
         if (!session || session.expires < Date.now()) {
-            this.sessions.delete(token);
+            if (session) {
+                this.sessions.delete(token);
+            }
             return null;
         }
         
@@ -111,7 +116,6 @@ class SecurityManager {
         });
     }
 
-    // Логирование безопасности
     logSecurityEvent(user, action, target, success = true) {
         const timestamp = new Date().toISOString();
         const username = user ? user.username : 'unknown';
@@ -124,7 +128,6 @@ class SecurityManager {
         fs.appendFileSync(logFile, logEntry, 'utf8');
     }
 
-    // Валидация входных данных
     validateInput(input, type) {
         if (typeof input !== 'string') return false;
         
@@ -139,7 +142,6 @@ class SecurityManager {
         return validators[type] ? validators[type].test(input) : true;
     }
 
-    // Санитизация контента
     sanitizeContent(content) {
         if (typeof content !== 'string') return '';
         
@@ -213,7 +215,6 @@ class SecurityManager {
         return sanitized;
     }
 
-    // Шифрование
     encrypt(text, encryptionKey) {
         const iv = crypto.randomBytes(16);
         const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv);
@@ -248,7 +249,6 @@ class SecurityManager {
             const verifyHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
             return hash === verifyHash;
         } catch (error) {
-            console.error('Ошибка проверки пароля:', error);
             return false;
         }
     }
@@ -258,7 +258,6 @@ class SecurityManager {
         return crypto.createHash('sha256').update(password).digest('hex');
     }
 
-    // Получение IP клиента
     getClientIP(req) {
         return req.headers['x-forwarded-for'] || 
                req.connection.remoteAddress || 
@@ -266,7 +265,6 @@ class SecurityManager {
                (req.connection.socket ? req.connection.socket.remoteAddress : null);
     }
 
-    // Информация об устройстве
     getDeviceInfo(req) {
         const userAgent = req.headers['user-agent'] || '';
         let browser = 'Unknown';
