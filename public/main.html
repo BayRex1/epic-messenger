@@ -2820,6 +2820,18 @@
         let currentFileData = null;
         let socket = null;
 
+        // Функция для авторизованных запросов
+        function fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('authToken');
+            if (!options.headers) {
+                options.headers = {};
+            }
+            if (token) {
+                options.headers['Authorization'] = `Bearer ${token}`;
+            }
+            return fetch(url, options);
+        }
+
         // Основная функция инициализации приложения
         async function initializeApp() {
             try {
@@ -3004,11 +3016,8 @@
                     return;
                 }
 
-                const response = await fetch('/api/current-user', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/current-user');
                 
                 const data = await response.json();
                 
@@ -3258,12 +3267,8 @@
             }
 
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchTerm)}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/users/search?q=${encodeURIComponent(searchTerm)}`);
                 
                 const data = await response.json();
                 
@@ -3347,12 +3352,11 @@
 
         async function buyGiftForUser(giftId, userId) {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/gifts/${giftId}/buy`, {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/gifts/${giftId}/buy`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         toUserId: userId
@@ -3725,12 +3729,8 @@
 
         async function initializeEmojiPicker() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/emoji', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/emoji');
                 
                 const data = await response.json();
                 
@@ -3800,12 +3800,8 @@
 
         async function loadAllUsers() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/users', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/users');
                 
                 const data = await response.json();
                 
@@ -3819,12 +3815,8 @@
 
         async function loadPosts() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/posts', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/posts');
                 
                 const data = await response.json();
                 
@@ -3838,12 +3830,8 @@
 
         async function loadChats() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/chats', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/chats');
                 
                 const data = await response.json();
                 
@@ -3857,12 +3845,8 @@
 
         async function loadGifts() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/gifts', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/gifts');
                 
                 const data = await response.json();
                 
@@ -3877,12 +3861,8 @@
 
         async function loadMyGifts() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/my-gifts', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/my-gifts');
                 
                 const data = await response.json();
                 
@@ -3896,12 +3876,8 @@
 
         async function loadPromoCodes() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/promo-codes', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/promo-codes');
                 
                 const data = await response.json();
                 
@@ -4160,12 +4136,11 @@
 
         async function markAsRead(fromUserId) {
             try {
-                const token = localStorage.getItem('authToken');
-                await fetch('/api/messages/mark-read', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                await fetchWithAuth('/api/messages/mark-read', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         fromUserId: fromUserId
@@ -4186,12 +4161,8 @@
 
         async function loadChatMessages(userId) {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`);
                 
                 const data = await response.json();
                 
@@ -4455,12 +4426,8 @@
 
         async function loadUserProfilePosts(userId) {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/posts/user/${userId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/posts/user/${userId}`);
                 
                 const data = await response.json();
                 
@@ -4491,12 +4458,8 @@
 
         async function loadUserProfileGifts(userId) {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/gifts/user/${userId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/gifts/user/${userId}`);
                 
                 const data = await response.json();
                 
@@ -4544,8 +4507,7 @@
             if (!text && !currentFileData) return;
             
             try {
-                const token = localStorage.getItem('authToken');
-                
+                // ИСПРАВЛЕНО: используем fetchWithAuth
                 let requestData = {
                     toUserId: currentChat.id,
                     text: text,
@@ -4561,11 +4523,10 @@
                     requestData.type = fileType;
                 }
 
-                const response = await fetch('/api/messages/send', {
+                const response = await fetchWithAuth('/api/messages/send', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(requestData)
                 });
@@ -4613,12 +4574,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/posts', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/posts', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         text: text,
@@ -4659,12 +4619,9 @@
 
         async function toggleLike(postId) {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/posts/${postId}/like`, {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/posts/${postId}/like`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
                 });
                 
                 const data = await response.json();
@@ -4693,12 +4650,9 @@
             if (!confirm('Вы уверены, что хотите удалить этот пост?')) return;
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/posts/${postId}`, {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/posts/${postId}`, {
                     method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
                 });
                 
                 const data = await response.json();
@@ -4722,12 +4676,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch(`/api/gifts/${giftId}/buy`, {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth(`/api/gifts/${giftId}/buy`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         toUserId: toUserId || currentChat.id
@@ -4969,12 +4922,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/update-profile', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/update-profile', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         displayName,
@@ -5009,12 +4961,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/update-avatar', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/update-avatar', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         avatar: avatarUrl
@@ -5053,12 +5004,8 @@
 
         async function loadAdminUsers() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/users', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/users');
                 
                 const data = await response.json();
                 
@@ -5130,17 +5077,15 @@
 
         async function handleAdminAction(userId, action) {
             try {
-                const token = localStorage.getItem('authToken');
                 let response;
                 
                 switch(action) {
                     case 'ban':
                         const user = allUsers.find(u => u.id === userId);
-                        response = await fetch('/api/admin/ban-user', {
+                        response = await fetchWithAuth('/api/admin/ban-user', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
                             },
                             body: JSON.stringify({
                                 userId: userId,
@@ -5150,11 +5095,10 @@
                         break;
                         
                     case 'verify':
-                        response = await fetch('/api/admin/toggle-verification', {
+                        response = await fetchWithAuth('/api/admin/toggle-verification', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
                             },
                             body: JSON.stringify({
                                 userId: userId
@@ -5163,11 +5107,10 @@
                         break;
                         
                     case 'developer':
-                        response = await fetch('/api/admin/toggle-developer', {
+                        response = await fetchWithAuth('/api/admin/toggle-developer', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
                             },
                             body: JSON.stringify({
                                 userId: userId
@@ -5177,11 +5120,10 @@
                         
                     case 'delete':
                         if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
-                        response = await fetch('/api/admin/delete-user', {
+                        response = await fetchWithAuth('/api/admin/delete-user', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
                             },
                             body: JSON.stringify({
                                 userId: userId
@@ -5207,12 +5149,8 @@
 
         async function loadAdminStats() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/admin/stats', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/admin/stats');
                 
                 const data = await response.json();
                 
@@ -5240,12 +5178,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/gifts', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/gifts', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         name,
@@ -5284,12 +5221,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/promo-codes/create', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/promo-codes/create', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         code: code,
@@ -5317,12 +5253,8 @@
 
         async function loadAdminPromoCodes() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/promo-codes', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/promo-codes');
                 
                 const data = await response.json();
                 
@@ -5388,12 +5320,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/promo-codes/activate', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/promo-codes/activate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         code: promoCode
@@ -5428,12 +5359,8 @@
 
         async function loadUserPosts() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/posts', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/posts');
                 
                 const data = await response.json();
                 
@@ -5465,12 +5392,8 @@
 
         async function loadUserGifts() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/my-gifts', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/my-gifts');
                 
                 const data = await response.json();
                 
@@ -5514,12 +5437,8 @@
         // Загрузка устройств
         async function loadDevices() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/devices', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/devices');
                 
                 const data = await response.json();
                 
@@ -5585,12 +5504,11 @@
             if (!confirm('Вы уверены, что хотите завершить этот сеанс?')) return;
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/devices/terminate', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/devices/terminate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         deviceId: deviceId
@@ -5643,12 +5561,11 @@
             }
             
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/groups', {
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/groups', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         name,
@@ -5677,12 +5594,8 @@
 
         async function loadGroups() {
             try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/groups', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                // ИСПРАВЛЕНО: используем fetchWithAuth
+                const response = await fetchWithAuth('/api/groups');
                 
                 const data = await response.json();
                 
