@@ -27,8 +27,36 @@ class AuthManager {
 
         const user = this.server.users.find(u => u.username === username);
         
-        if (!user || !this.server.security.verifyPassword(password, user.password)) {
+        if (!user) {
             this.server.security.logSecurityEvent({ username }, 'LOGIN', 'SYSTEM', false);
+            return { success: false, message: 'Неверное имя пользователя или пароль' };
+        }
+
+        // ИСПРАВЛЕНИЕ: проверяем пароль с помощью verifyPassword
+        let isPasswordValid = false;
+        try {
+            // Для старых пользователей с SHA256 хэшем
+            if (user.password && !user.password.includes(':')) {
+                // Старый формат хэша (SHA256 без соли)
+                const hashedPassword = this.server.security.hashPasswordSHA256(password);
+                isPasswordValid = (user.password === hashedPassword);
+                
+                // Миграция на новый формат
+                if (isPasswordValid) {
+                    user.password = this.server.security.hashPassword(password);
+                    this.server.saveData();
+                }
+            } else {
+                // Новый формат хэша (PBKDF2 с солью)
+                isPasswordValid = this.server.security.verifyPassword(password, user.password);
+            }
+        } catch (error) {
+            console.error('Ошибка проверки пароля:', error);
+            isPasswordValid = false;
+        }
+
+        if (!isPasswordValid) {
+            this.server.security.logSecurityEvent(user, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
