@@ -4,10 +4,17 @@ class AuthManager {
     }
 
     authenticateToken(token) {
+        if (!token) {
+            return null;
+        }
+
         const session = this.server.security.validateSession(token);
-        if (!session) return null;
+        if (!session) {
+            return null;
+        }
         
-        return this.server.users.find(u => u.id === session.userId);
+        const user = this.server.users.find(u => u.id === session.userId);
+        return user;
     }
 
     isAdmin(user) {
@@ -32,7 +39,7 @@ class AuthManager {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
-        // ИСПРАВЛЕНИЕ: проверяем пароль с помощью verifyPassword
+        // Проверяем пароль
         let isPasswordValid = false;
         try {
             // Для старых пользователей с SHA256 хэшем
@@ -71,9 +78,9 @@ class AuthManager {
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
-        // ИСПРАВЛЕНО: используем usersManager вместо registerDevice
-        const device = this.server.usersManager.registerDevice(user.id, req);
+        // СОЗДАЕМ СЕССИЮ ПЕРЕД ОТВЕТОМ
         const sessionToken = this.server.security.createSession(user.id);
+        const device = this.server.usersManager.registerDevice(user.id, req);
 
         user.status = 'online';
         user.lastSeen = new Date();
@@ -141,7 +148,7 @@ class AuthManager {
             username: sanitizedUsername,
             displayName: sanitizedDisplayName,
             email: sanitizedEmail,
-            password: this.server.security.hashPassword(password), // ИСПРАВЛЕНО: безопасное хэширование
+            password: this.server.security.hashPassword(password),
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
             coins: isBayRex ? 50000 : 1000,
@@ -161,9 +168,9 @@ class AuthManager {
 
         this.server.users.push(newUser);
 
-        // ИСПРАВЛЕНО: используем usersManager вместо registerDevice
-        const device = this.server.usersManager.registerDevice(newUser.id, req);
+        // СОЗДАЕМ СЕССИЮ ПЕРЕД ОТВЕТОМ
         const sessionToken = this.server.security.createSession(newUser.id);
+        const device = this.server.usersManager.registerDevice(newUser.id, req);
         
         this.server.saveData();
 
@@ -185,6 +192,8 @@ class AuthManager {
     }
 
     getSafeUserData(user) {
+        if (!user) return null;
+        
         return {
             id: user.id,
             username: user.username,
