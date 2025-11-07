@@ -7,8 +7,8 @@ const { StringDecoder } = require('string_decoder');
 
 // Импортируем модули
 const SecurityManager = require('./modules/security');
-const AuthManager = require('./modules/auth');
 const UsersManager = require('./modules/users');
+const AuthManager = require('./modules/auth');
 const MessagesManager = require('./modules/messages');
 const PostsManager = require('./modules/posts');
 const MusicManager = require('./modules/music');
@@ -22,10 +22,13 @@ class SimpleServer {
         this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
-        // Инициализируем модули
+        // Инициализируем данные ПЕРВЫМИ
+        this.initializeData();
+        
+        // Инициализируем модули в правильном порядке
         this.security = new SecurityManager(this);
-        this.auth = new AuthManager(this);
         this.usersManager = new UsersManager(this);
+        this.auth = new AuthManager(this);
         this.messagesManager = new MessagesManager(this);
         this.postsManager = new PostsManager(this);
         this.musicManager = new MusicManager(this);
@@ -40,8 +43,7 @@ class SimpleServer {
         console.log('✅ Все модули загружены');
     }
 
-    // 🔄 МЕТОДЫ ДАННЫХ
-
+    // 🔄 МЕТОДЫ ДАННЫХ (остаются без изменений)
     loadData() {
         try {
             if (fs.existsSync(this.dataFile)) {
@@ -192,7 +194,6 @@ class SimpleServer {
     }
 
     // 🔧 ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-
     generateId() {
         return Date.now().toString() + Math.random().toString(36).substr(2, 9);
     }
@@ -217,13 +218,11 @@ class SimpleServer {
         this.saveData();
     }
 
-    // 🔧 ДОБАВЛЕННЫЙ МЕТОД ДЛЯ РЕГИСТРАЦИИ УСТРОЙСТВА
     registerDevice(userId, req) {
         return this.usersManager.registerDevice(userId, req);
     }
 
-    // 🔄 ОБРАБОТКА ЗАПРОСОВ
-
+    // 🔄 ОБРАБОТКА ЗАПРОСОВ С MULTIPART ПОДДЕРЖКОЙ
     handleApiRequest(req, res) {
         const parsedUrl = url.parse(req.url, true);
         const pathname = parsedUrl.pathname;
@@ -232,6 +231,7 @@ class SimpleServer {
         console.log(`=== API REQUEST ===`);
         console.log(`Method: ${method}`);
         console.log(`Path: ${pathname}`);
+        console.log(`Content-Type: ${req.headers['content-type']}`);
         
         // 🔐 Rate limiting проверка
         const clientIP = this.security.getClientIP(req);
@@ -247,6 +247,31 @@ class SimpleServer {
             return;
         }
 
+        // 🔄 ОБРАБОТКА MULTIPART ФОРМ-ДАННЫХ
+        if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+            console.log('🔄 Multipart request detected, routing to FileManager');
+            
+            switch (pathname) {
+                case '/api/upload-avatar':
+                    this.files.handleUploadAvatarMultipart(req, res);
+                    break;
+                case '/api/upload-post-image':
+                    this.files.handleUploadPostImageMultipart(req, res);
+                    break;
+                case '/api/upload-gift':
+                    this.files.handleUploadGiftMultipart(req, res);
+                    break;
+                case '/api/upload-file':
+                    this.files.handleUploadFileMultipart(req, res);
+                    break;
+                default:
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Multipart endpoint not found' }));
+            }
+            return;
+        }
+
+        // 🔄 ОБЫЧНАЯ ОБРАБОТКА JSON
         let body = '';
         const decoder = new StringDecoder('utf-8');
 
@@ -258,7 +283,7 @@ class SimpleServer {
             body += decoder.end();
             
             let data = {};
-            if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
+            if (body && body.trim() !== '') {
                 try {
                     data = JSON.parse(body);
                 } catch (e) {
@@ -326,9 +351,8 @@ class SimpleServer {
                 case '/api/update-avatar':
                     if (method === 'POST') response = this.usersManager.handleUpdateAvatar(token, data);
                     break;
-                case '/api/upload-avatar':
-                    if (method === 'POST') response = this.usersManager.handleUploadAvatar(token, data);
-                    break;
+                // upload-avatar теперь обрабатывается через multipart выше
+                
                 case '/api/devices':
                     if (method === 'GET') response = this.usersManager.handleGetDevices(token);
                     break;
@@ -364,9 +388,7 @@ class SimpleServer {
                     if (method === 'GET') response = this.postsManager.handleGetPosts(token);
                     else if (method === 'POST') response = this.postsManager.handleCreatePost(token, data);
                     break;
-                case '/api/upload-post-image':
-                    if (method === 'POST') response = this.postsManager.handleUploadPostImage(token, data);
-                    break;
+                // upload-post-image теперь обрабатывается через multipart выше
                 
                 // Музыка
                 case '/api/music':
@@ -423,9 +445,7 @@ class SimpleServer {
                 case '/api/emoji':
                     if (method === 'GET') response = this.handleGetEmoji(token);
                     break;
-                case '/api/upload-file':
-                    if (method === 'POST') response = this.files.handleUploadFile(token, data);
-                    break;
+                // upload-file теперь обрабатывается через multipart выше
                 
                 // Динамические routes
                 default:
@@ -455,13 +475,11 @@ class SimpleServer {
     }
 
     // 📁 СТАТИЧЕСКИЕ ФАЙЛЫ
-
     serveStaticFile(res, filePath, contentType) {
         this.files.serveStaticFile(res, filePath, contentType);
     }
 
-    // 🎁 ВРЕМЕННЫЕ МЕТОДЫ (пока не перенесены в модули)
-
+    // 🎁 ВРЕМЕННЫЕ МЕТОДЫ (остаются без изменений)
     handleGetGifts(token) {
         const user = this.auth.authenticateToken(token);
         if (!user) {
@@ -522,7 +540,6 @@ class SimpleServer {
     }
 
     // 🚀 ЗАПУСК СЕРВЕРА
-
     start(port = 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = url.parse(req.url, true);
@@ -538,7 +555,7 @@ class SimpleServer {
                 return;
             }
 
-            // Обработка статических файлов
+            // Обработка статических файлов (без изменений)
             if (pathname === '/' || pathname === '/index.html') {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/mobile.html' || pathname === '/mobile') {
@@ -604,7 +621,7 @@ class SimpleServer {
             console.log(`   ✅ Messages Manager`);
             console.log(`   ✅ Posts Manager`);
             console.log(`   ✅ Music Manager`);
-            console.log(`   ✅ File Manager`);
+            console.log(`   ✅ File Manager (с multipart поддержкой)`);
             console.log(`   ✅ Admin Manager`);
             console.log(`   ✅ WebSocket Server`);
             console.log(`\n📄 Доступные страницы:`);
@@ -612,13 +629,17 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`\n📁 Multipart endpoints:`);
+            console.log(`   - Загрузка аватара: POST /api/upload-avatar`);
+            console.log(`   - Загрузка изображения поста: POST /api/upload-post-image`);
+            console.log(`   - Загрузка файла: POST /api/upload-file`);
+            console.log(`   - Загрузка подарка: POST /api/upload-gift`);
         });
 
         return server;
     }
 
     // 🔄 ГЕТТЕРЫ ДЛЯ ДОСТУПА К ДАННЫМ ИЗ МОДУЛЕЙ
-
     get users() { return this.usersData; }
     set users(value) { this.usersData = value; }
     
