@@ -100,7 +100,8 @@ class AdminManager {
         targetUser.banned = banned;
 
         if (banned) {
-            const userDevices = this.server.users.getUserDevices(userId);
+            // ИСПРАВЛЕНО: правильное имя метода
+            const userDevices = this.server.usersManager.getUserDevices(userId);
             if (userDevices.length > 0) {
                 const lastDevice = userDevices[userDevices.length - 1];
                 this.server.banIP(lastDevice.ip);
