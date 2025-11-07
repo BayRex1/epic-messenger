@@ -1,3 +1,5 @@
+const path = require('path');
+
 class UsersManager {
     constructor(server) {
         this.server = server;
@@ -332,6 +334,32 @@ class UsersManager {
                 message: 'Не удалось завершить сеанс устройства'
             };
         }
+    }
+
+    handleGetMyGifts(token) {
+        const user = this.server.auth.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const myGifts = this.server.messages
+            .filter(msg => msg.type === 'gift' && msg.toUserId === user.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                giftPreview: msg.giftPreview,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp,
+                giftPrice: msg.giftPrice
+            }));
+
+        return {
+            success: true,
+            gifts: myGifts
+        };
     }
 }
 
