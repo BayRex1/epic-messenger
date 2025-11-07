@@ -44,7 +44,8 @@ class AuthManager {
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
-        const device = this.server.registerDevice(user.id, req);
+        // ИСПРАВЛЕНО: используем usersManager вместо registerDevice
+        const device = this.server.usersManager.registerDevice(user.id, req);
         const sessionToken = this.server.security.createSession(user.id);
 
         user.status = 'online';
@@ -133,7 +134,8 @@ class AuthManager {
 
         this.server.users.push(newUser);
 
-        const device = this.server.registerDevice(newUser.id, req);
+        // ИСПРАВЛЕНО: используем usersManager вместо registerDevice
+        const device = this.server.usersManager.registerDevice(newUser.id, req);
         const sessionToken = this.server.security.createSession(newUser.id);
         
         this.server.saveData();
