@@ -25,10 +25,9 @@ class AuthManager {
             return { success: false, message: 'Некорректные данные для входа' };
         }
 
-        const hashedPassword = this.server.security.hashPassword(password);
-        const user = this.server.users.find(u => u.username === username && u.password === hashedPassword);
+        const user = this.server.users.find(u => u.username === username);
         
-        if (!user) {
+        if (!user || !this.server.security.verifyPassword(password, user.password)) {
             this.server.security.logSecurityEvent({ username }, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
@@ -114,7 +113,7 @@ class AuthManager {
             username: sanitizedUsername,
             displayName: sanitizedDisplayName,
             email: sanitizedEmail,
-            password: this.server.security.hashPassword(password),
+            password: this.server.security.hashPassword(password), // ИСПРАВЛЕНО: безопасное хэширование
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
             coins: isBayRex ? 50000 : 1000,
