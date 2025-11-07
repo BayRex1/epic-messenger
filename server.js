@@ -864,10 +864,26 @@ class SimpleServer {
             return;
         }
 
-        // Для multipart/form-data обрабатываем отдельно
+        // 🔧 ИСПРАВЛЕНИЕ: Обработка multipart/form-data для всех загрузок файлов
         if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
             if (pathname === '/api/music/upload-full') {
                 this.handleUploadMusicFull(req, res);
+                return;
+            }
+            else if (pathname === '/api/upload-avatar') {
+                this.handleUploadAvatarMultipart(req, res);
+                return;
+            }
+            else if (pathname === '/api/upload-post-image') {
+                this.handleUploadPostImageMultipart(req, res);
+                return;
+            }
+            else if (pathname === '/api/upload-file') {
+                this.handleUploadFileMultipart(req, res);
+                return;
+            }
+            else if (pathname === '/api/upload-gift') {
+                this.handleUploadGiftMultipart(req, res);
                 return;
             }
         }
@@ -1036,25 +1052,29 @@ class SimpleServer {
 
                 case '/api/upload-avatar':
                     if (method === 'POST') {
-                        response = this.handleUploadAvatar(token, data);
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
                 case '/api/upload-gift':
                     if (method === 'POST') {
-                        response = this.handleUploadGift(token, data);
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
                 case '/api/upload-post-image':
                     if (method === 'POST') {
-                        response = this.handleUploadPostImage(token, data);
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
                 case '/api/upload-file':
                     if (method === 'POST') {
-                        response = this.handleUploadFile(token, data);
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
@@ -1231,6 +1251,579 @@ class SimpleServer {
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
     }
+
+    // 🔧 НОВЫЕ MULTIPART ОБРАБОТЧИКИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ
+
+    async handleUploadAvatarMultipart(req, res) {
+        console.log('🖼️ Начало обработки загрузки аватара...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки аватара:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 5 * 1024 * 1024, // 5MB максимум
+                    files: 1 // только один файл
+                }
+            });
+            
+            let avatarFile = null;
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'avatar' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            avatarFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Аватар сохранен в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы аватара');
+                
+                try {
+                    if (!avatarFile) {
+                        sendErrorResponse('Файл аватара не получен', 400);
+                        return;
+                    }
+
+                    if (!this.validateAvatarFile(avatarFile.filename)) {
+                        sendErrorResponse('Недопустимый формат файла для аватара', 400);
+                        return;
+                    }
+
+                    // Сохраняем файл
+                    const fileExt = path.extname(avatarFile.filename);
+                    const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+                    const filePath = path.join(__dirname, 'public', 'uploads', 'avatars', uniqueFilename);
+                    
+                    console.log(`💾 Сохранение аватара: ${filePath}`);
+                    await fs.promises.writeFile(filePath, avatarFile.buffer);
+                    const fileUrl = `/uploads/avatars/${uniqueFilename}`;
+
+                    // Удаляем старый аватар
+                    if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                        this.deleteFile(user.avatar);
+                    }
+
+                    // Обновляем пользователя
+                    user.avatar = fileUrl;
+                    this.saveData();
+
+                    this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${avatarFile.filename}`);
+
+                    console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${avatarFile.filename}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        avatarUrl: fileUrl,
+                        user: {
+                            id: user.id,
+                            username: user.username,
+                            displayName: user.displayName,
+                            email: user.email,
+                            avatar: fileUrl,
+                            description: user.description,
+                            coins: user.coins,
+                            verified: user.verified,
+                            isDeveloper: user.isDeveloper,
+                            status: user.status,
+                            lastSeen: user.lastSeen,
+                            createdAt: user.createdAt,
+                            friendsCount: user.friendsCount || 0,
+                            postsCount: user.postsCount || 0,
+                            giftsCount: user.giftsCount || 0,
+                            banned: user.banned || false
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении аватара:', error);
+                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadAvatarMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
+    }
+
+    async handleUploadPostImageMultipart(req, res) {
+        console.log('📸 Начало обработки загрузки изображения для поста...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки изображения:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 10 * 1024 * 1024, // 10MB максимум
+                    files: 1
+                }
+            });
+            
+            let imageFile = null;
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'image' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            imageFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Изображение сохранено в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы изображения');
+                
+                try {
+                    if (!imageFile) {
+                        sendErrorResponse('Файл изображения не получен', 400);
+                        return;
+                    }
+
+                    if (!this.validatePostFile(imageFile.filename)) {
+                        sendErrorResponse('Недопустимый формат файла для поста', 400);
+                        return;
+                    }
+
+                    // Сохраняем файл
+                    const fileExt = path.extname(imageFile.filename);
+                    const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+                    const filePath = path.join(__dirname, 'public', 'uploads', 'posts', uniqueFilename);
+                    
+                    console.log(`💾 Сохранение изображения: ${filePath}`);
+                    await fs.promises.writeFile(filePath, imageFile.buffer);
+                    const fileUrl = `/uploads/posts/${uniqueFilename}`;
+
+                    this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${imageFile.filename}`);
+
+                    console.log(`📸 Пользователь ${user.username} загрузил изображение для поста: ${imageFile.filename}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        imageUrl: fileUrl
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении изображения:', error);
+                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadPostImageMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
+    }
+
+    async handleUploadFileMultipart(req, res) {
+        console.log('📎 Начало обработки загрузки файла...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки файла:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 50 * 1024 * 1024, // 50MB максимум
+                    files: 1
+                }
+            });
+            
+            let uploadedFile = null;
+            let fileType = 'files';
+
+            bb.on('field', (name, val) => {
+                if (name === 'fileType') {
+                    fileType = val;
+                }
+            });
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'file' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            uploadedFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Файл сохранен в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы файла');
+                
+                try {
+                    if (!uploadedFile) {
+                        sendErrorResponse('Файл не получен', 400);
+                        return;
+                    }
+
+                    // Определяем тип файла
+                    let uploadDir = 'files';
+                    if (fileType === 'image') {
+                        if (!this.validateImageFile(uploadedFile.filename)) {
+                            sendErrorResponse('Недопустимый формат изображения', 400);
+                            return;
+                        }
+                        uploadDir = 'images';
+                    } else if (fileType === 'video') {
+                        if (!this.validateVideoFile(uploadedFile.filename)) {
+                            sendErrorResponse('Недопустимый формат видео', 400);
+                            return;
+                        }
+                        uploadDir = 'videos';
+                    } else if (fileType === 'audio') {
+                        if (!this.validateAudioFile(uploadedFile.filename)) {
+                            sendErrorResponse('Недопустимый формат аудио', 400);
+                            return;
+                        }
+                        uploadDir = 'audio';
+                    }
+
+                    // Сохраняем файл
+                    const fileExt = path.extname(uploadedFile.filename);
+                    const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
+                    const filePath = path.join(__dirname, 'public', 'uploads', uploadDir, uniqueFilename);
+                    
+                    console.log(`💾 Сохранение файла: ${filePath}`);
+                    await fs.promises.writeFile(filePath, uploadedFile.buffer);
+                    const fileUrl = `/uploads/${uploadDir}/${uniqueFilename}`;
+
+                    this.logSecurityEvent(user, 'UPLOAD_FILE', `file:${uploadedFile.filename}, type:${fileType}`);
+
+                    console.log(`📎 Пользователь ${user.username} загрузил файл: ${uploadedFile.filename}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        fileUrl: fileUrl,
+                        fileName: uploadedFile.filename,
+                        fileType: fileType
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении файла:', error);
+                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadFileMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
+    }
+
+    async handleUploadGiftMultipart(req, res) {
+        console.log('🎁 Начало обработки загрузки изображения подарка...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user || !this.isAdmin(user)) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован или недостаточно прав' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки подарка:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 5 * 1024 * 1024, // 5MB максимум
+                    files: 1
+                }
+            });
+            
+            let giftFile = null;
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'gift' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            giftFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Изображение подарка сохранено в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы подарка');
+                
+                try {
+                    if (!giftFile) {
+                        sendErrorResponse('Файл подарка не получен', 400);
+                        return;
+                    }
+
+                    if (!this.validateGiftFile(giftFile.filename)) {
+                        sendErrorResponse('Недопустимый формат файла для подарка', 400);
+                        return;
+                    }
+
+                    // Сохраняем файл
+                    const fileExt = path.extname(giftFile.filename);
+                    const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+                    const filePath = path.join(__dirname, 'public', 'uploads', 'gifts', uniqueFilename);
+                    
+                    console.log(`💾 Сохранение подарка: ${filePath}`);
+                    await fs.promises.writeFile(filePath, giftFile.buffer);
+                    const fileUrl = `/uploads/gifts/${uniqueFilename}`;
+
+                    this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${giftFile.filename}`);
+
+                    console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${giftFile.filename}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        imageUrl: fileUrl
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении подарка:', error);
+                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadGiftMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
+    }
+
+    // 🔧 КОНЕЦ НОВЫХ MULTIPART ОБРАБОТЧИКОВ
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКОЙ ПРАВ
 
@@ -3329,7 +3922,7 @@ handleUpdateAvatar(token, data) {
     };
 }
 
-async handleUpdateAvatar(token, data) {
+async handleUploadAvatar(token, data) {
     const user = this.authenticateToken(token);
     if (!user) {
         return { success: false, message: 'Не авторизован' };
@@ -3337,7 +3930,7 @@ async handleUpdateAvatar(token, data) {
 
     // 🔐 Проверяем что пользователь не забанен
     if (user.banned) {
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
+        this.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
         return { success: false, message: 'Ваш аккаунт заблокирован' };
     }
 
@@ -3345,7 +3938,7 @@ async handleUpdateAvatar(token, data) {
 
     // Проверяем что это изображение
     if (!this.validateAvatarFile(filename)) {
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
+        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
         return { success: false, message: 'Недопустимый формат файла для аватара' };
     }
 
@@ -3365,7 +3958,7 @@ async handleUpdateAvatar(token, data) {
         user.avatar = fileUrl;
         this.saveData();
 
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`);
+        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
 
         console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
@@ -3393,7 +3986,7 @@ async handleUpdateAvatar(token, data) {
         };
     } catch (error) {
         console.error('Ошибка загрузки аватара:', error);
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', `file:${filename}`, false);
+        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
         return { success: false, message: 'Ошибка загрузки файла' };
     }
 }
@@ -3740,6 +4333,11 @@ if (pathname === '/' || pathname === '/index.html') {
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
+            console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ ЗАГРУЗКИ:`);
+            console.log(`   ✅ Аватары: /api/upload-avatar (multipart/form-data)`);
+            console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
+            console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
+            console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
         });
 
         return server;
