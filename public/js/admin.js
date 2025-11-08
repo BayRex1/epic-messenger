@@ -1,364 +1,699 @@
-class AdminManager {
-    constructor() {
-        this.stats = {};
-        this.users = [];
-        this.promoCodes = [];
-    }
+// Глобальные переменные
+let currentUser = null;
+let allUsers = [];
+let gifts = [];
+let promoCodes = [];
+let adminStats = {};
 
-    async loadAdminPanel() {
-        if (!app.currentUser.isAdmin) {
-            app.showNotification('Доступ запрещен', 'error');
+// Основная функция инициализации
+async function initializeAdmin() {
+    try {
+        await initializeUser();
+        
+        // Проверка прав администратора
+        if (!currentUser.isDeveloper) {
+            showNotification('Доступ запрещен', 'error');
+            window.location.href = '/';
             return;
         }
-
-        await this.loadAdminStats();
-        await this.loadAdminUsers();
-        await this.loadPromoCodes();
-    }
-
-    async loadAdminStats() {
-        try {
-            const response = await fetch('/api/admin/stats', {
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    this.stats = data.stats;
-                    this.renderAdminStats();
-                }
-            }
-        } catch (error) {
-            console.error('Error loading admin stats:', error);
-        }
-    }
-
-    renderAdminStats() {
-        const statsContainer = document.getElementById('adminStats');
-        if (!statsContainer) return;
-
-        statsContainer.innerHTML = `
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">👥</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.totalUsers}</div>
-                        <div class="stat-label">Пользователей</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📝</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.totalPosts}</div>
-                        <div class="stat-label">Постов</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">💬</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.totalMessages}</div>
-                        <div class="stat-label">Сообщений</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">🎁</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.totalGifts}</div>
-                        <div class="stat-label">Подарков</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📶</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.ping}ms</div>
-                        <div class="stat-label">Ping</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⚡</div>
-                    <div class="stat-info">
-                        <div class="stat-value">${this.stats.fps}</div>
-                        <div class="stat-label">FPS</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    async loadAdminUsers() {
-        try {
-            const response = await fetch('/api/admin/users', {
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    this.users = data.users;
-                    this.renderAdminUsers();
-                }
-            }
-        } catch (error) {
-            console.error('Error loading admin users:', error);
-        }
-    }
-
-    renderAdminUsers() {
-        const usersContainer = document.getElementById('adminUsers');
-        if (!usersContainer) return;
-
-        usersContainer.innerHTML = `
-            <div class="admin-section-header">
-                <h3>Управление пользователями</h3>
-                <div class="users-count">Всего: ${this.users.length}</div>
-            </div>
-            <div class="users-list">
-                ${this.users.map(user => `
-                    <div class="user-admin-card ${user.id === app.currentUser.id ? 'current-user' : ''}">
-                        <div class="user-main-info">
-                            <img src="/assets/profile.svg" alt="Avatar" class="user-avatar">
-                            <div class="user-details">
-                                <div class="user-name">
-                                    <span class="display-name">${user.displayName}</span>
-                                    <span class="username">${user.username}</span>
-                                </div>
-                                <div class="user-stats">
-                                    <span>Посты: ${user.postsCount}</span>
-                                    <span>Лайки: ${user.likesCount}</span>
-                                    <span>E-COIN: ${user.eCoins}</span>
-                                </div>
-                                <div class="user-badges">
-                                    ${user.isVerified ? '<span class="badge verified">✓ Верифицирован</span>' : ''}
-                                    ${user.isDeveloper ? '<span class="badge developer">⚡ Разработчик</span>' : ''}
-                                    ${user.isAdmin ? '<span class="badge admin">👑 Админ</span>' : ''}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="user-actions">
-                            ${user.id !== app.currentUser.id ? `
-                                <button class="btn btn-sm ${user.isVerified ? 'btn-warning' : 'btn-success'}" 
-                                        onclick="adminManager.toggleVerify('${user.id}')">
-                                    ${user.isVerified ? 'Снять верификацию' : 'Верифицировать'}
-                                </button>
-                                <button class="btn btn-sm ${user.isDeveloper ? 'btn-warning' : 'btn-success'}" 
-                                        onclick="adminManager.toggleDeveloper('${user.id}')">
-                                    ${user.isDeveloper ? 'Снять разработчика' : 'Сделать разработчиком'}
-                                </button>
-                                <button class="btn btn-sm btn-danger" 
-                                        onclick="adminManager.deleteUser('${user.id}')">
-                                    Удалить
-                                </button>
-                            ` : `
-                                <span class="current-user-label">Это вы</span>
-                            `}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    async toggleVerify(userId) {
-        try {
-            const response = await fetch(`/api/admin/users/${userId}/toggle-verify`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                app.showNotification('Статус верификации изменен', 'success');
-                await this.loadAdminUsers();
-            }
-        } catch (error) {
-            console.error('Error toggling verify:', error);
-            app.showNotification('Ошибка изменения статуса', 'error');
-        }
-    }
-
-    async toggleDeveloper(userId) {
-        try {
-            const response = await fetch(`/api/admin/users/${userId}/toggle-developer`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                app.showNotification('Статус разработчика изменен', 'success');
-                await this.loadAdminUsers();
-            }
-        } catch (error) {
-            console.error('Error toggling developer:', error);
-            app.showNotification('Ошибка изменения статуса', 'error');
-        }
-    }
-
-    async deleteUser(userId) {
-        const user = this.users.find(u => u.id === userId);
-        if (!user) return;
-
-        if (!confirm(`Вы уверены, что хотите удалить пользователя ${user.displayName} (@${user.username})?`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/admin/users/${userId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                app.showNotification('Пользователь удален', 'success');
-                await this.loadAdminUsers();
-                await this.loadAdminStats();
-            }
-        } catch (error) {
-            console.error('Error deleting user:', error);
-            app.showNotification('Ошибка удаления пользователя', 'error');
-        }
-    }
-
-    async loadPromoCodes() {
-        try {
-            const response = await fetch('/api/admin/promo-codes', {
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    this.promoCodes = data.promoCodes;
-                    this.renderPromoCodes();
-                }
-            }
-        } catch (error) {
-            console.error('Error loading promo codes:', error);
-        }
-    }
-
-    renderPromoCodes() {
-        const promoCodesContainer = document.getElementById('promoCodesContainer');
-        if (!promoCodesContainer) return;
-
-        promoCodesContainer.innerHTML = `
-            <div class="admin-section-header">
-                <h3>Управление промокодами</h3>
-                <button class="btn btn-primary" onclick="adminManager.showCreatePromoModal()">
-                    Создать промокод
-                </button>
-            </div>
-            
-            <div class="promo-codes-list">
-                ${this.promoCodes.length === 0 ? `
-                    <div class="empty-state">
-                        <p>Промокоды не созданы</p>
-                    </div>
-                ` : this.promoCodes.map(promo => `
-                    <div class="promo-code-card">
-                        <div class="promo-code-info">
-                            <div class="promo-code">${promo.code}</div>
-                            <div class="promo-reward">${promo.reward} E-COIN</div>
-                            <div class="promo-usage">Использовано: ${promo.uses}/${promo.maxUses}</div>
-                        </div>
-                        <div class="promo-code-date">
-                            Создан: ${new Date(promo.createdAt).toLocaleDateString()}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    showCreatePromoModal() {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Создать промокод</h3>
-                    <button class="close-btn" onclick="this.closest('.modal-overlay').remove()">×</button>
-                </div>
-                <div class="modal-body">
-                    <form id="createPromoForm">
-                        <div class="form-group">
-                            <label>Код промокода</label>
-                            <input type="text" id="promoCode" required placeholder="WELCOME100">
-                        </div>
-                        <div class="form-group">
-                            <label>Награда (E-COIN)</label>
-                            <input type="number" id="promoReward" required min="1" value="100">
-                        </div>
-                        <div class="form-group">
-                            <label>Лимит использований</label>
-                            <input type="number" id="promoMaxUses" required min="1" value="100">
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Отмена</button>
-                    <button class="btn btn-primary" onclick="adminManager.createPromoCode()">Создать</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-    }
-
-    async createPromoCode() {
-        const code = document.getElementById('promoCode').value;
-        const reward = document.getElementById('promoReward').value;
-        const maxUses = document.getElementById('promoMaxUses').value;
-
-        if (!code || !reward || !maxUses) {
-            app.showNotification('Заполните все поля', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/admin/promo-codes', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ code, reward })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                document.querySelector('.modal-overlay').remove();
-                app.showNotification('Промокод создан', 'success');
-                await this.loadPromoCodes();
-            } else {
-                app.showNotification(data.message, 'error');
-            }
-        } catch (error) {
-            console.error('Error creating promo code:', error);
-            app.showNotification('Ошибка создания промокода', 'error');
-        }
+        
+        initializeAdminUI();
+        await loadAdminData();
+    } catch (error) {
+        console.error('Ошибка инициализации админ панели:', error);
+        showNotification('Ошибка загрузки админ панели', 'error');
     }
 }
 
-const adminManager = new AdminManager();
- 
+// Инициализация пользователя
+async function initializeUser() {
+    try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            window.location.href = '/login.html';
+            return;
+        }
+
+        const response = await fetch('/api/current-user', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentUser = data.user;
+            updateUserInterface();
+        } else {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login.html';
+        }
+    } catch (error) {
+        console.error('Ошибка инициализации:', error);
+        localStorage.removeItem('authToken');
+        window.location.href = '/login.html';
+    }
+}
+
+// Обновление интерфейса пользователя
+function updateUserInterface() {
+    if (!currentUser) return;
+    
+    const userAvatar = document.getElementById('userAvatar');
+    const userName = document.getElementById('userName');
+    const userUsername = document.getElementById('userUsername');
+    const verifiedBadge = document.getElementById('verifiedBadge');
+    const developerBadge = document.getElementById('developerBadge');
+    const adminPanelBtn = document.getElementById('adminPanelBtn');
+
+    if (currentUser.avatar) {
+        userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+    } else {
+        userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+    }
+    
+    userName.innerHTML = currentUser.displayName || 'Пользователь';
+    
+    if (currentUser.verified) {
+        verifiedBadge.style.display = 'inline-flex';
+    }
+    
+    if (currentUser.isDeveloper) {
+        developerBadge.style.display = 'inline-flex';
+        adminPanelBtn.style.display = 'flex';
+    }
+
+    userUsername.textContent = `@${currentUser.username}`;
+}
+
+// Инициализация UI админ панели
+function initializeAdminUI() {
+    // Переключение сайдбара
+    const profileSection = document.getElementById('profileSection');
+    const sidebar = document.getElementById('sidebar');
+    
+    profileSection.addEventListener('click', function() {
+        sidebar.classList.toggle('expanded');
+    });
+
+    // Выход
+    document.getElementById('logoutBtn').addEventListener('click', function() {
+        if (confirm('Вы уверены, что хотите выйти?')) {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login.html';
+        }
+    });
+
+    // Инициализация табов
+    initializeTabs();
+
+    // Поиск пользователей
+    const adminUserSearch = document.getElementById('adminUserSearch');
+    if (adminUserSearch) {
+        adminUserSearch.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filterAdminUsers(searchTerm);
+        });
+    }
+
+    // Создание подарка
+    document.getElementById('createGiftBtn').addEventListener('click', createGift);
+
+    // Создание промокода
+    document.getElementById('createPromoBtn').addEventListener('click', createPromoCode);
+
+    // Загрузка файлов для подарков
+    initializeFileUploads();
+}
+
+// Инициализация табов
+function initializeTabs() {
+    const profileTabs = document.querySelectorAll('.profile-tab');
+    profileTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const tabId = this.getAttribute('data-tab');
+            const container = this.closest('.profile-tabs').parentElement;
+            
+            container.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+            container.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+            
+            this.classList.add('active');
+            const content = container.querySelector(`#${tabId}`);
+            if (content) {
+                content.classList.add('active');
+            }
+        });
+    });
+}
+
+// Инициализация загрузки файлов
+function initializeFileUploads() {
+    const giftFileInput = document.getElementById('giftFileInput');
+    const giftUploadArea = document.getElementById('giftUploadArea');
+    
+    if (giftUploadArea) {
+        giftUploadArea.addEventListener('click', function() {
+            giftFileInput.click();
+        });
+    }
+    
+    if (giftFileInput) {
+        giftFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showNotification('Размер файла не должен превышать 10 МБ', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageUrl = event.target.result;
+                    document.getElementById('giftFilePreview').innerHTML = `
+                        <img src="${imageUrl}" alt="Предпросмотр" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                    `;
+                    document.getElementById('giftImage').value = imageUrl;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+}
+
+// Загрузка данных админ панели
+async function loadAdminData() {
+    await Promise.all([
+        loadAdminUsers(),
+        loadAdminStats(),
+        loadAdminGifts(),
+        loadAdminPromoCodes()
+    ]);
+}
+
+// Загрузка пользователей для админки
+async function loadAdminUsers() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/users', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allUsers = data.users;
+            renderAdminUsers(data.users);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки пользователей для админки:', error);
+    }
+}
+
+// Отображение пользователей в админке
+function renderAdminUsers(users) {
+    const adminUsersList = document.getElementById('adminUsersList');
+    if (!adminUsersList) return;
+    
+    adminUsersList.innerHTML = '';
+    
+    users.forEach(user => {
+        const userElement = document.createElement('div');
+        userElement.className = 'admin-user-item';
+        userElement.innerHTML = `
+            <div class="chat-avatar">
+                ${user.avatar ? 
+                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                    user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                }
+            </div>
+            <div class="admin-user-info">
+                <h4>
+                    ${user.displayName || 'Пользователь'}
+                    ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+                    ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    ${user.banned ? '<span class="banned-badge">ЗАБАНЕН</span>' : ''}
+                </h4>
+                <div class="admin-user-stats">
+                    <span>@${user.username}</span>
+                    <span>Постов: ${user.postsCount || 0}</span>
+                    <span>E-COIN: ${user.coins || 0}</span>
+                    <span>${user.status === 'online' ? '🟢 Онлайн' : '⚫ Офлайн'}</span>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="admin-btn ban" data-user-id="${user.id}" data-action="ban">
+                    ${user.banned ? 'Разблокировать' : 'Заблокировать'}
+                </button>
+                <button class="admin-btn verify" data-user-id="${user.id}" data-action="verify">
+                    ${user.verified ? 'Снять верификацию' : 'Верифицировать'}
+                </button>
+                <button class="admin-btn developer" data-user-id="${user.id}" data-action="developer">
+                    ${user.isDeveloper ? 'Забрать права' : 'Дать права'}
+                </button>
+                ${!user.isProtected ? `<button class="admin-btn delete" data-user-id="${user.id}" data-action="delete">Удалить</button>` : ''}
+            </div>
+        `;
+        
+        // Добавляем обработчики для кнопок
+        const buttons = userElement.querySelectorAll('.admin-btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const userId = this.getAttribute('data-user-id');
+                const action = this.getAttribute('data-action');
+                handleAdminAction(userId, action);
+            });
+        });
+        
+        adminUsersList.appendChild(userElement);
+    });
+}
+
+// Фильтрация пользователей в админке
+function filterAdminUsers(searchTerm) {
+    const adminUserItems = document.querySelectorAll('.admin-user-item');
+    adminUserItems.forEach(item => {
+        const userName = item.querySelector('h4').textContent.toLowerCase();
+        const userStats = item.querySelector('.admin-user-stats').textContent.toLowerCase();
+        
+        if (userName.includes(searchTerm) || userStats.includes(searchTerm)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Обработка действий администратора
+async function handleAdminAction(userId, action) {
+    try {
+        const token = localStorage.getItem('authToken');
+        let response;
+        
+        switch(action) {
+            case 'ban':
+                const user = allUsers.find(u => u.id === userId);
+                response = await fetch('/api/admin/ban-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        banned: !user.banned
+                    })
+                });
+                break;
+                
+            case 'verify':
+                response = await fetch('/api/admin/toggle-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: userId
+                    })
+                });
+                break;
+                
+            case 'developer':
+                response = await fetch('/api/admin/toggle-developer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: userId
+                    })
+                });
+                break;
+                
+            case 'delete':
+                if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
+                response = await fetch('/api/admin/delete-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: userId
+                    })
+                });
+                break;
+        }
+        
+        if (response) {
+            const data = await response.json();
+            if (data.success) {
+                showNotification(data.message, 'success');
+                loadAdminUsers();
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка выполнения админ действия:', error);
+        showNotification('Ошибка выполнения действия', 'error');
+    }
+}
+
+// Загрузка статистики
+async function loadAdminStats() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/admin/stats', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            adminStats = data.stats;
+            renderAdminStats();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+    }
+}
+
+// Отображение статистики
+function renderAdminStats() {
+    document.getElementById('totalUsers').textContent = adminStats.totalUsers || 0;
+    document.getElementById('totalPosts').textContent = adminStats.totalPosts || 0;
+    document.getElementById('totalMessages').textContent = adminStats.totalMessages || 0;
+    document.getElementById('onlineUsers').textContent = adminStats.onlineUsers || 0;
+    document.getElementById('totalGroups').textContent = adminStats.totalGroups || 0;
+    
+    // FPS мониторинг
+    let fps = 60;
+    let lastTime = performance.now();
+    let frameCount = 0;
+    
+    function updateFPS() {
+        frameCount++;
+        const currentTime = performance.now();
+        if (currentTime - lastTime >= 1000) {
+            fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+            frameCount = 0;
+            lastTime = currentTime;
+            document.getElementById('fps').textContent = fps;
+        }
+        requestAnimationFrame(updateFPS);
+    }
+    updateFPS();
+}
+
+// Загрузка подарков для админки
+async function loadAdminGifts() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/gifts', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            gifts = data.gifts;
+            renderAdminGifts();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки подарков для админки:', error);
+    }
+}
+
+// Отображение подарков в админке
+function renderAdminGifts() {
+    const adminGiftsList = document.getElementById('adminGiftsList');
+    if (!adminGiftsList) return;
+    
+    adminGiftsList.innerHTML = '';
+    
+    gifts.forEach(gift => {
+        const giftElement = document.createElement('div');
+        giftElement.className = 'gift-shop-item';
+        giftElement.innerHTML = `
+            <div class="gift-shop-preview">
+                ${gift.image ? 
+                    `<img src="${gift.image}" alt="${gift.name}">` : 
+                    gift.preview || '🎁'
+                }
+            </div>
+            <div class="gift-shop-name">${gift.name}</div>
+            <div class="gift-shop-price">${gift.price} E-COIN</div>
+            <button class="admin-btn delete" style="margin-top: 5px; width: 100%;" data-gift-id="${gift.id}">
+                Удалить
+            </button>
+        `;
+        
+        const deleteBtn = giftElement.querySelector('.delete');
+        deleteBtn.addEventListener('click', function() {
+            if (confirm(`Удалить подарок "${gift.name}"?`)) {
+                deleteGift(gift.id);
+            }
+        });
+        
+        adminGiftsList.appendChild(giftElement);
+    });
+}
+
+// Создание подарка
+async function createGift() {
+    const name = document.getElementById('giftName').value.trim();
+    const price = document.getElementById('giftPrice').value;
+    const type = document.getElementById('giftType').value;
+    const image = document.getElementById('giftImage').value.trim();
+    
+    if (!name || !price) {
+        showNotification('Заполните название и цену подарка', 'error');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/gifts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                name,
+                price: parseInt(price),
+                type,
+                image: image || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Подарок успешно создан', 'success');
+            document.getElementById('giftName').value = '';
+            document.getElementById('giftPrice').value = '';
+            document.getElementById('giftImage').value = '';
+            document.getElementById('giftFilePreview').innerHTML = '';
+            loadAdminGifts();
+        } else {
+            showNotification('Ошибка создания подарка: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка создания подарка:', error);
+        showNotification('Ошибка создания подарка', 'error');
+    }
+}
+
+// Удаление подарка
+async function deleteGift(giftId) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/gifts/${giftId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Подарок удален', 'success');
+            loadAdminGifts();
+        } else {
+            showNotification('Ошибка удаления подарка: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка удаления подарка:', error);
+        showNotification('Ошибка удаления подарка', 'error');
+    }
+}
+
+// Загрузка промокодов для админки
+async function loadAdminPromoCodes() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/promo-codes', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            promoCodes = data.promoCodes;
+            renderAdminPromoCodes();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки промокодов для админки:', error);
+    }
+}
+
+// Отображение промокодов в админке
+function renderAdminPromoCodes() {
+    const adminPromoCodesList = document.getElementById('adminPromoCodesList');
+    if (!adminPromoCodesList) return;
+    
+    adminPromoCodesList.innerHTML = '';
+    
+    if (promoCodes.length === 0) {
+        adminPromoCodesList.innerHTML = '<div class="system-message">Нет созданных промокодов</div>';
+        return;
+    }
+    
+    promoCodes.forEach(promo => {
+        const promoElement = document.createElement('div');
+        promoElement.className = 'post';
+        promoElement.innerHTML = `
+            <div class="post-header">
+                <div class="post-user">
+                    <div class="post-user-info">
+                        <h4>${promo.code}</h4>
+                        <div class="post-time">Создан: ${new Date(promo.created_at).toLocaleString()}</div>
+                    </div>
+                    <button class="admin-btn delete" data-promo-id="${promo.id}">
+                        Удалить
+                    </button>
+                </div>
+            </div>
+            <div class="post-content">
+                <div class="post-text">
+                    <strong>Награда:</strong> ${promo.coins} E-COIN<br>
+                    <strong>Использований:</strong> ${promo.used_count}${promo.max_uses > 0 ? ` / ${promo.max_uses}` : ' (без ограничений)'}<br>
+                    <strong>Активен:</strong> ${promo.active ? 'Да' : 'Нет'}
+                </div>
+            </div>
+        `;
+        
+        const deleteBtn = promoElement.querySelector('.delete');
+        deleteBtn.addEventListener('click', function() {
+            if (confirm(`Удалить промокод "${promo.code}"?`)) {
+                deletePromoCode(promo.id);
+            }
+        });
+        
+        adminPromoCodesList.appendChild(promoElement);
+    });
+}
+
+// Создание промокода
+async function createPromoCode() {
+    const code = document.getElementById('promoCode').value.trim();
+    const coins = document.getElementById('promoCoins').value;
+    const maxUses = document.getElementById('promoMaxUses').value;
+    
+    if (!code || !coins) {
+        showNotification('Заполните код и количество коинов', 'error');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/promo-codes/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                code: code,
+                coins: parseInt(coins),
+                max_uses: parseInt(maxUses) || 0
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Промокод успешно создан', 'success');
+            document.getElementById('promoCode').value = '';
+            document.getElementById('promoCoins').value = '';
+            document.getElementById('promoMaxUses').value = '0';
+            loadAdminPromoCodes();
+        } else {
+            showNotification('Ошибка создания промокода: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка создания промокода:', error);
+        showNotification('Ошибка создания промокода', 'error');
+    }
+}
+
+// Удаление промокода
+async function deletePromoCode(promoId) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/promo-codes/${promoId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Промокод удален', 'success');
+            loadAdminPromoCodes();
+        } else {
+            showNotification('Ошибка удаления промокода: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка удаления промокода:', error);
+        showNotification('Ошибка удаления промокода', 'error');
+    }
+}
+
+// Показать уведомление
+function showNotification(message, type = 'success') {
+    const notificationsContainer = document.getElementById('notificationsContainer');
+    if (!notificationsContainer) return;
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    notificationsContainer.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAdmin();
+});
