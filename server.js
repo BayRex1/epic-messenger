@@ -1670,7 +1670,7 @@ class SimpleServer {
             }
         };
 
-                const sendSuccessResponse = (data) => {
+        const sendSuccessResponse = (data) => {
             if (!isResponseSent) {
                 isResponseSent = true;
                 res.writeHead(200, { 
@@ -2332,7 +2332,7 @@ class SimpleServer {
         const decryptedMessages = chatMessages.map(msg => ({
             ...msg,
             text: msg.encrypted ? this.decrypt(msg.text) : msg.text
-        ));
+        }));
 
         decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -2644,649 +2644,649 @@ class SimpleServer {
         };
     }
 
-// 🎵 МЕТОДЫ ДЛЯ МУЗЫКИ (восстановленные)
+    // 🎵 МЕТОДЫ ДЛЯ МУЗЫКИ (восстановленные)
 
-handleUploadMusicFull(req, res) {
-    console.log('🎵 Начало обработки загрузки музыки...');
+    handleUploadMusicFull(req, res) {
+        console.log('🎵 Начало обработки загрузки музыки...');
 
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-    };
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204, headers);
-        res.end();
-        return;
-    }
-
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    const user = this.authenticateToken(token);
-    
-    if (!user) {
-        res.writeHead(401, { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
-        return;
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC', 'SYSTEM', false);
-        res.writeHead(403, { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify({ success: false, message: 'Ваш аккаунт заблокирован' }));
-        return;
-    }
-
-    console.log('🎵 Пользователь авторизован:', user.username);
-
-    let isResponseSent = false;
-
-    const sendErrorResponse = (message, statusCode = 500) => {
-        if (!isResponseSent) {
-            isResponseSent = true;
-            console.error('❌ Ошибка загрузки:', message);
-            res.writeHead(statusCode, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ success: false, message }));
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
         }
-    };
 
-    const sendSuccessResponse = (data) => {
-        if (!isResponseSent) {
-            isResponseSent = true;
-            res.writeHead(200, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify(data));
-        }
-    };
-
-    try {
-        const bb = busboy({ 
-            headers: req.headers,
-            limits: {
-                fileSize: 50 * 1024 * 1024, // 50MB максимум
-                files: 2, // максимум 2 файла (аудио + обложка)
-                fields: 10 // максимум 10 полей
-            }
-        });
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
         
-        let fields = {};
-        let audioFile = null;
-        let coverFile = null;
-        let filesProcessed = 0;
-        let totalFilesExpected = 0;
-        let fieldsProcessed = 0;
+        if (!user) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
 
-        bb.on('field', (name, val) => {
-            console.log(`📋 Поле формы: ${name} = ${val}`);
-            fields[name] = val;
-            fieldsProcessed++;
-        });
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC', 'SYSTEM', false);
+            res.writeHead(403, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Ваш аккаунт заблокирован' }));
+            return;
+        }
 
-        bb.on('file', (name, file, info) => {
-            const { filename, mimeType } = info;
-            console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
-            
-            if (!filename) {
-                console.log('📁 Пропускаем пустой файл');
-                file.resume();
-                return;
+        console.log('🎵 Пользователь авторизован:', user.username);
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
             }
+        };
 
-            totalFilesExpected++;
-            const chunks = [];
-            
-            file.on('data', (chunk) => {
-                chunks.push(chunk);
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 50 * 1024 * 1024, // 50MB максимум
+                    files: 2, // максимум 2 файла (аудио + обложка)
+                    fields: 10 // максимум 10 полей
+                }
             });
             
-            file.on('end', () => {
-                filesProcessed++;
-                console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
+            let fields = {};
+            let audioFile = null;
+            let coverFile = null;
+            let filesProcessed = 0;
+            let totalFilesExpected = 0;
+            let fieldsProcessed = 0;
+
+            bb.on('field', (name, val) => {
+                console.log(`📋 Поле формы: ${name} = ${val}`);
+                fields[name] = val;
+                fieldsProcessed++;
+            });
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
                 
-                if (chunks.length === 0) {
-                    console.log('⚠️ Файл пустой, пропускаем');
+                if (!filename) {
+                    console.log('📁 Пропускаем пустой файл');
+                    file.resume();
                     return;
                 }
 
-                const buffer = Buffer.concat(chunks);
-                console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
+                totalFilesExpected++;
+                const chunks = [];
                 
-                if (name === 'audioFile') {
-                    if (!this.validateMusicFile(filename)) {
-                        sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
-                        return;
-                    }
-                    audioFile = { buffer, filename, mimeType };
-                    console.log('✅ Аудио файл сохранен в памяти');
-                } else if (name === 'coverFile') {
-                    if (!this.validateCoverFile(filename)) {
-                        sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
-                        return;
-                    }
-                    coverFile = { buffer, filename, mimeType };
-                    console.log('✅ Обложка сохранена в памяти');
-                }
-            });
-
-            file.on('error', (error) => {
-                console.error('❌ Ошибка чтения файла:', error);
-                sendErrorResponse('Ошибка чтения файла');
-            });
-
-            file.on('limit', () => {
-                console.error('❌ Превышен лимит размера файла');
-                sendErrorResponse('Размер файла превышает допустимый лимит', 400);
-            });
-        });
-
-        bb.on('close', async () => {
-            console.log('🔚 Завершение обработки формы');
-            console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
-            
-            // Даем немного времени на завершение обработки файлов
-            setTimeout(async () => {
-                try {
-                    if (!audioFile) {
-                        sendErrorResponse('Аудио файл обязателен', 400);
-                        return;
-                    }
-
-                    if (!fields.title || !fields.artist) {
-                        sendErrorResponse('Название и исполнитель обязательны', 400);
-                        return;
-                    }
-
-                    console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
-
-                    // Сохраняем аудио файл
-                    const audioExt = path.extname(audioFile.filename);
-                    const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                    const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
+                file.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+                
+                file.on('end', () => {
+                    filesProcessed++;
+                    console.log(`📊 Файл ${filename} полностью получен, размер: ${chunks.length} chunks`);
                     
-                    console.log(`💾 Сохранение аудио файла: ${audioPath}`);
-                    try {
-                        await fs.promises.writeFile(audioPath, audioFile.buffer);
-                        const audioUrl = `/uploads/music/${audioFilename}`;
-                        console.log('✅ Аудио файл сохранен');
+                    if (chunks.length === 0) {
+                        console.log('⚠️ Файл пустой, пропускаем');
+                        return;
+                    }
 
-                        // Сохраняем обложку если есть
-                        let coverUrl = null;
-                        if (coverFile && coverFile.filename) {
-                            const coverExt = path.extname(coverFile.filename);
-                            const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
-                            const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
-                            
-                            console.log(`💾 Сохранение обложки: ${coverPath}`);
-                            await fs.promises.writeFile(coverPath, coverFile.buffer);
-                            coverUrl = `/uploads/music/covers/${coverFilename}`;
-                            console.log('✅ Обложка сохранена');
+                    const buffer = Buffer.concat(chunks);
+                    console.log(`📊 Размер файла ${filename}: ${buffer.length} байт`);
+                    
+                    if (name === 'audioFile') {
+                        if (!this.validateMusicFile(filename)) {
+                            sendErrorResponse('Недопустимый формат аудио файла. Разрешены: MP3, WAV, OGG, M4A, AAC', 400);
+                            return;
+                        }
+                        audioFile = { buffer, filename, mimeType };
+                        console.log('✅ Аудио файл сохранен в памяти');
+                    } else if (name === 'coverFile') {
+                        if (!this.validateCoverFile(filename)) {
+                            sendErrorResponse('Недопустимый формат изображения. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP', 400);
+                            return;
+                        }
+                        coverFile = { buffer, filename, mimeType };
+                        console.log('✅ Обложка сохранена в памяти');
+                    }
+                });
+
+                file.on('error', (error) => {
+                    console.error('❌ Ошибка чтения файла:', error);
+                    sendErrorResponse('Ошибка чтения файла');
+                });
+
+                file.on('limit', () => {
+                    console.error('❌ Превышен лимит размера файла');
+                    sendErrorResponse('Размер файла превышает допустимый лимит', 400);
+                });
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы');
+                console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
+                
+                // Даем немного времени на завершение обработки файлов
+                setTimeout(async () => {
+                    try {
+                        if (!audioFile) {
+                            sendErrorResponse('Аудио файл обязателен', 400);
+                            return;
                         }
 
-                        // Сохраняем метаданные трека
-                        const track = {
-                            id: this.generateId(),
-                            userId: user.id,
-                            title: this.sanitizeContent(fields.title),
-                            artist: this.sanitizeContent(fields.artist),
-                            genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
-                            fileUrl: audioUrl,
-                            coverUrl: coverUrl,
-                            duration: 0,
-                            plays: 0,
-                            likes: [],
-                            createdAt: new Date()
-                        };
+                        if (!fields.title || !fields.artist) {
+                            sendErrorResponse('Название и исполнитель обязательны', 400);
+                            return;
+                        }
 
-                        this.music.unshift(track);
-                        this.saveData();
+                        console.log('✅ Все проверки пройдены, начинаем сохранение файлов...');
 
-                        this.logSecurityEvent(user, 'UPLOAD_MUSIC', `track:${track.title} - ${track.artist}`);
+                        // Сохраняем аудио файл
+                        const audioExt = path.extname(audioFile.filename);
+                        const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                        const audioPath = path.join(__dirname, 'public', 'uploads', 'music', audioFilename);
+                        
+                        console.log(`💾 Сохранение аудио файла: ${audioPath}`);
+                        try {
+                            await fs.promises.writeFile(audioPath, audioFile.buffer);
+                            const audioUrl = `/uploads/music/${audioFilename}`;
+                            console.log('✅ Аудио файл сохранен');
 
-                        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
-
-                        sendSuccessResponse({
-                            success: true,
-                            track: {
-                                ...track,
-                                userName: user.displayName,
-                                userAvatar: user.avatar,
-                                userVerified: user.verified
+                            // Сохраняем обложку если есть
+                            let coverUrl = null;
+                            if (coverFile && coverFile.filename) {
+                                const coverExt = path.extname(coverFile.filename);
+                                const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                                const coverPath = path.join(__dirname, 'public', 'uploads', 'music', 'covers', coverFilename);
+                                
+                                console.log(`💾 Сохранение обложки: ${coverPath}`);
+                                await fs.promises.writeFile(coverPath, coverFile.buffer);
+                                coverUrl = `/uploads/music/covers/${coverFilename}`;
+                                console.log('✅ Обложка сохранена');
                             }
-                        });
 
-                    } catch (fileError) {
-                        console.error('❌ Ошибка при сохранении файлов:', fileError);
-                        sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
+                            // Сохраняем метаданные трека
+                            const track = {
+                                id: this.generateId(),
+                                userId: user.id,
+                                title: this.sanitizeContent(fields.title),
+                                artist: this.sanitizeContent(fields.artist),
+                                genre: fields.genre ? this.sanitizeContent(fields.genre) : 'Не указан',
+                                fileUrl: audioUrl,
+                                coverUrl: coverUrl,
+                                duration: 0,
+                                plays: 0,
+                                likes: [],
+                                createdAt: new Date()
+                            };
+
+                            this.music.unshift(track);
+                            this.saveData();
+
+                            this.logSecurityEvent(user, 'UPLOAD_MUSIC', `track:${track.title} - ${track.artist}`);
+
+                            console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${track.title} - ${track.artist}`);
+
+                            sendSuccessResponse({
+                                success: true,
+                                track: {
+                                    ...track,
+                                    userName: user.displayName,
+                                    userAvatar: user.avatar,
+                                    userVerified: user.verified
+                                }
+                            });
+
+                        } catch (fileError) {
+                            console.error('❌ Ошибка при сохранении файлов:', fileError);
+                            sendErrorResponse('Ошибка при сохранении файлов: ' + fileError.message);
+                        }
+
+                    } catch (error) {
+                        console.error('❌ Ошибка при обработке формы:', error);
+                        sendErrorResponse('Ошибка при обработке формы: ' + error.message);
                     }
+                }, 100); // Небольшая задержка для завершения всех операций
+            });
 
-                } catch (error) {
-                    console.error('❌ Ошибка при обработке формы:', error);
-                    sendErrorResponse('Ошибка при обработке формы: ' + error.message);
-                }
-            }, 100); // Небольшая задержка для завершения всех операций
-        });
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
 
-        bb.on('error', (error) => {
-            console.error('❌ Ошибка busboy:', error);
-            sendErrorResponse('Ошибка обработки формы: ' + error.message);
-        });
+            // Обработка ошибок запроса
+            req.on('error', (error) => {
+                console.error('❌ Ошибка запроса:', error);
+                sendErrorResponse('Ошибка запроса: ' + error.message);
+            });
 
-        // Обработка ошибок запроса
-        req.on('error', (error) => {
-            console.error('❌ Ошибка запроса:', error);
-            sendErrorResponse('Ошибка запроса: ' + error.message);
-        });
+            req.on('end', () => {
+                console.log('📨 Запрос полностью получен');
+            });
 
-        req.on('end', () => {
-            console.log('📨 Запрос полностью получен');
-        });
+            // Таймаут обработки
+            const timeout = setTimeout(() => {
+                console.error('⏰ Таймаут обработки запроса');
+                sendErrorResponse('Таймаут обработки запроса', 408);
+            }, 60000); // 60 секунд
 
-        // Таймаут обработки
-        const timeout = setTimeout(() => {
-            console.error('⏰ Таймаут обработки запроса');
-            sendErrorResponse('Таймаут обработки запроса', 408);
-        }, 60000); // 60 секунд
+            console.log('🔄 Начинаем парсинг формы...');
+            req.pipe(bb);
 
-        console.log('🔄 Начинаем парсинг формы...');
-        req.pipe(bb);
+            // Очистка таймаута при успешной обработке
+            bb.on('close', () => {
+                clearTimeout(timeout);
+                console.log('✅ Таймаут очищен');
+            });
 
-        // Очистка таймаута при успешной обработке
-        bb.on('close', () => {
-            clearTimeout(timeout);
-            console.log('✅ Таймаут очищен');
-        });
-
-    } catch (error) {
-        console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
-        sendErrorResponse('Критическая ошибка сервера: ' + error.message);
-    }
-}
-
-handleGetMusic(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    const musicWithUserInfo = this.music.map(track => {
-        const trackUser = this.users.find(u => u.id === track.userId);
-        return {
-            ...track,
-            userName: trackUser ? trackUser.displayName : 'Неизвестный',
-            userAvatar: trackUser ? trackUser.avatar : null,
-            userVerified: trackUser ? trackUser.verified : false
-        };
-    });
-
-    this.logSecurityEvent(user, 'GET_MUSIC', `count:${musicWithUserInfo.length}`);
-
-    return {
-        success: true,
-        music: musicWithUserInfo
-    };
-}
-
-handleUploadMusic(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { title, artist, duration, fileUrl, coverUrl, genre } = data;
-    
-    if (!title || !artist || !fileUrl) {
-        return { success: false, message: 'Название, исполнитель и файл обязательны' };
-    }
-
-    const sanitizedTitle = this.sanitizeContent(title);
-    const sanitizedArtist = this.sanitizeContent(artist);
-    const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
-
-    const track = {
-        id: this.generateId(),
-        userId: user.id,
-        title: sanitizedTitle,
-        artist: sanitizedArtist,
-        duration: duration || 0,
-        fileUrl: fileUrl,
-        coverUrl: coverUrl || '/assets/default-cover.png',
-        genre: sanitizedGenre,
-        plays: 0,
-        likes: [],
-        createdAt: new Date()
-    };
-
-    this.music.unshift(track);
-    this.saveData();
-
-    this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', `track:${sanitizedTitle} - ${sanitizedArtist}`);
-
-    console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
-
-    return {
-        success: true,
-        track:{
-            ...track,
-            userName: user.displayName,
-            userAvatar: user.avatar,
-            userVerified: user.verified
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadMusicFull:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
         }
-    };
-}
-
-async handleUploadMusicFile(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
     }
 
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    handleGetMusic(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const musicWithUserInfo = this.music.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        this.logSecurityEvent(user, 'GET_MUSIC', `count:${musicWithUserInfo.length}`);
+
+        return {
+            success: true,
+            music: musicWithUserInfo
+        };
     }
 
-    const { fileData, filename } = data;
-    
-    if (!this.validateMusicFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат аудио файла' };
-    }
+    handleUploadMusic(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    try {
-        const fileExt = path.extname(filename);
-        const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { title, artist, duration, fileUrl, coverUrl, genre } = data;
         
-        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+        if (!title || !artist || !fileUrl) {
+            return { success: false, message: 'Название, исполнитель и файл обязательны' };
+        }
 
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
+        const sanitizedTitle = this.sanitizeContent(title);
+        const sanitizedArtist = this.sanitizeContent(artist);
+        const sanitizedGenre = genre ? this.sanitizeContent(genre) : 'Не указан';
+
+        const track = {
+            id: this.generateId(),
+            userId: user.id,
+            title: sanitizedTitle,
+            artist: sanitizedArtist,
+            duration: duration || 0,
+            fileUrl: fileUrl,
+            coverUrl: coverUrl || '/assets/default-cover.png',
+            genre: sanitizedGenre,
+            plays: 0,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        this.music.unshift(track);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', `track:${sanitizedTitle} - ${sanitizedArtist}`);
+
+        console.log(`🎵 Пользователь ${user.displayName} загрузил трек: ${sanitizedTitle} - ${sanitizedArtist}`);
 
         return {
             success: true,
-            fileUrl: fileUrl
+            track: {
+                ...track,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
         };
-    } catch (error) {
-        console.error('Ошибка загрузки аудио файла:', error);
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
-    }
-}
-
-async handleUploadMusicCover(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
     }
 
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
+    async handleUploadMusicFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    const { fileData, filename } = data;
-    
-    if (!this.validateCoverFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат изображения' };
-    }
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
 
-    try {
-        const fileExt = path.extname(filename);
-        const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+        const { fileData, filename } = data;
         
-        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+        if (!this.validateMusicFile(filename)) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат аудио файла' };
+        }
 
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music');
+
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
+
+            return {
+                success: true,
+                fileUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аудио файла:', error);
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadMusicCover(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+        
+        if (!this.validateCoverFile(filename)) {
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат изображения' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'music/covers');
+
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
+
+            return {
+                success: true,
+                coverUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки обложки:', error);
+            this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    handleDeleteMusic(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { trackId } = data;
+        const trackIndex = this.music.findIndex(t => t.id === trackId);
+        
+        if (trackIndex === -1) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        const track = this.music[trackIndex];
+        
+        // 🔐 Проверяем права: пользователь может удалять только свои треки (или админ)
+        if (track.userId !== user.id && !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
+            return { success: false, message: 'Вы можете удалять только свои треки' };
+        }
+
+        if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
+            this.deleteFile(track.fileUrl);
+        }
+
+        if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
+            this.deleteFile(track.coverUrl);
+        }
+
+        this.music.splice(trackIndex, 1);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${track.title}`);
+
+        console.log(`🗑️ Трек удален: ${track.title}`);
 
         return {
             success: true,
-            coverUrl: fileUrl
+            message: 'Трек успешно удален'
         };
-    } catch (error) {
-        console.error('Ошибка загрузки обложки:', error);
-        this.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
-    }
-}
-
-handleDeleteMusic(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
     }
 
-    const { trackId } = data;
-    const trackIndex = this.music.findIndex(t => t.id === trackId);
-    
-    if (trackIndex === -1) {
-        return { success: false, message: 'Трек не найден' };
-    }
+    handleSearchMusic(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    const track = this.music[trackIndex];
-    
-    // 🔐 Проверяем права: пользователь может удалять только свои треки (или админ)
-    if (track.userId !== user.id && !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
-        return { success: false, message: 'Вы можете удалять только свои треки' };
-    }
+        const { q } = query;
+        if (!q || q.trim() === '') {
+            return this.handleGetMusic(token);
+        }
 
-    if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
-        this.deleteFile(track.fileUrl);
-    }
+        const searchTerm = q.toLowerCase().trim();
+        const filteredMusic = this.music.filter(track => 
+            track.title.toLowerCase().includes(searchTerm) ||
+            track.artist.toLowerCase().includes(searchTerm) ||
+            track.genre.toLowerCase().includes(searchTerm)
+        );
 
-    if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
-        this.deleteFile(track.coverUrl);
-    }
+        const musicWithUserInfo = filteredMusic.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
 
-    this.music.splice(trackIndex, 1);
-    this.saveData();
+        this.logSecurityEvent(user, 'SEARCH_MUSIC', `term:${q}, results:${musicWithUserInfo.length}`);
 
-    this.logSecurityEvent(user, 'DELETE_MUSIC', `track:${track.title}`);
-
-    console.log(`🗑️ Трек удален: ${track.title}`);
-
-    return {
-        success: true,
-        message: 'Трек успешно удален'
-    };
-}
-
-handleSearchMusic(token, query) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    const { q } = query;
-    if (!q || q.trim() === '') {
-        return this.handleGetMusic(token);
-    }
-
-    const searchTerm = q.toLowerCase().trim();
-    const filteredMusic = this.music.filter(track => 
-        track.title.toLowerCase().includes(searchTerm) ||
-        track.artist.toLowerCase().includes(searchTerm) ||
-        track.genre.toLowerCase().includes(searchTerm)
-    );
-
-    const musicWithUserInfo = filteredMusic.map(track => {
-        const trackUser = this.users.find(u => u.id === track.userId);
-        return {
-            ...track,
-            userName: trackUser ? trackUser.displayName : 'Неизвестный',
-            userAvatar: trackUser ? trackUser.avatar : null,
-            userVerified: trackUser ? trackUser.verified : false
-        };
-    });
-
-    this.logSecurityEvent(user, 'SEARCH_MUSIC', `term:${q}, results:${musicWithUserInfo.length}`);
-
-    return {
-        success: true,
-        music: musicWithUserInfo,
-        searchTerm: q
-    };
-}
-
-handleGetRandomMusic(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    if (this.music.length === 0) {
         return {
             success: true,
-            music: []
+            music: musicWithUserInfo,
+            searchTerm: q
         };
     }
 
-    const shuffled = [...this.music].sort(() => 0.5 - Math.random());
-    const randomMusic = shuffled.slice(0, 10);
+    handleGetRandomMusic(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    const musicWithUserInfo = randomMusic.map(track => {
-        const trackUser = this.users.find(u => u.id === track.userId);
+        if (this.music.length === 0) {
+            return {
+                success: true,
+                music: []
+            };
+        }
+
+        const shuffled = [...this.music].sort(() => 0.5 - Math.random());
+        const randomMusic = shuffled.slice(0, 10);
+
+        const musicWithUserInfo = randomMusic.map(track => {
+            const trackUser = this.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        this.logSecurityEvent(user, 'GET_RANDOM_MUSIC', `count:${musicWithUserInfo.length}`);
+
         return {
-            ...track,
-            userName: trackUser ? trackUser.displayName : 'Неизвестный',
-            userAvatar: trackUser ? trackUser.avatar : null,
-            userVerified: trackUser ? trackUser.verified : false
+            success: true,
+            music: musicWithUserInfo
         };
-    });
-
-    this.logSecurityEvent(user, 'GET_RANDOM_MUSIC', `count:${musicWithUserInfo.length}`);
-
-    return {
-        success: true,
-        music: musicWithUserInfo
-    };
-}
-
-handleGetPlaylists(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
     }
 
-    const userPlaylists = this.playlists.filter(p => p.userId === user.id);
-    
-    this.logSecurityEvent(user, 'GET_PLAYLISTS', `count:${userPlaylists.length}`);
+    handleGetPlaylists(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    return {
-        success: true,
-        playlists: userPlaylists
-    };
-}
+        const userPlaylists = this.playlists.filter(p => p.userId === user.id);
+        
+        this.logSecurityEvent(user, 'GET_PLAYLISTS', `count:${userPlaylists.length}`);
 
-handleCreatePlaylist(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
+        return {
+            success: true,
+            playlists: userPlaylists
+        };
     }
 
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'CREATE_PLAYLIST', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
+    handleCreatePlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'CREATE_PLAYLIST', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { name, description } = data;
+        
+        if (!name || name.trim() === '') {
+            return { success: false, message: 'Название плейлиста обязательно' };
+        }
+
+        const sanitizedName = this.sanitizeContent(name.trim());
+        const sanitizedDescription = description ? this.sanitizeContent(description) : '';
+
+        const playlist = {
+            id: this.generateId(),
+            userId: user.id,
+            name: sanitizedName,
+            description: sanitizedDescription,
+            tracks: [],
+            cover: null,
+            createdAt: new Date()
+        };
+
+        this.playlists.push(playlist);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'CREATE_PLAYLIST', `name:${sanitizedName}`);
+
+        console.log(`🎵 Создан плейлист: ${sanitizedName}`);
+
+        return {
+            success: true,
+            playlist: playlist
+        };
     }
 
-    const { name, description } = data;
-    
-    if (!name || name.trim() === '') {
-        return { success: false, message: 'Название плейлиста обязательно' };
+    handleAddToPlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { playlistId, trackId } = data;
+        
+        const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
+        if (!playlist) {
+            return { success: false, message: 'Плейлист не найден' };
+        }
+
+        const track = this.music.find(t => t.id === trackId);
+        if (!track) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        if (playlist.tracks.includes(trackId)) {
+            return { success: false, message: 'Трек уже есть в плейлисте' };
+        }
+
+        playlist.tracks.push(trackId);
+
+        if (!playlist.cover && playlist.tracks.length === 1) {
+            playlist.cover = track.coverUrl;
+        }
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
+
+        console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
+
+        return {
+            success: true,
+            playlist: playlist
+        };
     }
-
-    const sanitizedName = this.sanitizeContent(name.trim());
-    const sanitizedDescription = description ? this.sanitizeContent(description) : '';
-
-    const playlist = {
-        id: this.generateId(),
-        userId: user.id,
-        name: sanitizedName,
-        description: sanitizedDescription,
-        tracks: [],
-        cover: null,
-        createdAt: new Date()
-    };
-
-    this.playlists.push(playlist);
-    this.saveData();
-
-    this.logSecurityEvent(user, 'CREATE_PLAYLIST', `name:${sanitizedName}`);
-
-    console.log(`🎵 Создан плейлист: ${sanitizedName}`);
-
-    return {
-        success: true,
-        playlist: playlist
-    };
-}
-
-handleAddToPlaylist(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { playlistId, trackId } = data;
-    
-    const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
-    if (!playlist) {
-        return { success: false, message: 'Плейлист не найден' };
-    }
-
-    const track = this.music.find(t => t.id === trackId);
-    if (!track) {
-        return { success: false, message: 'Трек не найден' };
-    }
-
-    if (playlist.tracks.includes(trackId)) {
-        return { success: false, message: 'Трек уже есть в плейлисте' };
-    }
-
-    playlist.tracks.push(trackId);
-
-    if (!playlist.cover && playlist.tracks.length === 1) {
-        playlist.cover = track.coverUrl;
-    }
-
-    this.saveData();
-
-    this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
-
-    console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
-
-    return {
-        success: true,
-        playlist: playlist
-    };
-}
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
 
