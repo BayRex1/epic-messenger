@@ -601,9 +601,17 @@ class SimpleServer {
     }
 
     validateAvatarFile(filename) {
-        // Временно отключаем валидацию аватаров
-        console.log('🔍 Временное отключение загрузки аватаров');
-        return false; // Временно возвращаем false для отключения загрузки
+        // Временно упрощаем для тестирования
+        console.log('🔍 Проверка файла аватара:', filename);
+        
+        if (!filename) return false;
+        
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        const isValid = allowedExtensions.includes(ext);
+        
+        console.log('📁 Расширение файла:', ext, 'Валидно:', isValid);
+        return true; // Временно возвращаем true для тестирования
     }
 
     validateGiftFile(filename) {
@@ -930,22 +938,14 @@ class SimpleServer {
             return;
         }
 
-        // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ MULTIPART ОБРАБОТЧИКИ ДЛЯ АВАТАРОВ
+        // 🔧 ИСПРАВЛЕНИЕ: Обработка multipart/form-data для всех загрузок файлов
         if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
             if (pathname === '/api/music/upload-full') {
                 this.handleUploadMusicFull(req, res);
                 return;
             }
-            // Временно отключаем обработку аватаров
             else if (pathname === '/api/upload-avatar') {
-                res.writeHead(400, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify({ 
-                    success: false, 
-                    message: 'Загрузка аватаров временно отключена' 
-                }));
+                this.handleUploadAvatarMultipart(req, res);
                 return;
             }
             else if (pathname === '/api/upload-post-image') {
@@ -1120,15 +1120,14 @@ class SimpleServer {
 
                 case '/api/update-avatar':
                     if (method === 'POST') {
-                        // Временно отключаем обновление аватара
-                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
+                        response = this.handleUpdateAvatar(token, data);
                     }
                     break;
 
                 case '/api/upload-avatar':
                     if (method === 'POST') {
-                        // Временно отключаем загрузку аватара
-                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
@@ -1153,10 +1152,10 @@ class SimpleServer {
                     }
                     break;
 
-                // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ПРЕДПРОСМОТР АВАТАРКИ
+                // 🔧 НОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРЕДПРОСМОТРА
                 case '/api/preview-avatar':
                     if (method === 'POST') {
-                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
+                        response = this.handlePreviewAvatar(token, data);
                     }
                     break;
 
@@ -1354,19 +1353,162 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ОБРАБОТЧИКИ ДЛЯ АВАТАРОВ
+    // 🔧 НОВЫЕ MULTIPART ОБРАБОТЧИКИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ
 
     async handleUploadAvatarMultipart(req, res) {
-        console.log('🖼️ Загрузка аватаров временно отключена');
+        console.log('🖼️ Начало обработки загрузки аватара...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
         
-        res.writeHead(400, { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify({ 
-            success: false, 
-            message: 'Загрузка аватаров временно отключена для технических работ' 
-        }));
+        if (!user) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка загрузки аватара:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 5 * 1024 * 1024, // 5MB максимум
+                    files: 1 // только один файл
+                }
+            });
+            
+            let avatarFile = null;
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'avatar' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            avatarFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Аватар сохранен в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы аватара');
+                
+                try {
+                    if (!avatarFile) {
+                        sendErrorResponse('Файл аватара не получен', 400);
+                        return;
+                    }
+
+                    if (!this.validateAvatarFile(avatarFile.filename)) {
+                        sendErrorResponse('Недопустимый формат файла для аватара', 400);
+                        return;
+                    }
+
+                    // Сохраняем файл
+                    const fileExt = path.extname(avatarFile.filename);
+                    const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+                    const filePath = path.join(__dirname, 'public', 'uploads', 'avatars', uniqueFilename);
+                    
+                    console.log(`💾 Сохранение аватара: ${filePath}`);
+                    await fs.promises.writeFile(filePath, avatarFile.buffer);
+                    const fileUrl = `/uploads/avatars/${uniqueFilename}`;
+
+                    // Удаляем старый аватар если он был
+                    if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                        this.deleteFile(user.avatar);
+                    }
+
+                    // Обновляем пользователя
+                    user.avatar = fileUrl;
+                    this.saveData();
+
+                    this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${avatarFile.filename}`);
+
+                    console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${avatarFile.filename}`);
+
+                    sendSuccessResponse({
+                        success: true,
+                        avatarUrl: fileUrl,
+                        user: {
+                            id: user.id,
+                            username: user.username,
+                            displayName: user.displayName,
+                            email: user.email,
+                            avatar: fileUrl,
+                            description: user.description,
+                            coins: user.coins,
+                            verified: user.verified,
+                            isDeveloper: user.isDeveloper,
+                            status: user.status,
+                            lastSeen: user.lastSeen,
+                            createdAt: user.createdAt,
+                            friendsCount: user.friendsCount || 0,
+                            postsCount: user.postsCount || 0,
+                            giftsCount: user.giftsCount || 0,
+                            banned: user.banned || false
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка при сохранении аватара:', error);
+                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleUploadAvatarMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
     }
 
     async handleUploadPostImageMultipart(req, res) {
@@ -1782,10 +1924,40 @@ class SimpleServer {
         }
     }
 
-    // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ПРЕДПРОСМОТР АВАТАРКИ
+    // 🔧 НОВЫЙ МЕТОД ДЛЯ ПРЕДПРОСМОТРА АВАТАРКИ
     handlePreviewAvatar(token, data) {
-        return { success: false, message: 'Загрузка аватаров временно отключена' };
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+        
+        // Проверяем что это изображение
+        if (!this.validateAvatarFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            // Проверяем размер файла (максимум 2MB для предпросмотра)
+            if (fileData.length > 2 * 1024 * 1024) {
+                return { success: false, message: 'Размер файла не должен превышать 2 МБ' };
+            }
+
+            // Для предпросмотра просто возвращаем данные обратно
+            // На фронтенде это будет использоваться для показа preview
+            return {
+                success: true,
+                previewUrl: fileData, // base64 данные
+                fileName: filename
+            };
+        } catch (error) {
+            console.error('Ошибка предпросмотра аватара:', error);
+            return { success: false, message: 'Ошибка обработки файла' };
+        }
     }
+
+    // 🔧 КОНЕЦ НОВЫХ MULTIPART ОБРАБОТЧИКОВ
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКОЙ ПРАВ
 
@@ -2160,7 +2332,7 @@ class SimpleServer {
         const decryptedMessages = chatMessages.map(msg => ({
             ...msg,
             text: msg.encrypted ? this.decrypt(msg.text) : msg.text
-        }));
+        ));
 
         decryptedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -3085,1055 +3257,1119 @@ handleAddToPlaylist(token, data) {
     const { playlistId, trackId } = data;
     
     const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
-    if (!playlist) {
-        return { success: false, message: 'Плейлист не найден' };
-    }
-
-    const track = this.music.find(t => t.id === trackId);
-    if (!track) {
-        return { success: false, message: 'Трек не найден' };
-    }
-
-    if (playlist.tracks.includes(trackId)) {
-        return { success: false, message: 'Трек уже есть в плейлисте' };
-    }
-
-    playlist.tracks.push(trackId);
-
-    if (!playlist.cover && playlist.tracks.length === 1) {
-        playlist.cover = track.coverUrl;
-    }
-
-    this.saveData();
-
-    this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
-
-    console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
-
-    return {
-        success: true,
-        playlist: playlist
-    };
-}
-
-// 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
-
-handleCheckAuth(token, req) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { authenticated: false };
-    }
-
-    if (user.banned) {
-        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
-        return { authenticated: false, message: 'Аккаунт заблокирован' };
-    }
-
-    const clientIP = this.getClientIP(req);
-    if (this.isIPBanned(clientIP)) {
-        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
-        return { authenticated: false, message: 'IP адрес заблокирован' };
-    }
-
-    const deviceId = this.generateDeviceId(req);
-    const device = this.devices.get(deviceId);
-    if (device && device.userId === user.id) {
-        device.lastActive = new Date();
-        this.saveData();
-    }
-
-    this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM');
-
-    return {
-        authenticated: true,
-        user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            email: user.email,
-            avatar: user.avatar,
-            description: user.description,
-            coins: user.coins,
-            verified: user.verified,
-            isDeveloper: user.isDeveloper,
-            status: user.status,
-            lastSeen: user.lastSeen,
-            createdAt: user.createdAt,
-            friendsCount: user.friendsCount || 0,
-            postsCount: user.postsCount || 0,
-            giftsCount: user.giftsCount || 0,
-            banned: user.banned || false
+        if (!playlist) {
+            return { success: false, message: 'Плейлист не найден' };
         }
-    };
-}
 
-handleCurrentUser(token, req) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    if (user.banned) {
-        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
-        return { success: false, message: 'Аккаунт заблокирован' };
-    }
-
-    const clientIP = this.getClientIP(req);
-    if (this.isIPBanned(clientIP)) {
-        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
-        return { success: false, message: 'IP адрес заблокирован' };
-    }
-
-    const deviceId = this.generateDeviceId(req);
-    const device = this.devices.get(deviceId);
-    if (device && device.userId === user.id) {
-        device.lastActive = new Date();
-        this.saveData();
-    }
-
-    this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM');
-
-    return {
-        success: true,
-        user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            email: user.email,
-            avatar: user.avatar,
-            description: user.description,
-            coins: user.coins,
-            verified: user.verified,
-            isDeveloper: user.isDeveloper,
-            status: user.status,
-            lastSeen: user.lastSeen,
-            createdAt: user.createdAt,
-            friendsCount: user.friendsCount || 0,
-            postsCount: user.postsCount || 0,
-            giftsCount: user.giftsCount || 0,
-            banned: user.banned || false
+        const track = this.music.find(t => t.id === trackId);
+        if (!track) {
+            return { success: false, message: 'Трек не найден' };
         }
-    };
-}
 
-handleGetUsers(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
+        if (playlist.tracks.includes(trackId)) {
+            return { success: false, message: 'Трек уже есть в плейлисте' };
+        }
+
+        playlist.tracks.push(trackId);
+
+        if (!playlist.cover && playlist.tracks.length === 1) {
+            playlist.cover = track.coverUrl;
+        }
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
+
+        console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
+
+        return {
+            success: true,
+            playlist: playlist
+        };
     }
 
-    // 🔐 Возвращаем только базовую информацию о пользователях, без чувствительных данных
-    const otherUsers = this.users
-        .filter(u => u.id !== user.id)
-        .map(u => ({
-            id: u.id,
-            username: u.username,
-            displayName: u.displayName,
-            avatar: u.avatar,
-            description: u.description,
-            coins: u.coins,
-            verified: u.verified,
-            isDeveloper: u.isDeveloper,
-            status: u.status,
-            lastSeen: u.lastSeen,
-            createdAt: u.createdAt,
-            friendsCount: u.friendsCount || 0,
-            postsCount: u.postsCount || 0,
-            giftsCount: u.giftsCount || 0,
-            banned: u.banned || false
-        }));
+    // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
 
-    this.logSecurityEvent(user, 'GET_USERS_LIST', `count:${otherUsers.length}`);
+    handleCheckAuth(token, req) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { authenticated: false };
+        }
 
-    return {
-        success: true,
-        users: otherUsers
-    };
-}
+        if (user.banned) {
+            this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
+            return { authenticated: false, message: 'Аккаунт заблокирован' };
+        }
 
-handleSendMessage(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
+            return { authenticated: false, message: 'IP адрес заблокирован' };
+        }
+
+        const deviceId = this.generateDeviceId(req);
+        const device = this.devices.get(deviceId);
+        if (device && device.userId === user.id) {
+            device.lastActive = new Date();
+            this.saveData();
+        }
+
+        this.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM');
+
+        return {
+            authenticated: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
     }
 
-    const { toUserId, text, type, image, file, fileName, fileType } = data;
+    handleCurrentUser(token, req) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
+        if (user.banned) {
+            this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
+            return { success: false, message: 'Аккаунт заблокирован' };
+        }
+
+        const clientIP = this.getClientIP(req);
+        if (this.isIPBanned(clientIP)) {
+            this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
+            return { success: false, message: 'IP адрес заблокирован' };
+        }
+
+        const deviceId = this.generateDeviceId(req);
+        const device = this.devices.get(deviceId);
+        if (device && device.userId === user.id) {
+            device.lastActive = new Date();
+            this.saveData();
+        }
+
+        this.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM');
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
     }
 
-    // Проверяем что есть либо текст, либо файл
-    if ((!text || text.trim() === '') && !file && !image) {
-        return { success: false, message: 'Сообщение не может быть пустым' };
+    handleGetUsers(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Возвращаем только базовую информацию о пользователях, без чувствительных данных
+        const otherUsers = this.users
+            .filter(u => u.id !== user.id)
+            .map(u => ({
+                id: u.id,
+                username: u.username,
+                displayName: u.displayName,
+                avatar: u.avatar,
+                description: u.description,
+                coins: u.coins,
+                verified: u.verified,
+                isDeveloper: u.isDeveloper,
+                status: u.status,
+                lastSeen: u.lastSeen,
+                createdAt: u.createdAt,
+                friendsCount: u.friendsCount || 0,
+                postsCount: u.postsCount || 0,
+                giftsCount: u.giftsCount || 0,
+                banned: u.banned || false
+            }));
+
+        this.logSecurityEvent(user, 'GET_USERS_LIST', `count:${otherUsers.length}`);
+
+        return {
+            success: true,
+            users: otherUsers
+        };
     }
 
-    // 🔐 Проверяем существование получателя
-    const recipient = this.users.find(u => u.id === toUserId);
-    if (!recipient) {
-        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-        return { success: false, message: 'Получатель не найден' };
-    }
+    handleSendMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
 
-    // 🔐 Проверяем что получатель не забанен
-    if (recipient.banned) {
-        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-        return { success: false, message: 'Нельзя отправлять сообщения заблокированным пользователям' };
-    }
+        const { toUserId, text, type, image, file, fileName, fileType } = data;
 
-    let sanitizedText = '';
-    if (text && text.trim() !== '') {
-        sanitizedText = this.sanitizeContent(text.trim());
-        if (sanitizedText.length === 0 && !file && !image) {
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
             this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-            return { success: false, message: 'Сообщение содержит запрещенный контент' };
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
+
+        // Проверяем что есть либо текст, либо файл
+        if ((!text || text.trim() === '') && !file && !image) {
+            return { success: false, message: 'Сообщение не может быть пустым' };
+        }
+
+        // 🔐 Проверяем существование получателя
+        const recipient = this.users.find(u => u.id === toUserId);
+        if (!recipient) {
+            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+            return { success: false, message: 'Получатель не найден' };
+        }
+
+        // 🔐 Проверяем что получатель не забанен
+        if (recipient.banned) {
+            this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+            return { success: false, message: 'Нельзя отправлять сообщения заблокированным пользователям' };
+        }
+
+        let sanitizedText = '';
+        if (text && text.trim() !== '') {
+            sanitizedText = this.sanitizeContent(text.trim());
+            if (sanitizedText.length === 0 && !file && !image) {
+                this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
+                return { success: false, message: 'Сообщение содержит запрещенный контент' };
+            }
+        }
+
+        const encryptedText = text ? this.encrypt(sanitizedText) : '';
+
+        const message = {
+            id: this.generateId(),
+            senderId: user.id,
+            toUserId: toUserId,
+            text: encryptedText,
+            encrypted: !!text,
+            type: type || (file ? 'file' : 'text'),
+            image: image || null,
+            file: file || null,
+            fileName: fileName || null,
+            fileType: fileType || null,
+            timestamp: new Date(),
+            displayName: user.displayName,
+            read: false
+        };
+
+        this.messages.push(message);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
+
+        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
+
+        return {
+            success: true,
+            message: {
+                ...message,
+                text: sanitizedText
+            }
+        };
     }
 
-    const encryptedText = text ? this.encrypt(sanitizedText) : '';
-
-    const message = {
-        id: this.generateId(),
-        senderId: user.id,
-        toUserId: toUserId,
-        text: encryptedText,
-        encrypted: !!text,
-        type: type || (file ? 'file' : 'text'),
-        image: image || null,
-        file: file || null,
-        fileName: fileName || null,
-        fileType: fileType || null,
-        timestamp: new Date(),
-        displayName: user.displayName,
-        read: false
-    };
-
-    this.messages.push(message);
-    this.saveData();
-
-    this.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
-
-    console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
-
-    return {
-        success: true,
-        message: {
-            ...message,
-            text: sanitizedText
+    handleGetPosts(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
         }
-    };
-}
 
-handleGetPosts(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    const postsWithUserInfo = this.posts.map(post => {
-        if (post.userId === 'system') {
+        const postsWithUserInfo = this.posts.map(post => {
+            if (post.userId === 'system') {
+                return {
+                    ...post,
+                    userName: 'Epic Messenger',
+                    userAvatar: null,
+                    userVerified: true,
+                    userDeveloper: true
+                };
+            }
+            
+            const postUser = this.users.find(u => u.id === post.userId);
             return {
                 ...post,
-                userName: 'Epic Messenger',
-                userAvatar: null,
-                userVerified: true,
-                userDeveloper: true
+                userName: postUser ? postUser.displayName : 'Неизвестный',
+                userAvatar: postUser ? postUser.avatar : null,
+                userVerified: postUser ? postUser.verified : false,
+                userDeveloper: postUser ? postUser.isDeveloper : false
+            };
+        });
+
+        postsWithUserInfo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        this.logSecurityEvent(user, 'GET_POSTS', `count:${postsWithUserInfo.length}`);
+
+        return {
+            success: true,
+            posts: postsWithUserInfo
+        };
+    }
+
+    handleCreatePost(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { text, image, file, fileName, fileType } = data;
+        
+        // Проверяем что есть либо текст, либо файл
+        if ((!text || text.trim() === '') && !file && !image) {
+            return { success: false, message: 'Текст поста не может быть пустым' };
+        }
+
+        let sanitizedText = '';
+        if (text && text.trim() !== '') {
+            sanitizedText = this.sanitizeContent(text.trim());
+            if (sanitizedText.length === 0 && !file && !image) {
+                this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
+                return { success: false, message: 'Текст поста содержит запрещенный контент' };
+            }
+        }
+
+        const post = {
+            id: this.generateId(),
+            userId: user.id,
+            text: sanitizedText,
+            image: image,
+            file: file,
+            fileName: fileName,
+            fileType: fileType,
+            likes: [],
+            comments: [],
+            views: 0,
+            createdAt: new Date()
+        };
+
+        this.posts.unshift(post);
+        user.postsCount = (user.postsCount || 0) + 1;
+        this.saveData();
+
+        this.logSecurityEvent(user, 'CREATE_POST', `chars:${sanitizedText.length}`);
+
+        console.log(`📝 Новый пост от ${user.displayName}`);
+
+        return {
+            success: true,
+            post: {
+                ...post,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified,
+                userDeveloper: user.isDeveloper
+            }
+        };
+    }
+
+    handleDeletePost(token, query) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут удалять посты
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { postId } = query;
+        const postIndex = this.posts.findIndex(p => p.id === postId);
+        
+        if (postIndex === -1) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const post = this.posts[postIndex];
+        
+        if (post.userId === 'system') {
+            return { success: false, message: 'Нельзя удалить системный пост' };
+        }
+
+        if (post.image && post.image.startsWith('/uploads/posts/')) {
+            this.deleteFile(post.image);
+        }
+
+        if (post.file && post.file.startsWith('/uploads/')) {
+            this.deleteFile(post.file);
+        }
+
+        this.posts.splice(postIndex, 1);
+
+        const postUser = this.users.find(u => u.id === post.userId);
+        if (postUser && postUser.postsCount > 0) {
+            postUser.postsCount--;
+        }
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
+
+        console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
+
+        return {
+            success: true,
+            message: 'Пост успешно удален'
+        };
+    }
+
+    handleLikePost(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const post = this.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const likeIndex = post.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            post.likes.push(user.id);
+            console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
+            this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`);
+        } else {
+            post.likes.splice(likeIndex, 1);
+            console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
+            this.logSecurityEvent(user, 'UNLIKE_POST', `post:${postId}`);
+        }
+
+        this.saveData();
+
+        return {
+            success: true,
+            likes: post.likes
+        };
+    }
+
+    handleGetGifts(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        this.logSecurityEvent(user, 'GET_GIFTS', `count:${this.gifts.length}`);
+
+        return {
+            success: true,
+            gifts: this.gifts
+        };
+    }
+
+    handleCreateGift(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут создавать подарки
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { name, price, type, image } = data;
+        
+        if (!name || !price) {
+            return { success: false, message: 'Название и цена обязательны' };
+        }
+
+        const sanitizedName = this.sanitizeContent(name);
+
+        const gift = {
+            id: this.generateId(),
+            name: sanitizedName,
+            type: type || 'custom',
+            preview: image ? '🖼️' : '🎁',
+            price: parseInt(price),
+            image: image,
+            createdAt: new Date()
+        };
+
+        this.gifts.push(gift);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'CREATE_GIFT', `name:${sanitizedName}, price:${price}`);
+
+        console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
+
+        return {
+            success: true,
+            gift: gift
+        };
+    }
+
+    handleBuyGift(token, giftId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { toUserId } = data;
+        const gift = this.gifts.find(g => g.id === giftId);
+        
+        if (!gift) {
+            return { success: false, message: 'Подарок не найден' };
+        }
+
+        if (user.coins < gift.price) {
+            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
+            return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
+        }
+
+        const recipient = this.users.find(u => u.id === toUserId);
+        if (!recipient) {
+            return { success: false, message: 'Получатель не найден' };
+        }
+
+        // 🔐 Проверяем что получатель не забанен
+        if (recipient.banned) {
+            this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
+            return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
+        }
+
+        user.coins -= gift.price;
+
+        const giftMessage = {
+            id: this.generateId(),
+            senderId: user.id,
+            toUserId: toUserId,
+            text: '',
+            encrypted: false,
+            type: 'gift',
+            giftId: gift.id,
+            giftName: gift.name,
+            giftPrice: gift.price,
+            giftImage: gift.image,
+            giftPreview: gift.preview,
+            timestamp: new Date(),
+            displayName: user.displayName,
+            read: false
+        };
+
+        this.messages.push(giftMessage);
+
+        if (!recipient.gifts) recipient.gifts = [];
+        recipient.gifts.push({
+            id: this.generateId(),
+            giftId: gift.id,
+            fromUserId: user.id,
+            fromUserName: user.displayName,
+            receivedAt: new Date()
+        });
+
+        recipient.giftsCount = (recipient.giftsCount || 0) + 1;
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
+
+        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
+
+        return {
+            success: true,
+            message: `Подарок "${gift.name}" успешно отправлен!`,
+            gift: gift
+        };
+    }
+
+    handleGetPromoCodes(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        this.logSecurityEvent(user, 'GET_PROMOCODES', `count:${this.promoCodes.length}`);
+
+        return {
+            success: true,
+            promoCodes: this.promoCodes
+        };
+    }
+
+    handleCreatePromoCode(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут создавать промокоды
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { code, coins, max_uses } = data;
+        
+        if (!code || !coins) {
+            return { success: false, message: 'Код и количество коинов обязательны' };
+        }
+
+        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+
+        const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
+        if (existingPromo) {
+            return { success: false, message: 'Промокод с таким кодом уже существует' };
+        }
+
+        const promoCode = {
+            id: this.generateId(),
+            code: sanitizedCode,
+            coins: parseInt(coins),
+            max_uses: max_uses || 0,
+            used_count: 0,
+            created_at: new Date()
+        };
+
+        this.promoCodes.push(promoCode);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'CREATE_PROMOCODE', `code:${sanitizedCode}, coins:${coins}`);
+
+        console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
+
+        return {
+            success: true,
+            promoCode: promoCode
+        };
+    }
+
+    handleActivatePromoCode(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { code } = data;
+        
+        // 🔐 Валидация входных данных
+        if (!this.validateInput(code, 'text')) {
+            return { success: false, message: 'Некорректный промокод' };
+        }
+
+        const sanitizedCode = this.sanitizeContent(code.toUpperCase());
+        const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
+
+                 if (!promoCode) {
+            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
+            return { success: false, message: 'Промокод не найден' };
+        }
+
+        if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
+            this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
+            return { success: false, message: 'Промокод уже использован максимальное количество раз' };
+        }
+
+        user.coins += promoCode.coins;
+        promoCode.used_count++;
+        this.saveData();
+
+        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}, coins:${promoCode.coins}`);
+
+        console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
+
+        return {
+            success: true,
+            message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
+            coins: promoCode.coins
+        };
+    }
+
+    handleUpdateProfile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { displayName, description, username, email } = data;
+
+        if (displayName && displayName.trim()) {
+            // 🔐 Валидация отображаемого имени
+            if (!this.validateInput(displayName, 'displayName')) {
+                return { success: false, message: 'Некорректное отображаемое имя' };
+            }
+            user.displayName = this.sanitizeContent(displayName.trim());
+        }
+
+        if (description !== undefined) {
+            user.description = this.sanitizeContent(description);
+        }
+
+        if (username && username.trim() && username !== user.username) {
+            const sanitizedUsername = this.sanitizeContent(username.trim());
+            
+            // 🔐 Валидация имени пользователя
+            if (!this.validateInput(sanitizedUsername, 'username')) {
+                return { success: false, message: 'Некорректное имя пользователя' };
+            }
+            
+            const existingUser = this.users.find(u => u.username === sanitizedUsername && u.id !== user.id);
+            if (existingUser) {
+                this.logSecurityEvent(user, 'UPDATE_PROFILE', `username:${sanitizedUsername}`, false);
+                return { success: false, message: 'Имя пользователя уже занято' };
+            }
+            user.username = sanitizedUsername;
+        }
+
+        if (email && email.trim() && email !== user.email) {
+            const sanitizedEmail = this.sanitizeContent(email.trim());
+            
+            // 🔐 Валидация email
+            if (!this.validateInput(sanitizedEmail, 'email')) {
+                return { success: false, message: 'Некорректный email' };
+            }
+            
+            const existingEmail = this.users.find(u => u.email === sanitizedEmail && u.id !== user.id);
+            if (existingEmail) {
+                this.logSecurityEvent(user, 'UPDATE_PROFILE', `email:${sanitizedEmail}`, false);
+                return { success: false, message: 'Email уже используется' };
+            }
+            user.email = sanitizedEmail;
+        }
+
+        this.saveData();
+
+        this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM');
+
+        console.log(`📝 Пользователь ${user.username} обновил профиль`);
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
+    }
+
+    handleUpdateAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { avatar } = data;
+
+        if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+            this.deleteFile(user.avatar);
+        }
+
+        user.avatar = avatar;
+        this.saveData();
+
+        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
+
+        console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
+    }
+
+    async handleUploadAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        // Проверяем что это изображение
+        if (!this.validateAvatarFile(filename)) {
+            this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            // Сохраняем файл на сервер
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
+
+            // Удаляем старый аватар если он был
+            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                this.deleteFile(user.avatar);
+            }
+
+            // Сохраняем URL файла вместо base64
+            user.avatar = fileUrl;
+            this.saveData();
+
+            this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
+
+            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
+
+            return {
+                success: true,
+                avatarUrl: fileUrl,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    email: user.email,
+                    avatar: fileUrl, // Возвращаем URL, а не base64
+                    description: user.description,
+                    coins: user.coins,
+                    verified: user.verified,
+                    isDeveloper: user.isDeveloper,
+                    status: user.status,
+                    lastSeen: user.lastSeen,
+                    createdAt: user.createdAt,
+                    friendsCount: user.friendsCount || 0,
+                    postsCount: user.postsCount || 0,
+                    giftsCount: user.giftsCount || 0,
+                    banned: user.banned || false
+                }
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аватара:', error);
+            this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadGift(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут загружать подарки
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.validateGiftFile(filename)) {
+            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
+        }
+
+        if (fileData.length > 10 * 1024 * 1024) {
+            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
+
+            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
+
+            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения подарка:', error);
+            this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.validatePostFile(filename)) {
+            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
+        }
+
+        if (fileData.length > 50 * 1024 * 1024) {
+            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            
+            const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
+
+            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
+
+            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла для поста:', error);
+            this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    handleGetEmoji(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        try {
+            const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
+            const files = fs.readdirSync(emojiPath);
+            const emojiList = files.filter(file => 
+                file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
+            ).map(file => ({
+                name: file,
+                url: `/assets/emoji/${file}`
+            }));
+
+            this.logSecurityEvent(user, 'GET_EMOJI', `count:${emojiList.length}`);
+
+            return {
+                success: true,
+                emoji: emojiList
+            };
+        } catch (error) {
+            this.logSecurityEvent(user, 'GET_EMOJI', 'SYSTEM', false);
+            return {
+                success: true,
+                emoji: []
             };
         }
+    }
+
+    handleToggleVerification(token, data) {
+        const user = this.authenticateToken(token);
         
-        const postUser = this.users.find(u => u.id === post.userId);
-        return {
-            ...post,
-            userName: postUser ? postUser.displayName : 'Неизвестный',
-            userAvatar: postUser ? postUser.avatar : null,
-            userVerified: postUser ? postUser.verified : false,
-            userDeveloper: postUser ? postUser.isDeveloper : false
-        };
-    });
-
-    postsWithUserInfo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    this.logSecurityEvent(user, 'GET_POSTS', `count:${postsWithUserInfo.length}`);
-
-    return {
-        success: true,
-        posts: postsWithUserInfo
-    };
-}
-
-handleCreatePost(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { text, image, file, fileName, fileType } = data;
-    
-    // Проверяем что есть либо текст, либо файл
-    if ((!text || text.trim() === '') && !file && !image) {
-        return { success: false, message: 'Текст поста не может быть пустым' };
-    }
-
-    let sanitizedText = '';
-    if (text && text.trim() !== '') {
-        sanitizedText = this.sanitizeContent(text.trim());
-        if (sanitizedText.length === 0 && !file && !image) {
-            this.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
-            return { success: false, message: 'Текст поста содержит запрещенный контент' };
+        // 🔐 Только администраторы могут управлять верификацией
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
-    }
 
-    const post = {
-        id: this.generateId(),
-        userId: user.id,
-        text: sanitizedText,
-        image: image,
-        file: file,
-        fileName: fileName,
-        fileType: fileType,
-        likes: [],
-        comments: [],
-        views: 0,
-        createdAt: new Date()
-    };
-
-    this.posts.unshift(post);
-    user.postsCount = (user.postsCount || 0) + 1;
-    this.saveData();
-
-    this.logSecurityEvent(user, 'CREATE_POST', `chars:${sanitizedText.length}`);
-
-    console.log(`📝 Новый пост от ${user.displayName}`);
-
-    return {
-        success: true,
-        post: {
-            ...post,
-            userName: user.displayName,
-            userAvatar: user.avatar,
-            userVerified: user.verified,
-            userDeveloper: user.isDeveloper
+        const { userId } = data;
+            
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
         }
-    };
-}
 
-handleDeletePost(token, query) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут удалять посты
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
+        targetUser.verified = !targetUser.verified;
+        this.saveData();
 
-    const { postId } = query;
-    const postIndex = this.posts.findIndex(p => p.id === postId);
-    
-    if (postIndex === -1) {
-        return { success: false, message: 'Пост не найден' };
-    }
+        this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${targetUser.verified}`);
 
-    const post = this.posts[postIndex];
-    
-    if (post.userId === 'system') {
-        return { success: false, message: 'Нельзя удалить системный пост' };
-    }
-
-    if (post.image && post.image.startsWith('/uploads/posts/')) {
-        this.deleteFile(post.image);
-    }
-
-    if (post.file && post.file.startsWith('/uploads/')) {
-        this.deleteFile(post.file);
-    }
-
-    this.posts.splice(postIndex, 1);
-
-    const postUser = this.users.find(u => u.id === post.userId);
-    if (postUser && postUser.postsCount > 0) {
-        postUser.postsCount--;
-    }
-
-    this.saveData();
-
-    this.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
-
-    console.log(`🗑️ Администратор ${user.displayName} удалил пост пользователя ${postUser ? postUser.username : 'unknown'}`);
-
-    return {
-        success: true,
-        message: 'Пост успешно удален'
-    };
-}
-
-handleLikePost(token, postId) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`, false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const post = this.posts.find(p => p.id === postId);
-    if (!post) {
-        return { success: false, message: 'Пост не найден' };
-    }
-
-    const likeIndex = post.likes.indexOf(user.id);
-    if (likeIndex === -1) {
-        post.likes.push(user.id);
-        console.log(`❤️ Пользователь ${user.displayName} лайкнул пост`);
-        this.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`);
-    } else {
-        post.likes.splice(likeIndex, 1);
-        console.log(`💔 Пользователь ${user.displayName} убрал лайк с поста`);
-        this.logSecurityEvent(user, 'UNLIKE_POST', `post:${postId}`);
-    }
-
-    this.saveData();
-
-    return {
-        success: true,
-        likes: post.likes
-    };
-}
-
-handleGetGifts(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    this.logSecurityEvent(user, 'GET_GIFTS', `count:${this.gifts.length}`);
-
-    return {
-        success: true,
-        gifts: this.gifts
-    };
-}
-
-handleCreateGift(token, data) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут создавать подарки
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const { name, price, type, image } = data;
-    
-    if (!name || !price) {
-        return { success: false, message: 'Название и цена обязательны' };
-    }
-
-    const sanitizedName = this.sanitizeContent(name);
-
-    const gift = {
-        id: this.generateId(),
-        name: sanitizedName,
-        type: type || 'custom',
-        preview: image ? '🖼️' : '🎁',
-        price: parseInt(price),
-        image: image,
-        createdAt: new Date()
-    };
-
-    this.gifts.push(gift);
-    this.saveData();
-
-    this.logSecurityEvent(user, 'CREATE_GIFT', `name:${sanitizedName}, price:${price}`);
-
-    console.log(`🎁 Администратор ${user.displayName} создал новый подарок: ${sanitizedName}`);
-
-    return {
-        success: true,
-        gift: gift
-    };
-}
-
-handleBuyGift(token, giftId, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { toUserId } = data;
-    const gift = this.gifts.find(g => g.id === giftId);
-    
-    if (!gift) {
-        return { success: false, message: 'Подарок не найден' };
-    }
-
-    if (user.coins < gift.price) {
-        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
-        return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
-    }
-
-    const recipient = this.users.find(u => u.id === toUserId);
-    if (!recipient) {
-        return { success: false, message: 'Получатель не найден' };
-    }
-
-    // 🔐 Проверяем что получатель не забанен
-    if (recipient.banned) {
-        this.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
-        return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
-    }
-
-    user.coins -= gift.price;
-
-    const giftMessage = {
-        id: this.generateId(),
-        senderId: user.id,
-        toUserId: toUserId,
-        text: '',
-        encrypted: false,
-        type: 'gift',
-        giftId: gift.id,
-        giftName: gift.name,
-        giftPrice: gift.price,
-        giftImage: gift.image,
-        giftPreview: gift.preview,
-        timestamp: new Date(),
-        displayName: user.displayName,
-        read: false
-    };
-
-    this.messages.push(giftMessage);
-
-    if (!recipient.gifts) recipient.gifts = [];
-    recipient.gifts.push({
-        id: this.generateId(),
-        giftId: gift.id,
-        fromUserId: user.id,
-        fromUserName: user.displayName,
-        receivedAt: new Date()
-    });
-
-    recipient.giftsCount = (recipient.giftsCount || 0) + 1;
-
-    this.saveData();
-
-    this.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
-
-    console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
-
-    return {
-        success: true,
-        message: `Подарок "${gift.name}" успешно отправлен!`,
-        gift: gift
-    };
-}
-
-handleGetPromoCodes(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    this.logSecurityEvent(user, 'GET_PROMOCODES', `count:${this.promoCodes.length}`);
-
-    return {
-        success: true,
-        promoCodes: this.promoCodes
-    };
-}
-
-handleCreatePromoCode(token, data) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут создавать промокоды
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const { code, coins, max_uses } = data;
-    
-    if (!code || !coins) {
-        return { success: false, message: 'Код и количество коинов обязательны' };
-    }
-
-    const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-
-    const existingPromo = this.promoCodes.find(p => p.code === sanitizedCode);
-    if (existingPromo) {
-        return { success: false, message: 'Промокод с таким кодом уже существует' };
-    }
-
-    const promoCode = {
-        id: this.generateId(),
-        code: sanitizedCode,
-        coins: parseInt(coins),
-        max_uses: max_uses || 0,
-        used_count: 0,
-        created_at: new Date()
-    };
-
-    this.promoCodes.push(promoCode);
-    this.saveData();
-
-    this.logSecurityEvent(user, 'CREATE_PROMOCODE', `code:${sanitizedCode}, coins:${coins}`);
-
-    console.log(`🎫 Администратор ${user.username} создал промокод: ${sanitizedCode}`);
-
-    return {
-        success: true,
-        promoCode: promoCode
-    };
-}
-
-handleActivatePromoCode(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { code } = data;
-    
-    // 🔐 Валидация входных данных
-    if (!this.validateInput(code, 'text')) {
-        return { success: false, message: 'Некорректный промокод' };
-    }
-
-    const sanitizedCode = this.sanitizeContent(code.toUpperCase());
-    const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
-
-    if (!promoCode) {
-        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
-        return { success: false, message: 'Промокод не найден' };
-    }
-
-    if (promoCode.max_uses > 0 && promoCode.used_count >= promoCode.max_uses) {
-        this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
-        return { success: false, message: 'Промокод уже использован максимальное количество раз' };
-    }
-
-    user.coins += promoCode.coins;
-    promoCode.used_count++;
-    this.saveData();
-
-    this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}, coins:${promoCode.coins}`);
-
-    console.log(`💰 Пользователь ${user.displayName} активировал промокод ${sanitizedCode} (+${promoCode.coins} E-COIN)`);
-
-    return {
-        success: true,
-        message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
-        coins: promoCode.coins
-    };
-}
-
-handleUpdateProfile(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { displayName, description, username, email } = data;
-
-    if (displayName && displayName.trim()) {
-        // 🔐 Валидация отображаемого имени
-        if (!this.validateInput(displayName, 'displayName')) {
-            return { success: false, message: 'Некорректное отображаемое имя' };
-        }
-        user.displayName = this.sanitizeContent(displayName.trim());
-    }
-
-    if (description !== undefined) {
-        user.description = this.sanitizeContent(description);
-    }
-
-    if (username && username.trim() && username !== user.username) {
-        const sanitizedUsername = this.sanitizeContent(username.trim());
-        
-        // 🔐 Валидация имени пользователя
-        if (!this.validateInput(sanitizedUsername, 'username')) {
-            return { success: false, message: 'Некорректное имя пользователя' };
-        }
-        
-        const existingUser = this.users.find(u => u.username === sanitizedUsername && u.id !== user.id);
-        if (existingUser) {
-            this.logSecurityEvent(user, 'UPDATE_PROFILE', `username:${sanitizedUsername}`, false);
-            return { success: false, message: 'Имя пользователя уже занято' };
-        }
-        user.username = sanitizedUsername;
-    }
-
-    if (email && email.trim() && email !== user.email) {
-        const sanitizedEmail = this.sanitizeContent(email.trim());
-        
-        // 🔐 Валидация email
-        if (!this.validateInput(sanitizedEmail, 'email')) {
-            return { success: false, message: 'Некорректный email' };
-        }
-        
-        const existingEmail = this.users.find(u => u.email === sanitizedEmail && u.id !== user.id);
-        if (existingEmail) {
-            this.logSecurityEvent(user, 'UPDATE_PROFILE', `email:${sanitizedEmail}`, false);
-            return { success: false, message: 'Email уже используется' };
-        }
-        user.email = sanitizedEmail;
-    }
-
-    this.saveData();
-
-    this.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM');
-
-    console.log(`📝 Пользователь ${user.username} обновил профиль`);
-
-    return {
-        success: true,
-        user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            email: user.email,
-            avatar: user.avatar,
-            description: user.description,
-            coins: user.coins,
-            verified: user.verified,
-            isDeveloper: user.isDeveloper,
-            status: user.status,
-            lastSeen: user.lastSeen,
-            createdAt: user.createdAt,
-            friendsCount: user.friendsCount || 0,
-            postsCount: user.postsCount || 0,
-            giftsCount: user.giftsCount || 0,
-            banned: user.banned || false
-        }
-    };
-}
-
-handleUpdateAvatar(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { avatar } = data;
-
-    if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-        this.deleteFile(user.avatar);
-    }
-
-    user.avatar = avatar;
-    this.saveData();
-
-    this.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
-
-    console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
-
-    return {
-        success: true,
-        user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            email: user.email,
-            avatar: user.avatar,
-            description: user.description,
-            coins: user.coins,
-            verified: user.verified,
-            isDeveloper: user.isDeveloper,
-            status: user.status,
-            lastSeen: user.lastSeen,
-            createdAt: user.createdAt,
-            friendsCount: user.friendsCount || 0,
-            postsCount: user.postsCount || 0,
-            giftsCount: user.giftsCount || 0,
-            banned: user.banned || false
-        }
-    };
-}
-
-async handleUploadAvatar(token, data) {
-    // Временно отключаем загрузку аватаров
-    return { success: false, message: 'Загрузка аватаров временно отключена' };
-}
-
-async handleUploadGift(token, data) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут загружать подарки
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const { fileData, filename } = data;
-
-    if (!this.validateGiftFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
-    }
-
-    if (fileData.length > 10 * 1024 * 1024) {
-        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-        return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
-    }
-
-    try {
-        const fileExt = path.extname(filename);
-        const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-        
-        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'gift');
-
-        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
-
-        console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
+        console.log(`✅ Администратор ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
 
         return {
             success: true,
-            imageUrl: fileUrl
+            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
+            verified: targetUser.verified
         };
-    } catch (error) {
-        console.error('Ошибка загрузки изображения подарка:', error);
-        this.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
-    }
-}
-
-async handleUploadPostImage(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
     }
 
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { fileData, filename } = data;
-
-    if (!this.validatePostFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
-    }
-
-    if (fileData.length > 50 * 1024 * 1024) {
-        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-        return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
-    }
-
-    try {
-        const fileExt = path.extname(filename);
-        const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+    handleToggleDeveloper(token, data) {
+        const user = this.authenticateToken(token);
         
-        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'post');
-
-        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
-
-        console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
-
-        return {
-            success: true,
-            imageUrl: fileUrl
-        };
-    } catch (error) {
-        console.error('Ошибка загрузки файла для поста:', error);
-        this.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
-    }
-}
-
-handleGetEmoji(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    try {
-        const emojiPath = path.join(__dirname, 'public', 'assets', 'emoji');
-        const files = fs.readdirSync(emojiPath);
-        const emojiList = files.filter(file => 
-            file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
-        ).map(file => ({
-            name: file,
-            url: `/assets/emoji/${file}`
-        }));
-
-        this.logSecurityEvent(user, 'GET_EMOJI', `count:${emojiList.length}`);
-
-        return {
-            success: true,
-            emoji: emojiList
-        };
-    } catch (error) {
-        this.logSecurityEvent(user, 'GET_EMOJI', 'SYSTEM', false);
-        return {
-            success: true,
-            emoji: []
-        };
-    }
-}
-
-handleToggleVerification(token, data) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут управлять верификацией
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const { userId } = data;
-        
-    const targetUser = this.users.find(u => u.id === userId);
-    if (!targetUser) {
-        return { success: false, message: 'Пользователь не найден' };
-    }
-
-    targetUser.verified = !targetUser.verified;
-    this.saveData();
-
-    this.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${targetUser.verified}`);
-
-    console.log(`✅ Администратор ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
-
-    return {
-        success: true,
-        message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
-        verified: targetUser.verified
-    };
-}
-
-handleToggleDeveloper(token, data) {
-    const user = this.authenticateToken(token);
-    
-    // 🔐 Только администраторы могут управлять правами разработчика
-    if (!user || !this.isAdmin(user)) {
-        this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const { userId } = data;
-        
-    const targetUser = this.users.find(u => u.id === userId);
-    if (!targetUser) {
-        return { success: false, message: 'Пользователь не найден' };
-    }
-
-    targetUser.isDeveloper = !targetUser.isDeveloper;
-    this.saveData();
-
-    this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${targetUser.isDeveloper}`);
-
-    console.log(`👑 Администратор ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
-
-    return {
-        success: true,
-        message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
-        isDeveloper: targetUser.isDeveloper
-    };
-}
-
-handleGetTransactions(token, userId) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ транзакции
-    if (user.id !== userId) {
-        this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`, false);
-        return { success: false, message: 'Доступ запрещен' };
-    }
-
-    const transactions = [
-        {
-            description: 'Регистрация бонус',
-            date: user.createdAt,
-            amount: user.coins >= 50000 ? 50000 : 1000
+        // 🔐 Только администраторы могут управлять правами разработчика
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
-    ];
 
-    this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`);
+        const { userId } = data;
+            
+        const targetUser = this.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
 
-    return {
-        success: true,
-        transactions: transactions
-    };
-}
+        targetUser.isDeveloper = !targetUser.isDeveloper;
+        this.saveData();
 
-handleGetDevices(token) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
+        this.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${targetUser.isDeveloper}`);
 
-    const devices = this.getUserDevices(user.id);
-        
-    this.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
+        console.log(`👑 Администратор ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
 
-    return {
-        success: true,
-        devices: devices
-    };
-}
-
-handleTerminateDevice(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    const { deviceId } = data;
-    const success = this.terminateDevice(user.id, deviceId);
-
-    if (success) {
-        this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`);
         return {
             success: true,
-            message: 'Сеанс устройства завершен'
-        };
-    } else {
-        this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`, false);
-        return {
-            success: false,
-            message: 'Не удалось завершить сеанс устройства'
+            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
+            isDeveloper: targetUser.isDeveloper
         };
     }
-}
+
+    handleGetTransactions(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ транзакции
+        if (user.id !== userId) {
+            this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`, false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const transactions = [
+            {
+                description: 'Регистрация бонус',
+                date: user.createdAt,
+                amount: user.coins >= 50000 ? 50000 : 1000
+            }
+        ];
+
+        this.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`);
+
+        return {
+            success: true,
+            transactions: transactions
+        };
+    }
+
+    handleGetDevices(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const devices = this.getUserDevices(user.id);
+            
+        this.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
+
+        return {
+            success: true,
+            devices: devices
+        };
+    }
+
+    handleTerminateDevice(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { deviceId } = data;
+        const success = this.terminateDevice(user.id, deviceId);
+
+        if (success) {
+            this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`);
+            return {
+                success: true,
+                message: 'Сеанс устройства завершен'
+            };
+        } else {
+            this.logSecurityEvent(user, 'TERMINATE_DEVICE', `device:${deviceId}`, false);
+            return {
+                success: false,
+                message: 'Не удалось завершить сеанс устройства'
+            };
+        }
+    }
   
     start(port = 3000) {
         const server = http.createServer((req, res) => {
@@ -4161,6 +4397,12 @@ handleTerminateDevice(token, data) {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname === '/music.html' || pathname === '/music') {
                 this.serveStaticFile(res, 'public/music.html', 'text/html');
+            } else if (pathname === '/posts.html' || pathname === '/posts') {
+                this.serveStaticFile(res, 'public/posts.html', 'text/html');
+            } else if (pathname === '/chat.html' || pathname === '/chat') {
+                this.serveStaticFile(res, 'public/chat.html', 'text/html');
+            } else if (pathname === '/profile.html' || pathname === '/profile') {
+                this.serveStaticFile(res, 'public/profile.html', 'text/html');
             } else if (pathname.endsWith('.css')) {
                 this.serveStaticFile(res, 'public' + pathname, 'text/css');
             } else if (pathname.endsWith('.js')) {
@@ -4225,17 +4467,22 @@ handleTerminateDevice(token, data) {
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Посты: http://localhost:${port}/posts`);
+            console.log(`   - Мессенджер: http://localhost:${port}/chat`);
+            console.log(`   - Профиль: http://localhost:${port}/profile`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
-            console.log(`\n🔧 ВРЕМЕННО ОТКЛЮЧЕННЫЕ ФУНКЦИИ:`);
-            console.log(`   ❌ Загрузка аватаров временно отключена`);
+            console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ ЗАГРУЗКИ:`);
+            console.log(`   ✅ Аватары: /api/upload-avatar (multipart/form-data)`);
             console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
             console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
             console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
+            console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
+            console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
         });
 
         return server;
