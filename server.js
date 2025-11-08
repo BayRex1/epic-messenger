@@ -4386,7 +4386,7 @@ class SimpleServer {
                 return;
             }
 
-                     // Обработка статических файлов для мобильной и десктопной версий
+          // Обработка статических файлов для мобильной и десктопной версий
 if (pathname === '/' || pathname === '/index.html') {
     this.serveStaticFile(res, 'public/main.html', 'text/html');
 } else if (pathname === '/mobile.html' || pathname === '/mobile') {
@@ -4443,51 +4443,52 @@ if (pathname === '/' || pathname === '/index.html') {
         this.serveStaticFile(res, 'public/main.html', 'text/html');
     }
 }
-}
 
-const wsServer = new WebSocketServer(server);
+        });
 
-server.listen(port, () => {
-    console.log(`🚀 Сервер запущен на порту ${port}`);
-    console.log(`📧 Epic Messenger готов к работе!`);
-    console.log(`🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
-    console.log(`   ✅ Rate limiting включен`);
-    console.log(`   ✅ Система сессий активирована`);
-    console.log(`   ✅ Проверка прав доступа включена`);
-    console.log(`   ✅ Валидация входных данных активна`);
-    console.log(`   ✅ Безопасные заголовки установлены`);
-    console.log(`   ✅ Логирование безопасности включено`);
-    console.log(`💾 Система сохранения данных активирована`);
-    console.log(`🔒 Данные пользователей защищены шифрованием`);
-    console.log(`📁 Поддержка загрузки файлов включена`);
-    console.log(`🎵 Музыкальный модуль активирован`);
-    console.log(`🛡️  Система банов по IP и устройствам активирована`);
-    console.log(`👥 Система групп активирована`);
-    console.log(`\n👑 Особый пользователь:`);
-    console.log(`   - BayRex - получает права администратора при регистрации`);
-    console.log(`\n📄 Доступные страницы:`);
-    console.log(`   - Основное приложение: http://localhost:${port}/`);
-    console.log(`   - Посты: http://localhost:${port}/posts`);
-    console.log(`   - Посты (альтернативная ссылка): http://localhost:${port}/post`);
-    console.log(`   - Мессенджер: http://localhost:${port}/chat`);
-    console.log(`   - Профиль: http://localhost:${port}/profile`);
-    console.log(`   - Страница входа: http://localhost:${port}/login.html`);
-    console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
-    console.log(`   - О проекте: http://localhost:${port}/about`);
-    console.log(`\n💾 Файл данных: ${this.dataFile}`);
-    console.log(`📊 Логи безопасности: /tmp/security.log`);
-    console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
-    console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ ЗАГРУЗКИ:`);
-    console.log(`   ✅ Аватары: /api/upload-avatar (multipart/form-data)`);
-    console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
-    console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
-    console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
-    console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
-    console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
-});
+        const wsServer = new WebSocketServer(server);
 
-return server;
-}
+        server.listen(port, () => {
+            console.log(`🚀 Сервер запущен на порту ${port}`);
+            console.log(`📧 Epic Messenger готов к работе!`);
+            console.log(`🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
+            console.log(`   ✅ Rate limiting включен`);
+            console.log(`   ✅ Система сессий активирована`);
+            console.log(`   ✅ Проверка прав доступа включена`);
+            console.log(`   ✅ Валидация входных данных активна`);
+            console.log(`   ✅ Безопасные заголовки установлены`);
+            console.log(`   ✅ Логирование безопасности включено`);
+            console.log(`💾 Система сохранения данных активирована`);
+            console.log(`🔒 Данные пользователей защищены шифрованием`);
+            console.log(`📁 Поддержка загрузки файлов включена`);
+            console.log(`🎵 Музыкальный модуль активирован`);
+            console.log(`🛡️  Система банов по IP и устройствам активирована`);
+            console.log(`👥 Система групп активирована`);
+            console.log(`\n👑 Особый пользователь:`);
+            console.log(`   - BayRex - получает права администратора при регистрации`);
+            console.log(`\n📄 Доступные страницы:`);
+            console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Посты: http://localhost:${port}/posts`);
+            console.log(`   - Посты (альтернативная ссылка): http://localhost:${port}/post`);
+            console.log(`   - Мессенджер: http://localhost:${port}/chat`);
+            console.log(`   - Профиль: http://localhost:${port}/profile`);
+            console.log(`   - Страница входа: http://localhost:${port}/login.html`);
+            console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
+            console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`\n💾 Файл данных: ${this.dataFile}`);
+            console.log(`📊 Логи безопасности: /tmp/security.log`);
+            console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
+            console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ ЗАГРУЗКИ:`);
+            console.log(`   ✅ Аватары: /api/upload-avatar (multipart/form-data)`);
+            console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
+            console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
+            console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
+            console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
+            console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
+        });
+
+        return server;
+    }
 }
 
 const server = new SimpleServer();
