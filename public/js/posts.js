@@ -1,347 +1,274 @@
-class PostsManager {
-    constructor() {
-        this.posts = [];
-    }
+// Функции для работы с постами
 
-    async loadPosts() {
-        try {
-            const response = await fetch('/api/posts', {
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    this.posts = data.posts;
-                    this.renderPosts();
-                }
+async function loadPosts() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/posts', {
+            headers: {
+                'Authorization': `Bearer ${token}`
             }
-        } catch (error) {
-            console.error('Error loading posts:', error);
-        }
-    }
-
-    renderPosts() {
-        const postsContainer = document.getElementById('postsContainer');
-        if (!postsContainer) return;
-
-        if (this.posts.length === 0) {
-            postsContainer.innerHTML = `
-                <div class="empty-state">
-                    <img src="/assets/feed.svg" alt="No posts" class="empty-icon">
-                    <h3>Пока нет постов</h3>
-                    <p>Будьте первым, кто поделится чем-то интересным!</p>
-                </div>
-            `;
-            return;
-        }
-
-        postsContainer.innerHTML = this.posts.map(post => `
-            <div class="post" data-post-id="${post.id}">
-                <div class="post-header">
-                    <div class="user-info">
-                        <img src="${post.user.avatar || '/assets/profile.svg'}" alt="Avatar" class="user-avatar">
-                        <div class="user-details">
-                            <span class="display-name">${post.user.displayName}</span>
-                            <span class="username">${post.user.username}</span>
-                        </div>
-                        ${post.user.isVerified ? '<span class="verified-badge">✓</span>' : ''}
-                        ${post.user.isDeveloper ? '<span class="developer-badge">⚡</span>' : ''}
-                    </div>
-                    <span class="post-time">${app.formatTime(post.createdAt)}</span>
-                </div>
-                
-                <div class="post-content">
-                    ${post.text ? `<p class="post-text">${this.escapeHtml(post.text)}</p>` : ''}
-                    ${post.media ? this.renderMedia(post.media) : ''}
-                </div>
-                
-                <div class="post-stats">
-                    <span class="views-count">👁️ ${post.views} просмотров</span>
-                </div>
-                
-                <div class="post-actions">
-                    <button class="post-action like-btn ${post.likedBy.includes(app.currentUser.id) ? 'liked' : ''}" 
-                            onclick="postsManager.likePost('${post.id}')">
-                        <img src="/assets/like.svg" alt="Like" class="action-icon">
-                        <span class="action-count">${post.likes}</span>
-                    </button>
-                    
-                    <button class="post-action comment-btn" onclick="postsManager.toggleComments('${post.id}')">
-                        <img src="/assets/message.svg" alt="Comments" class="action-icon">
-                        <span>Комментировать</span>
-                    </button>
-                    
-                    <button class="post-action share-btn" onclick="postsManager.sharePost('${post.id}')">
-                        <img src="/assets/gift.svg" alt="Share" class="action-icon">
-                        <span>Поделиться</span>
-                    </button>
-                </div>
-                
-                <div class="post-comments" id="comments-${post.id}" style="display: none;">
-                    <!-- Комментарии будут здесь -->
-                </div>
-            </div>
-        `).join('');
-    }
-
-    renderMedia(media) {
-        if (!media) return '';
-
-        switch (media.type) {
-            case 'image':
-                return `
-                    <div class="post-media">
-                        <img src="${media.url}" alt="Post image" onclick="postsManager.openMedia('${media.url}')">
-                    </div>
-                `;
-            case 'video':
-                return `
-                    <div class="post-media">
-                        <video controls>
-                            <source src="${media.url}" type="video/mp4">
-                            Ваш браузер не поддерживает видео.
-                        </video>
-                    </div>
-                `;
-            case 'audio':
-                return `
-                    <div class="post-media">
-                        <audio controls>
-                            <source src="${media.url}" type="audio/mpeg">
-                            Ваш браузер не поддерживает аудио.
-                        </audio>
-                    </div>
-                `;
-            default:
-                return `
-                    <div class="post-file">
-                        <a href="${media.url}" download class="file-download">
-                            📎 Скачать файл: ${media.originalName || 'файл'}
-                        </a>
-                    </div>
-                `;
-        }
-    }
-
-    async createPost(e) {
-        e.preventDefault();
+        });
         
-        const formData = new FormData();
-        const textInput = document.getElementById('postText');
-        const mediaInput = document.getElementById('postMedia');
-        const mediaPreview = document.getElementById('mediaPreview');
-
-        if (textInput.value.trim()) {
-            formData.append('text', textInput.value.trim());
-        }
-
-        if (mediaInput.files[0]) {
-            formData.append('media', mediaInput.files[0]);
-        }
-
-        if (!textInput.value.trim() && !mediaInput.files[0]) {
-            app.showNotification('Пост должен содержать текст или медиа', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/posts/create', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`
-                },
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                textInput.value = '';
-                mediaInput.value = '';
-                mediaPreview.innerHTML = '';
-                mediaPreview.style.display = 'none';
-                
-                app.showNotification('Пост опубликован!', 'success');
-                await this.loadPosts(); // Перезагрузить посты
-            } else {
-                app.showNotification(data.message, 'error');
-            }
-        } catch (error) {
-            console.error('Error creating post:', error);
-            app.showNotification('Ошибка при публикации поста', 'error');
-        }
-    }
-
-    async likePost(postId) {
-        try {
-            const response = await fetch(`/api/posts/${postId}/like`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${app.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Обновить UI
-                const likeBtn = document.querySelector(`[data-post-id="${postId}"] .like-btn`);
-                const likeCount = likeBtn.querySelector('.action-count');
-                
-                likeBtn.classList.toggle('liked', data.liked);
-                likeCount.textContent = data.likes;
-
-                app.showNotification(data.liked ? 'Лайк добавлен!' : 'Лайк удален', 'info');
-            }
-        } catch (error) {
-            console.error('Error liking post:', error);
-            app.showNotification('Ошибка при добавлении лайка', 'error');
-        }
-    }
-
-    previewMedia(e) {
-        const file = e.target.files[0];
-        const preview = document.getElementById('mediaPreview');
+        const data = await response.json();
         
-        if (!file) {
-            preview.innerHTML = '';
-            preview.style.display = 'none';
-            return;
+        if (data.success) {
+            posts = data.posts;
+            renderPosts(posts);
         }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const fileType = file.type.split('/')[0];
-            let previewHTML = '';
-
-            switch (fileType) {
-                case 'image':
-                    previewHTML = `
-                        <div class="media-preview-item">
-                            <img src="${e.target.result}" alt="Preview">
-                            <button type="button" class="remove-media" onclick="postsManager.removeMediaPreview()">×</button>
-                        </div>
-                    `;
-                    break;
-                case 'video':
-                    previewHTML = `
-                        <div class="media-preview-item">
-                            <video controls>
-                                <source src="${e.target.result}" type="${file.type}">
-                            </video>
-                            <button type="button" class="remove-media" onclick="postsManager.removeMediaPreview()">×</button>
-                        </div>
-                    `;
-                    break;
-                case 'audio':
-                    previewHTML = `
-                        <div class="media-preview-item">
-                            <audio controls>
-                                <source src="${e.target.result}" type="${file.type}">
-                            </audio>
-                            <button type="button" class="remove-media" onclick="postsManager.removeMediaPreview()">×</button>
-                        </div>
-                    `;
-                    break;
-                default:
-                    previewHTML = `
-                        <div class="media-preview-item">
-                            <div class="file-preview">
-                                <span>📎 ${file.name}</span>
-                            </div>
-                            <button type="button" class="remove-media" onclick="postsManager.removeMediaPreview()">×</button>
-                        </div>
-                    `;
-            }
-
-            preview.innerHTML = previewHTML;
-            preview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-
-    removeMediaPreview() {
-        const preview = document.getElementById('mediaPreview');
-        const mediaInput = document.getElementById('postMedia');
-        
-        preview.innerHTML = '';
-        preview.style.display = 'none';
-        mediaInput.value = '';
-    }
-
-    openMedia(url) {
-        // Открыть медиа в полном размере
-        window.open(url, '_blank');
-    }
-
-    toggleComments(postId) {
-        const commentsSection = document.getElementById(`comments-${postId}`);
-        if (commentsSection.style.display === 'none') {
-            commentsSection.style.display = 'block';
-            this.loadComments(postId);
-        } else {
-            commentsSection.style.display = 'none';
-        }
-    }
-
-    async loadComments(postId) {
-        // Загрузка комментариев для поста
-        const commentsSection = document.getElementById(`comments-${postId}`);
-        commentsSection.innerHTML = '<div class="loading">Загрузка комментариев...</div>';
-
-        // Здесь будет API для загрузки комментариев
-        setTimeout(() => {
-            commentsSection.innerHTML = `
-                <div class="comment-form">
-                    <textarea placeholder="Напишите комментарий..." class="comment-input"></textarea>
-                    <button class="btn btn-primary" onclick="postsManager.addComment('${postId}')">Отправить</button>
-                </div>
-                <div class="comments-list">
-                    <div class="empty-comments">Пока нет комментариев</div>
-                </div>
-            `;
-        }, 500);
-    }
-
-    async addComment(postId) {
-        // Добавление комментария
-        app.showNotification('Функция комментариев в разработке', 'info');
-    }
-
-    async sharePost(postId) {
-        // Поделиться постом
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Посмотрите этот пост',
-                    text: 'Интересный пост из Epic Messenger',
-                    url: window.location.href
-                });
-            } catch (error) {
-                console.log('Ошибка sharing:', error);
-            }
-        } else {
-            // Fallback - скопировать ссылку
-            navigator.clipboard.writeText(window.location.href);
-            app.showNotification('Ссылка скопирована в буфер обмена', 'success');
-        }
-    }
-
-    handleNewPost(post) {
-        // Добавить новый пост в начало списка
-        this.posts.unshift(post);
-        this.renderPosts();
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    } catch (error) {
+        console.error('Ошибка загрузки постов:', error);
     }
 }
 
-const postsManager = new PostsManager();
+function renderPosts(posts) {
+    const postsList = document.getElementById('postsList');
+    if (!postsList) return;
+    
+    postsList.innerHTML = '';
+    
+    if (posts.length === 0) {
+        postsList.innerHTML = '<div class="system-message">Пока нет постов. Будьте первым!</div>';
+        return;
+    }
+    
+    posts.forEach(post => {
+        const postElement = createPostElement(post);
+        postsList.appendChild(postElement);
+    });
+}
+
+function createPostElement(post) {
+    const postElement = document.createElement('div');
+    postElement.className = 'post';
+    
+    let mediaHtml = '';
+    if (post.image) {
+        mediaHtml = `
+            <div class="post-media">
+                <img src="${post.image}" alt="Изображение поста" onclick="openImageModal('${post.image}')">
+            </div>
+        `;
+    } else if (post.file && post.fileType === 'video') {
+        mediaHtml = `
+            <div class="post-media">
+                <video controls>
+                    <source src="${post.file}" type="video/mp4">
+                    Ваш браузер не поддерживает видео.
+                </video>
+            </div>
+        `;
+    } else if (post.file && post.fileType === 'audio') {
+        mediaHtml = `
+            <div class="post-audio">
+                <audio controls>
+                    <source src="${post.file}" type="audio/mpeg">
+                    Ваш браузер не поддерживает аудио.
+                </audio>
+            </div>
+        `;
+    }
+    
+    // Обрабатываем упоминания в тексте
+    let postText = post.text || '';
+    postText = processMentions(postText);
+    
+    postElement.innerHTML = `
+        <div class="post-header">
+            <div class="post-user">
+                <div class="post-avatar">
+                    ${post.userAvatar ? 
+                        `<img src="${post.userAvatar}" alt="${post.userName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                        post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
+                    }
+                </div>
+                <div class="post-user-info">
+                    <h4>
+                        ${post.userName || 'Неизвестный'}
+                        ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                        ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    </h4>
+                    <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
+                </div>
+                ${currentUser && currentUser.isDeveloper && post.userId !== currentUser.id ? `
+                    <div style="margin-left: auto;">
+                        <button class="admin-btn delete delete-post-btn" data-post-id="${post.id}">Удалить</button>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+        <div class="post-content">
+            <div class="post-text">${postText}</div>
+            ${mediaHtml}
+        </div>
+        <div class="post-actions">
+            <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
+                </svg>
+                <span>${post.likes ? post.likes.length : 0}</span>
+            </button>
+            <div class="post-views">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+                </svg>
+                <span>${post.views || 0}</span>
+            </div>
+        </div>
+    `;
+    
+    const likeBtn = postElement.querySelector('.like-btn');
+    if (likeBtn) {
+        likeBtn.addEventListener('click', function() {
+            toggleLike(post.id);
+        });
+    }
+
+    const deleteBtn = postElement.querySelector('.delete-post-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            deletePost(post.id);
+        });
+    }
+    
+    return postElement;
+}
+
+async function publishPost() {
+    const postText = document.getElementById('postText');
+    const text = postText.value.trim();
+    const fileInput = document.getElementById('postFileInput');
+    const image = fileInput.dataset.fileUrl || null;
+    const fileName = fileInput.dataset.fileName || null;
+    const fileType = fileInput.dataset.fileType || null;
+    
+    if (!text && !image) {
+        showNotification('Введите текст поста или добавьте файл', 'warning');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/posts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                text: text,
+                image: image,
+                file: image,
+                fileName: fileName,
+                fileType: fileType
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            postText.value = '';
+            fileInput.dataset.fileUrl = '';
+            fileInput.dataset.fileName = '';
+            fileInput.dataset.fileType = '';
+            document.getElementById('postFilePreview').innerHTML = '';
+            
+            // Отправляем уведомление через WebSocket
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'new_post',
+                    post: data.post
+                }));
+            }
+            
+            loadPosts();
+            showNotification('Пост опубликован!', 'success');
+        } else {
+            showNotification('Ошибка публикации поста: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка публикации поста:', error);
+        showNotification('Ошибка публикации поста', 'error');
+    }
+}
+
+async function toggleLike(postId) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/posts/${postId}/like`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Отправляем уведомление через WebSocket
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'post_liked',
+                    postId: postId,
+                    userId: currentUser.id
+                }));
+            }
+            
+            loadPosts();
+        } else {
+            showNotification('Ошибка лайка: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка лайка:', error);
+        showNotification('Ошибка лайка', 'error');
+    }
+}
+
+async function deletePost(postId) {
+    if (!confirm('Вы уверены, что хотите удалить этот пост?')) return;
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/posts/${postId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Пост удален', 'success');
+            loadPosts();
+        } else {
+            showNotification('Ошибка удаления поста: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка удаления поста:', error);
+        showNotification('Ошибка удаления поста', 'error');
+    }
+}
+
+// Инициализация постов
+function initializePosts() {
+    const publishPostBtn = document.getElementById('publishPostBtn');
+    const addFileBtn = document.getElementById('addFileBtn');
+    
+    if (publishPostBtn) {
+        publishPostBtn.addEventListener('click', publishPost);
+    }
+    
+    if (addFileBtn) {
+        addFileBtn.addEventListener('click', function() {
+            document.getElementById('postFileInput').click();
+        });
+    }
+    
+    // Загружаем посты при инициализации
+    loadPosts();
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    initializePosts();
+});
