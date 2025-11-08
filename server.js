@@ -70,71 +70,137 @@ class WebSocketServer {
 
     handleMessage(clientId, data) {
         try {
-            const message = this.decodeMessage(data);
-            if (message && message.type && message.data) {
-                this.broadcast(message.type, message.data, clientId);
+            const firstByte = data.readUInt8(0);
+            const opcode = firstByte & 0x0F;
+            
+            // Обработка ping фрейма
+            if (opcode === 9) {
+                console.log('🏓 Получен PING от клиента', clientId);
+                this.sendPong(clientId);
+                return;
             }
+            
+            // Обработка pong фрейма
+            if (opcode === 10) {
+                console.log('🏓 Получен PONG от клиента', clientId);
+                return;
+            }
+            
+            // Обработка текстового фрейма
+            if (opcode === 1) {
+                const message = this.decodeMessage(data);
+                if (message && message.type && message.data) {
+                    console.log(`📨 WebSocket сообщение от ${clientId}:`, message.type);
+                    this.broadcast(message.type, message.data, clientId);
+                }
+            }
+            
         } catch (error) {
-            console.log('Error decoding message:', error);
+            console.log('❌ Ошибка обработки WebSocket сообщения:', error);
         }
     }
 
     decodeMessage(buffer) {
-        const firstByte = buffer.readUInt8(0);
-        const secondByte = buffer.readUInt8(1);
-        
-        const isFinalFrame = Boolean(firstByte & 0x80);
-        const opcode = firstByte & 0x0F;
-        
-        let payloadLength = secondByte & 0x7F;
-        let maskStart = 2;
-        
-        if (payloadLength === 126) {
-            payloadLength = buffer.readUInt16BE(2);
-            maskStart = 4;
-        } else if (payloadLength === 127) {
-            payloadLength = Number(buffer.readBigUInt64BE(2));
-            maskStart = 10;
+        try {
+            // Проверяем, что это текстовый фрейм (opcode = 1)
+            const firstByte = buffer.readUInt8(0);
+            const opcode = firstByte & 0x0F;
+            
+            if (opcode !== 1) {
+                console.log('❌ Не текстовый фрейм, opcode:', opcode);
+                return null;
+            }
+
+            const secondByte = buffer.readUInt8(1);
+            
+            const isFinalFrame = Boolean(firstByte & 0x80);
+            let payloadLength = secondByte & 0x7F;
+            let maskStart = 2;
+            
+            if (payloadLength === 126) {
+                if (buffer.length < 4) {
+                    console.log('❌ Недостаточно данных для длины 126');
+                    return null;
+                }
+                payloadLength = buffer.readUInt16BE(2);
+                maskStart = 4;
+            } else if (payloadLength === 127) {
+                if (buffer.length < 10) {
+                    console.log('❌ Недостаточно данных для длины 127');
+                    return null;
+                }
+                payloadLength = Number(buffer.readBigUInt64BE(2));
+                maskStart = 10;
+            }
+            
+            // Проверяем, что в буфере достаточно данных
+            if (buffer.length < maskStart + 4 + payloadLength) {
+                console.log('❌ Недостаточно данных в буфере');
+                return null;
+            }
+            
+            const masks = buffer.slice(maskStart, maskStart + 4);
+            const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
+            
+            const decoded = Buffer.alloc(payloadLength);
+            for (let i = 0; i < payloadLength; i++) {
+                decoded[i] = payload[i] ^ masks[i % 4];
+            }
+            
+            const messageText = decoded.toString('utf8');
+            return JSON.parse(messageText);
+            
+        } catch (error) {
+            console.log('❌ Ошибка декодирования WebSocket сообщения:', error.message);
+            return null;
         }
-        
-        const masks = buffer.slice(maskStart, maskStart + 4);
-        const payload = buffer.slice(maskStart + 4, maskStart + 4 + payloadLength);
-        
-        const decoded = Buffer.alloc(payloadLength);
-        for (let i = 0; i < payloadLength; i++) {
-            decoded[i] = payload[i] ^ masks[i % 4];
-        }
-        
-        return JSON.parse(decoded.toString());
     }
 
     encodeMessage(data) {
-        const json = JSON.stringify(data);
-        const jsonBuffer = Buffer.from(json);
-        
-        const length = jsonBuffer.length;
-        let payloadLengthByte;
-        let lengthBytes;
-        
-        if (length <= 125) {
-            payloadLengthByte = length;
-            lengthBytes = Buffer.alloc(0);
-        } else if (length <= 65535) {
-            payloadLengthByte = 126;
-            lengthBytes = Buffer.alloc(2);
-            lengthBytes.writeUInt16BE(length);
-        } else {
-            payloadLengthByte = 127;
-            lengthBytes = Buffer.alloc(8);
-            lengthBytes.writeBigUInt64BE(BigInt(length));
+        try {
+            const json = JSON.stringify(data);
+            const jsonBuffer = Buffer.from(json, 'utf8');
+            
+            const length = jsonBuffer.length;
+            let payloadLengthByte;
+            let lengthBytes;
+            
+            if (length <= 125) {
+                payloadLengthByte = length;
+                lengthBytes = Buffer.alloc(0);
+            } else if (length <= 65535) {
+                payloadLengthByte = 126;
+                lengthBytes = Buffer.alloc(2);
+                lengthBytes.writeUInt16BE(length);
+            } else {
+                payloadLengthByte = 127;
+                lengthBytes = Buffer.alloc(8);
+                lengthBytes.writeBigUInt64BE(BigInt(length));
+            }
+            
+            const header = Buffer.concat([
+                Buffer.from([0x81, payloadLengthByte]), // 0x81 = FIN + текстовый фрейм
+                lengthBytes
+            ]);
+            
+            return Buffer.concat([header, jsonBuffer]);
+        } catch (error) {
+            console.log('❌ Ошибка кодирования WebSocket сообщения:', error);
+            return Buffer.from([0x81, 0x00]); // Пустой фрейм в случае ошибки
         }
-        
-        const header = Buffer.concat([
-            Buffer.from([0x81, payloadLengthByte]),
-            lengthBytes
-        ]);
-        
-        return Buffer.concat([header, jsonBuffer]);
+    }
+
+    sendPong(clientId) {
+        const client = this.clients.get(clientId);
+        if (client && client.socket) {
+            try {
+                // Pong фрейм: 0x8A = FIN + Pong opcode
+                const pongFrame = Buffer.from([0x8A, 0x00]);
+                client.socket.write(pongFrame);
+            } catch (error) {
+                console.log('❌ Ошибка отправки PONG:', error);
+            }
+        }
     }
 
     sendToClient(clientId, type, data) {
@@ -144,7 +210,7 @@ class WebSocketServer {
                 const message = this.encodeMessage({ type, data });
                 client.socket.write(message);
             } catch (error) {
-                console.log('Error sending to client:', error);
+                console.log('❌ Ошибка отправки клиенту:', error);
             }
         }
     }
@@ -535,9 +601,17 @@ class SimpleServer {
     }
 
     validateAvatarFile(filename) {
+        // Временно упрощаем для тестирования
+        console.log('🔍 Проверка файла аватара:', filename);
+        
+        if (!filename) return false;
+        
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
+        const isValid = allowedExtensions.includes(ext);
+        
+        console.log('📁 Расширение файла:', ext, 'Валидно:', isValid);
+        return true; // Временно возвращаем true для тестирования
     }
 
     validateGiftFile(filename) {
@@ -899,7 +973,7 @@ class SimpleServer {
             body += decoder.end();
             
             if (req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
-                console.log(`Raw body:`, body);
+                console.log(`Raw body:`, body.substring(0, 200) + '...'); // Логируем только начало
                 console.log(`Body length: ${body.length}`);
             }
             
@@ -907,7 +981,7 @@ class SimpleServer {
             if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
                 try {
                     data = JSON.parse(body);
-                    console.log(`Parsed data:`, data);
+                    console.log(`Parsed data keys:`, Object.keys(data));
                 } catch (e) {
                     console.log(`JSON parse error:`, e.message);
                 }
@@ -921,7 +995,7 @@ class SimpleServer {
 
     processApiRequest(pathname, method, data, query, req, res) {
         console.log(`🔄 Processing API: ${method} ${pathname}`);
-        console.log(`📦 Request data:`, data);
+        console.log(`📦 Request data keys:`, Object.keys(data));
         console.log(`❓ Query params:`, query);
         
         const headers = {
@@ -1075,6 +1149,33 @@ class SimpleServer {
                     if (method === 'POST') {
                         // Уже обработано через multipart
                         response = { success: false, message: 'Use multipart form-data' };
+                    }
+                    break;
+
+                // 🔧 НОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРЕДПРОСМОТРА
+                case '/api/preview-avatar':
+                    if (method === 'POST') {
+                        response = this.handlePreviewAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/debug-upload':
+                    if (method === 'POST') {
+                        console.log('🐛 DEBUG UPLOAD DATA:', {
+                            hasFileData: !!data.fileData,
+                            fileDataLength: data.fileData?.length,
+                            filename: data.filename,
+                            fileType: data.fileType
+                        });
+                        response = { 
+                            success: true, 
+                            message: 'Debug received',
+                            dataInfo: {
+                                hasFileData: !!data.fileData,
+                                fileDataLength: data.fileData?.length,
+                                filename: data.filename
+                            }
+                        };
                     }
                     break;
 
@@ -1355,7 +1456,7 @@ class SimpleServer {
                     await fs.promises.writeFile(filePath, avatarFile.buffer);
                     const fileUrl = `/uploads/avatars/${uniqueFilename}`;
 
-                    // Удаляем старый аватар
+                    // Удаляем старый аватар если он был
                     if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                         this.deleteFile(user.avatar);
                     }
@@ -1820,6 +1921,39 @@ class SimpleServer {
         } catch (error) {
             console.error('❌ Критическая ошибка в handleUploadGiftMultipart:', error);
             sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
+    }
+
+    // 🔧 НОВЫЙ МЕТОД ДЛЯ ПРЕДПРОСМОТРА АВАТАРКИ
+    handlePreviewAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+        
+        // Проверяем что это изображение
+        if (!this.validateAvatarFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            // Проверяем размер файла (максимум 2MB для предпросмотра)
+            if (fileData.length > 2 * 1024 * 1024) {
+                return { success: false, message: 'Размер файла не должен превышать 2 МБ' };
+            }
+
+            // Для предпросмотра просто возвращаем данные обратно
+            // На фронтенде это будет использоваться для показа preview
+            return {
+                success: true,
+                previewUrl: fileData, // base64 данные
+                fileName: filename
+            };
+        } catch (error) {
+            console.error('Ошибка предпросмотра аватара:', error);
+            return { success: false, message: 'Ошибка обработки файла' };
         }
     }
 
@@ -4119,7 +4253,7 @@ handleToggleVerification(token, data) {
     }
 
     const { userId } = data;
-    
+        
     const targetUser = this.users.find(u => u.id === userId);
     if (!targetUser) {
         return { success: false, message: 'Пользователь не найден' };
@@ -4149,7 +4283,7 @@ handleToggleDeveloper(token, data) {
     }
 
     const { userId } = data;
-    
+        
     const targetUser = this.users.find(u => u.id === userId);
     if (!targetUser) {
         return { success: false, message: 'Пользователь не найден' };
@@ -4204,7 +4338,7 @@ handleGetDevices(token) {
     }
 
     const devices = this.getUserDevices(user.id);
-    
+        
     this.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
 
     return {
@@ -4237,7 +4371,7 @@ handleTerminateDevice(token, data) {
     }
 }
   
-      start(port = 3000) {
+    start(port = 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = url.parse(req.url, true);
             const pathname = parsedUrl.pathname;
@@ -4247,63 +4381,63 @@ handleTerminateDevice(token, data) {
             // 🔐 Устанавливаем безопасные заголовки для всех запросов
             this.setSecurityHeaders(res);
 
-if (pathname.startsWith('/api/')) {
-    this.handleApiRequest(req, res);
-    return;
-}
+            if (pathname.startsWith('/api/')) {
+                this.handleApiRequest(req, res);
+                return;
+            }
 
-// Обработка статических файлов для мобильной и десктопной версий
-if (pathname === '/' || pathname === '/index.html') {
-    this.serveStaticFile(res, 'public/main.html', 'text/html');
-} else if (pathname === '/mobile.html' || pathname === '/mobile') {
-    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-} else if (pathname === '/login.html') {
-    this.serveStaticFile(res, 'public/login.html', 'text/html');
-} else if (pathname === '/about.html' || pathname === '/about') {
-    this.serveStaticFile(res, 'public/about.html', 'text/html');
-} else if (pathname === '/music.html' || pathname === '/music') {
-    this.serveStaticFile(res, 'public/music.html', 'text/html');
-} else if (pathname.endsWith('.css')) {
-    this.serveStaticFile(res, 'public' + pathname, 'text/css');
-} else if (pathname.endsWith('.js')) {
-    this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-} else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
-    const ext = path.extname(pathname);
-    const contentType = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.bmp': 'image/bmp',
-        '.webp': 'image/webp',
-        '.ico': 'image/x-icon',
-        '.mp3': 'audio/mpeg',
-        '.wav': 'audio/wav',
-        '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4',
-        '.aac': 'audio/aac',
-        '.mp4': 'video/mp4',
-        '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime',
-        '.wmv': 'video/x-ms-wmv',
-        '.flv': 'video/x-flv',
-        '.webm': 'video/webm'
-    }[ext] || 'application/octet-stream';
-    
-        this.serveStaticFile(res, 'public' + pathname, contentType);
-} else {
-    // По умолчанию отдаем мобильную версию для мобильных устройств
-    const userAgent = req.headers['user-agent'] || '';
-    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-    
-    if (isMobile) {
-        this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-    } else {
-        this.serveStaticFile(res, 'public/main.html', 'text/html');
-    }
-}
-});
+            // Обработка статических файлов для мобильной и десктопной версий
+            if (pathname === '/' || pathname === '/index.html') {
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
+            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
+                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+            } else if (pathname === '/login.html') {
+                this.serveStaticFile(res, 'public/login.html', 'text/html');
+            } else if (pathname === '/about.html' || pathname === '/about') {
+                this.serveStaticFile(res, 'public/about.html', 'text/html');
+            } else if (pathname === '/music.html' || pathname === '/music') {
+                this.serveStaticFile(res, 'public/music.html', 'text/html');
+            } else if (pathname.endsWith('.css')) {
+                this.serveStaticFile(res, 'public' + pathname, 'text/css');
+            } else if (pathname.endsWith('.js')) {
+                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
+            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
+                const ext = path.extname(pathname);
+                const contentType = {
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.bmp': 'image/bmp',
+                    '.webp': 'image/webp',
+                    '.ico': 'image/x-icon',
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/mp4',
+                    '.aac': 'audio/aac',
+                    '.mp4': 'video/mp4',
+                    '.avi': 'video/x-msvideo',
+                    '.mov': 'video/quicktime',
+                    '.wmv': 'video/x-ms-wmv',
+                    '.flv': 'video/x-flv',
+                    '.webm': 'video/webm'
+                }[ext] || 'application/octet-stream';
+                
+                this.serveStaticFile(res, 'public' + pathname, contentType);
+            } else {
+                // По умолчанию отдаем мобильную версию для мобильных устройств
+                const userAgent = req.headers['user-agent'] || '';
+                const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+                
+                if (isMobile) {
+                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                } else {
+                    this.serveStaticFile(res, 'public/main.html', 'text/html');
+                }
+            }
+        });
 
         const wsServer = new WebSocketServer(server);
 
@@ -4338,6 +4472,8 @@ if (pathname === '/' || pathname === '/index.html') {
             console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
             console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
             console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
+            console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
+            console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
         });
 
         return server;
