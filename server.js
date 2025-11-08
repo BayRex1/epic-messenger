@@ -601,17 +601,9 @@ class SimpleServer {
     }
 
     validateAvatarFile(filename) {
-        // Временно упрощаем для тестирования
-        console.log('🔍 Проверка файла аватара:', filename);
-        
-        if (!filename) return false;
-        
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const ext = path.extname(filename).toLowerCase();
-        const isValid = allowedExtensions.includes(ext);
-        
-        console.log('📁 Расширение файла:', ext, 'Валидно:', isValid);
-        return true; // Временно возвращаем true для тестирования
+        // Временно отключаем валидацию аватаров
+        console.log('🔍 Временное отключение загрузки аватаров');
+        return false; // Временно возвращаем false для отключения загрузки
     }
 
     validateGiftFile(filename) {
@@ -938,14 +930,22 @@ class SimpleServer {
             return;
         }
 
-        // 🔧 ИСПРАВЛЕНИЕ: Обработка multipart/form-data для всех загрузок файлов
+        // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ MULTIPART ОБРАБОТЧИКИ ДЛЯ АВАТАРОВ
         if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
             if (pathname === '/api/music/upload-full') {
                 this.handleUploadMusicFull(req, res);
                 return;
             }
+            // Временно отключаем обработку аватаров
             else if (pathname === '/api/upload-avatar') {
-                this.handleUploadAvatarMultipart(req, res);
+                res.writeHead(400, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ 
+                    success: false, 
+                    message: 'Загрузка аватаров временно отключена' 
+                }));
                 return;
             }
             else if (pathname === '/api/upload-post-image') {
@@ -1120,14 +1120,15 @@ class SimpleServer {
 
                 case '/api/update-avatar':
                     if (method === 'POST') {
-                        response = this.handleUpdateAvatar(token, data);
+                        // Временно отключаем обновление аватара
+                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
                     }
                     break;
 
                 case '/api/upload-avatar':
                     if (method === 'POST') {
-                        // Уже обработано через multipart
-                        response = { success: false, message: 'Use multipart form-data' };
+                        // Временно отключаем загрузку аватара
+                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
                     }
                     break;
 
@@ -1152,10 +1153,10 @@ class SimpleServer {
                     }
                     break;
 
-                // 🔧 НОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРЕДПРОСМОТРА
+                // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ПРЕДПРОСМОТР АВАТАРКИ
                 case '/api/preview-avatar':
                     if (method === 'POST') {
-                        response = this.handlePreviewAvatar(token, data);
+                        response = { success: false, message: 'Загрузка аватаров временно отключена' };
                     }
                     break;
 
@@ -1353,162 +1354,19 @@ class SimpleServer {
         res.end(JSON.stringify(response));
     }
 
-    // 🔧 НОВЫЕ MULTIPART ОБРАБОТЧИКИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ
+    // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ОБРАБОТЧИКИ ДЛЯ АВАТАРОВ
 
     async handleUploadAvatarMultipart(req, res) {
-        console.log('🖼️ Начало обработки загрузки аватара...');
-
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        const user = this.authenticateToken(token);
+        console.log('🖼️ Загрузка аватаров временно отключена');
         
-        if (!user) {
-            res.writeHead(401, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
-            return;
-        }
-
-        let isResponseSent = false;
-
-        const sendErrorResponse = (message, statusCode = 500) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                console.error('❌ Ошибка загрузки аватара:', message);
-                res.writeHead(statusCode, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify({ success: false, message }));
-            }
-        };
-
-        const sendSuccessResponse = (data) => {
-            if (!isResponseSent) {
-                isResponseSent = true;
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
-                res.end(JSON.stringify(data));
-            }
-        };
-
-        try {
-            const bb = busboy({ 
-                headers: req.headers,
-                limits: {
-                    fileSize: 5 * 1024 * 1024, // 5MB максимум
-                    files: 1 // только один файл
-                }
-            });
-            
-            let avatarFile = null;
-
-            bb.on('file', (name, file, info) => {
-                const { filename, mimeType } = info;
-                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
-                
-                if (name === 'avatar' && filename) {
-                    const chunks = [];
-                    
-                    file.on('data', (chunk) => {
-                        chunks.push(chunk);
-                    });
-                    
-                    file.on('end', () => {
-                        if (chunks.length > 0) {
-                            avatarFile = {
-                                buffer: Buffer.concat(chunks),
-                                filename: filename,
-                                mimeType: mimeType
-                            };
-                            console.log('✅ Аватар сохранен в памяти');
-                        }
-                    });
-                } else {
-                    file.resume();
-                }
-            });
-
-            bb.on('close', async () => {
-                console.log('🔚 Завершение обработки формы аватара');
-                
-                try {
-                    if (!avatarFile) {
-                        sendErrorResponse('Файл аватара не получен', 400);
-                        return;
-                    }
-
-                    if (!this.validateAvatarFile(avatarFile.filename)) {
-                        sendErrorResponse('Недопустимый формат файла для аватара', 400);
-                        return;
-                    }
-
-                    // Сохраняем файл
-                    const fileExt = path.extname(avatarFile.filename);
-                    const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-                    const filePath = path.join(__dirname, 'public', 'uploads', 'avatars', uniqueFilename);
-                    
-                    console.log(`💾 Сохранение аватара: ${filePath}`);
-                    await fs.promises.writeFile(filePath, avatarFile.buffer);
-                    const fileUrl = `/uploads/avatars/${uniqueFilename}`;
-
-                    // Удаляем старый аватар если он был
-                    if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-                        this.deleteFile(user.avatar);
-                    }
-
-                    // Обновляем пользователя
-                    user.avatar = fileUrl;
-                    this.saveData();
-
-                    this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${avatarFile.filename}`);
-
-                    console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${avatarFile.filename}`);
-
-                    sendSuccessResponse({
-                        success: true,
-                        avatarUrl: fileUrl,
-                        user: {
-                            id: user.id,
-                            username: user.username,
-                            displayName: user.displayName,
-                            email: user.email,
-                            avatar: fileUrl,
-                            description: user.description,
-                            coins: user.coins,
-                            verified: user.verified,
-                            isDeveloper: user.isDeveloper,
-                            status: user.status,
-                            lastSeen: user.lastSeen,
-                            createdAt: user.createdAt,
-                            friendsCount: user.friendsCount || 0,
-                            postsCount: user.postsCount || 0,
-                            giftsCount: user.giftsCount || 0,
-                            banned: user.banned || false
-                        }
-                    });
-
-                } catch (error) {
-                    console.error('❌ Ошибка при сохранении аватара:', error);
-                    sendErrorResponse('Ошибка при сохранении файла: ' + error.message);
-                }
-            });
-
-            bb.on('error', (error) => {
-                console.error('❌ Ошибка busboy:', error);
-                sendErrorResponse('Ошибка обработки формы: ' + error.message);
-            });
-
-            req.pipe(bb);
-
-        } catch (error) {
-            console.error('❌ Критическая ошибка в handleUploadAvatarMultipart:', error);
-            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
-        }
+        res.writeHead(400, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+            success: false, 
+            message: 'Загрузка аватаров временно отключена для технических работ' 
+        }));
     }
 
     async handleUploadPostImageMultipart(req, res) {
@@ -1924,40 +1782,10 @@ class SimpleServer {
         }
     }
 
-    // 🔧 НОВЫЙ МЕТОД ДЛЯ ПРЕДПРОСМОТРА АВАТАРКИ
+    // 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ПРЕДПРОСМОТР АВАТАРКИ
     handlePreviewAvatar(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { fileData, filename } = data;
-        
-        // Проверяем что это изображение
-        if (!this.validateAvatarFile(filename)) {
-            return { success: false, message: 'Недопустимый формат файла для аватара' };
-        }
-
-        try {
-            // Проверяем размер файла (максимум 2MB для предпросмотра)
-            if (fileData.length > 2 * 1024 * 1024) {
-                return { success: false, message: 'Размер файла не должен превышать 2 МБ' };
-            }
-
-            // Для предпросмотра просто возвращаем данные обратно
-            // На фронтенде это будет использоваться для показа preview
-            return {
-                success: true,
-                previewUrl: fileData, // base64 данные
-                fileName: filename
-            };
-        } catch (error) {
-            console.error('Ошибка предпросмотра аватара:', error);
-            return { success: false, message: 'Ошибка обработки файла' };
-        }
+        return { success: false, message: 'Загрузка аватаров временно отключена' };
     }
-
-    // 🔧 КОНЕЦ НОВЫХ MULTIPART ОБРАБОТЧИКОВ
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКОЙ ПРАВ
 
@@ -4057,72 +3885,8 @@ handleUpdateAvatar(token, data) {
 }
 
 async handleUploadAvatar(token, data) {
-    const user = this.authenticateToken(token);
-    if (!user) {
-        return { success: false, message: 'Не авторизован' };
-    }
-
-    // 🔐 Проверяем что пользователь не забанен
-    if (user.banned) {
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
-        return { success: false, message: 'Ваш аккаунт заблокирован' };
-    }
-
-    const { fileData, filename } = data;
-
-    // Проверяем что это изображение
-    if (!this.validateAvatarFile(filename)) {
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-        return { success: false, message: 'Недопустимый формат файла для аватара' };
-    }
-
-    try {
-        // Сохраняем файл на сервер
-        const fileExt = path.extname(filename);
-        const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-        
-        const fileUrl = await this.saveFile(fileData, uniqueFilename, 'avatar');
-
-        // Удаляем старый аватар если он был
-        if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-            this.deleteFile(user.avatar);
-        }
-
-        // Сохраняем URL файла вместо base64
-        user.avatar = fileUrl;
-        this.saveData();
-
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
-
-        console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
-
-        return {
-            success: true,
-            avatarUrl: fileUrl,
-            user: {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                email: user.email,
-                avatar: fileUrl, // Возвращаем URL, а не base64
-                description: user.description,
-                coins: user.coins,
-                verified: user.verified,
-                isDeveloper: user.isDeveloper,
-                status: user.status,
-                lastSeen: user.lastSeen,
-                createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
-                postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
-            }
-        };
-    } catch (error) {
-        console.error('Ошибка загрузки аватара:', error);
-        this.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-        return { success: false, message: 'Ошибка загрузки файла' };
-    }
+    // Временно отключаем загрузку аватаров
+    return { success: false, message: 'Загрузка аватаров временно отключена' };
 }
 
 async handleUploadGift(token, data) {
@@ -4467,13 +4231,11 @@ handleTerminateDevice(token, data) {
             console.log(`\n💾 Файл данных: ${this.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
-            console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ ЗАГРУЗКИ:`);
-            console.log(`   ✅ Аватары: /api/upload-avatar (multipart/form-data)`);
+            console.log(`\n🔧 ВРЕМЕННО ОТКЛЮЧЕННЫЕ ФУНКЦИИ:`);
+            console.log(`   ❌ Загрузка аватаров временно отключена`);
             console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
             console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
             console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
-            console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
-            console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
         });
 
         return server;
