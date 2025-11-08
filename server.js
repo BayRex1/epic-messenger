@@ -4386,64 +4386,73 @@ class SimpleServer {
                 return;
             }
 
-          // Обработка статических файлов для мобильной и десктопной версий
-if (pathname === '/' || pathname === '/index.html') {
-    this.serveStaticFile(res, 'public/main.html', 'text/html');
-} else if (pathname === '/mobile.html' || pathname === '/mobile') {
-    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-} else if (pathname === '/login.html') {
-    this.serveStaticFile(res, 'public/login.html', 'text/html');
-} else if (pathname === '/about.html' || pathname === '/about') {
-    this.serveStaticFile(res, 'public/about.html', 'text/html');
-} else if (pathname === '/music.html' || pathname === '/music') {
-    this.serveStaticFile(res, 'public/music.html', 'text/html');
-} else if (pathname === '/posts.html' || pathname === '/posts' || pathname === '/post') {
-    this.serveStaticFile(res, 'public/posts.html', 'text/html');
-} else if (pathname === '/chat.html' || pathname === '/chat') {
-    this.serveStaticFile(res, 'public/chat.html', 'text/html');
-} else if (pathname === '/profile.html' || pathname === '/profile') {
-    this.serveStaticFile(res, 'public/profile.html', 'text/html');
-} else if (pathname.endsWith('.css')) {
-    this.serveStaticFile(res, 'public' + pathname, 'text/css');
-} else if (pathname.endsWith('.js')) {
-    this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
-} else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
-    const ext = path.extname(pathname);
-    const contentType = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.bmp': 'image/bmp',
-        '.webp': 'image/webp',
-        '.ico': 'image/x-icon',
-        '.mp3': 'audio/mpeg',
-        '.wav': 'audio/wav',
-        '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4',
-        '.aac': 'audio/aac',
-        '.mp4': 'video/mp4',
-        '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime',
-        '.wmv': 'video/x-ms-wmv',
-        '.flv': 'video/x-flv',
-        '.webm': 'video/webm'
-    }[ext] || 'application/octet-stream';
-    
-    this.serveStaticFile(res, 'public' + pathname, contentType);
-} else {
-    // По умолчанию отдаем мобильную версию для мобильных устройств
-    const userAgent = req.headers['user-agent'] || '';
-    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-    
-    if (isMobile) {
-        this.serveStaticFile(res, 'public/mobile.html', 'text/html');
-    } else {
-        this.serveStaticFile(res, 'public/main.html', 'text/html');
-    }
-}
-
+          // Обработка статических файлов для всех страниц
+            if (pathname === '/' || pathname === '/index.html') {
+                this.serveStaticFile(res, 'public/main.html', 'text/html');
+            } else if (pathname === '/mobile.html' || pathname === '/mobile') {
+                this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+            } else if (pathname === '/login.html') {
+                this.serveStaticFile(res, 'public/login.html', 'text/html');
+            } else if (pathname === '/about.html' || pathname === '/about') {
+                this.serveStaticFile(res, 'public/about.html', 'text/html');
+            } else if (pathname === '/music.html' || pathname === '/music') {
+                this.serveStaticFile(res, 'public/music.html', 'text/html');
+            } else if (pathname === '/posts.html' || pathname === '/posts' || pathname === '/post') {
+                this.serveStaticFile(res, 'public/posts.html', 'text/html');
+            } else if (pathname === '/chat.html' || pathname === '/chat') {
+                this.serveStaticFile(res, 'public/chat.html', 'text/html');
+            } else if (pathname === '/profile.html' || pathname === '/profile') {
+                this.serveStaticFile(res, 'public/profile.html', 'text/html');
+            } else if (pathname === '/admin.html' || pathname === '/admin') {
+                this.serveStaticFile(res, 'public/admin.html', 'text/html');
+            } else if (pathname === '/settings.html' || pathname === '/settings') {
+                this.serveStaticFile(res, 'public/settings.html', 'text/html');
+            } else if (pathname === '/gifts.html' || pathname === '/gifts') {
+                this.serveStaticFile(res, 'public/gifts.html', 'text/html');
+            } else if (pathname === '/search.html' || pathname === '/search') {
+                this.serveStaticFile(res, 'public/search.html', 'text/html');
+            } else if (pathname === '/ecoin.html' || pathname === '/ecoin') {
+                this.serveStaticFile(res, 'public/ecoin.html', 'text/html');
+            } else if (pathname.endsWith('.css')) {
+                this.serveStaticFile(res, 'public' + pathname, 'text/css');
+            } else if (pathname.endsWith('.js')) {
+                this.serveStaticFile(res, 'public' + pathname, 'application/javascript');
+            } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
+                const ext = path.extname(pathname);
+                const contentType = {
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.bmp': 'image/bmp',
+                    '.webp': 'image/webp',
+                    '.ico': 'image/x-icon',
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/mp4',
+                    '.aac': 'audio/aac',
+                    '.mp4': 'video/mp4',
+                    '.avi': 'video/x-msvideo',
+                    '.mov': 'video/quicktime',
+                    '.wmv': 'video/x-ms-wmv',
+                    '.flv': 'video/x-flv',
+                    '.webm': 'video/webm'
+                }[ext] || 'application/octet-stream';
+                
+                this.serveStaticFile(res, 'public' + pathname, contentType);
+            } else {
+                // По умолчанию отдаем мобильную версию для мобильных устройств
+                const userAgent = req.headers['user-agent'] || '';
+                const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+                
+                if (isMobile) {
+                    this.serveStaticFile(res, 'public/mobile.html', 'text/html');
+                } else {
+                    this.serveStaticFile(res, 'public/main.html', 'text/html');
+                }
+            }
         });
 
         const wsServer = new WebSocketServer(server);
@@ -4468,8 +4477,12 @@ if (pathname === '/' || pathname === '/index.html') {
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Админ-панель: http://localhost:${port}/admin`);
+            console.log(`   - Настройки: http://localhost:${port}/settings`);
+            console.log(`   - Подарки: http://localhost:${port}/gifts`);
+            console.log(`   - Поиск: http://localhost:${port}/search`);
+            console.log(`   - E-COIN: http://localhost:${port}/ecoin`);
             console.log(`   - Посты: http://localhost:${port}/posts`);
-            console.log(`   - Посты (альтернативная ссылка): http://localhost:${port}/post`);
             console.log(`   - Мессенджер: http://localhost:${port}/chat`);
             console.log(`   - Профиль: http://localhost:${port}/profile`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
@@ -4493,3 +4506,4 @@ if (pathname === '/' || pathname === '/index.html') {
 
 const server = new SimpleServer();
 server.start(process.env.PORT || 3000);
+[file content end]
