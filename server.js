@@ -4386,7 +4386,7 @@ class SimpleServer {
                 return;
             }
 
-          // Обработка статических файлов для всех страниц
+            // Обработка статических файлов для всех страниц
             if (pathname === '/' || pathname === '/index.html') {
                 this.serveStaticFile(res, 'public/main.html', 'text/html');
             } else if (pathname === '/mobile.html' || pathname === '/mobile') {
@@ -4506,4 +4506,3 @@ class SimpleServer {
 
 const server = new SimpleServer();
 server.start(process.env.PORT || 3000);
-[file content end]
