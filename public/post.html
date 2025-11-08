@@ -1,1 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Посты - Epic Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-dark">
+    <!-- Сайдбар -->
+    <div class="sidebar" id="sidebar">
+        <div class="profile-section" id="profileSection">
+            <div class="profile-header">
+                <div class="avatar" id="userAvatar">U</div>
+                <div class="profile-info">
+                    <h3 id="userName">
+                        Пользователь
+                        <span class="verified-badge" id="verifiedBadge" style="display: none;">
+                            <svg viewBox="0 0 24 24">
+                                <path class="gold-path" d="M23,12L20.56,9.22L20.9,5.54L17.29,4.72L15.4,1.54L12,3L8.6,1.54L6.71,4.72L3.1,5.53L3.44,9.21L1,12L3.44,14.78L3.1,18.47L6.71,19.29L8.6,22.47L12,21L15.4,22.46L17.29,19.28L20.9,18.46L20.56,14.78L23,12Z"/>
+                            </svg>
+                        </span>
+                        <span class="developer-badge" id="developerBadge" style="display: none;">
+                            <svg viewBox="0 0 24 24">
+                                <path class="blue-path" d="M12,15A2,2 0 0,1 10,13C10,11.89 10.9,11 12,11A2,2 0 0,1 14,13A2,2 0 0,1 12,15M7,7C7,5.89 7.89,5 9,5A2,2 0 0,1 11,7A2,2 0 0,1 9,9C7.89,9 7,8.1 7,7M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.89 10.9,2 12,2M15,18V20H9V18C9,16.67 10.67,16 12,16C13.33,16 15,16.67 15,18M19,5C19,3.89 18.1,3 17,3C15.9,3 15,3.9 15,5C15,6.1 15.9,7 17,7C18.1,7 19,6.1 19,5M19,19V21H15V19C15,17.67 16.67,17 18,17C19.33,17 21,17.67 21,19V21H17V19H19Z"/>
+                            </svg>
+                        </span>
+                    </h3>
+                    <div class="username" id="userUsername">@username</div>
+                </div>
+            </div>
+        </div>
 
+        <div class="compact-menu">
+            <a href="/chat" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Сообщения</div>
+            </a>
+            
+            <a href="/post" class="menu-item active">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Посты</div>
+            </a>
+            
+            <a href="/gifts" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M22,12V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V12A1,1 0 0,1 1,11V8A2,2 0 0,1 3,6H6.17C6.06,5.69 6,5.35 6,5A3,3 0 0,1 9,2C10,2 10.88,2.5 11.43,3.24V3.23L12,4L12.57,3.23V3.24C13.12,2.5 14,2 15,2A3,3 0 0,1 18,5C18,5.35 17.94,5.69 17.83,6H21A2,2 0 0,1 23,8V11A1,1 0 0,1 22,12M4,20H11V12H4V20M20,20V12H13V20H20M9,4A1,1 0 0,0 8,5A1,1 0 0,0 9,6A1,1 0 0,0 10,5A1,1 0 0,0 9,4M15,4A1,1 0 0,0 14,5A1,1 0 0,0 15,6A1,1 0 0,0 16,5A1,1 0 0,0 15,4M3,8V10H11V8H3M13,8V10H21V8H13Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Подарки</div>
+            </a>
+            
+            <a href="/ecoins" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,17H13A2,2 0 0,0 15,15V13.5A1.5,1.5 0 0,0 13.5,12A1.5,1.5 0 0,0 15,10.5V9A2,2 0 0,0 13,7H11A2,2 0 0,0 9,9V9.5H11V9H13V10.5H11V11H13A2,2 0 0,0 15,13V13.5A1.5,1.5 0 0,0 13.5,15A1.5,1.5 0 0,0 15,16.5V17A2,2 0 0,0 13,19H11A2,2 0 0,0 9,17V16.5H11V17Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">E-COIN</div>
+            </a>
+            
+            <a href="/music" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,3V12.26C11.5,12.09 11,12 10.5,12C8,12 6,14 6,16.5C6,19 8,21 10.5,21C13,21 15,19 15,16.5V6H19V3H12Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Музыка</div>
+            </a>
+
+            <a href="/groups" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Группы</div>
+            </a>
+            
+            <div class="menu-divider"></div>
+            
+            <a href="/profile" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Мой профиль</div>
+            </a>
+            
+            <a href="/settings" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Настройки</div>
+            </a>
+            
+            <a href="/admin" class="menu-item" id="adminPanelBtn" style="display: none;">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.5 16,12.1 16,12.7V16.5C16,17.1 15.4,17.7 14.8,17.7H9.2C8.6,17.7 8,17.1 8,16.5V12.6C8,12 8.6,11.4 9.2,11.4V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,9.5V11.5H13.5V9.5C13.5,8.7 12.8,8.2 12,8.2Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Админ панель</div>
+            </a>
+            
+            <div class="menu-divider"></div>
+            
+            <button class="menu-item" id="logoutBtn">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
+                    </svg>
+                </div>
+                <div class="menu-text">Выйти</div>
+            </button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Посты -->
+        <div class="content-area active" id="posts-section">
+            <div class="posts-container">
+                <div class="section-title">Лента постов</div>
+                
+                <div class="post" id="createPostCard">
+                    <div class="post-header">
+                        <div class="post-user">
+                            <div class="post-avatar" id="postUserAvatar">U</div>
+                            <div class="post-user-info">
+                                <h4 id="postUserName">Вы</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <textarea class="post-textarea" placeholder="Что у вас нового?" id="postText"></textarea>
+                        <div class="file-upload-area" id="postFileUpload">
+                            <div>Перетащите сюда фото, видео или аудио файл (макс. 50 МБ)</div>
+                            <input type="file" id="postFileInput" accept="image/*,video/*,audio/*" style="display: none;">
+                        </div>
+                        <div class="file-preview" id="postFilePreview"></div>
+                    </div>
+                    <div class="post-actions">
+                        <button class="post-action" id="addFileBtn">
+                            <svg viewBox="0 0 24 24" width="16" height="16">
+                                <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                            Файл
+                        </button>
+                        <button class="send-btn" id="publishPostBtn">Опубликовать</button>
+                    </div>
+                </div>
+                
+                <div id="postsList">
+                    <div class="system-message">Загрузка постов...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notificationsContainer"></div>
+
+    <!-- Модальные окна -->
+    <div id="userProfileModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3 id="userProfileTitle">Профиль пользователя</h3>
+                <span class="close" id="closeUserProfile">&times;</span>
+            </div>
+            <div class="modal-body" id="userProfileContent">
+                <!-- Контент будет загружен динамически -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/posts.js"></script>
+</body>
+</html>
