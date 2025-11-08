@@ -4397,7 +4397,7 @@ class SimpleServer {
                 this.serveStaticFile(res, 'public/about.html', 'text/html');
             } else if (pathname === '/music.html' || pathname === '/music') {
                 this.serveStaticFile(res, 'public/music.html', 'text/html');
-            } else if (pathname === '/posts.html' || pathname === '/posts') {
+            } else if (pathname === '/post.html' || pathname === '/post') {
                 this.serveStaticFile(res, 'public/posts.html', 'text/html');
             } else if (pathname === '/chat.html' || pathname === '/chat') {
                 this.serveStaticFile(res, 'public/chat.html', 'text/html');
@@ -4467,7 +4467,7 @@ class SimpleServer {
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
-            console.log(`   - Посты: http://localhost:${port}/posts`);
+            console.log(`   - Посты: http://localhost:${port}/post`);
             console.log(`   - Мессенджер: http://localhost:${port}/chat`);
             console.log(`   - Профиль: http://localhost:${port}/profile`);
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
