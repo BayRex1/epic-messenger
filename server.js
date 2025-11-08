@@ -4386,7 +4386,7 @@ class SimpleServer {
                 return;
             }
 
-            // Обработка статических файлов для мобильной и десктопной версий
+                     // Обработка статических файлов для мобильной и десктопной версий
 if (pathname === '/' || pathname === '/index.html') {
     this.serveStaticFile(res, 'public/main.html', 'text/html');
 } else if (pathname === '/mobile.html' || pathname === '/mobile') {
