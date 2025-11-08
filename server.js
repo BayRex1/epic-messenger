@@ -1670,7 +1670,7 @@ class SimpleServer {
             }
         };
 
-        const sendSuccessResponse = (data) => {
+                const sendSuccessResponse = (data) => {
             if (!isResponseSent) {
                 isResponseSent = true;
                 res.writeHead(200, { 
@@ -3257,36 +3257,36 @@ handleAddToPlaylist(token, data) {
     const { playlistId, trackId } = data;
     
     const playlist = this.playlists.find(p => p.id === playlistId && p.userId === user.id);
-        if (!playlist) {
-            return { success: false, message: 'Плейлист не найден' };
-        }
-
-        const track = this.music.find(t => t.id === trackId);
-        if (!track) {
-            return { success: false, message: 'Трек не найден' };
-        }
-
-        if (playlist.tracks.includes(trackId)) {
-            return { success: false, message: 'Трек уже есть в плейлисте' };
-        }
-
-        playlist.tracks.push(trackId);
-
-        if (!playlist.cover && playlist.tracks.length === 1) {
-            playlist.cover = track.coverUrl;
-        }
-
-        this.saveData();
-
-        this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
-
-        console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
-
-        return {
-            success: true,
-            playlist: playlist
-        };
+    if (!playlist) {
+        return { success: false, message: 'Плейлист не найден' };
     }
+
+    const track = this.music.find(t => t.id === trackId);
+    if (!track) {
+        return { success: false, message: 'Трек не найден' };
+    }
+
+    if (playlist.tracks.includes(trackId)) {
+        return { success: false, message: 'Трек уже есть в плейлисте' };
+    }
+
+    playlist.tracks.push(trackId);
+
+    if (!playlist.cover && playlist.tracks.length === 1) {
+        playlist.cover = track.coverUrl;
+    }
+
+    this.saveData();
+
+    this.logSecurityEvent(user, 'ADD_TO_PLAYLIST', `playlist:${playlist.name}, track:${track.title}`);
+
+    console.log(`🎵 Трек добавлен в плейлист: ${playlist.name}`);
+
+    return {
+        success: true,
+        playlist: playlist
+    };
+}
 
     // 🔐 ОБНОВЛЕННЫЕ МЕТОДЫ С ПРОВЕРКАМИ БЕЗОПАСНОСТИ
 
@@ -3896,7 +3896,7 @@ handleAddToPlaylist(token, data) {
         const sanitizedCode = this.sanitizeContent(code.toUpperCase());
         const promoCode = this.promoCodes.find(p => p.code === sanitizedCode);
 
-                 if (!promoCode) {
+        if (!promoCode) {
             this.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', `code:${sanitizedCode}`, false);
             return { success: false, message: 'Промокод не найден' };
         }
