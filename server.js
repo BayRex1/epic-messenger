@@ -1209,6 +1209,21 @@ class SimpleServer {
                     }
                     break;
 
+                // 🔄 НОВЫЕ ЭНДПОИНТЫ ДЛЯ ЭКСПОРТА/ИМПОРТА БД
+                case '/api/admin/export-database':
+                    if (method === 'GET') {
+                        response = this.handleExportDatabase(token, res);
+                        return; // Важно: return чтобы не отправлять ответ дважды
+                    }
+                    break;
+
+                case '/api/admin/import-database':
+                    if (method === 'POST') {
+                        this.handleImportDatabaseMultipart(req, res);
+                        return; // Важно: return чтобы не отправлять ответ дважды
+                    }
+                    break;
+
                 case '/api/emoji':
                     if (method === 'GET') {
                         response = this.handleGetEmoji(token);
@@ -1351,6 +1366,287 @@ class SimpleServer {
         
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
+    }
+
+    // 🔄 НОВЫЕ МЕТОДЫ ДЛЯ ЭКСПОРТА/ИМПОРТА БАЗЫ ДАННЫХ
+
+    handleExportDatabase(token, res) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут экспортировать БД
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'EXPORT_DATABASE', 'SYSTEM', false);
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Доступ запрещен' }));
+            return;
+        }
+
+        try {
+            // Создаем полную копию данных
+            const exportData = {
+                exportInfo: {
+                    version: '1.0',
+                    exportedAt: new Date().toISOString(),
+                    exportedBy: user.username,
+                    totalUsers: this.users.length,
+                    totalMessages: this.messages.length,
+                    totalPosts: this.posts.length,
+                    totalGifts: this.gifts.length,
+                    totalMusic: this.music.length
+                },
+                data: {
+                    users: this.users,
+                    messages: this.messages,
+                    posts: this.posts,
+                    gifts: this.gifts,
+                    promoCodes: this.promoCodes,
+                    music: this.music,
+                    playlists: this.playlists,
+                    groups: this.groups,
+                    bannedIPs: Object.fromEntries(this.bannedIPs),
+                    devices: Object.fromEntries(this.devices)
+                }
+            };
+
+            const filename = `epic-messenger-backup-${new Date().toISOString().split('T')[0]}.json`;
+            
+            // Устанавливаем заголовки для скачивания файла
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Content-Disposition': `attachment; filename="${filename}"`,
+                'Access-Control-Expose-Headers': 'Content-Disposition'
+            });
+
+            res.end(JSON.stringify(exportData, null, 2));
+
+            this.logSecurityEvent(user, 'EXPORT_DATABASE', `file:${filename}`);
+
+            console.log(`💾 Администратор ${user.username} экспортировал базу данных: ${filename}`);
+
+        } catch (error) {
+            console.error('❌ Ошибка экспорта базы данных:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Ошибка экспорта базы данных' }));
+        }
+    }
+
+    async handleImportDatabaseMultipart(req, res) {
+        console.log('🔄 Начало обработки импорта базы данных...');
+
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const user = this.authenticateToken(token);
+        
+        if (!user || !this.isAdmin(user)) {
+            res.writeHead(401, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ success: false, message: 'Не авторизован или недостаточно прав' }));
+            return;
+        }
+
+        let isResponseSent = false;
+
+        const sendErrorResponse = (message, statusCode = 500) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                console.error('❌ Ошибка импорта базы данных:', message);
+                res.writeHead(statusCode, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: false, message }));
+            }
+        };
+
+        const sendSuccessResponse = (data) => {
+            if (!isResponseSent) {
+                isResponseSent = true;
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(data));
+            }
+        };
+
+        try {
+            const bb = busboy({ 
+                headers: req.headers,
+                limits: {
+                    fileSize: 100 * 1024 * 1024, // 100MB максимум для БД
+                    files: 1
+                }
+            });
+            
+            let databaseFile = null;
+
+            bb.on('file', (name, file, info) => {
+                const { filename, mimeType } = info;
+                console.log(`📁 Получен файл: ${name}, имя: ${filename}, тип: ${mimeType}`);
+                
+                if (name === 'database' && filename) {
+                    const chunks = [];
+                    
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    
+                    file.on('end', () => {
+                        if (chunks.length > 0) {
+                            databaseFile = {
+                                buffer: Buffer.concat(chunks),
+                                filename: filename,
+                                mimeType: mimeType
+                            };
+                            console.log('✅ Файл БД сохранен в памяти');
+                        }
+                    });
+                } else {
+                    file.resume();
+                }
+            });
+
+            bb.on('close', async () => {
+                console.log('🔚 Завершение обработки формы импорта БД');
+                
+                try {
+                    if (!databaseFile) {
+                        sendErrorResponse('Файл базы данных не получен', 400);
+                        return;
+                    }
+
+                    // Проверяем что это JSON файл
+                    if (!databaseFile.filename.endsWith('.json')) {
+                        sendErrorResponse('Файл должен быть в формате JSON', 400);
+                        return;
+                    }
+
+                    // Парсим JSON данные
+                    const fileContent = databaseFile.buffer.toString('utf8');
+                    let importData;
+                    try {
+                        importData = JSON.parse(fileContent);
+                    } catch (parseError) {
+                        sendErrorResponse('Неверный формат JSON файла', 400);
+                        return;
+                    }
+
+                    // Проверяем структуру данных
+                    if (!importData.exportInfo || !importData.data) {
+                        sendErrorResponse('Неверная структура файла базы данных', 400);
+                        return;
+                    }
+
+                    // 🔐 СОХРАНЯЕМ СТАРЫЕ ДАННЫЕ ДЛЯ БЭКАПА
+                    const backupData = {
+                        users: this.users,
+                        messages: this.messages,
+                        posts: this.posts,
+                        gifts: this.gifts,
+                        promoCodes: this.promoCodes,
+                        music: this.music,
+                        playlists: this.playlists,
+                        groups: this.groups,
+                        bannedIPs: Object.fromEntries(this.bannedIPs),
+                        devices: Object.fromEntries(this.devices),
+                        backupCreatedAt: new Date().toISOString()
+                    };
+
+                    const backupFilename = `backup-before-import-${new Date().toISOString().split('T')[0]}.json`;
+                    const backupPath = path.join('/tmp', backupFilename);
+                    
+                    fs.writeFileSync(backupPath, JSON.stringify(backupData, null, 2));
+                    console.log(`💾 Создан бэкап перед импортом: ${backupPath}`);
+
+                    // 🔄 ИМПОРТИРУЕМ НОВЫЕ ДАННЫЕ
+                    try {
+                        this.users = importData.data.users || [];
+                        this.messages = importData.data.messages || [];
+                        this.posts = importData.data.posts || [];
+                        this.gifts = importData.data.gifts || [];
+                        this.promoCodes = importData.data.promoCodes || [];
+                        this.music = importData.data.music || [];
+                        this.playlists = importData.data.playlists || [];
+                        this.groups = importData.data.groups || [];
+                        this.bannedIPs = new Map(Object.entries(importData.data.bannedIPs || {}));
+                        this.devices = new Map(Object.entries(importData.data.devices || {}));
+
+                        // Восстанавливаем даты
+                        this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
+                        this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
+                        this.users.forEach(user => {
+                            user.lastSeen = new Date(user.lastSeen);
+                            user.createdAt = new Date(user.createdAt);
+                        });
+                        this.music.forEach(track => track.createdAt = new Date(track.createdAt));
+                        this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
+                        this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
+
+                        // Сохраняем данные
+                        this.saveData();
+
+                        this.logSecurityEvent(user, 'IMPORT_DATABASE', `file:${databaseFile.filename}, users:${this.users.length}, messages:${this.messages.length}`);
+
+                        console.log(`🔄 Администратор ${user.username} импортировал базу данных:`);
+                        console.log(`   👥 Пользователей: ${this.users.length}`);
+                        console.log(`   💬 Сообщений: ${this.messages.length}`);
+                        console.log(`   📝 Постов: ${this.posts.length}`);
+                        console.log(`   🎁 Подарков: ${this.gifts.length}`);
+                        console.log(`   🎵 Треков: ${this.music.length}`);
+
+                        sendSuccessResponse({
+                            success: true,
+                            message: 'База данных успешно импортирована!',
+                            stats: {
+                                users: this.users.length,
+                                messages: this.messages.length,
+                                posts: this.posts.length,
+                                gifts: this.gifts.length,
+                                music: this.music.length,
+                                backupFile: backupFilename
+                            },
+                            exportInfo: importData.exportInfo
+                        });
+
+                    } catch (importError) {
+                        // 🔄 ВОССТАНАВЛИВАЕМ ДАННЫЕ ИЗ БЭКАПА ПРИ ОШИБКЕ
+                        console.error('❌ Ошибка импорта, восстанавливаем из бэкапа...', importError);
+                        
+                        this.users = backupData.users;
+                        this.messages = backupData.messages;
+                        this.posts = backupData.posts;
+                        this.gifts = backupData.gifts;
+                        this.promoCodes = backupData.promoCodes;
+                        this.music = backupData.music;
+                        this.playlists = backupData.playlists;
+                        this.groups = backupData.groups;
+                        this.bannedIPs = new Map(Object.entries(backupData.bannedIPs || {}));
+                        this.devices = new Map(Object.entries(backupData.devices || {}));
+                        
+                        this.saveData();
+                        
+                        sendErrorResponse('Ошибка импорта данных. База данных восстановлена из бэкапа.');
+                    }
+
+                } catch (error) {
+                    console.error('❌ Ошибка при импорте базы данных:', error);
+                    sendErrorResponse('Ошибка при импорте базы данных: ' + error.message);
+                }
+            });
+
+            bb.on('error', (error) => {
+                console.error('❌ Ошибка busboy:', error);
+                sendErrorResponse('Ошибка обработки формы: ' + error.message);
+            });
+
+            req.pipe(bb);
+
+        } catch (error) {
+            console.error('❌ Критическая ошибка в handleImportDatabaseMultipart:', error);
+            sendErrorResponse('Критическая ошибка сервера: ' + error.message);
+        }
     }
 
     // 🔧 НОВЫЕ MULTIPART ОБРАБОТЧИКИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ
@@ -4473,6 +4769,7 @@ class SimpleServer {
             console.log(`🎵 Музыкальный модуль активирован`);
             console.log(`🛡️  Система банов по IP и устройствам активирована`);
             console.log(`👥 Система групп активирована`);
+            console.log(`🔄 СИСТЕМА ЭКСПОРТА/ИМПОРТА БД АКТИВИРОВАНА`);
             console.log(`\n👑 Особый пользователь:`);
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
@@ -4498,6 +4795,9 @@ class SimpleServer {
             console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
             console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
             console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
+            console.log(`\n🔄 ФУНКЦИИ ЭКСПОРТА/ИМПОРТА БД:`);
+            console.log(`   ✅ Экспорт БД: /api/admin/export-database`);
+            console.log(`   ✅ Импорт БД: /api/admin/import-database (multipart/form-data)`);
         });
 
         return server;
