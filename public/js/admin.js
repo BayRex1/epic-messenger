@@ -125,6 +125,13 @@ function initializeAdminUI() {
 
     // Загрузка файлов для подарков
     initializeFileUploads();
+
+    // 🔄 Кнопки экспорта/импорта БД
+    document.getElementById('exportDbBtn').addEventListener('click', exportDatabase);
+    document.getElementById('importDbBtn').addEventListener('click', function() {
+        document.getElementById('dbFileInput').click();
+    });
+    document.getElementById('dbFileInput').addEventListener('change', importDatabase);
 }
 
 // Инициализация табов
@@ -672,6 +679,127 @@ async function deletePromoCode(promoId) {
     } catch (error) {
         console.error('Ошибка удаления промокода:', error);
         showNotification('Ошибка удаления промокода', 'error');
+    }
+}
+
+// 🔄 ФУНКЦИИ ЭКСПОРТА/ИМПОРТА БАЗЫ ДАННЫХ
+
+// Экспорт базы данных
+async function exportDatabase() {
+    try {
+        const token = localStorage.getItem('authToken');
+        
+        showNotification('Начинаем экспорт базы данных...', 'success');
+        
+        // Создаем запрос на экспорт
+        const response = await fetch('/api/admin/export-database', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Ошибка экспорта базы данных');
+        }
+        
+        // Получаем данные как blob
+        const blob = await response.blob();
+        
+        // Создаем URL для скачивания
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // Получаем имя файла из заголовков или генерируем
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'epic-messenger-backup.json';
+        
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (filenameMatch) {
+                filename = filenameMatch[1];
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showNotification('База данных успешно экспортирована!', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка экспорта базы данных:', error);
+        showNotification('Ошибка экспорта базы данных: ' + error.message, 'error');
+    }
+}
+
+// Импорт базы данных
+async function importDatabase(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Проверяем что это JSON файл
+    if (!file.name.endsWith('.json')) {
+        showNotification('Файл должен быть в формате JSON', 'error');
+        return;
+    }
+    
+    // Проверяем размер файла (максимум 100MB)
+    if (file.size > 100 * 1024 * 1024) {
+        showNotification('Размер файла не должен превышать 100 МБ', 'error');
+        return;
+    }
+    
+    if (!confirm('ВНИМАНИЕ: Импорт базы данных заменит все текущие данные. Продолжить?')) {
+        event.target.value = '';
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const formData = new FormData();
+        formData.append('database', file);
+        
+        showNotification('Начинаем импорт базы данных...', 'success');
+        
+        const response = await fetch('/api/admin/import-database', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('База данных успешно импортирована!', 'success');
+            console.log('📊 Статистика импорта:', data.stats);
+            
+            // Перезагружаем данные админ-панели
+            await loadAdminData();
+            
+            // Показываем детальную информацию об импорте
+            setTimeout(() => {
+                showNotification(
+                    `Импорт завершен! Пользователей: ${data.stats.users}, Сообщений: ${data.stats.messages}, Постов: ${data.stats.posts}`,
+                    'success'
+                );
+            }, 1000);
+            
+        } else {
+            showNotification('Ошибка импорта базы данных: ' + data.message, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка импорта базы данных:', error);
+        showNotification('Ошибка импорта базы данных: ' + error.message, 'error');
+    } finally {
+        // Очищаем input файла
+        event.target.value = '';
     }
 }
 
