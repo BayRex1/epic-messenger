@@ -433,6 +433,14 @@
             background: var(--accent-hover);
         }
 
+        .btn.warning {
+            background: var(--warning-color);
+        }
+
+        .btn.warning:hover {
+            background: #e1b12c;
+        }
+
         /* Подарки */
         .gifts-shop {
             display: grid;
@@ -802,6 +810,7 @@
                     <button class="profile-tab" data-tab="admin-gifts">Управление подарками</button>
                     <button class="profile-tab" data-tab="admin-promo">Промокоды</button>
                     <button class="profile-tab" data-tab="admin-stats">Статистика</button>
+                    <button class="profile-tab" data-tab="admin-database">Управление БД</button>
                 </div>
                 
                 <div class="profile-tab-content active" id="admin-users">
@@ -903,6 +912,58 @@
                         <div class="stat-item">
                             <div class="stat-value" id="fps">60</div>
                             <div class="stat-label">FPS</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-tab-content" id="admin-database">
+                    <div class="post">
+                        <h3>Экспорт и импорт базы данных</h3>
+                        <div class="system-message" style="margin-bottom: 20px;">
+                            ⚠️ Экспорт создает резервную копию всех данных. Импорт полностью заменяет текущие данные.
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                            <div class="form-group">
+                                <button class="btn" id="exportDbBtn" style="width: 100%;">
+                                    📥 Экспорт БД
+                                </button>
+                                <div class="system-message" style="margin-top: 10px;">
+                                    Скачает файл со всеми данными: пользователи, сообщения, посты, подарки и т.д.
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <button class="btn warning" id="importDbBtn" style="width: 100%;">
+                                    📤 Импорт БД
+                                </button>
+                                <input type="file" id="dbFileInput" accept=".json" style="display: none;">
+                                <div class="system-message" style="margin-top: 10px;">
+                                    Загрузит данные из файла (полная замена текущих данных)
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="system-message">
+                            💡 Совет: Регулярно экспортируйте БД для создания резервных копий
+                        </div>
+                    </div>
+                    
+                    <div class="post" style="margin-top: 20px;">
+                        <h4>Информация о данных</h4>
+                        <div class="admin-user-stats" style="justify-content: space-around; padding: 15px; background: var(--bg-tertiary); border-radius: 8px;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: var(--accent-color);" id="dbUsersCount">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Пользователей</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: var(--accent-color);" id="dbMessagesCount">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Сообщений</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: var(--accent-color);" id="dbPostsCount">0</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Постов</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1044,6 +1105,13 @@
 
             // Загрузка файлов для подарков
             initializeFileUploads();
+
+            // 🔄 Кнопки экспорта/импорта БД
+            document.getElementById('exportDbBtn').addEventListener('click', exportDatabase);
+            document.getElementById('importDbBtn').addEventListener('click', function() {
+                document.getElementById('dbFileInput').click();
+            });
+            document.getElementById('dbFileInput').addEventListener('change', importDatabase);
         }
 
         // Инициализация табов
@@ -1320,6 +1388,9 @@
             document.getElementById('onlineUsers').textContent = adminStats.onlineUsers || 0;
             document.getElementById('totalGroups').textContent = adminStats.totalGroups || 0;
             
+            // Обновляем счетчики БД
+            updateDatabaseCounters();
+            
             // FPS мониторинг
             let fps = 60;
             let lastTime = performance.now();
@@ -1337,6 +1408,13 @@
                 requestAnimationFrame(updateFPS);
             }
             updateFPS();
+        }
+
+        // Обновление счетчиков БД
+        function updateDatabaseCounters() {
+            document.getElementById('dbUsersCount').textContent = adminStats.totalUsers || 0;
+            document.getElementById('dbMessagesCount').textContent = adminStats.totalMessages || 0;
+            document.getElementById('dbPostsCount').textContent = adminStats.totalPosts || 0;
         }
 
         // Загрузка подарков для админки
@@ -1604,6 +1682,127 @@
             } catch (error) {
                 console.error('Ошибка удаления промокода:', error);
                 showNotification('Ошибка удаления промокода', 'error');
+            }
+        }
+
+        // 🔄 ФУНКЦИИ ЭКСПОРТА/ИМПОРТА БАЗЫ ДАННЫХ
+
+        // Экспорт базы данных
+        async function exportDatabase() {
+            try {
+                const token = localStorage.getItem('authToken');
+                
+                showNotification('Начинаем экспорт базы данных...', 'success');
+                
+                // Создаем запрос на экспорт
+                const response = await fetch('/api/admin/export-database', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка экспорта базы данных');
+                }
+                
+                // Получаем данные как blob
+                const blob = await response.blob();
+                
+                // Создаем URL для скачивания
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                
+                // Получаем имя файла из заголовков или генерируем
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'epic-messenger-backup.json';
+                
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                    if (filenameMatch) {
+                        filename = filenameMatch[1];
+                    }
+                }
+                
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showNotification('База данных успешно экспортирована!', 'success');
+                
+            } catch (error) {
+                console.error('Ошибка экспорта базы данных:', error);
+                showNotification('Ошибка экспорта базы данных: ' + error.message, 'error');
+            }
+        }
+
+        // Импорт базы данных
+        async function importDatabase(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Проверяем что это JSON файл
+            if (!file.name.endsWith('.json')) {
+                showNotification('Файл должен быть в формате JSON', 'error');
+                return;
+            }
+            
+            // Проверяем размер файла (максимум 100MB)
+            if (file.size > 100 * 1024 * 1024) {
+                showNotification('Размер файла не должен превышать 100 МБ', 'error');
+                return;
+            }
+            
+            if (!confirm('ВНИМАНИЕ: Импорт базы данных заменит все текущие данные. Продолжить?')) {
+                event.target.value = '';
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const formData = new FormData();
+                formData.append('database', file);
+                
+                showNotification('Начинаем импорт базы данных...', 'success');
+                
+                const response = await fetch('/api/admin/import-database', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('База данных успешно импортирована!', 'success');
+                    console.log('📊 Статистика импорта:', data.stats);
+                    
+                    // Перезагружаем данные админ-панели
+                    await loadAdminData();
+                    
+                    // Показываем детальную информацию об импорте
+                    setTimeout(() => {
+                        showNotification(
+                            `Импорт завершен! Пользователей: ${data.stats.users}, Сообщений: ${data.stats.messages}, Постов: ${data.stats.posts}`,
+                            'success'
+                        );
+                    }, 1000);
+                    
+                } else {
+                    showNotification('Ошибка импорта базы данных: ' + data.message, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Ошибка импорта базы данных:', error);
+                showNotification('Ошибка импорта базы данных: ' + error.message, 'error');
+            } finally {
+                // Очищаем input файла
+                event.target.value = '';
             }
         }
 
