@@ -152,10 +152,10 @@ async function loadEcoinPackages() {
         } else {
             // Заглушки для демонстрации
             const demoPackages = [
-                { id: 1, name: "Стартовый пакет", coins: 100, price: -, bonus: - },
-                { id: 2, name: "Базовый пакет", coins: 500, price: -, bonus: - },
-                { id: 3, name: "Премиум пакет", coins: 1000, price: -, bonus: - },
-                { id: 4, name: "Максимальный пакет", coins: 5000, price: -, bonus: - }
+                { id: 1, name: "Стартовый пакет", coins: 100, price: 0, bonus: 0 },
+                { id: 2, name: "Базовый пакет", coins: 500, price: 0, bonus: 0 },
+                { id: 3, name: "Премиум пакет", coins: 1000, price: 0, bonus: 0 },
+                { id: 4, name: "Максимальный пакет", coins: 5000, price: 0, bonus: 0 }
             ];
             renderEcoinPackages(demoPackages);
         }
@@ -163,10 +163,10 @@ async function loadEcoinPackages() {
         console.error('Ошибка загрузки пакетов E-COIN:', error);
         // Заглушки для демонстрации
         const demoPackages = [
-            { id: 1, name: "Стартовый пакет", coins: 100, price: -, bonus: - },
-            { id: 2, name: "Базовый пакет", coins: 500, price: -, bonus: - },
-            { id: 3, name: "Премиум пакет", coins: 1000, price: -, bonus: - },
-            { id: 4, name: "Максимальный пакет", coins: 5000, price: -, bonus: - }
+            { id: 1, name: "Стартовый пакет", coins: 100, price: 0, bonus: 0 },
+            { id: 2, name: "Базовый пакет", coins: 500, price: 0, bonus: 0 },
+            { id: 3, name: "Премиум пакет", coins: 1000, price: 0, bonus: 0 },
+            { id: 4, name: "Максимальный пакет", coins: 5000, price: 0, bonus: 0 }
         ];
         renderEcoinPackages(demoPackages);
     }
