@@ -960,6 +960,10 @@ class SimpleServer {
                 this.handleUploadGiftMultipart(req, res);
                 return;
             }
+            else if (pathname === '/api/admin/import-database') {
+                this.handleImportDatabaseMultipart(req, res);
+                return;
+            }
         }
 
         let body = '';
@@ -1091,12 +1095,16 @@ class SimpleServer {
                         response = this.handleGetGifts(token);
                     } else if (method === 'POST') {
                         response = this.handleCreateGift(token, data);
+                    } else if (method === 'DELETE') {
+                        response = this.handleDeleteGift(token, data);
                     }
                     break;
                     
                 case '/api/promo-codes':
                     if (method === 'GET') {
                         response = this.handleGetPromoCodes(token);
+                    } else if (method === 'DELETE') {
+                        response = this.handleDeletePromoCode(token, data);
                     }
                     break;
                     
@@ -1219,8 +1227,8 @@ class SimpleServer {
 
                 case '/api/admin/import-database':
                     if (method === 'POST') {
-                        this.handleImportDatabaseMultipart(req, res);
-                        return; // Важно: return чтобы не отправлять ответ дважды
+                        // Уже обработано через multipart
+                        response = { success: false, message: 'Use multipart form-data' };
                     }
                     break;
 
@@ -3893,6 +3901,7 @@ class SimpleServer {
         };
     }
 
+    // 🔧 ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ УДАЛЕНИЯ ПОСТОВ
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
         
@@ -4032,6 +4041,42 @@ class SimpleServer {
         };
     }
 
+    // 🔧 НОВЫЙ МЕТОД ДЛЯ УДАЛЕНИЯ ПОДАРКОВ
+    handleDeleteGift(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут удалять подарки
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'DELETE_GIFT', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { giftId } = data;
+        const giftIndex = this.gifts.findIndex(g => g.id === giftId);
+        
+        if (giftIndex === -1) {
+            return { success: false, message: 'Подарок не найден' };
+        }
+
+        const gift = this.gifts[giftIndex];
+
+        if (gift.image && gift.image.startsWith('/uploads/gifts/')) {
+            this.deleteFile(gift.image);
+        }
+
+        this.gifts.splice(giftIndex, 1);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'DELETE_GIFT', `gift:${gift.name}`);
+
+        console.log(`🗑️ Администратор ${user.displayName} удалил подарок: ${gift.name}`);
+
+        return {
+            success: true,
+            message: 'Подарок успешно удален'
+        };
+    }
+
     handleBuyGift(token, giftId, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -4167,6 +4212,38 @@ class SimpleServer {
         return {
             success: true,
             promoCode: promoCode
+        };
+    }
+
+    // 🔧 НОВЫЙ МЕТОД ДЛЯ УДАЛЕНИЯ ПРОМОКОДОВ
+    handleDeletePromoCode(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут удалять промокоды
+        if (!user || !this.isAdmin(user)) {
+            this.logSecurityEvent(user, 'DELETE_PROMOCODE', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { promoCodeId } = data;
+        const promoIndex = this.promoCodes.findIndex(p => p.id === promoCodeId);
+        
+        if (promoIndex === -1) {
+            return { success: false, message: 'Промокод не найден' };
+        }
+
+        const promoCode = this.promoCodes[promoIndex];
+
+        this.promoCodes.splice(promoIndex, 1);
+        this.saveData();
+
+        this.logSecurityEvent(user, 'DELETE_PROMOCODE', `code:${promoCode.code}`);
+
+        console.log(`🗑️ Администратор ${user.displayName} удалил промокод: ${promoCode.code}`);
+
+        return {
+            success: true,
+            message: 'Промокод успешно удален'
         };
     }
 
@@ -4798,6 +4875,10 @@ class SimpleServer {
             console.log(`\n🔄 ФУНКЦИИ ЭКСПОРТА/ИМПОРТА БД:`);
             console.log(`   ✅ Экспорт БД: /api/admin/export-database`);
             console.log(`   ✅ Импорт БД: /api/admin/import-database (multipart/form-data)`);
+            console.log(`\n🔧 ИСПРАВЛЕННЫЕ ФУНКЦИИ УДАЛЕНИЯ:`);
+            console.log(`   ✅ Удаление постов: DELETE /api/posts?postId=ID`);
+            console.log(`   ✅ Удаление подарков: DELETE /api/gifts (с передачей giftId в теле)`);
+            console.log(`   ✅ Удаление промокодов: DELETE /api/promo-codes (с передачей promoCodeId в теле)`);
         });
 
         return server;
