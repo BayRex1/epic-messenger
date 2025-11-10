@@ -1,10 +1,10 @@
 const http = require('http');
-const WebSocketServer = require('./websocket-server');
-const SecuritySystem = require('./security-system');
-const FileHandlers = require('./file-handlers');
-const ApiHandlers = require('./api-handlers');
-const DataManager = require('./data-manager');
-const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId } = require('./utils');
+const WebSocketServer = require('./public/server/websocket-server');
+const SecuritySystem = require('./public/server/security-system');
+const FileHandlers = require('./public/server/file-handlers');
+const ApiHandlers = require('./public/server/api-handlers');
+const DataManager = require('./public/server/data-manager');
+const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId } = require('./public/server/utils');
 
 class SimpleServer {
     constructor() {
