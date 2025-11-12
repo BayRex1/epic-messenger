@@ -23,7 +23,6 @@ class FileHandlers {
     }
 
     validateAvatarFile(filename) {
-        // Временно упрощаем для тестирования
         console.log('🔍 Проверка файла аватара:', filename);
         
         if (!filename) return false;
@@ -33,7 +32,7 @@ class FileHandlers {
         const isValid = allowedExtensions.includes(ext);
         
         console.log('📁 Расширение файла:', ext, 'Валидно:', isValid);
-        return true; // Временно возвращаем true для тестирования
+        return isValid;
     }
 
     validateGiftFile(filename) {
@@ -90,6 +89,7 @@ class FileHandlers {
         else if (type === 'audio') uploadDir = 'uploads/audio';
         else if (type === 'files') uploadDir = 'uploads/files';
 
+        // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
         const filePath = path.join(process.cwd(), 'public', uploadDir, filename);
         
         let buffer;
@@ -110,6 +110,7 @@ class FileHandlers {
     deleteFile(fileUrl) {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         
+        // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
         const filePath = path.join(process.cwd(), 'public', fileUrl.substring(1));
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
@@ -140,6 +141,18 @@ class FileHandlers {
 
     async handleUploadAvatarMultipart(req, res) {
         console.log('🖼️ Начало обработки загрузки аватара...');
+
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
 
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -187,7 +200,7 @@ class FileHandlers {
                 headers: req.headers,
                 limits: {
                     fileSize: 5 * 1024 * 1024, // 5MB максимум
-                    files: 1 // только один файл
+                    files: 1
                 }
             });
             
@@ -236,6 +249,7 @@ class FileHandlers {
                     // Сохраняем файл
                     const fileExt = path.extname(avatarFile.filename);
                     const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+                    // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                     const filePath = path.join(process.cwd(), 'public', 'uploads', 'avatars', uniqueFilename);
                     
                     console.log(`💾 Сохранение аватара: ${filePath}`);
@@ -299,6 +313,18 @@ class FileHandlers {
 
     async handleUploadPostImageMultipart(req, res) {
         console.log('📸 Начало обработки загрузки изображения для поста...');
+
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
 
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -395,6 +421,7 @@ class FileHandlers {
                     // Сохраняем файл
                     const fileExt = path.extname(imageFile.filename);
                     const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+                    // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                     const filePath = path.join(process.cwd(), 'public', 'uploads', 'posts', uniqueFilename);
                     
                     console.log(`💾 Сохранение изображения: ${filePath}`);
@@ -431,6 +458,18 @@ class FileHandlers {
 
     async handleUploadFileMultipart(req, res) {
         console.log('📎 Начало обработки загрузки файла...');
+
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
 
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -551,6 +590,7 @@ class FileHandlers {
                     // Сохраняем файл
                     const fileExt = path.extname(uploadedFile.filename);
                     const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
+                    // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                     const filePath = path.join(process.cwd(), 'public', 'uploads', uploadDir, uniqueFilename);
                     
                     console.log(`💾 Сохранение файла: ${filePath}`);
@@ -589,6 +629,18 @@ class FileHandlers {
 
     async handleUploadGiftMultipart(req, res) {
         console.log('🎁 Начало обработки загрузки изображения подарка...');
+
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
 
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -685,6 +737,7 @@ class FileHandlers {
                     // Сохраняем файл
                     const fileExt = path.extname(giftFile.filename);
                     const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+                    // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                     const filePath = path.join(process.cwd(), 'public', 'uploads', 'gifts', uniqueFilename);
                     
                     console.log(`💾 Сохранение подарка: ${filePath}`);
@@ -750,7 +803,6 @@ class FileHandlers {
             return;
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC', 'SYSTEM', false);
             res.writeHead(403, { 
@@ -793,8 +845,8 @@ class FileHandlers {
                 headers: req.headers,
                 limits: {
                     fileSize: 50 * 1024 * 1024, // 50MB максимум
-                    files: 2, // максимум 2 файла (аудио + обложка)
-                    fields: 10 // максимум 10 полей
+                    files: 2,
+                    fields: 10
                 }
             });
             
@@ -872,7 +924,6 @@ class FileHandlers {
                 console.log('🔚 Завершение обработки формы');
                 console.log(`📊 Обработано полей: ${fieldsProcessed}, файлов: ${filesProcessed}/${totalFilesExpected}`);
                 
-                // Даем немного времени на завершение обработки файлов
                 setTimeout(async () => {
                     try {
                         if (!audioFile) {
@@ -890,6 +941,7 @@ class FileHandlers {
                         // Сохраняем аудио файл
                         const audioExt = path.extname(audioFile.filename);
                         const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                        // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                         const audioPath = path.join(process.cwd(), 'public', 'uploads', 'music', audioFilename);
                         
                         console.log(`💾 Сохранение аудио файла: ${audioPath}`);
@@ -903,6 +955,7 @@ class FileHandlers {
                             if (coverFile && coverFile.filename) {
                                 const coverExt = path.extname(coverFile.filename);
                                 const coverFilename = `cover_${user.id}_${Date.now()}${coverExt}`;
+                                // ИСПРАВЛЕНО: правильный путь для структуры uploads внутри public
                                 const coverPath = path.join(process.cwd(), 'public', 'uploads', 'music', 'covers', coverFilename);
                                 
                                 console.log(`💾 Сохранение обложки: ${coverPath}`);
@@ -911,7 +964,6 @@ class FileHandlers {
                                 console.log('✅ Обложка сохранена');
                             }
 
-                            // Сохраняем метаданные трека
                             const track = {
                                 id: this.dataManager.generateId(),
                                 userId: user.id,
@@ -952,7 +1004,7 @@ class FileHandlers {
                         console.error('❌ Ошибка при обработке формы:', error);
                         sendErrorResponse('Ошибка при обработке формы: ' + error.message);
                     }
-                }, 100); // Небольшая задержка для завершения всех операций
+                }, 100);
             });
 
             bb.on('error', (error) => {
@@ -960,7 +1012,6 @@ class FileHandlers {
                 sendErrorResponse('Ошибка обработки формы: ' + error.message);
             });
 
-            // Обработка ошибок запроса
             req.on('error', (error) => {
                 console.error('❌ Ошибка запроса:', error);
                 sendErrorResponse('Ошибка запроса: ' + error.message);
@@ -970,16 +1021,14 @@ class FileHandlers {
                 console.log('📨 Запрос полностью получен');
             });
 
-            // Таймаут обработки
             const timeout = setTimeout(() => {
                 console.error('⏰ Таймаут обработки запроса');
                 sendErrorResponse('Таймаут обработки запроса', 408);
-            }, 60000); // 60 секунд
+            }, 60000);
 
             console.log('🔄 Начинаем парсинг формы...');
             req.pipe(bb);
 
-            // Очистка таймаута при успешной обработке
             bb.on('close', () => {
                 clearTimeout(timeout);
                 console.log('✅ Таймаут очищен');
@@ -993,6 +1042,18 @@ class FileHandlers {
 
     async handleImportDatabaseMultipart(req, res) {
         console.log('🔄 Начало обработки импорта базы данных...');
+
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+        };
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+        }
 
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -1039,7 +1100,7 @@ class FileHandlers {
             const bb = busboy({ 
                 headers: req.headers,
                 limits: {
-                    fileSize: 100 * 1024 * 1024, // 100MB максимум для БД
+                    fileSize: 100 * 1024 * 1024,
                     files: 1
                 }
             });
@@ -1081,13 +1142,11 @@ class FileHandlers {
                         return;
                     }
 
-                    // Проверяем что это JSON файл
                     if (!databaseFile.filename.endsWith('.json')) {
                         sendErrorResponse('Файл должен быть в формате JSON', 400);
                         return;
                     }
 
-                    // Парсим JSON данные
                     const fileContent = databaseFile.buffer.toString('utf8');
                     let importData;
                     try {
@@ -1097,13 +1156,11 @@ class FileHandlers {
                         return;
                     }
 
-                    // Проверяем структуру данных
                     if (!importData.exportInfo || !importData.data) {
                         sendErrorResponse('Неверная структура файла базы данных', 400);
                         return;
                     }
 
-                    // 🔐 СОХРАНЯЕМ СТАРЫЕ ДАННЫЕ ДЛЯ БЭКАПА
                     const backupData = {
                         users: this.dataManager.users,
                         messages: this.dataManager.messages,
@@ -1124,7 +1181,6 @@ class FileHandlers {
                     require('fs').writeFileSync(backupPath, JSON.stringify(backupData, null, 2));
                     console.log(`💾 Создан бэкап перед импортом: ${backupPath}`);
 
-                    // 🔄 ИМПОРТИРУЕМ НОВЫЕ ДАННЫЕ
                     try {
                         this.dataManager.users = importData.data.users || [];
                         this.dataManager.messages = importData.data.messages || [];
@@ -1137,10 +1193,7 @@ class FileHandlers {
                         this.dataManager.bannedIPs = new Map(Object.entries(importData.data.bannedIPs || {}));
                         this.dataManager.devices = new Map(Object.entries(importData.data.devices || {}));
 
-                        // Восстанавливаем даты
                         this.dataManager.restoreDates();
-
-                        // Сохраняем данные
                         this.dataManager.saveData();
 
                         this.securitySystem.logSecurityEvent(user, 'IMPORT_DATABASE', `file:${databaseFile.filename}, users:${this.dataManager.users.length}, messages:${this.dataManager.messages.length}`);
@@ -1167,7 +1220,6 @@ class FileHandlers {
                         });
 
                     } catch (importError) {
-                        // 🔄 ВОССТАНАВЛИВАЕМ ДАННЫЕ ИЗ БЭКАПА ПРИ ОШИБКЕ
                         console.error('❌ Ошибка импорта, восстанавливаем из бэкапа...', importError);
                         
                         this.dataManager.users = backupData.users;
