@@ -62,9 +62,44 @@ function generateDeviceId(req) {
     return crypto.createHash('md5').update(deviceString).digest('hex');
 }
 
+// Проверка существования файла
+function checkFileExists(filePath) {
+    return new Promise((resolve) => {
+        fs.access(filePath, fs.constants.F_OK, (err) => {
+            resolve(!err);
+        });
+    });
+}
+
+// Создание необходимых директорий
+function ensureUploadDirs() {
+    const requiredDirs = [
+        'public/uploads/music',
+        'public/uploads/music/covers',
+        'public/uploads/avatars',
+        'public/uploads/gifts',
+        'public/uploads/posts',
+        'public/uploads/images',
+        'public/uploads/videos',
+        'public/uploads/audio',
+        'public/uploads/files',
+        'public/assets/emoji'
+    ];
+    
+    requiredDirs.forEach(dir => {
+        const fullPath = path.join(process.cwd(), dir);
+        if (!fs.existsSync(fullPath)) {
+            fs.mkdirSync(fullPath, { recursive: true });
+            console.log('✅ Создана папка:', fullPath);
+        }
+    });
+}
+
 module.exports = {
     serveStaticFile,
     getClientIP,
     getDeviceInfo,
-    generateDeviceId
+    generateDeviceId,
+    checkFileExists,
+    ensureUploadDirs
 };
