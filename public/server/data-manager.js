@@ -7,6 +7,7 @@ class DataManager {
     constructor() {
         // Используем текущую директорию вместо /tmp для Render
         this.dataFile = path.join(process.cwd(), 'epic-messenger-data.json');
+        console.log(`💾 Data file: ${this.dataFile}`);
         this.encryptionKey = crypto.randomBytes(32);
         
         this.bannedIPs = new Map();
@@ -23,6 +24,7 @@ class DataManager {
     loadData() {
         try {
             if (fs.existsSync(this.dataFile)) {
+                console.log(`📂 Loading data from: ${this.dataFile}`);
                 const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
                 this.users = data.users || [];
                 this.messages = data.messages || [];
