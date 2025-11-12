@@ -235,7 +235,13 @@
             </div>
             <div class="modal-body">
                 <div class="file-upload-area" id="avatarUploadArea">
-                    <div>Перетащите сюда изображение или нажмите для выбора (макс. 5 МБ)</div>
+                    <div class="upload-area-content">
+                        <svg viewBox="0 0 24 24" class="upload-icon">
+                            <path fill="currentColor" d="M14,13V17H10V13H7L12,8L17,13M19.35,10.03C18.67,6.59 15.64,4 12,4C9.11,4 6.6,5.64 5.35,8.03C2.34,8.36 0,10.9 0,14A6,6 0 0,0 6,20H19A5,5 0 0,0 24,15C24,12.36 21.95,10.22 19.35,10.03Z"/>
+                        </svg>
+                        <div class="upload-text">Перетащите сюда изображение или нажмите для выбора</div>
+                        <div class="upload-subtext">Поддерживаемые форматы: JPG, PNG, GIF, WEBP (макс. 5 МБ)</div>
+                    </div>
                     <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
                 </div>
                 <div class="file-preview" id="avatarPreview"></div>
