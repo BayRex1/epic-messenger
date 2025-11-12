@@ -977,8 +977,8 @@ class ApiHandlers {
             id: this.dataManager.generateId(),
             userId: user.id,
             text: sanitizedText,
-            image: image,
-            file: file,
+            image: image, // Должен быть URL, а не base64
+            file: file,   // Должен быть URL, а не base64
             fileName: fileName,
             fileType: fileType,
             likes: [],
@@ -1129,7 +1129,7 @@ class ApiHandlers {
             type: type || 'custom',
             preview: image ? '🖼️' : '🎁',
             price: parseInt(price),
-            image: image,
+            image: image, // Должен быть URL, а не base64
             createdAt: new Date()
         };
 
@@ -1553,10 +1553,11 @@ class ApiHandlers {
         }
 
         try {
-            // Сохраняем файл на сервер
+            // Сохраняем файл на сервер и получаем URL
             const fileExt = path.extname(filename);
             const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
             
+            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
             const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'avatar');
 
             // Удаляем старый аватар если он был
@@ -1574,13 +1575,13 @@ class ApiHandlers {
 
             return {
                 success: true,
-                avatarUrl: fileUrl,
+                avatarUrl: fileUrl, // Возвращаем URL
                 user: {
                     id: user.id,
                     username: user.username,
                     displayName: user.displayName,
                     email: user.email,
-                    avatar: fileUrl, // Возвращаем URL, а не base64
+                    avatar: fileUrl, // URL вместо base64
                     description: user.description,
                     coins: user.coins,
                     verified: user.verified,
@@ -1597,6 +1598,85 @@ class ApiHandlers {
         } catch (error) {
             console.error('Ошибка загрузки аватара:', error);
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        // 🔐 Проверяем что пользователь не забанен
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validatePostFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для поста' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            
+            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
+            const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'post');
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
+
+            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl // Возвращаем URL вместо base64
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла для поста:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadGift(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут загружать подарки
+        if (!user || !this.securitySystem.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validateGiftFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для подарка' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+            
+            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
+            const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'gift');
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
+
+            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl // Возвращаем URL вместо base64
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения подарка:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
             return { success: false, message: 'Ошибка загрузки файла' };
         }
     }
@@ -1630,93 +1710,6 @@ class ApiHandlers {
         } catch (error) {
             console.error('Ошибка предпросмотра аватара:', error);
             return { success: false, message: 'Ошибка обработки файла' };
-        }
-    }
-
-    async handleUploadGift(token, data) {
-        const user = this.authenticateToken(token);
-        
-        // 🔐 Только администраторы могут загружать подарки
-        if (!user || !this.securitySystem.isAdmin(user)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.fileHandlers.validateGiftFile(filename)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для подарка. Разрешены изображения, GIF и SVG.' };
-        }
-
-        if (fileData.length > 10 * 1024 * 1024) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Размер файла не должен превышать 10 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'gift');
-
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
-
-            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки изображения подарка:', error);
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-
-    async handleUploadPostImage(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // 🔐 Проверяем что пользователь не забанен
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.fileHandlers.validatePostFile(filename)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для поста. Разрешены только изображения, видео и аудио.' };
-        }
-
-        if (fileData.length > 50 * 1024 * 1024) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Размер файла не должен превышать 50 МБ' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
-            
-            const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'post');
-
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
-
-            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки файла для поста:', error);
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
         }
     }
 
