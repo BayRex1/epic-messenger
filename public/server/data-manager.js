@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { ensureUploadDirs } = require('./utils');
 
 class DataManager {
     constructor() {
-        // Используем /tmp для Render, так как он сохраняется между деплоями
-        this.dataFile = path.join('/tmp', 'epic-messenger-data.json');
+        // Используем текущую директорию вместо /tmp для Render
+        this.dataFile = path.join(process.cwd(), 'epic-messenger-data.json');
         this.encryptionKey = crypto.randomBytes(32);
         
         this.bannedIPs = new Map();
@@ -16,27 +17,7 @@ class DataManager {
     }
 
     ensureUploadDirs() {
-        const requiredDirs = [
-            'public/uploads/music',
-            'public/uploads/music/covers',
-            'public/uploads/avatars',
-            'public/uploads/gifts',
-            'public/uploads/posts',
-            'public/uploads/images',
-            'public/uploads/videos',
-            'public/uploads/audio',
-            'public/uploads/files',
-            'public/assets/emoji',
-            '/tmp'
-        ];
-        
-        requiredDirs.forEach(dir => {
-            const fullPath = path.join(process.cwd(), dir);
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-                console.log('✅ Создана папка:', fullPath);
-            }
-        });
+        ensureUploadDirs();
     }
 
     loadData() {
