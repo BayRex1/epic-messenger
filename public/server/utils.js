@@ -5,15 +5,17 @@ const crypto = require('crypto');
 // Функция для обслуживания статических файлов
 function serveStaticFile(res, filePath, contentType) {
     const fullPath = path.join(process.cwd(), filePath);
+    console.log(`📁 serveStaticFile: ${filePath} -> ${fullPath}`);
     
     fs.readFile(fullPath, (err, data) => {
         if (err) {
-            console.log('File not found:', filePath);
+            console.log('❌ File not found:', filePath, err.message);
             res.writeHead(404);
             res.end('File not found');
             return;
         }
         
+        console.log(`✅ File served: ${filePath}, size: ${data.length} bytes`);
         res.writeHead(200, { 
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=3600'
@@ -86,11 +88,27 @@ function ensureUploadDirs() {
         'public/assets/emoji'
     ];
     
+    console.log('📁 Creating upload directories...');
     requiredDirs.forEach(dir => {
         const fullPath = path.join(process.cwd(), dir);
         if (!fs.existsSync(fullPath)) {
             fs.mkdirSync(fullPath, { recursive: true });
-            console.log('✅ Создана папка:', fullPath);
+            console.log('✅ Created directory:', fullPath);
+        } else {
+            console.log('📁 Directory exists:', fullPath);
+        }
+    });
+    
+    // Проверим права доступа
+    requiredDirs.forEach(dir => {
+        const fullPath = path.join(process.cwd(), dir);
+        try {
+            const testFile = path.join(fullPath, 'test.txt');
+            fs.writeFileSync(testFile, 'test');
+            fs.unlinkSync(testFile);
+            console.log(`✅ Write access OK: ${dir}`);
+        } catch (error) {
+            console.log(`❌ Write access FAILED: ${dir}`, error.message);
         }
     });
 }
