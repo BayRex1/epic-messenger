@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Функция для обслуживания статических файлов
 function serveStaticFile(res, filePath, contentType) {
     const fullPath = path.join(process.cwd(), filePath);
     console.log(`📁 serveStaticFile: ${filePath} -> ${fullPath}`);
@@ -24,7 +23,6 @@ function serveStaticFile(res, filePath, contentType) {
     });
 }
 
-// Получение IP адреса клиента
 function getClientIP(req) {
     return req.headers['x-forwarded-for'] || 
            req.connection.remoteAddress || 
@@ -32,7 +30,6 @@ function getClientIP(req) {
            (req.connection.socket ? req.connection.socket.remoteAddress : null);
 }
 
-// Получение информации об устройстве
 function getDeviceInfo(req) {
     const userAgent = req.headers['user-agent'] || '';
     let browser = 'Unknown';
@@ -56,7 +53,6 @@ function getDeviceInfo(req) {
     };
 }
 
-// Генерация ID устройства
 function generateDeviceId(req) {
     const ip = getClientIP(req);
     const deviceInfo = getDeviceInfo(req);
@@ -64,7 +60,6 @@ function generateDeviceId(req) {
     return crypto.createHash('md5').update(deviceString).digest('hex');
 }
 
-// Проверка существования файла
 function checkFileExists(filePath) {
     return new Promise((resolve) => {
         fs.access(filePath, fs.constants.F_OK, (err) => {
@@ -73,8 +68,8 @@ function checkFileExists(filePath) {
     });
 }
 
-// Создание необходимых директорий
 function ensureUploadDirs() {
+    // ИСПРАВЛЕНО: правильные пути для структуры uploads внутри public
     const requiredDirs = [
         'public/uploads/music',
         'public/uploads/music/covers',
@@ -99,7 +94,6 @@ function ensureUploadDirs() {
         }
     });
     
-    // Проверим права доступа
     requiredDirs.forEach(dir => {
         const fullPath = path.join(process.cwd(), dir);
         try {
