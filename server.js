@@ -4,10 +4,14 @@ const SecuritySystem = require('./public/server/security-system');
 const FileHandlers = require('./public/server/file-handlers');
 const ApiHandlers = require('./public/server/api-handlers');
 const DataManager = require('./public/server/data-manager');
-const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId } = require('./public/server/utils');
+const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId, ensureUploadDirs } = require('./public/server/utils');
 
 class SimpleServer {
     constructor() {
+        // Создаем необходимые директории при запуске
+        console.log('🚀 Initializing server...');
+        ensureUploadDirs();
+        
         this.dataManager = new DataManager();
         this.securitySystem = new SecuritySystem();
         this.fileHandlers = new FileHandlers(this.dataManager, this.securitySystem);
@@ -164,6 +168,15 @@ class SimpleServer {
             console.log(`   ✅ Удаление постов: DELETE /api/posts?postId=ID`);
             console.log(`   ✅ Удаление подарков: DELETE /api/gifts (с передачей giftId в теле)`);
             console.log(`   ✅ Удаление промокодов: DELETE /api/promo-codes (с передачей promoCodeId в теле)`);
+            console.log(`\n📁 Созданные директории для загрузок:`);
+            console.log(`   ✅ public/uploads/avatars`);
+            console.log(`   ✅ public/uploads/posts`);
+            console.log(`   ✅ public/uploads/music`);
+            console.log(`   ✅ public/uploads/gifts`);
+            console.log(`   ✅ public/uploads/images`);
+            console.log(`   ✅ public/uploads/videos`);
+            console.log(`   ✅ public/uploads/audio`);
+            console.log(`   ✅ public/uploads/files`);
         });
 
         return server;
@@ -207,11 +220,59 @@ class SimpleServer {
             return;
         }
 
+        // Явно обрабатываем uploads директорию
+        if (pathname.startsWith('/uploads/')) {
+            const filePath = path.join(process.cwd(), 'public', pathname);
+            console.log(`📁 Serving upload file: ${pathname} -> ${filePath}`);
+            
+            fs.readFile(filePath, (err, data) => {
+                if (err) {
+                    console.log('❌ Upload file not found:', filePath, err.message);
+                    res.writeHead(404);
+                    res.end('File not found');
+                    return;
+                }
+                
+                const ext = path.extname(pathname).toLowerCase();
+                const contentType = {
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.bmp': 'image/bmp',
+                    '.webp': 'image/webp',
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/mp4',
+                    '.aac': 'audio/aac',
+                    '.mp4': 'video/mp4',
+                    '.avi': 'video/x-msvideo',
+                    '.mov': 'video/quicktime',
+                    '.wmv': 'video/x-ms-wmv',
+                    '.flv': 'video/x-flv',
+                    '.webm': 'video/webm',
+                    '.pdf': 'application/pdf',
+                    '.txt': 'text/plain'
+                }[ext] || 'application/octet-stream';
+                
+                console.log(`✅ Serving upload file: ${pathname}, type: ${contentType}, size: ${data.length} bytes`);
+                
+                res.writeHead(200, { 
+                    'Content-Type': contentType,
+                    'Cache-Control': 'public, max-age=3600'
+                });
+                res.end(data);
+            });
+            return;
+        }
+
         if (pathname.endsWith('.css')) {
             serveStaticFile(res, 'public' + pathname, 'text/css');
         } else if (pathname.endsWith('.js')) {
             serveStaticFile(res, 'public' + pathname, 'application/javascript');
-        } else if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
+        } else if (pathname.startsWith('/assets/')) {
             const ext = path.extname(pathname);
             const contentType = {
                 '.png': 'image/png',
