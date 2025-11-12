@@ -829,10 +829,10 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // Проверяем что есть либо текст, либо файл
-        if ((!text || text.trim() === '') && !file && !image) {
-            return { success: false, message: 'Сообщение не может быть пустым' };
-        }
+        // 🔴 ВРЕМЕННО ОТКЛЮЧАЕМ ПРОВЕРКУ ДЛЯ ФАЙЛОВ
+        // if ((!text || text.trim() === '') && !file && !image) {
+        //     return { success: false, message: 'Сообщение не может быть пустым' };
+        // }
 
         // 🔐 Проверяем существование получателя
         const recipient = this.dataManager.users.find(u => u.id === toUserId);
@@ -850,10 +850,6 @@ class ApiHandlers {
         let sanitizedText = '';
         if (text && text.trim() !== '') {
             sanitizedText = this.securitySystem.sanitizeContent(text.trim());
-            if (sanitizedText.length === 0 && !file && !image) {
-                this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
-                return { success: false, message: 'Сообщение содержит запрещенный контент' };
-            }
         }
 
         const encryptedText = text ? this.dataManager.encrypt(sanitizedText) : '';
@@ -877,9 +873,9 @@ class ApiHandlers {
         this.dataManager.messages.push(message);
         this.dataManager.saveData();
 
-        this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, chars:${sanitizedText.length}`);
+        this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${message.type}`);
 
-        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}`);
+        console.log(`💬 Новое сообщение от ${user.displayName} к пользователю ${toUserId}, тип: ${message.type}`);
 
         return {
             success: true,
