@@ -1,15 +1,235 @@
 let currentAvatarFile = null;
 let currentUser = null;
-let currentAvatarData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Инициализация страницы профиля...');
     
+    // Добавляем стили для модальных окон
+    addModalStyles();
+    
+    // Проверяем элементы
+    setTimeout(checkElements, 500);
+    
+    // Инициализируем функционал
     initAvatarUpload();
-    loadUserProfile();
     setupEventListeners();
+    loadUserProfile();
     setupTabNavigation();
 });
+
+function addModalStyles() {
+    const modalStyles = `
+    <style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 25px;
+        max-width: 500px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        position: relative;
+        animation: slideUp 0.3s ease;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: var(--text-primary);
+        font-size: 20px;
+    }
+
+    .close {
+        font-size: 28px;
+        cursor: pointer;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .close:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .modal-body {
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 14px;
+        transition: all 0.3s ease;
+        font-family: inherit;
+    }
+
+    .modal-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 2px rgba(0, 180, 180, 0.2);
+    }
+
+    .modal-input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    textarea.modal-input {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    .modal-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .modal-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        min-width: 100px;
+        text-align: center;
+    }
+
+    .modal-btn.primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .modal-btn.primary:hover {
+        background: var(--accent-hover);
+        transform: translateY(-2px);
+    }
+
+    .modal-btn.secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .modal-btn.secondary:hover {
+        background: var(--border-color);
+        transform: translateY(-2px);
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+        from { 
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Адаптивность для мобильных */
+    @media (max-width: 768px) {
+        .modal-overlay {
+            padding: 10px;
+        }
+        
+        .modal-content {
+            padding: 20px;
+        }
+        
+        .modal-buttons {
+            flex-direction: column;
+        }
+        
+        .modal-btn {
+            min-width: auto;
+            width: 100%;
+        }
+    }
+    </style>
+    `;
+    
+    document.head.insertAdjacentHTML('beforeend', modalStyles);
+}
+
+function checkElements() {
+    console.log('🔍 Проверка элементов...');
+    const elements = [
+        'editProfileBtn',
+        'changeAvatarBtn',
+        'editProfileModal',
+        'changeAvatarModal',
+        'saveProfile',
+        'saveAvatar'
+    ];
+    
+    elements.forEach(id => {
+        const element = document.getElementById(id);
+        console.log(`${element ? '✅' : '❌'} ${id}:`, element);
+    });
+}
 
 function initAvatarUpload() {
     const uploadArea = document.getElementById('avatarUploadArea');
@@ -79,15 +299,17 @@ function handleAvatarFile(file) {
     reader.onload = function(e) {
         console.log('✅ Файл прочитан, создаем предпросмотр');
         const preview = document.getElementById('avatarPreview');
-        preview.innerHTML = `
-            <div class="avatar-preview-container">
-                <img src="${e.target.result}" alt="Предпросмотр аватара" class="avatar-preview-image">
-                <div class="avatar-preview-info">
-                    <div><strong>${file.name}</strong></div>
-                    <div>${(file.size / 1024).toFixed(2)} KB • ${file.type}</div>
+        if (preview) {
+            preview.innerHTML = `
+                <div class="avatar-preview-container">
+                    <img src="${e.target.result}" alt="Предпросмотр аватара" class="avatar-preview-image">
+                    <div class="avatar-preview-info">
+                        <div><strong>${file.name}</strong></div>
+                        <div>${(file.size / 1024).toFixed(2)} KB • ${file.type}</div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
         
         // Сохраняем файл для отправки
         currentAvatarFile = file;
@@ -103,6 +325,8 @@ function handleAvatarFile(file) {
 }
 
 function setupEventListeners() {
+    console.log('🔧 Настройка обработчиков событий...');
+    
     // Кнопка редактирования профиля
     const editProfileBtn = document.getElementById('editProfileBtn');
     const changeAvatarBtn = document.getElementById('changeAvatarBtn');
@@ -110,15 +334,21 @@ function setupEventListeners() {
     const cancelEditProfile = document.getElementById('cancelEditProfile');
     const closeChangeAvatar = document.getElementById('closeChangeAvatar');
     const cancelChangeAvatar = document.getElementById('cancelChangeAvatar');
-    const saveProfile = document.getElementById('saveProfile');
-    const saveAvatar = document.getElementById('saveAvatar');
+    const saveProfileBtn = document.getElementById('saveProfile');
+    const saveAvatarBtn = document.getElementById('saveAvatar');
 
     if (editProfileBtn) {
         editProfileBtn.addEventListener('click', openEditProfileModal);
+        console.log('✅ Обработчик для editProfileBtn установлен');
+    } else {
+        console.log('❌ editProfileBtn не найден');
     }
     
     if (changeAvatarBtn) {
         changeAvatarBtn.addEventListener('click', openChangeAvatarModal);
+        console.log('✅ Обработчик для changeAvatarBtn установлен');
+    } else {
+        console.log('❌ changeAvatarBtn не найден');
     }
     
     // Закрытие модальных окон
@@ -139,12 +369,12 @@ function setupEventListeners() {
     }
     
     // Сохранение профиля
-    if (saveProfile) {
-        saveProfile.addEventListener('click', saveProfile);
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener('click', saveProfileData);
     }
     
-    if (saveAvatar) {
-        saveAvatar.addEventListener('click', saveAvatar);
+    if (saveAvatarBtn) {
+        saveAvatarBtn.addEventListener('click', saveAvatarData);
     }
     
     // Выход из системы
@@ -152,6 +382,28 @@ function setupEventListeners() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
     }
+    
+    // Закрытие модальных окон при клике вне их
+    document.addEventListener('click', function(e) {
+        const editModal = document.getElementById('editProfileModal');
+        const avatarModal = document.getElementById('changeAvatarModal');
+        
+        if (editModal && e.target === editModal) {
+            closeEditProfileModal();
+        }
+        
+        if (avatarModal && e.target === avatarModal) {
+            closeChangeAvatarModal();
+        }
+    });
+    
+    // Закрытие по ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeEditProfileModal();
+            closeChangeAvatarModal();
+        }
+    });
 }
 
 function setupTabNavigation() {
@@ -224,33 +476,44 @@ function displayUserProfile(user) {
     console.log('🎨 Отображение профиля пользователя:', user.username);
     
     // Обновляем сайдбар
-    document.getElementById('userName').textContent = user.displayName;
-    document.getElementById('userUsername').textContent = `@${user.username}`;
+    updateElementText('userName', user.displayName);
+    updateElementText('userUsername', `@${user.username}`);
     updateAvatarElement(document.getElementById('userAvatar'), user.avatar, user.displayName);
     
     // Обновляем основной профиль
-    document.getElementById('profileUserName').textContent = user.displayName;
-    document.getElementById('profileUserUsername').textContent = `@${user.username}`;
+    updateElementText('profileUserName', user.displayName);
+    updateElementText('profileUserUsername', `@${user.username}`);
     updateAvatarElement(document.getElementById('profileUserAvatar'), user.avatar, user.displayName);
     
     // Обновляем бейджи
-    if (user.verified) {
-        document.getElementById('verifiedBadge').style.display = 'inline';
-        document.getElementById('profileVerifiedBadge').style.display = 'inline';
-    }
-    if (user.isDeveloper) {
-        document.getElementById('developerBadge').style.display = 'inline';
-        document.getElementById('profileDeveloperBadge').style.display = 'inline';
-    }
+    updateBadgeVisibility('verifiedBadge', user.verified);
+    updateBadgeVisibility('profileVerifiedBadge', user.verified);
+    updateBadgeVisibility('developerBadge', user.isDeveloper);
+    updateBadgeVisibility('profileDeveloperBadge', user.isDeveloper);
     
     // Обновляем статистику
-    document.getElementById('profilePostsCount').textContent = user.postsCount || 0;
-    document.getElementById('profileGiftsCount').textContent = user.giftsCount || 0;
-    document.getElementById('profileCoinsCount').textContent = user.coins || 0;
+    updateElementText('profilePostsCount', user.postsCount || 0);
+    updateElementText('profileGiftsCount', user.giftsCount || 0);
+    updateElementText('profileCoinsCount', user.coins || 0);
     
     // Показываем админ-панель если пользователь администратор
-    if (user.isDeveloper || user.isAdmin) {
-        document.getElementById('adminPanelBtn').style.display = 'flex';
+    const adminPanelBtn = document.getElementById('adminPanelBtn');
+    if (adminPanelBtn && (user.isDeveloper || user.isAdmin)) {
+        adminPanelBtn.style.display = 'flex';
+    }
+}
+
+function updateElementText(elementId, text) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = text;
+    }
+}
+
+function updateBadgeVisibility(badgeId, isVisible) {
+    const badge = document.getElementById(badgeId);
+    if (badge) {
+        badge.style.display = isVisible ? 'inline' : 'none';
     }
 }
 
@@ -259,12 +522,11 @@ function updateAvatarElement(element, avatarUrl, displayName) {
     
     if (avatarUrl) {
         element.style.backgroundImage = `url(${avatarUrl})`;
-        element.textContent = ''; // Убираем текстовую инициализацию
+        element.textContent = '';
         console.log('✅ Аватар обновлен:', avatarUrl);
     } else {
         element.style.backgroundImage = '';
         element.textContent = getInitials(displayName);
-        console.log('✅ Установлены инициалы:', getInitials(displayName));
     }
 }
 
@@ -281,19 +543,52 @@ function openEditProfileModal() {
         return;
     }
     
+    // Заполняем поля текущими данными
     document.getElementById('editDisplayName').value = currentUser.displayName || '';
     document.getElementById('editUsername').value = currentUser.username || '';
     document.getElementById('editEmail').value = currentUser.email || '';
     document.getElementById('editDescription').value = currentUser.description || '';
     
-    document.getElementById('editProfileModal').style.display = 'flex';
+    const modal = document.getElementById('editProfileModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+    }
 }
 
 function closeEditProfileModal() {
-    document.getElementById('editProfileModal').style.display = 'none';
+    const modal = document.getElementById('editProfileModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
 }
 
-async function saveProfile() {
+function openChangeAvatarModal() {
+    console.log('🖼️ Открытие модального окна смены аватара');
+    
+    // Сбрасываем состояние
+    currentAvatarFile = null;
+    document.getElementById('avatarPreview').innerHTML = '';
+    document.getElementById('avatarUrl').value = '';
+    document.getElementById('avatarFileInput').value = '';
+    
+    const modal = document.getElementById('changeAvatarModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+    }
+}
+
+function closeChangeAvatarModal() {
+    const modal = document.getElementById('changeAvatarModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+}
+
+async function saveProfileData() {
     console.log('💾 Сохранение профиля...');
     
     const displayName = document.getElementById('editDisplayName').value.trim();
@@ -337,23 +632,7 @@ async function saveProfile() {
     }
 }
 
-function openChangeAvatarModal() {
-    console.log('🖼️ Открытие модального окна смены аватара');
-    
-    // Сбрасываем состояние
-    currentAvatarFile = null;
-    document.getElementById('avatarPreview').innerHTML = '';
-    document.getElementById('avatarUrl').value = '';
-    document.getElementById('avatarFileInput').value = '';
-    
-    document.getElementById('changeAvatarModal').style.display = 'flex';
-}
-
-function closeChangeAvatarModal() {
-    document.getElementById('changeAvatarModal').style.display = 'none';
-}
-
-async function saveAvatar() {
+async function saveAvatarData() {
     console.log('💾 Сохранение аватара...');
     
     const avatarUrl = document.getElementById('avatarUrl').value.trim();
@@ -475,6 +754,7 @@ async function loadUserPosts() {
 
 function displayUserPosts(posts) {
     const container = document.getElementById('userPostsList');
+    if (!container) return;
     
     if (!posts || posts.length === 0) {
         container.innerHTML = '<div class="system-message">У вас пока нет постов</div>';
@@ -548,6 +828,7 @@ async function loadUserGifts() {
 
 function displayUserGifts(gifts) {
     const container = document.getElementById('profileGiftsList');
+    if (!container) return;
     
     if (!gifts || gifts.length === 0) {
         container.innerHTML = '<div class="system-message">У вас пока нет подарков</div>';
@@ -634,6 +915,11 @@ function getToken() {
 
 function showNotification(message, type = 'info') {
     const container = document.getElementById('notificationsContainer');
+    if (!container) {
+        console.log('Уведомление:', message);
+        return;
+    }
+    
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
@@ -641,9 +927,13 @@ function showNotification(message, type = 'info') {
     container.appendChild(notification);
     
     setTimeout(() => {
-        notification.remove();
+        if (notification.parentNode) {
+            notification.remove();
+        }
     }, 5000);
 }
 
 // Экспортируем функции для глобального использования
 window.likePost = likePost;
+window.openEditProfileModal = openEditProfileModal;
+window.openChangeAvatarModal = openChangeAvatarModal;
