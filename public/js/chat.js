@@ -1,3 +1,5 @@
+[file name]: chat.js
+[file content begin]
 // Функции для работы с чатом
 
 async function loadChats() {
@@ -56,8 +58,8 @@ function renderChats(chats) {
             <div class="chat-info">
                 <h4>
                     ${chat.displayName || 'Пользователь'}
-                    ${chat.verified ? '<span class="verified-badge">✓</span>' : ''}
-                    ${chat.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    ${chat.verified ? '<span class="verified-badge"><svg width="16" height="16" viewBox="0 0 256 256"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)"/><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : ''}
+                    ${chat.isDeveloper ? '<span class="developer-badge"><svg width="16" height="16" viewBox="0 0 48 48"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : ''}
                     <span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                 </h4>
                 <div class="chat-last-message">${lastMessageText}</div>
@@ -428,3 +430,4 @@ function initializeChat() {
 document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
 });
+[file content end]
