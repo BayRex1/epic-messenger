@@ -1,10 +1,4 @@
-[file name]: chat.js
-[file content begin]
 // Функции для работы с чатом
-
-let currentChat = null;
-let currentFileData = null;
-let currentFileType = null;
 
 async function loadChats() {
     try {
@@ -62,8 +56,8 @@ function renderChats(chats) {
             <div class="chat-info">
                 <h4>
                     ${chat.displayName || 'Пользователь'}
-                    ${chat.verified ? '<span class="verified-badge"><svg width="16" height="16" viewBox="0 0 256 256"><use xlink:href="#verified-icon"/></svg></span>' : ''}
-                    ${chat.isDeveloper ? '<span class="developer-badge"><svg width="16" height="16" viewBox="0 0 48 48"><use xlink:href="#developer-icon"/></svg></span>' : ''}
+                    ${chat.verified ? '<span class="verified-badge">✓</span>' : ''}
+                    ${chat.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
                     <span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                 </h4>
                 <div class="chat-last-message">${lastMessageText}</div>
@@ -238,15 +232,13 @@ function renderNewMessage(message) {
         // Заменяем эмодзи коды на изображения и обрабатываем упоминания
         let messageText = message.text || '';
         messageText = processMentions(messageText);
-        if (window.emojiList) {
-            window.emojiList.forEach(emoji => {
-                const emojiCode = `:${emoji.name}:`;
-                if (messageText.includes(emojiCode)) {
-                    messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
-                        `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
-                }
-            });
-        }
+        emojiList.forEach(emoji => {
+            const emojiCode = `:${emoji.name}:`;
+            if (messageText.includes(emojiCode)) {
+                messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
+                    `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
+            }
+        });
         
         messageElement.innerHTML = `
             <div class="message-text">${messageText}</div>
@@ -358,21 +350,6 @@ function showUploadFileModal(fileType) {
     modal.style.display = 'flex';
 }
 
-// Вспомогательные функции
-function processMentions(text) {
-    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
-}
-
-function openImageModal(src) {
-    // Реализация открытия модального окна с изображением
-    console.log('Open image modal:', src);
-}
-
-function showNotification(message, type) {
-    // Реализация показа уведомлений
-    console.log('Notification:', message, type);
-}
-
 // Инициализация чата
 function initializeChat() {
     const sendMessageBtn = document.getElementById('sendMessageBtn');
@@ -451,4 +428,3 @@ function initializeChat() {
 document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
 });
-[file content end]
