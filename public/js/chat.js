@@ -1,33 +1,54 @@
-[file name]: chat.js
-[file content begin]
-// Функции для работы с чатом
+let currentChat = null;
+let currentUser = null;
+let socket = null;
+let currentFileData = null;
+let currentFileType = null;
+let emojiList = []; // Добавляем пустой массив для эмодзи
 
 async function loadChats() {
     try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+            console.error('Токен авторизации не найден');
+            showNotification('Необходима авторизация', 'error');
+            return;
+        }
+
         const response = await fetch('/api/chats', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('Получены чаты:', data);
         
         if (data.success) {
             renderChats(data.chats);
+        } else {
+            console.error('Ошибка от сервера:', data.message);
+            showNotification('Ошибка загрузки чатов: ' + (data.message || 'неизвестная ошибка'), 'error');
         }
     } catch (error) {
         console.error('Ошибка загрузки чатов:', error);
+        showNotification('Ошибка загрузки чатов', 'error');
     }
 }
 
 function renderChats(chats) {
     const chatsList = document.getElementById('chatsList');
-    if (!chatsList) return;
+    if (!chatsList) {
+        console.error('Элемент chatsList не найден');
+        return;
+    }
     
     chatsList.innerHTML = '';
     
-    if (chats.length === 0) {
+    if (!chats || chats.length === 0) {
         chatsList.innerHTML = '<div class="system-message">У вас пока нет чатов</div>';
         return;
     }
@@ -48,6 +69,17 @@ function renderChats(chats) {
             }
         }
         
+        // SVG для Epic Verified
+        const verifiedBadge = chat.verified ? 
+            '<span class="verified-badge"><svg width="16" height="16" viewBox="0 0 256 256"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)"/><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : '';
+
+        // SVG для Epic Developer
+        const developerBadge = chat.isDeveloper ? 
+            '<span class="developer-badge"><svg width="16" height="16" viewBox="0 0 48 48"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : '';
+
+        const statusClass = chat.status === 'online' ? 'online-status' : 'offline-status';
+        const unreadBadge = chat.unreadCount > 0 ? `<div class="unread-badge">${chat.unreadCount}</div>` : '';
+
         chatElement.innerHTML = `
             <div class="chat-avatar">
                 ${chat.avatar ? 
@@ -58,13 +90,13 @@ function renderChats(chats) {
             <div class="chat-info">
                 <h4>
                     ${chat.displayName || 'Пользователь'}
-                    ${chat.verified ? '<span class="verified-badge"><svg width="16" height="16" viewBox="0 0 256 256"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)"/><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : ''}
-                    ${chat.isDeveloper ? '<span class="developer-badge"><svg width="16" height="16" viewBox="0 0 48 48"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : ''}
-                    <span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>
+                    ${verifiedBadge}
+                    ${developerBadge}
+                    <span class="${statusClass}"></span>
                 </h4>
                 <div class="chat-last-message">${lastMessageText}</div>
             </div>
-            ${chat.unreadCount > 0 ? `<div class="unread-badge">${chat.unreadCount}</div>` : ''}
+            ${unreadBadge}
         `;
         
         chatElement.addEventListener('click', () => selectChat(chat));
@@ -132,16 +164,22 @@ async function markAsRead(fromUserId) {
 async function loadChatMessages(userId) {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
+        const response = await fetch(`/api/messages?userId=${currentUser?.id || ''}&toUserId=${userId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success) {
             renderChatMessages(data.messages);
+        } else {
+            console.error('Ошибка загрузки сообщений:', data.message);
         }
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
@@ -150,7 +188,10 @@ async function loadChatMessages(userId) {
 
 function renderChatMessages(messages) {
     const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) return;
+    if (!chatMessages) {
+        console.error('Элемент chatMessages не найден');
+        return;
+    }
     
     chatMessages.innerHTML = '';
     
@@ -172,7 +213,7 @@ function renderNewMessage(message) {
     if (!chatMessages) return;
 
     const messageElement = document.createElement('div');
-    const isOutgoing = message.senderId === currentUser.id;
+    const isOutgoing = message.senderId === currentUser?.id;
     messageElement.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
     messageElement.setAttribute('data-message-id', message.id);
     
@@ -233,14 +274,18 @@ function renderNewMessage(message) {
     } else {
         // Заменяем эмодзи коды на изображения и обрабатываем упоминания
         let messageText = message.text || '';
-        messageText = processMentions(messageText);
-        emojiList.forEach(emoji => {
-            const emojiCode = `:${emoji.name}:`;
-            if (messageText.includes(emojiCode)) {
-                messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
-                    `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
-            }
-        });
+        messageText = processMentions ? processMentions(messageText) : messageText;
+        
+        // Обработка эмодзи
+        if (emojiList && emojiList.length > 0) {
+            emojiList.forEach(emoji => {
+                const emojiCode = `:${emoji.name}:`;
+                if (messageText.includes(emojiCode)) {
+                    messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
+                        `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
+                }
+            });
+        }
         
         messageElement.innerHTML = `
             <div class="message-text">${messageText}</div>
@@ -257,16 +302,28 @@ function renderNewMessage(message) {
 
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
-    const text = messageInput.value.trim();
+    const text = messageInput?.value.trim();
     
-    if (!text && !currentFileData) return;
+    if ((!text || text === '') && !currentFileData) {
+        showNotification('Введите сообщение', 'warning');
+        return;
+    }
     
+    if (!currentChat) {
+        showNotification('Выберите чат для отправки сообщения', 'warning');
+        return;
+    }
+
     try {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+            showNotification('Необходима авторизация', 'error');
+            return;
+        }
         
         let requestData = {
             toUserId: currentChat.id,
-            text: text,
+            text: text || '',
             type: 'text'
         };
 
@@ -274,7 +331,7 @@ async function sendMessage() {
         if (currentFileData) {
             const fileType = currentFileType || 'file';
             requestData.file = currentFileData;
-            requestData.fileName = document.getElementById('fileInput').files[0]?.name || 'file';
+            requestData.fileName = document.getElementById('fileInput')?.files[0]?.name || 'file';
             requestData.fileType = fileType;
             requestData.type = fileType;
         }
@@ -288,10 +345,14 @@ async function sendMessage() {
             body: JSON.stringify(requestData)
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success) {
-            messageInput.value = '';
+            if (messageInput) messageInput.value = '';
             currentFileData = null;
             currentFileType = null;
             const filePreview = document.getElementById('filePreview');
@@ -324,7 +385,10 @@ function showUploadFileModal(fileType) {
     const modal = document.getElementById('uploadFileModal');
     const title = document.getElementById('uploadFileTitle');
     
-    if (!modal || !title) return;
+    if (!modal || !title) {
+        console.error('Модальное окно загрузки файла не найдено');
+        return;
+    }
     
     let typeText = '';
     switch(fileType) {
@@ -352,8 +416,33 @@ function showUploadFileModal(fileType) {
     modal.style.display = 'flex';
 }
 
+// Вспомогательная функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    console.log(`Notification [${type}]: ${message}`);
+    // Здесь можно добавить реализацию показа уведомлений
+    // Например, используя Toast библиотеку или кастомные уведомления
+}
+
+// Функция для обработки упоминаний (заглушка)
+function processMentions(text) {
+    return text; // Базовая реализация
+}
+
 // Инициализация чата
 function initializeChat() {
+    console.log('Инициализация чата...');
+    
+    // Получаем информацию о текущем пользователе
+    try {
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+            currentUser = JSON.parse(userData);
+            console.log('Текущий пользователь:', currentUser);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки данных пользователя:', error);
+    }
+
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     const messageInput = document.getElementById('messageInput');
     const uploadImageBtn = document.getElementById('uploadImageBtn');
@@ -365,12 +454,16 @@ function initializeChat() {
 
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessage);
+    } else {
+        console.warn('Кнопка отправки сообщения не найдена');
     }
     
     if (messageInput) {
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') sendMessage();
         });
+    } else {
+        console.warn('Поле ввода сообщения не найдено');
     }
 
     // Кнопки загрузки файлов
@@ -423,11 +516,13 @@ function initializeChat() {
     }
     
     // Загружаем чаты при инициализации
+    console.log('Загрузка чатов...');
     loadChats();
 }
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM загружен, инициализация чата...');
     initializeChat();
 });
 [file content end]
