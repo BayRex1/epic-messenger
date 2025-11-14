@@ -202,7 +202,16 @@ class ApiHandlers {
                 case '/api/admin/export-database':
                     if (method === 'GET') {
                         response = this.handleExportDatabase(token, res);
-                        return; // Важно: return чтобы не отправлять ответ дважды
+                        return;
+                    }
+                    break;
+
+                // 🔧 Новый endpoint для управления техническими работами
+                case '/api/admin/maintenance':
+                    if (method === 'POST') {
+                        response = this.handleMaintenanceMode(token, data);
+                    } else if (method === 'GET') {
+                        response = this.handleGetMaintenanceStatus(token);
                     }
                     break;
 
@@ -368,6 +377,15 @@ class ApiHandlers {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'LOGIN_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Пожалуйста, попробуйте позже.' 
+            };
+        }
+
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Аккаунт заблокирован' };
@@ -393,7 +411,7 @@ class ApiHandlers {
 
         return {
             success: true,
-            token: sessionToken, // Возвращаем токен сессии, а не ID пользователя
+            token: sessionToken,
             deviceId: device.id,
             user: {
                 id: user.id,
@@ -424,6 +442,15 @@ class ApiHandlers {
         if (this.dataManager.isIPBanned(clientIP)) {
             this.securitySystem.logSecurityEvent({ username }, 'REGISTER', 'SYSTEM', false);
             return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
+        }
+
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode()) {
+            this.securitySystem.logSecurityEvent({ username }, 'REGISTER_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Регистрация временно недоступна.' 
+            };
         }
 
         if (!username || !displayName || !email || !password) {
@@ -476,7 +503,7 @@ class ApiHandlers {
             coins: isBayRex ? 50000 : 1000,
             verified: isBayRex,
             isDeveloper: isBayRex,
-            isAdmin: isBayRex, // 🔐 BayRex получает права администратора
+            isAdmin: isBayRex,
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
@@ -508,7 +535,7 @@ class ApiHandlers {
             message: isBayRex ? 
                 'Аккаунт BayRex создан! Вы получили права администратора!' :
                 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
-            token: sessionToken, // Возвращаем токен сессии
+            token: sessionToken,
             deviceId: device.id,
             user: {
                 id: newUser.id,
@@ -633,13 +660,51 @@ class ApiHandlers {
         };
     }
 
+    // 🔧 НОВЫЕ МЕТОДЫ ДЛЯ ТЕХНИЧЕСКИХ РАБОТ
+    handleMaintenanceMode(token, data) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут управлять техработами
+        if (!user || !this.securitySystem.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { enabled } = data;
+        
+        this.dataManager.setMaintenanceMode(enabled);
+        
+        this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', `enabled:${enabled}`);
+        
+        console.log(`🔧 Администратор ${user.username} ${enabled ? 'ВКЛЮЧИЛ' : 'выключил'} режим технических работ`);
+        
+        return {
+            success: true,
+            message: `Режим технических работ ${enabled ? 'ВКЛЮЧЕН' : 'выключен'}`,
+            maintenanceMode: enabled
+        };
+    }
+
+    handleGetMaintenanceStatus(token) {
+        const user = this.authenticateToken(token);
+        
+        // 🔐 Только администраторы могут смотреть статус
+        if (!user || !this.securitySystem.isAdmin(user)) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        return {
+            success: true,
+            maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
+        };
+    }
+
     handleGetUsers(token) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Возвращаем только базовую информацию о пользователях, без чувствительных данных
         const otherUsers = this.dataManager.users
             .filter(u => u.id !== user.id)
             .map(u => ({
@@ -674,7 +739,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ данные
         if (user.id !== userId && !this.securitySystem.isFriend(user.id, userId)) {
             this.securitySystem.logSecurityEvent(user, 'GET_USER', `user:${userId}`, false);
             return { success: false, message: 'Доступ запрещен' };
@@ -715,7 +779,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Находим всех пользователей, с которыми есть переписка
         const chatUserIds = new Set();
         this.dataManager.messages.forEach(msg => {
             if (msg.senderId === user.id) {
@@ -747,7 +810,6 @@ class ApiHandlers {
                 unreadCount: this.getUnreadCount(user.id, u.id)
             }));
 
-        // Сортируем по времени последнего сообщения
         chatUsers.sort((a, b) => {
             const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
             const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
@@ -789,7 +851,6 @@ class ApiHandlers {
 
         const { userId, toUserId } = query;
 
-        // 🔐 ПРОВЕРКА ПРАВ: пользователь может читать только СВОИ сообщения
         if (user.id !== userId && user.id !== toUserId) {
             this.securitySystem.logSecurityEvent(user, 'GET_MESSAGES', `chat:${userId}-${toUserId}`, false);
             return { success: false, message: 'Доступ запрещен' };
@@ -823,25 +884,26 @@ class ApiHandlers {
 
         const { toUserId, text, type, image, file, fileName, fileType } = data;
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔴 ВРЕМЕННО ОТКЛЮЧАЕМ ПРОВЕРКУ ДЛЯ ФАЙЛОВ
-        // if ((!text || text.trim() === '') && !file && !image) {
-        //     return { success: false, message: 'Сообщение не может быть пустым' };
-        // }
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE_DURING_MAINTENANCE', `to:${toUserId}`, false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция отправки сообщений временно недоступна.' 
+            };
+        }
 
-        // 🔐 Проверяем существование получателя
         const recipient = this.dataManager.users.find(u => u.id === toUserId);
         if (!recipient) {
             this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
             return { success: false, message: 'Получатель не найден' };
         }
 
-        // 🔐 Проверяем что получатель не забанен
         if (recipient.banned) {
             this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}`, false);
             return { success: false, message: 'Нельзя отправлять сообщения заблокированным пользователям' };
@@ -951,15 +1013,22 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_POST', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'CREATE_POST_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция создания постов временно недоступна.' 
+            };
+        }
+
         const { text, image, file, fileName, fileType } = data;
         
-        // Проверяем что есть либо текст, либо файл
         if ((!text || text.trim() === '') && !file && !image) {
             return { success: false, message: 'Текст поста не может быть пустым' };
         }
@@ -977,8 +1046,8 @@ class ApiHandlers {
             id: this.dataManager.generateId(),
             userId: user.id,
             text: sanitizedText,
-            image: image, // Должен быть URL, а не base64
-            file: file,   // Должен быть URL, а не base64
+            image: image,
+            file: file,
             fileName: fileName,
             fileType: fileType,
             likes: [],
@@ -1010,7 +1079,6 @@ class ApiHandlers {
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут удалять посты
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1062,7 +1130,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}`, false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -1109,7 +1176,6 @@ class ApiHandlers {
     handleCreateGift(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут создавать подарки
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1129,7 +1195,7 @@ class ApiHandlers {
             type: type || 'custom',
             preview: image ? '🖼️' : '🎁',
             price: parseInt(price),
-            image: image, // Должен быть URL, а не base64
+            image: image,
             createdAt: new Date()
         };
 
@@ -1149,7 +1215,6 @@ class ApiHandlers {
     handleDeleteGift(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут удалять подарки
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1187,10 +1252,18 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'BUY_GIFT_DURING_MAINTENANCE', `gift:${giftId}`, false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция покупки подарков временно недоступна.' 
+            };
         }
 
         const { toUserId } = data;
@@ -1210,7 +1283,6 @@ class ApiHandlers {
             return { success: false, message: 'Получатель не найден' };
         }
 
-        // 🔐 Проверяем что получатель не забанен
         if (recipient.banned) {
             this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
             return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
@@ -1278,7 +1350,6 @@ class ApiHandlers {
     handleCreatePromoCode(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут создавать промокоды
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1322,7 +1393,6 @@ class ApiHandlers {
     handleDeletePromoCode(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут удалять промокоды
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1356,15 +1426,22 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'ACTIVATE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'ACTIVATE_PROMOCODE_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция активации промокодов временно недоступна.' 
+            };
+        }
+
         const { code } = data;
         
-        // 🔐 Валидация входных данных
         if (!this.securitySystem.validateInput(code, 'text')) {
             return { success: false, message: 'Некорректный промокод' };
         }
@@ -1403,16 +1480,23 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_PROFILE_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция обновления профиля временно недоступна.' 
+            };
+        }
+
         const { displayName, description, username, email } = data;
 
         if (displayName && displayName.trim()) {
-            // 🔐 Валидация отображаемого имени
             if (!this.securitySystem.validateInput(displayName, 'displayName')) {
                 return { success: false, message: 'Некорректное отображаемое имя' };
             }
@@ -1426,7 +1510,6 @@ class ApiHandlers {
         if (username && username.trim() && username !== user.username) {
             const sanitizedUsername = this.securitySystem.sanitizeContent(username.trim());
             
-            // 🔐 Валидация имени пользователя
             if (!this.securitySystem.validateInput(sanitizedUsername, 'username')) {
                 return { success: false, message: 'Некорректное имя пользователя' };
             }
@@ -1442,7 +1525,6 @@ class ApiHandlers {
         if (email && email.trim() && email !== user.email) {
             const sanitizedEmail = this.securitySystem.sanitizeContent(email.trim());
             
-            // 🔐 Валидация email
             if (!this.securitySystem.validateInput(sanitizedEmail, 'email')) {
                 return { success: false, message: 'Некорректный email' };
             }
@@ -1490,10 +1572,18 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR_DURING_MAINTENANCE', 'SYSTEM', false);
+            return { 
+                success: false, 
+                message: 'В настоящее время ведутся технические работы. Функция обновления аватара временно недоступна.' 
+            };
         }
 
         const { avatar } = data;
@@ -1538,7 +1628,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -1546,26 +1635,21 @@ class ApiHandlers {
 
         const { fileData, filename } = data;
 
-        // Проверяем что это изображение
         if (!this.fileHandlers.validateAvatarFile(filename)) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
             return { success: false, message: 'Недопустимый формат файла для аватара' };
         }
 
         try {
-            // Сохраняем файл на сервер и получаем URL
             const fileExt = path.extname(filename);
             const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
             
-            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
             const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'avatar');
 
-            // Удаляем старый аватар если он был
             if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                 this.fileHandlers.deleteFile(user.avatar);
             }
 
-            // Сохраняем URL файла вместо base64
             user.avatar = fileUrl;
             this.dataManager.saveData();
 
@@ -1575,13 +1659,13 @@ class ApiHandlers {
 
             return {
                 success: true,
-                avatarUrl: fileUrl, // Возвращаем URL
+                avatarUrl: fileUrl,
                 user: {
                     id: user.id,
                     username: user.username,
                     displayName: user.displayName,
                     email: user.email,
-                    avatar: fileUrl, // URL вместо base64
+                    avatar: fileUrl,
                     description: user.description,
                     coins: user.coins,
                     verified: user.verified,
@@ -1608,7 +1692,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -1625,7 +1708,6 @@ class ApiHandlers {
             const fileExt = path.extname(filename);
             const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
             
-            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
             const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'post');
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
@@ -1634,7 +1716,7 @@ class ApiHandlers {
 
             return {
                 success: true,
-                imageUrl: fileUrl // Возвращаем URL вместо base64
+                imageUrl: fileUrl
             };
         } catch (error) {
             console.error('Ошибка загрузки файла для поста:', error);
@@ -1646,7 +1728,6 @@ class ApiHandlers {
     async handleUploadGift(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут загружать подарки
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -1663,7 +1744,6 @@ class ApiHandlers {
             const fileExt = path.extname(filename);
             const uniqueFilename = `gift_${Date.now()}${fileExt}`;
             
-            // ИСПРАВЛЕНО: Используем fileHandlers для сохранения файла
             const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, 'gift');
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
@@ -1672,7 +1752,7 @@ class ApiHandlers {
 
             return {
                 success: true,
-                imageUrl: fileUrl // Возвращаем URL вместо base64
+                imageUrl: fileUrl
             };
         } catch (error) {
             console.error('Ошибка загрузки изображения подарка:', error);
@@ -1689,22 +1769,18 @@ class ApiHandlers {
 
         const { fileData, filename } = data;
         
-        // Проверяем что это изображение
         if (!this.fileHandlers.validateAvatarFile(filename)) {
             return { success: false, message: 'Недопустимый формат файла для аватара' };
         }
 
         try {
-            // Проверяем размер файла (максимум 2MB для предпросмотра)
             if (fileData.length > 2 * 1024 * 1024) {
                 return { success: false, message: 'Размер файла не должен превышать 2 МБ' };
             }
 
-            // Для предпросмотра просто возвращаем данные обратно
-            // На фронтенде это будет использоваться для показа preview
             return {
                 success: true,
-                previewUrl: fileData, // base64 данные
+                previewUrl: fileData,
                 fileName: filename
             };
         } catch (error) {
@@ -1752,7 +1828,6 @@ class ApiHandlers {
 
         const { username } = data;
         
-        // 🔐 Валидация входных данных
         if (!this.securitySystem.validateInput(username, 'username')) {
             return { success: false, message: 'Некорректное имя пользователя' };
         }
@@ -1763,7 +1838,6 @@ class ApiHandlers {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        // Получаем подарки пользователя
         const userGifts = this.dataManager.messages
             .filter(msg => msg.type === 'gift' && msg.toUserId === targetUser.id)
             .map(msg => ({
@@ -1776,7 +1850,6 @@ class ApiHandlers {
                 timestamp: msg.timestamp
             }));
 
-        // Получаем посты пользователя
         const userPosts = this.dataManager.posts.filter(post => post.userId === targetUser.id);
 
         return {
@@ -1809,7 +1882,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Получаем подарки, которые подарили текущему пользователю
         const myGifts = this.dataManager.messages
             .filter(msg => msg.type === 'gift' && msg.toUserId === user.id)
             .map(msg => ({
@@ -1830,7 +1902,6 @@ class ApiHandlers {
         };
     }
 
-    // Методы для групп
     handleCreateGroup(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1843,7 +1914,6 @@ class ApiHandlers {
             return { success: false, message: 'Название группы обязательно' };
         }
 
-        // 🔐 Валидация входных данных
         if (!this.securitySystem.validateInput(name, 'displayName')) {
             return { success: false, message: 'Некорректное название группы' };
         }
@@ -1900,7 +1970,6 @@ class ApiHandlers {
             return { success: false, message: 'Группа не найдена' };
         }
 
-        // 🔐 Проверяем права - только админы группы могут добавлять
         if (!group.admins.includes(user.id)) {
             this.securitySystem.logSecurityEvent(user, 'ADD_TO_GROUP', `group:${groupId}`, false);
             return { success: false, message: 'Недостаточно прав' };
@@ -1926,7 +1995,6 @@ class ApiHandlers {
         };
     }
 
-    // Методы для музыки
     handleGetMusic(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1957,7 +2025,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_METADATA', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -2011,7 +2078,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -2049,7 +2115,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -2096,7 +2161,6 @@ class ApiHandlers {
 
         const track = this.dataManager.music[trackIndex];
         
-        // 🔐 Проверяем права: пользователь может удалять только свои треки (или админ)
         if (track.userId !== user.id && !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
             return { success: false, message: 'Вы можете удалять только свои треки' };
@@ -2216,7 +2280,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_PLAYLIST', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -2260,7 +2323,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 Проверяем что пользователь не забанен
         if (user.banned) {
             this.securitySystem.logSecurityEvent(user, 'ADD_TO_PLAYLIST', 'SYSTEM', false);
             return { success: false, message: 'Ваш аккаунт заблокирован' };
@@ -2300,12 +2362,9 @@ class ApiHandlers {
         };
     }
 
-    // 🔐 ОБНОВЛЕННЫЕ АДМИНИСТРАТИВНЫЕ МЕТОДЫ
-
     handleAdminStats(token) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут смотреть статистику
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -2327,7 +2386,8 @@ class ApiHandlers {
                 onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.dataManager.users.filter(u => u.banned).length,
                 bannedIPs: this.dataManager.bannedIPs.size,
-                activeDevices: this.dataManager.devices.size
+                activeDevices: this.dataManager.devices.size,
+                maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
             }
         };
     }
@@ -2335,7 +2395,6 @@ class ApiHandlers {
     handleDeleteUser(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут удалять пользователей
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -2382,7 +2441,6 @@ class ApiHandlers {
     handleBanUser(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут банить пользователей
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'BAN_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -2424,7 +2482,6 @@ class ApiHandlers {
     handleToggleVerification(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут управлять верификацией
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -2454,7 +2511,6 @@ class ApiHandlers {
     handleToggleDeveloper(token, data) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут управлять правами разработчика
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -2484,7 +2540,6 @@ class ApiHandlers {
     handleExportDatabase(token, res) {
         const user = this.authenticateToken(token);
         
-        // 🔐 Только администраторы могут экспортировать БД
         if (!user || !this.securitySystem.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', 'SYSTEM', false);
             res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -2493,7 +2548,6 @@ class ApiHandlers {
         }
 
         try {
-            // Создаем полную копию данных
             const exportData = {
                 exportInfo: {
                     version: '1.0',
@@ -2521,7 +2575,6 @@ class ApiHandlers {
 
             const filename = `epic-messenger-backup-${new Date().toISOString().split('T')[0]}.json`;
             
-            // Устанавливаем заголовки для скачивания файла
             res.writeHead(200, {
                 'Content-Type': 'application/json',
                 'Content-Disposition': `attachment; filename="${filename}"`,
@@ -2547,7 +2600,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // 🔐 ПРОВЕРКА ПРАВ: пользователь может получать только СВОИ транзакции
         if (user.id !== userId) {
             this.securitySystem.logSecurityEvent(user, 'GET_TRANSACTIONS', `user:${userId}`, false);
             return { success: false, message: 'Доступ запрещен' };
