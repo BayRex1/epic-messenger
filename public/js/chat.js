@@ -2,6 +2,10 @@
 [file content begin]
 // Функции для работы с чатом
 
+let currentChat = null;
+let currentFileData = null;
+let currentFileType = null;
+
 async function loadChats() {
     try {
         const token = localStorage.getItem('authToken');
@@ -234,13 +238,15 @@ function renderNewMessage(message) {
         // Заменяем эмодзи коды на изображения и обрабатываем упоминания
         let messageText = message.text || '';
         messageText = processMentions(messageText);
-        emojiList.forEach(emoji => {
-            const emojiCode = `:${emoji.name}:`;
-            if (messageText.includes(emojiCode)) {
-                messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
-                    `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
-            }
-        });
+        if (window.emojiList) {
+            window.emojiList.forEach(emoji => {
+                const emojiCode = `:${emoji.name}:`;
+                if (messageText.includes(emojiCode)) {
+                    messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
+                        `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
+                }
+            });
+        }
         
         messageElement.innerHTML = `
             <div class="message-text">${messageText}</div>
@@ -350,6 +356,21 @@ function showUploadFileModal(fileType) {
     }
     
     modal.style.display = 'flex';
+}
+
+// Вспомогательные функции
+function processMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+}
+
+function openImageModal(src) {
+    // Реализация открытия модального окна с изображением
+    console.log('Open image modal:', src);
+}
+
+function showNotification(message, type) {
+    // Реализация показа уведомлений
+    console.log('Notification:', message, type);
 }
 
 // Инициализация чата
