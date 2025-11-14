@@ -675,6 +675,25 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+
+        /* Стили для технических работ */
+        @keyframes pulse-maintenance {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .btn.enabled {
+            background: var(--success-color) !important;
+        }
+        
+        .btn.enabled:hover {
+            background: #00a085 !important;
+        }
+
+        .maintenance-active {
+            border: 2px solid var(--warning-color) !important;
+        }
     </style>
 </head>
 <body class="theme-dark">
@@ -966,6 +985,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 🔧 РАЗДЕЛ ТЕХНИЧЕСКИХ РАБОТ -->
+                    <div class="post" style="margin-top: 20px;">
+                        <h3>Режим технических работ</h3>
+                        <div class="system-message" style="margin-bottom: 20px;">
+                            ⚠️ Включение этого режима перенаправит всех пользователей (кроме разработчиков) на страницу технических работ.
+                            Будут заблокированы все страницы кроме админ-панели и страницы технических работ.
+                        </div>
+                        
+                        <div style="text-align: center; padding: 20px;">
+                            <button class="btn warning" id="maintenanceBtn" style="font-size: 16px; padding: 15px 30px;">
+                                <span id="maintenanceIcon">🔧</span>
+                                <span id="maintenanceText">Включить технические работы</span>
+                            </button>
+                            
+                            <div class="system-message" style="margin-top: 15px;" id="maintenanceStatus">
+                                Статус: <span id="maintenanceStatusText">Выключено</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1112,6 +1151,9 @@
                 document.getElementById('dbFileInput').click();
             });
             document.getElementById('dbFileInput').addEventListener('change', importDatabase);
+
+            // 🔧 Кнопка технических работ
+            document.getElementById('maintenanceBtn').addEventListener('click', toggleMaintenanceMode);
         }
 
         // Инициализация табов
@@ -1174,8 +1216,108 @@
                 loadAdminUsers(),
                 loadAdminStats(),
                 loadAdminGifts(),
-                loadAdminPromoCodes()
+                loadAdminPromoCodes(),
+                loadMaintenanceStatus() // 🔧 Загружаем статус технических работ
             ]);
+        }
+
+        // 🔧 Загрузка статуса технических работ
+        async function loadMaintenanceStatus() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/admin/maintenance', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateMaintenanceButton(data.maintenanceMode);
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статуса техработ:', error);
+            }
+        }
+
+        // 🔧 Переключение режима технических работ
+        async function toggleMaintenanceMode() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const isCurrentlyEnabled = document.getElementById('maintenanceBtn').classList.contains('enabled');
+                const newStatus = !isCurrentlyEnabled;
+                
+                if (newStatus) {
+                    if (!confirm('ВНИМАНИЕ: Включение режима технических работ:\n\n• Все пользователи (кроме разработчиков) будут перенаправлены на страницу технических работ\n• Будут заблокированы все страницы кроме админ-панели\n• API endpoints будут недоступны для обычных пользователей\n\nПродолжить?')) {
+                        return;
+                    }
+                }
+                
+                const response = await fetch('/api/admin/maintenance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        enabled: newStatus
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    updateMaintenanceButton(newStatus);
+                    
+                    if (newStatus) {
+                        // Показываем дополнительное уведомление при включении
+                        setTimeout(() => {
+                            showNotification('Режим технических работ активирован. Все пользователи перенаправляются.', 'warning');
+                        }, 1000);
+                    }
+                } else {
+                    showNotification('Ошибка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка переключения режима техработ:', error);
+                showNotification('Ошибка переключения режима', 'error');
+            }
+        }
+
+        // 🔧 Обновление кнопки технических работ
+        function updateMaintenanceButton(enabled) {
+            const btn = document.getElementById('maintenanceBtn');
+            const icon = document.getElementById('maintenanceIcon');
+            const text = document.getElementById('maintenanceText');
+            const statusText = document.getElementById('maintenanceStatusText');
+            
+            if (enabled) {
+                btn.classList.add('enabled');
+                btn.classList.remove('warning');
+                btn.style.background = 'var(--success-color)';
+                icon.textContent = '✅';
+                text.textContent = 'Выключить технические работы';
+                statusText.textContent = 'ВКЛЮЧЕНО';
+                statusText.style.color = 'var(--success-color)';
+                statusText.style.fontWeight = 'bold';
+                
+                // Добавляем анимацию для привлечения внимания
+                btn.style.animation = 'pulse-maintenance 2s infinite';
+            } else {
+                btn.classList.remove('enabled');
+                btn.classList.add('warning');
+                btn.style.background = '';
+                btn.style.animation = '';
+                icon.textContent = '🔧';
+                text.textContent = 'Включить технические работы';
+                statusText.textContent = 'Выключено';
+                statusText.style.color = 'var(--text-secondary)';
+                statusText.style.fontWeight = 'normal';
+            }
         }
 
         // Загрузка пользователей для админки
