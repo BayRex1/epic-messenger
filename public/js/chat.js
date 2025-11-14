@@ -1,3 +1,8 @@
+[file name]: chat.js
+[file content begin]
+// Функции для работы с чатом
+
+// Глобальные переменные для хранения состояния
 let currentChat = null;
 let currentUser = null;
 let socket = null;
