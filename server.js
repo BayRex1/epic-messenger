@@ -151,6 +151,7 @@ class SimpleServer {
             console.log(`   - Страница входа: http://localhost:${port}/login.html`);
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
+            console.log(`   - Технические работы: http://localhost:${port}/TehnicalWork`);
             console.log(`\n💾 Файл данных: ${this.dataManager.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
@@ -183,6 +184,33 @@ class SimpleServer {
     }
 
     handleStaticFiles(req, res, pathname) {
+        // Проверка технических работ
+        if (this.dataManager.isMaintenanceMode() && 
+            !pathname.startsWith('/admin') && 
+            !pathname.startsWith('/api/admin') &&
+            pathname !== '/TehnicalWork' &&
+            pathname !== '/TechnicalWork.html' &&
+            pathname !== '/technical-work') {
+            
+            // Разрешаем доступ только разработчикам
+            const authHeader = req.headers['authorization'];
+            const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+            
+            let isDeveloper = false;
+            if (token) {
+                const user = this.apiHandlers.authenticateToken(token);
+                if (user && user.isDeveloper) {
+                    isDeveloper = true;
+                }
+            }
+            
+            if (!isDeveloper) {
+                // Перенаправляем на страницу техработ
+                serveStaticFile(res, 'public/additions/TechnicalWork.html', 'text/html');
+                return;
+            }
+        }
+
         const path = require('path');
         const fs = require('fs');
 
@@ -212,7 +240,9 @@ class SimpleServer {
             '/search.html': 'public/search.html',
             '/search': 'public/search.html',
             '/ecoin.html': 'public/ecoin.html',
-            '/ecoin': 'public/ecoin.html'
+            '/ecoin': 'public/ecoin.html',
+            '/TehnicalWork': 'public/additions/TechnicalWork.html',
+            '/technical-work': 'public/additions/TechnicalWork.html'
         };
 
         if (routes[pathname]) {
