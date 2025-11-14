@@ -36,12 +36,14 @@ class DataManager {
                 this.groups = data.groups || [];
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
+                this.maintenanceMode = data.maintenanceMode || false;
                 
                 // Восстанавливаем даты
                 this.restoreDates();
                 
                 console.log('✅ Данные загружены из файла');
                 console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.groups.length} групп`);
+                console.log(`🔧 Режим технических работ: ${this.maintenanceMode ? 'ВКЛЮЧЕН' : 'выключен'}`);
             } else {
                 console.log('📁 Файл данных не найден, инициализируем пустые данные');
                 this.initializeData();
@@ -78,6 +80,7 @@ class DataManager {
                 groups: this.groups,
                 bannedIPs: Object.fromEntries(this.bannedIPs),
                 devices: Object.fromEntries(this.devices),
+                maintenanceMode: this.maintenanceMode,
                 lastSave: new Date().toISOString()
             };
             
@@ -152,6 +155,7 @@ class DataManager {
         this.messages = [];
         this.bannedIPs = new Map();
         this.devices = new Map();
+        this.maintenanceMode = false;
     }
 
     generateId() {
@@ -254,6 +258,22 @@ class DataManager {
             }
             return false;
         }
+    }
+
+    // 🔧 Новые методы для управления техническими работами
+    setMaintenanceMode(enabled) {
+        this.maintenanceMode = enabled;
+        this.saveData();
+        console.log(`🔧 Режим технических работ ${enabled ? 'ВКЛЮЧЕН' : 'выключен'}`);
+    }
+
+    isMaintenanceMode() {
+        return this.maintenanceMode;
+    }
+
+    // Проверка доступа пользователя во время техработ
+    canAccessDuringMaintenance(user) {
+        return user && user.isDeveloper;
     }
 }
 
