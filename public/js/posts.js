@@ -1,7 +1,8 @@
 // Функции для работы с постами
 
 let currentPostComments = null;
-let posts = [];
+// Убираем объявление posts здесь, так как оно уже есть в другом месте
+// let posts = [];
 
 async function loadPosts() {
     try {
@@ -21,8 +22,9 @@ async function loadPosts() {
         const data = await response.json();
         
         if (data.success) {
-            posts = data.posts;
-            renderPosts(posts);
+            // Используем window.posts или просто присваиваем данные
+            window.posts = data.posts;
+            renderPosts(data.posts);
         } else {
             showErrorState('Ошибка загрузки постов: ' + data.message);
         }
