@@ -74,6 +74,8 @@ function renderPosts(posts) {
 }
 
 function createPostElement(post) {
+    console.log('Creating post element:', post); // Debug log
+    
     const postElement = document.createElement('div');
     postElement.className = 'post';
     postElement.id = `post-${post.id}`;
@@ -126,7 +128,8 @@ function createPostElement(post) {
         });
     }
     
-    postElement.innerHTML = `
+    // Создаем HTML с ВСЕМИ кнопками
+    const postHTML = `
         <div class="post-header">
             <div class="post-user">
                 <div class="post-avatar">
@@ -182,7 +185,15 @@ function createPostElement(post) {
         </div>
     `;
     
+    postElement.innerHTML = postHTML;
+    
     // Добавляем обработчики событий
+    addPostEventListeners(postElement, post);
+    
+    return postElement;
+}
+
+function addPostEventListeners(postElement, post) {
     const likeBtn = postElement.querySelector('.like-btn');
     if (likeBtn) {
         likeBtn.addEventListener('click', function() {
@@ -210,8 +221,6 @@ function createPostElement(post) {
             deletePost(post.id);
         });
     }
-    
-    return postElement;
 }
 
 function formatPostTime(date) {
