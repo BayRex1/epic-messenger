@@ -24,14 +24,24 @@ async function loadPosts() {
             return;
         }
 
+        console.log('📡 Отправляем запрос на /api/posts...');
         const response = await fetch('/api/posts', {
+            method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             }
         });
         
-        console.log('📡 Ответ от сервера:', response.status);
+        console.log('📡 Ответ от сервера:', response.status, response.statusText);
+        
+        if (response.status === 401) {
+            console.log('❌ Токен недействителен');
+            localStorage.removeItem('authToken');
+            showNotification('Сессия истекла. Войдите снова.', 'error');
+            window.location.href = '/login.html';
+            return;
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -41,7 +51,7 @@ async function loadPosts() {
         console.log('📦 Данные постов:', data);
         
         if (data.success) {
-            posts = data.posts;
+            posts = data.posts || [];
             console.log(`✅ Загружено ${posts.length} постов`);
             renderPosts(posts);
         } else {
@@ -60,7 +70,7 @@ async function loadPosts() {
         }
     } catch (error) {
         console.error('❌ Ошибка загрузки постов:', error);
-        showNotification('Ошибка загрузки постов', 'error');
+        showNotification('Ошибка загрузки постов: ' + error.message, 'error');
         
         const postsList = document.getElementById('postsList');
         if (postsList) {
@@ -611,7 +621,7 @@ async function toggleCommentLike(commentId, parentId = null) {
 }
 
 function sharePost(postId) {
-    const postUrl = `https://epic-messenger.onrender.com/post/${postId}`;
+    const postUrl = `${window.location.origin}/post/${postId}`;
     
     if (navigator.share) {
         navigator.share({
@@ -648,7 +658,7 @@ async function deletePost(postId) {
     
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/posts/${postId}`, {
+        const response = await fetch(`/api/posts?postId=${postId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -715,14 +725,161 @@ function openImageModal(imageUrl) {
     document.body.appendChild(modal);
 }
 
+// Функции для загрузки файлов
+function setupFileUpload() {
+    const fileInput = document.getElementById('postFileInput');
+    const fileUploadArea = document.getElementById('postFileUpload');
+    const filePreview = document.getElementById('postFilePreview');
+    
+    if (fileInput && fileUploadArea) {
+        // Обработчик клика по области загрузки
+        fileUploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Обработчик drag & drop
+        fileUploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = 'var(--bg-secondary)';
+        });
+        
+        fileUploadArea.addEventListener('dragleave', function() {
+            fileUploadArea.style.backgroundColor = '';
+        });
+        
+        fileUploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = '';
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+        
+        // Обработчик выбора файла
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+    }
+}
+
+function handleFileSelect(file) {
+    const filePreview = document.getElementById('postFilePreview');
+    const fileInput = document.getElementById('postFileInput');
+    
+    if (!file) return;
+    
+    // Проверка размера файла (макс. 50 МБ)
+    if (file.size > 50 * 1024 * 1024) {
+        showNotification('Файл слишком большой (макс. 50 МБ)', 'error');
+        return;
+    }
+    
+    // Показываем превью
+    const fileType = file.type.split('/')[0];
+    let previewHTML = '';
+    
+    if (fileType === 'image') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewHTML = `
+                <div class="file-preview-item">
+                    <img src="${e.target.result}" alt="Превью" style="max-width: 200px; max-height: 200px;">
+                    <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
+                </div>
+            `;
+            filePreview.innerHTML = previewHTML;
+            
+            // Сохраняем информацию о файле для отправки
+            fileInput.dataset.fileUrl = e.target.result;
+            fileInput.dataset.fileName = file.name;
+            fileInput.dataset.fileType = 'image';
+        };
+        reader.readAsDataURL(file);
+    } else if (fileType === 'video') {
+        previewHTML = `
+            <div class="file-preview-item">
+                <div class="file-icon">🎥</div>
+                <span>${file.name}</span>
+                <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
+            </div>
+        `;
+        filePreview.innerHTML = previewHTML;
+        
+        // Для видео/аудио нужно загрузить на сервер
+        uploadFile(file);
+    } else if (fileType === 'audio') {
+        previewHTML = `
+            <div class="file-preview-item">
+                <div class="file-icon">🎵</div>
+                <span>${file.name}</span>
+                <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
+            </div>
+        `;
+        filePreview.innerHTML = previewHTML;
+        
+        // Для аудио нужно загрузить на сервер
+        uploadFile(file);
+    } else {
+        showNotification('Неподдерживаемый тип файла', 'error');
+    }
+}
+
+function removeFilePreview() {
+    const filePreview = document.getElementById('postFilePreview');
+    const fileInput = document.getElementById('postFileInput');
+    
+    filePreview.innerHTML = '';
+    fileInput.dataset.fileUrl = '';
+    fileInput.dataset.fileName = '';
+    fileInput.dataset.fileType = '';
+    fileInput.value = '';
+}
+
+async function uploadFile(file) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload-file', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const fileInput = document.getElementById('postFileInput');
+            fileInput.dataset.fileUrl = data.fileUrl;
+            fileInput.dataset.fileName = file.name;
+            fileInput.dataset.fileType = file.type.split('/')[0];
+            
+            showNotification('Файл загружен', 'success');
+        } else {
+            showNotification('Ошибка загрузки файла: ' + data.message, 'error');
+            removeFilePreview();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки файла:', error);
+        showNotification('Ошибка загрузки файла', 'error');
+        removeFilePreview();
+    }
+}
+
 // Инициализация постов
 async function initializePosts() {
     console.log('🚀 Инициализация постов...');
     
-    // Сначала загружаем данные пользователя
     try {
+        // Сначала загружаем данные пользователя
         const token = localStorage.getItem('authToken');
         if (token) {
+            console.log('🔐 Проверяем авторизацию...');
             const response = await fetch('/api/current-user', {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -737,30 +894,50 @@ async function initializePosts() {
                     
                     // Обновляем интерфейс пользователя
                     updateUserInterface();
+                } else {
+                    console.log('❌ Ошибка загрузки пользователя:', data.message);
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return;
                 }
+            } else if (response.status === 401) {
+                console.log('❌ Токен недействителен');
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return;
             }
+        } else {
+            console.log('❌ Токен не найден, перенаправляем на страницу входа');
+            window.location.href = '/login.html';
+            return;
         }
+        
+        // Настраиваем обработчики событий
+        const publishPostBtn = document.getElementById('publishPostBtn');
+        const addFileBtn = document.getElementById('addFileBtn');
+        
+        if (publishPostBtn) {
+            publishPostBtn.addEventListener('click', publishPost);
+        }
+        
+        if (addFileBtn) {
+            addFileBtn.addEventListener('click', function() {
+                document.getElementById('postFileInput').click();
+            });
+        }
+        
+        // Настраиваем загрузку файлов
+        setupFileUpload();
+        
+        // Загружаем посты
+        await loadPosts();
+        
+        console.log('✅ Инициализация постов завершена');
+        
     } catch (error) {
-        console.log('⚠️ Не удалось загрузить данные пользователя:', error);
+        console.error('❌ Ошибка инициализации:', error);
+        showNotification('Ошибка инициализации: ' + error.message, 'error');
     }
-    
-    const publishPostBtn = document.getElementById('publishPostBtn');
-    const addFileBtn = document.getElementById('addFileBtn');
-    
-    if (publishPostBtn) {
-        publishPostBtn.addEventListener('click', publishPost);
-    }
-    
-    if (addFileBtn) {
-        addFileBtn.addEventListener('click', function() {
-            document.getElementById('postFileInput').click();
-        });
-    }
-    
-    // Загружаем посты при инициализации
-    await loadPosts();
-    
-    console.log('✅ Инициализация постов завершена');
 }
 
 function updateUserInterface() {
