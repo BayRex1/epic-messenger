@@ -3450,3 +3450,32 @@ input:checked + .slider:before {
 .theme-light .fullscreen-upload {
     background: rgba(255, 255, 255, 0.95);
 }
+
+/* Стили для красных лайков */
+.post-action.liked,
+.comment-action.liked {
+    color: #e74c3c !important;
+}
+
+.post-action.liked svg,
+.comment-action.liked svg {
+    fill: #e74c3c !important;
+}
+
+.post-action.liked:hover,
+.comment-action.liked:hover {
+    color: #c0392b !important;
+    background: rgba(231, 76, 60, 0.1) !important;
+}
+
+.post-action.liked:hover svg,
+.comment-action.liked:hover svg {
+    fill: #c0392b !important;
+}
+
+/* Анимация для лайков */
+.post-action.liked,
+.comment-action.liked {
+    transform: scale(1.1);
+    transition: all 0.2s ease-in-out;
+}
