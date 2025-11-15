@@ -169,6 +169,25 @@
         </div>
     </div>
 
+    <!-- Модальное окно комментариев -->
+    <div id="commentsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3 id="commentsModalTitle">Комментарии</h3>
+                <span class="close" id="closeCommentsModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="commentsList" class="comments-list">
+                    <!-- Комментарии будут загружаться здесь -->
+                </div>
+                <div class="add-comment-section">
+                    <textarea id="commentText" placeholder="Напишите комментарий..." rows="3"></textarea>
+                    <button id="addCommentBtn" class="send-btn">Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Уведомления -->
     <div id="notificationsContainer"></div>
 
