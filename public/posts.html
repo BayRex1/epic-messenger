@@ -149,6 +149,52 @@
             color: #27ae60;
         }
 
+        /* Стили для кнопок действий поста */
+        .post-actions {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 15px;
+        }
+        
+        .post-action {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .post-action:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .post-action.liked {
+            color: #e74c3c;
+        }
+        
+        .post-action.liked svg {
+            fill: #e74c3c;
+        }
+        
+        .post-views {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-left: auto;
+        }
+
         /* Новые стили для исправления загрузки */
         .system-message.error {
             color: #e74c3c;
@@ -198,43 +244,21 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Стили для загрузки файлов */
-        .file-preview-item {
-            position: relative;
-            display: inline-block;
-            margin: 10px;
-            padding: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: var(--bg-secondary);
-        }
-
-        .file-preview-item img {
-            max-width: 200px;
-            max-height: 200px;
-            border-radius: 4px;
-        }
-
-        .file-icon {
-            font-size: 24px;
-            margin-right: 10px;
-        }
-
-        .remove-file-btn {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
+        /* Стили для бейджей */
+        .verified-badge, .developer-badge {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
+            margin-left: 4px;
+        }
+        
+        .verified-badge svg, .developer-badge svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .mention {
+            color: #3498db;
+            font-weight: bold;
         }
     </style>
 </head>
