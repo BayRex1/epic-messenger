@@ -312,6 +312,15 @@ class ApiHandlers {
                         response = this.handleAddToPlaylist(token, data);
                     }
                     break;
+
+                // 🔥 НОВЫЕ API ДЛЯ КОММЕНТАРИЕВ
+                case '/api/posts/comments':
+                    if (method === 'GET') {
+                        response = this.handleGetComments(token, query);
+                    } else if (method === 'POST') {
+                        response = this.handleAddComment(token, data);
+                    }
+                    break;
                     
                 default:
                     if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
@@ -333,6 +342,27 @@ class ApiHandlers {
                         const userId = pathname.split('/')[3];
                         if (method === 'GET') {
                             response = this.handleGetTransactions(token, userId);
+                        }
+                    } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+                        const pathParts = pathname.split('/');
+                        const postId = pathParts[3];
+                        
+                        if (pathParts.length === 5 && pathParts[4] === 'comments' && method === 'GET') {
+                            response = this.handleGetPostComments(token, postId);
+                        } else if (pathParts.length === 5 && pathParts[4] === 'comments' && method === 'POST') {
+                            response = this.handleAddPostComment(token, postId, data);
+                        } else if (pathParts.length === 6 && pathParts[5] === 'like' && method === 'POST') {
+                            const commentId = pathParts[4];
+                            response = this.handleLikeComment(token, postId, commentId);
+                        } else if (pathParts.length === 7 && pathParts[5] === 'reply' && method === 'POST') {
+                            const commentId = pathParts[4];
+                            response = this.handleAddReply(token, postId, commentId, data);
+                        } else if (pathParts.length === 8 && pathParts[7] === 'like' && method === 'POST') {
+                            const commentId = pathParts[4];
+                            const replyId = pathParts[6];
+                            response = this.handleLikeReply(token, postId, commentId, replyId);
+                        } else {
+                            response = { success: false, message: 'API endpoint not found' };
                         }
                     } else {
                         response = { success: false, message: 'API endpoint not found' };
@@ -1157,6 +1187,257 @@ class ApiHandlers {
             success: true,
             likes: post.likes
         };
+    }
+
+    // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ КОММЕНТАРИЕВ
+    handleGetPostComments(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        // Увеличиваем счетчик просмотров
+        post.views = (post.views || 0) + 1;
+        this.dataManager.saveData();
+
+        const commentsWithUserInfo = (post.comments || []).map(comment => {
+            const commentUser = this.dataManager.users.find(u => u.id === comment.userId);
+            const repliesWithUserInfo = (comment.replies || []).map(reply => {
+                const replyUser = this.dataManager.users.find(u => u.id === reply.userId);
+                return {
+                    ...reply,
+                    userName: replyUser ? replyUser.displayName : 'Неизвестный',
+                    userAvatar: replyUser ? replyUser.avatar : null,
+                    userVerified: replyUser ? replyUser.verified : false
+                };
+            });
+
+            return {
+                ...comment,
+                userName: commentUser ? commentUser.displayName : 'Неизвестный',
+                userAvatar: commentUser ? commentUser.avatar : null,
+                userVerified: commentUser ? commentUser.verified : false,
+                replies: repliesWithUserInfo
+            };
+        });
+
+        this.securitySystem.logSecurityEvent(user, 'GET_POST_COMMENTS', `post:${postId}, count:${commentsWithUserInfo.length}`);
+
+        return {
+            success: true,
+            comments: commentsWithUserInfo
+        };
+    }
+
+    handleAddPostComment(token, postId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { text } = data;
+        
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Текст комментария не может быть пустым' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
+
+        const comment = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: sanitizedText,
+            likes: [],
+            replies: [],
+            createdAt: new Date()
+        };
+
+        if (!post.comments) {
+            post.comments = [];
+        }
+
+        post.comments.push(comment);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}, chars:${sanitizedText.length}`);
+
+        console.log(`💬 Пользователь ${user.displayName} добавил комментарий к посту ${postId}`);
+
+        return {
+            success: true,
+            comment: {
+                ...comment,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    handleAddReply(token, postId, commentId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { text } = data;
+        
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Текст ответа не может быть пустым' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
+
+        const reply = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: sanitizedText,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        if (!comment.replies) {
+            comment.replies = [];
+        }
+
+        comment.replies.push(reply);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}, chars:${sanitizedText.length}`);
+
+        console.log(`💬 Пользователь ${user.displayName} ответил на комментарий ${commentId}`);
+
+        return {
+            success: true,
+            reply: {
+                ...reply,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    handleLikeComment(token, postId, commentId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const likeIndex = comment.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            comment.likes.push(user.id);
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`);
+        } else {
+            comment.likes.splice(likeIndex, 1);
+            this.securitySystem.logSecurityEvent(user, 'UNLIKE_COMMENT', `post:${postId}, comment:${commentId}`);
+        }
+
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            likes: comment.likes
+        };
+    }
+
+    handleLikeReply(token, postId, commentId, replyId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const reply = comment.replies.find(r => r.id === replyId);
+        if (!reply) {
+            return { success: false, message: 'Ответ не найден' };
+        }
+
+        const likeIndex = reply.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            reply.likes.push(user.id);
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
+        } else {
+            reply.likes.splice(likeIndex, 1);
+            this.securitySystem.logSecurityEvent(user, 'UNLIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
+        }
+
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            likes: reply.likes
+        };
+    }
+
+    // Старые методы для обратной совместимости
+    handleGetComments(token, query) {
+        const { postId } = query;
+        return this.handleGetPostComments(token, postId);
+    }
+
+    handleAddComment(token, data) {
+        const { postId, text } = data;
+        return this.handleAddPostComment(token, postId, { text });
     }
 
     handleGetGifts(token) {
