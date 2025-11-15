@@ -178,6 +178,11 @@ class SimpleServer {
             console.log(`   ✅ public/uploads/videos`);
             console.log(`   ✅ public/uploads/audio`);
             console.log(`   ✅ public/uploads/files`);
+            console.log(`\n💬 НОВЫЙ ФУНКЦИОНАЛ КОММЕНТАРИЕВ:`);
+            console.log(`   ✅ Комментарии к постам`);
+            console.log(`   ✅ Ответы на комментарии`);
+            console.log(`   ✅ Лайки комментариев`);
+            console.log(`   ✅ Шеринг постов`);
         });
 
         return server;
@@ -244,6 +249,12 @@ class SimpleServer {
             '/TehnicalWork': 'public/additions/TechnicalWork.html',
             '/technical-work': 'public/additions/TechnicalWork.html'
         };
+
+        // Обработка отдельных постов
+        if (pathname.startsWith('/post/')) {
+            serveStaticFile(res, 'public/posts.html', 'text/html');
+            return;
+        }
 
         if (routes[pathname]) {
             serveStaticFile(res, routes[pathname], 'text/html');
