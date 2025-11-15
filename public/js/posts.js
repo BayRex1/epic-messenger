@@ -1,10 +1,17 @@
 // Функции для работы с постами
 
 let currentPostComments = null;
+let posts = [];
 
 async function loadPosts() {
     try {
+        showLoadingState();
         const token = localStorage.getItem('authToken');
+        if (!token) {
+            window.location.href = '/login.html';
+            return;
+        }
+
         const response = await fetch('/api/posts', {
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -17,18 +24,32 @@ async function loadPosts() {
             posts = data.posts;
             renderPosts(posts);
         } else {
-            document.getElementById('postsList').innerHTML = `
-                <div class="system-message error">
-                    Ошибка загрузки постов: ${data.message}
-                    <button class="retry-btn" onclick="loadPosts()">Повторить</button>
-                </div>
-            `;
+            showErrorState('Ошибка загрузки постов: ' + data.message);
         }
     } catch (error) {
         console.error('Ошибка загрузки постов:', error);
-        document.getElementById('postsList').innerHTML = `
+        showErrorState('Ошибка загрузки постов');
+    }
+}
+
+function showLoadingState() {
+    const postsList = document.getElementById('postsList');
+    if (postsList) {
+        postsList.innerHTML = `
+            <div class="system-message">
+                <div class="loading-spinner"></div>
+                Загрузка постов...
+            </div>
+        `;
+    }
+}
+
+function showErrorState(message) {
+    const postsList = document.getElementById('postsList');
+    if (postsList) {
+        postsList.innerHTML = `
             <div class="system-message error">
-                Ошибка загрузки постов
+                ${message}
                 <button class="retry-btn" onclick="loadPosts()">Повторить</button>
             </div>
         `;
@@ -91,6 +112,20 @@ function createPostElement(post) {
     // Форматируем время
     const postTime = formatPostTime(new Date(post.createdAt));
     
+    // Получаем текущего пользователя
+    const currentUser = window.currentUser || JSON.parse(localStorage.getItem('currentUser') || '{}');
+    
+    // Считаем количество комментариев (включая ответы)
+    let totalComments = 0;
+    if (post.comments) {
+        totalComments = post.comments.length;
+        post.comments.forEach(comment => {
+            if (comment.replies) {
+                totalComments += comment.replies.length;
+            }
+        });
+    }
+    
     postElement.innerHTML = `
         <div class="post-header">
             <div class="post-user">
@@ -103,8 +138,8 @@ function createPostElement(post) {
                 <div class="post-user-info">
                     <h4>
                         ${post.userName || 'Неизвестный'}
-                        ${post.userVerified ? '<span class="verified-badge"><svg width="14" height="14" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)" /><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : ''}
-                        ${post.userDeveloper ? '<span class="developer-badge"><svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : ''}
+                        ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                        ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
                     </h4>
                     <div class="post-time">${postTime}</div>
                 </div>
@@ -124,19 +159,19 @@ function createPostElement(post) {
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
                 </svg>
-                <span>${post.likes ? post.likes.length : 0}</span>
+                <span class="like-count">${post.likes ? post.likes.length : 0}</span>
             </button>
             <button class="post-action comment-btn" data-post-id="${post.id}">
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,23A1,1 0 0,1 11,22V19H7A2,2 0 0,1 5,17V7A2,2 0 0,1 7,5H21A2,2 0 0,1 23,7V17A2,2 0 0,1 21,19H16.9L13.2,22.71C13,22.89 12.76,23 12.5,23H12Z"/>
                 </svg>
-                <span>${post.comments ? post.comments.length : 0}</span>
+                <span class="comment-count">${totalComments}</span>
             </button>
             <button class="post-action share-btn" data-post-id="${post.id}">
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
                 </svg>
-                Поделиться
+                <span>Поделиться</span>
             </button>
             <div class="post-views">
                 <svg viewBox="0 0 24 24" width="16" height="16">
@@ -147,6 +182,7 @@ function createPostElement(post) {
         </div>
     `;
     
+    // Добавляем обработчики событий
     const likeBtn = postElement.querySelector('.like-btn');
     if (likeBtn) {
         likeBtn.addEventListener('click', function() {
@@ -237,14 +273,6 @@ async function publishPost() {
             fileInput.dataset.fileType = '';
             document.getElementById('postFilePreview').innerHTML = '';
             
-            // Отправляем уведомление через WebSocket
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    type: 'new_post',
-                    post: data.post
-                }));
-            }
-            
             loadPosts();
             showNotification('Пост опубликован!', 'success');
         } else {
@@ -273,15 +301,6 @@ async function toggleLike(postId) {
         const data = await response.json();
         
         if (data.success) {
-            // Отправляем уведомление через WebSocket
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    type: 'post_liked',
-                    postId: postId,
-                    userId: currentUser.id
-                }));
-            }
-            
             loadPosts();
         } else {
             showNotification('Ошибка лайка: ' + data.message, 'error');
@@ -378,6 +397,7 @@ function createCommentElement(comment) {
     commentElement.id = `comment-${comment.id}`;
     
     const commentTime = formatPostTime(new Date(comment.createdAt));
+    const currentUser = window.currentUser || JSON.parse(localStorage.getItem('currentUser') || '{}');
     const isLiked = comment.likes && comment.likes.includes(currentUser.id);
     
     let repliesHtml = '';
@@ -663,6 +683,33 @@ function fallbackShare(url, text) {
         document.body.removeChild(tempTextArea);
         showNotification('Не удалось скопировать ссылку', 'error');
     }
+}
+
+// Вспомогательные функции
+function processMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+}
+
+function openImageModal(imageUrl) {
+    // Простая реализация модального окна для изображений
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    `;
+    modal.innerHTML = `
+        <img src="${imageUrl}" style="max-width: 90%; max-height: 90%;">
+        <button onclick="this.parentElement.remove()" style="position: absolute; top: 20px; right: 20px; background: red; color: white; border: none; padding: 10px; cursor: pointer;">×</button>
+    `;
+    document.body.appendChild(modal);
 }
 
 // Инициализация постов
