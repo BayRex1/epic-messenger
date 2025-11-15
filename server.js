@@ -183,6 +183,12 @@ class SimpleServer {
             console.log(`   ✅ Ответы на комментарии`);
             console.log(`   ✅ Лайки комментариев`);
             console.log(`   ✅ Шеринг постов`);
+            console.log(`   ✅ Отдельные страницы постов: http://localhost:${port}/post/{id}`);
+            console.log(`\n🔧 ИСПРАВЛЕНИЯ ПРОБЛЕМ:`);
+            console.log(`   ✅ Исправлена бесконечная загрузка постов`);
+            console.log(`   ✅ Улучшена обработка ошибок`);
+            console.log(`   ✅ Добавлена проверка авторизации`);
+            console.log(`   ✅ Улучшено логирование`);
         });
 
         return server;
@@ -250,8 +256,9 @@ class SimpleServer {
             '/technical-work': 'public/additions/TechnicalWork.html'
         };
 
-        // Обработка отдельных постов
+        // 🔥 НОВОЕ: Обработка отдельных постов
         if (pathname.startsWith('/post/')) {
+            console.log(`📄 Serving post page for: ${pathname}`);
             serveStaticFile(res, 'public/posts.html', 'text/html');
             return;
         }
