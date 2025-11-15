@@ -2,30 +2,84 @@
 
 let currentPostId = null;
 let posts = [];
+let currentUser = null;
 
 async function loadPosts() {
     try {
+        console.log('🔄 Начинаем загрузку постов...');
         const token = localStorage.getItem('authToken');
+        
+        if (!token) {
+            console.log('❌ Токен не найден');
+            showNotification('Необходима авторизация', 'error');
+            const postsList = document.getElementById('postsList');
+            if (postsList) {
+                postsList.innerHTML = `
+                    <div class="system-message error">
+                        Необходима авторизация
+                        <button onclick="window.location.href='/login.html'" class="retry-btn">Войти</button>
+                    </div>
+                `;
+            }
+            return;
+        }
+
         const response = await fetch('/api/posts', {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
         });
         
+        console.log('📡 Ответ от сервера:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('📦 Данные постов:', data);
         
         if (data.success) {
             posts = data.posts;
+            console.log(`✅ Загружено ${posts.length} постов`);
             renderPosts(posts);
+        } else {
+            console.log('❌ Ошибка загрузки постов:', data.message);
+            showNotification('Ошибка загрузки постов: ' + data.message, 'error');
+            
+            const postsList = document.getElementById('postsList');
+            if (postsList) {
+                postsList.innerHTML = `
+                    <div class="system-message error">
+                        Ошибка загрузки постов: ${data.message}
+                        <button onclick="loadPosts()" class="retry-btn">Повторить</button>
+                    </div>
+                `;
+            }
         }
     } catch (error) {
-        console.error('Ошибка загрузки постов:', error);
+        console.error('❌ Ошибка загрузки постов:', error);
+        showNotification('Ошибка загрузки постов', 'error');
+        
+        const postsList = document.getElementById('postsList');
+        if (postsList) {
+            postsList.innerHTML = `
+                <div class="system-message error">
+                    Ошибка загрузки постов: ${error.message}
+                    <button onclick="loadPosts()" class="retry-btn">Повторить</button>
+                </div>
+            `;
+        }
     }
 }
 
 function renderPosts(posts) {
     const postsList = document.getElementById('postsList');
-    if (!postsList) return;
+    if (!postsList) {
+        console.log('❌ Элемент postsList не найден');
+        return;
+    }
     
     postsList.innerHTML = '';
     
@@ -33,6 +87,8 @@ function renderPosts(posts) {
         postsList.innerHTML = '<div class="system-message">Пока нет постов. Будьте первым!</div>';
         return;
     }
+    
+    console.log(`🎨 Рендерим ${posts.length} постов`);
     
     posts.forEach(post => {
         const postElement = createPostElement(post);
@@ -76,6 +132,11 @@ function createPostElement(post) {
     let postText = post.text || '';
     postText = processMentions(postText);
     
+    // Проверяем, есть ли текущий пользователь и является ли он администратором
+    const isAdmin = currentUser && currentUser.isDeveloper;
+    const canDelete = isAdmin && post.userId !== currentUser.id;
+    const isLiked = currentUser && post.likes && post.likes.includes(currentUser.id);
+    
     postElement.innerHTML = `
         <div class="post-header">
             <div class="post-user">
@@ -93,7 +154,7 @@ function createPostElement(post) {
                     </h4>
                     <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
                 </div>
-                ${currentUser && currentUser.isDeveloper && post.userId !== currentUser.id ? `
+                ${canDelete ? `
                     <div style="margin-left: auto;">
                         <button class="admin-btn delete delete-post-btn" data-post-id="${post.id}">Удалить</button>
                     </div>
@@ -105,13 +166,13 @@ function createPostElement(post) {
             ${mediaHtml}
         </div>
         <div class="post-actions">
-            <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
+            <button class="post-action like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post.id}" ${!currentUser ? 'disabled' : ''}>
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
                 </svg>
                 <span>${post.likes ? post.likes.length : 0}</span>
             </button>
-            <button class="post-action comment-btn" data-post-id="${post.id}">
+            <button class="post-action comment-btn" data-post-id="${post.id}" ${!currentUser ? 'disabled' : ''}>
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,23A1,1 0 0,1 11,22V19H7A2,2 0 0,1 5,17V7A2,2 0 0,1 7,5H21A2,2 0 0,1 23,7V17A2,2 0 0,1 21,19H16.9L13.2,22.71C13,22.89 12.76,23 12.5,23H12M13,17V20.08L16.08,17H21V7H7V17H13M3,15H1V3A2,2 0 0,1 3,1H19V3H3V15Z"/>
                 </svg>
@@ -132,17 +193,22 @@ function createPostElement(post) {
         </div>
     `;
     
+    // Добавляем обработчики событий
     const likeBtn = postElement.querySelector('.like-btn');
-    if (likeBtn) {
+    if (likeBtn && currentUser) {
         likeBtn.addEventListener('click', function() {
-            toggleLike(post.id);
+            if (!this.disabled) {
+                toggleLike(post.id);
+            }
         });
     }
 
     const commentBtn = postElement.querySelector('.comment-btn');
-    if (commentBtn) {
+    if (commentBtn && currentUser) {
         commentBtn.addEventListener('click', function() {
-            openCommentsModal(post.id);
+            if (!this.disabled) {
+                openCommentsModal(post.id);
+            }
         });
     }
 
@@ -154,7 +220,7 @@ function createPostElement(post) {
     }
 
     const deleteBtn = postElement.querySelector('.delete-post-btn');
-    if (deleteBtn) {
+    if (deleteBtn && currentUser) {
         deleteBtn.addEventListener('click', function() {
             deletePost(post.id);
         });
@@ -164,6 +230,11 @@ function createPostElement(post) {
 }
 
 async function publishPost() {
+    if (!currentUser) {
+        showNotification('Необходима авторизация', 'error');
+        return;
+    }
+
     const postText = document.getElementById('postText');
     const text = postText.value.trim();
     const fileInput = document.getElementById('postFileInput');
@@ -203,7 +274,7 @@ async function publishPost() {
             document.getElementById('postFilePreview').innerHTML = '';
             
             // Отправляем уведомление через WebSocket
-            if (socket && socket.readyState === WebSocket.OPEN) {
+            if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     type: 'new_post',
                     post: data.post
@@ -235,7 +306,7 @@ async function toggleLike(postId) {
         
         if (data.success) {
             // Отправляем уведомление через WebSocket
-            if (socket && socket.readyState === WebSocket.OPEN) {
+            if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     type: 'post_liked',
                     postId: postId,
@@ -344,13 +415,13 @@ function createCommentElement(comment) {
                         </div>
                         <div class="comment-text">${reply.text}</div>
                         <div class="comment-actions">
-                            <button class="comment-action like-comment-btn ${reply.likes && reply.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${reply.id}" data-parent-id="${comment.id}">
+                            <button class="comment-action like-comment-btn ${reply.likes && currentUser && reply.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${reply.id}" data-parent-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
                                 <svg viewBox="0 0 24 24" width="14" height="14">
                                     <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
                                 </svg>
                                 <span>${reply.likes ? reply.likes.length : 0}</span>
                             </button>
-                            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}">
+                            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
                                 Ответить
                             </button>
                         </div>
@@ -377,47 +448,53 @@ function createCommentElement(comment) {
         </div>
         <div class="comment-text">${comment.text}</div>
         <div class="comment-actions">
-            <button class="comment-action like-comment-btn ${comment.likes && comment.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${comment.id}">
+            <button class="comment-action like-comment-btn ${comment.likes && currentUser && comment.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
                 <svg viewBox="0 0 24 24" width="14" height="14">
                     <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
                 </svg>
                 <span>${comment.likes ? comment.likes.length : 0}</span>
             </button>
-            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}">
+            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
                 Ответить
             </button>
         </div>
         ${repliesHtml}
         <div class="reply-section" id="reply-section-${comment.id}" style="display: none;">
             <textarea class="reply-text" placeholder="Напишите ответ..." rows="2"></textarea>
-            <button class="send-btn add-reply-btn" data-comment-id="${comment.id}">Отправить ответ</button>
+            <button class="send-btn add-reply-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>Отправить ответ</button>
         </div>
     `;
     
     // Добавляем обработчики событий
     const likeBtn = commentElement.querySelector('.like-comment-btn');
-    if (likeBtn) {
+    if (likeBtn && currentUser) {
         likeBtn.addEventListener('click', function() {
-            const commentId = this.getAttribute('data-comment-id');
-            const parentId = this.getAttribute('data-parent-id');
-            toggleCommentLike(commentId, parentId);
+            if (!this.disabled) {
+                const commentId = this.getAttribute('data-comment-id');
+                const parentId = this.getAttribute('data-parent-id');
+                toggleCommentLike(commentId, parentId);
+            }
         });
     }
     
     const replyBtn = commentElement.querySelector('.reply-comment-btn');
-    if (replyBtn) {
+    if (replyBtn && currentUser) {
         replyBtn.addEventListener('click', function() {
-            const commentId = this.getAttribute('data-comment-id');
-            const replySection = document.getElementById(`reply-section-${commentId}`);
-            replySection.style.display = replySection.style.display === 'none' ? 'block' : 'none';
+            if (!this.disabled) {
+                const commentId = this.getAttribute('data-comment-id');
+                const replySection = document.getElementById(`reply-section-${commentId}`);
+                replySection.style.display = replySection.style.display === 'none' ? 'block' : 'none';
+            }
         });
     }
     
     const addReplyBtn = commentElement.querySelector('.add-reply-btn');
-    if (addReplyBtn) {
+    if (addReplyBtn && currentUser) {
         addReplyBtn.addEventListener('click', function() {
-            const commentId = this.getAttribute('data-comment-id');
-            addReply(commentId);
+            if (!this.disabled) {
+                const commentId = this.getAttribute('data-comment-id');
+                addReply(commentId);
+            }
         });
     }
     
@@ -425,6 +502,11 @@ function createCommentElement(comment) {
 }
 
 async function addComment() {
+    if (!currentUser) {
+        showNotification('Необходима авторизация', 'error');
+        return;
+    }
+
     const commentText = document.getElementById('commentText');
     const text = commentText.value.trim();
     
@@ -593,7 +675,6 @@ function processMentions(text) {
 }
 
 function openImageModal(imageUrl) {
-    // Реализация модального окна для изображений
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.cssText = `
@@ -635,7 +716,34 @@ function openImageModal(imageUrl) {
 }
 
 // Инициализация постов
-function initializePosts() {
+async function initializePosts() {
+    console.log('🚀 Инициализация постов...');
+    
+    // Сначала загружаем данные пользователя
+    try {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            const response = await fetch('/api/current-user', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    console.log('✅ Пользователь загружен:', currentUser.username);
+                    
+                    // Обновляем интерфейс пользователя
+                    updateUserInterface();
+                }
+            }
+        }
+    } catch (error) {
+        console.log('⚠️ Не удалось загрузить данные пользователя:', error);
+    }
+    
     const publishPostBtn = document.getElementById('publishPostBtn');
     const addFileBtn = document.getElementById('addFileBtn');
     
@@ -650,10 +758,37 @@ function initializePosts() {
     }
     
     // Загружаем посты при инициализации
-    loadPosts();
+    await loadPosts();
+    
+    console.log('✅ Инициализация постов завершена');
+}
+
+function updateUserInterface() {
+    // Обновляем аватар и имя в форме создания поста
+    const postUserAvatar = document.getElementById('postUserAvatar');
+    const postUserName = document.getElementById('postUserName');
+    
+    if (postUserAvatar && currentUser) {
+        if (currentUser.avatar) {
+            postUserAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        } else {
+            postUserAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+        }
+    }
+    
+    if (postUserName && currentUser) {
+        postUserName.textContent = currentUser.displayName || 'Вы';
+    }
+    
+    // Показываем/скрываем кнопку админ-панели
+    const adminPanelBtn = document.getElementById('adminPanelBtn');
+    if (adminPanelBtn && currentUser) {
+        adminPanelBtn.style.display = currentUser.isDeveloper ? 'flex' : 'none';
+    }
 }
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM загружен, запускаем инициализацию...');
     initializePosts();
 });
