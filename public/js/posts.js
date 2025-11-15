@@ -1,95 +1,28 @@
 // Функции для работы с постами
 
-let currentPostId = null;
-let posts = [];
-let currentUser = null;
-
 async function loadPosts() {
     try {
-        console.log('🔄 Начинаем загрузку постов...');
         const token = localStorage.getItem('authToken');
-        
-        if (!token) {
-            console.log('❌ Токен не найден');
-            showNotification('Необходима авторизация', 'error');
-            const postsList = document.getElementById('postsList');
-            if (postsList) {
-                postsList.innerHTML = `
-                    <div class="system-message error">
-                        Необходима авторизация
-                        <button onclick="window.location.href='/login.html'" class="retry-btn">Войти</button>
-                    </div>
-                `;
-            }
-            return;
-        }
-
-        console.log('📡 Отправляем запрос на /api/posts...');
         const response = await fetch('/api/posts', {
-            method: 'GET',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${token}`
             }
         });
         
-        console.log('📡 Ответ от сервера:', response.status, response.statusText);
-        
-        if (response.status === 401) {
-            console.log('❌ Токен недействителен');
-            localStorage.removeItem('authToken');
-            showNotification('Сессия истекла. Войдите снова.', 'error');
-            window.location.href = '/login.html';
-            return;
-        }
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
         const data = await response.json();
-        console.log('📦 Данные постов:', data);
         
         if (data.success) {
-            posts = data.posts || [];
-            console.log(`✅ Загружено ${posts.length} постов`);
+            posts = data.posts;
             renderPosts(posts);
-        } else {
-            console.log('❌ Ошибка загрузки постов:', data.message);
-            showNotification('Ошибка загрузки постов: ' + data.message, 'error');
-            
-            const postsList = document.getElementById('postsList');
-            if (postsList) {
-                postsList.innerHTML = `
-                    <div class="system-message error">
-                        Ошибка загрузки постов: ${data.message}
-                        <button onclick="loadPosts()" class="retry-btn">Повторить</button>
-                    </div>
-                `;
-            }
         }
     } catch (error) {
-        console.error('❌ Ошибка загрузки постов:', error);
-        showNotification('Ошибка загрузки постов: ' + error.message, 'error');
-        
-        const postsList = document.getElementById('postsList');
-        if (postsList) {
-            postsList.innerHTML = `
-                <div class="system-message error">
-                    Ошибка загрузки постов: ${error.message}
-                    <button onclick="loadPosts()" class="retry-btn">Повторить</button>
-                </div>
-            `;
-        }
+        console.error('Ошибка загрузки постов:', error);
     }
 }
 
 function renderPosts(posts) {
     const postsList = document.getElementById('postsList');
-    if (!postsList) {
-        console.log('❌ Элемент postsList не найден');
-        return;
-    }
+    if (!postsList) return;
     
     postsList.innerHTML = '';
     
@@ -97,8 +30,6 @@ function renderPosts(posts) {
         postsList.innerHTML = '<div class="system-message">Пока нет постов. Будьте первым!</div>';
         return;
     }
-    
-    console.log(`🎨 Рендерим ${posts.length} постов`);
     
     posts.forEach(post => {
         const postElement = createPostElement(post);
@@ -109,7 +40,6 @@ function renderPosts(posts) {
 function createPostElement(post) {
     const postElement = document.createElement('div');
     postElement.className = 'post';
-    postElement.id = `post-${post.id}`;
     
     let mediaHtml = '';
     if (post.image) {
@@ -142,11 +72,6 @@ function createPostElement(post) {
     let postText = post.text || '';
     postText = processMentions(postText);
     
-    // Проверяем, есть ли текущий пользователь и является ли он администратором
-    const isAdmin = currentUser && currentUser.isDeveloper;
-    const canDelete = isAdmin && post.userId !== currentUser.id;
-    const isLiked = currentUser && post.likes && post.likes.includes(currentUser.id);
-    
     postElement.innerHTML = `
         <div class="post-header">
             <div class="post-user">
@@ -164,7 +89,7 @@ function createPostElement(post) {
                     </h4>
                     <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
                 </div>
-                ${canDelete ? `
+                ${currentUser && currentUser.isDeveloper && post.userId !== currentUser.id ? `
                     <div style="margin-left: auto;">
                         <button class="admin-btn delete delete-post-btn" data-post-id="${post.id}">Удалить</button>
                     </div>
@@ -176,23 +101,11 @@ function createPostElement(post) {
             ${mediaHtml}
         </div>
         <div class="post-actions">
-            <button class="post-action like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post.id}" ${!currentUser ? 'disabled' : ''}>
+            <button class="post-action like-btn ${post.likes && post.likes.includes(currentUser.id) ? 'liked' : ''}" data-post-id="${post.id}">
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
                 </svg>
                 <span>${post.likes ? post.likes.length : 0}</span>
-            </button>
-            <button class="post-action comment-btn" data-post-id="${post.id}" ${!currentUser ? 'disabled' : ''}>
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                    <path fill="currentColor" d="M12,23A1,1 0 0,1 11,22V19H7A2,2 0 0,1 5,17V7A2,2 0 0,1 7,5H21A2,2 0 0,1 23,7V17A2,2 0 0,1 21,19H16.9L13.2,22.71C13,22.89 12.76,23 12.5,23H12M13,17V20.08L16.08,17H21V7H7V17H13M3,15H1V3A2,2 0 0,1 3,1H19V3H3V15Z"/>
-                </svg>
-                <span>${post.comments ? post.comments.length : 0}</span>
-            </button>
-            <button class="post-action share-btn" data-post-id="${post.id}">
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                    <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
-                </svg>
-                <span>Поделиться</span>
             </button>
             <div class="post-views">
                 <svg viewBox="0 0 24 24" width="16" height="16">
@@ -203,34 +116,15 @@ function createPostElement(post) {
         </div>
     `;
     
-    // Добавляем обработчики событий
     const likeBtn = postElement.querySelector('.like-btn');
-    if (likeBtn && currentUser) {
+    if (likeBtn) {
         likeBtn.addEventListener('click', function() {
-            if (!this.disabled) {
-                toggleLike(post.id);
-            }
-        });
-    }
-
-    const commentBtn = postElement.querySelector('.comment-btn');
-    if (commentBtn && currentUser) {
-        commentBtn.addEventListener('click', function() {
-            if (!this.disabled) {
-                openCommentsModal(post.id);
-            }
-        });
-    }
-
-    const shareBtn = postElement.querySelector('.share-btn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', function() {
-            sharePost(post.id);
+            toggleLike(post.id);
         });
     }
 
     const deleteBtn = postElement.querySelector('.delete-post-btn');
-    if (deleteBtn && currentUser) {
+    if (deleteBtn) {
         deleteBtn.addEventListener('click', function() {
             deletePost(post.id);
         });
@@ -240,11 +134,6 @@ function createPostElement(post) {
 }
 
 async function publishPost() {
-    if (!currentUser) {
-        showNotification('Необходима авторизация', 'error');
-        return;
-    }
-
     const postText = document.getElementById('postText');
     const text = postText.value.trim();
     const fileInput = document.getElementById('postFileInput');
@@ -284,7 +173,7 @@ async function publishPost() {
             document.getElementById('postFilePreview').innerHTML = '';
             
             // Отправляем уведомление через WebSocket
-            if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     type: 'new_post',
                     post: data.post
@@ -316,7 +205,7 @@ async function toggleLike(postId) {
         
         if (data.success) {
             // Отправляем уведомление через WebSocket
-            if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     type: 'post_liked',
                     postId: postId,
@@ -334,331 +223,12 @@ async function toggleLike(postId) {
     }
 }
 
-async function openCommentsModal(postId) {
-    currentPostId = postId;
-    const modal = document.getElementById('commentsModal');
-    const title = document.getElementById('commentsModalTitle');
-    const commentsList = document.getElementById('commentsList');
-    
-    title.textContent = 'Комментарии к посту';
-    commentsList.innerHTML = '<div class="system-message">Загрузка комментариев...</div>';
-    
-    modal.style.display = 'block';
-    
-    await loadComments(postId);
-    
-    // Добавляем обработчики событий
-    document.getElementById('closeCommentsModal').onclick = () => {
-        modal.style.display = 'none';
-    };
-    
-    document.getElementById('addCommentBtn').onclick = addComment;
-    
-    // Закрытие по клику вне модального окна
-    window.onclick = (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    };
-}
-
-async function loadComments(postId) {
-    try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/posts/${postId}/comments`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const data = await response.json();
-        const commentsList = document.getElementById('commentsList');
-        
-        if (data.success) {
-            renderComments(data.comments, commentsList);
-        } else {
-            commentsList.innerHTML = '<div class="system-message">Ошибка загрузки комментариев</div>';
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки комментариев:', error);
-        document.getElementById('commentsList').innerHTML = '<div class="system-message">Ошибка загрузки комментариев</div>';
-    }
-}
-
-function renderComments(comments, container) {
-    container.innerHTML = '';
-    
-    if (comments.length === 0) {
-        container.innerHTML = '<div class="system-message">Пока нет комментариев. Будьте первым!</div>';
-        return;
-    }
-    
-    comments.forEach(comment => {
-        const commentElement = createCommentElement(comment);
-        container.appendChild(commentElement);
-    });
-}
-
-function createCommentElement(comment) {
-    const commentElement = document.createElement('div');
-    commentElement.className = 'comment';
-    
-    let repliesHtml = '';
-    if (comment.replies && comment.replies.length > 0) {
-        repliesHtml = `
-            <div class="comment-replies">
-                ${comment.replies.map(reply => `
-                    <div class="comment reply">
-                        <div class="comment-header">
-                            <div class="comment-user">
-                                <div class="comment-avatar">
-                                    ${reply.userAvatar ? 
-                                        `<img src="${reply.userAvatar}" alt="${reply.userName}" style="width: 24px; height: 24px; border-radius: 50%;">` : 
-                                        reply.userName ? reply.userName.charAt(0).toUpperCase() : 'U'
-                                    }
-                                </div>
-                                <div class="comment-user-info">
-                                    <h5>${reply.userName || 'Неизвестный'}</h5>
-                                    <div class="comment-time">${new Date(reply.createdAt).toLocaleString()}</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="comment-text">${reply.text}</div>
-                        <div class="comment-actions">
-                            <button class="comment-action like-comment-btn ${reply.likes && currentUser && reply.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${reply.id}" data-parent-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
-                                <svg viewBox="0 0 24 24" width="14" height="14">
-                                    <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
-                                </svg>
-                                <span>${reply.likes ? reply.likes.length : 0}</span>
-                            </button>
-                            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
-                                Ответить
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-    
-    commentElement.innerHTML = `
-        <div class="comment-header">
-            <div class="comment-user">
-                <div class="comment-avatar">
-                    ${comment.userAvatar ? 
-                        `<img src="${comment.userAvatar}" alt="${comment.userName}" style="width: 32px; height: 32px; border-radius: 50%;">` : 
-                        comment.userName ? comment.userName.charAt(0).toUpperCase() : 'U'
-                    }
-                </div>
-                <div class="comment-user-info">
-                    <h4>${comment.userName || 'Неизвестный'}</h4>
-                    <div class="comment-time">${new Date(comment.createdAt).toLocaleString()}</div>
-                </div>
-            </div>
-        </div>
-        <div class="comment-text">${comment.text}</div>
-        <div class="comment-actions">
-            <button class="comment-action like-comment-btn ${comment.likes && currentUser && comment.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
-                <svg viewBox="0 0 24 24" width="14" height="14">
-                    <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
-                </svg>
-                <span>${comment.likes ? comment.likes.length : 0}</span>
-            </button>
-            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>
-                Ответить
-            </button>
-        </div>
-        ${repliesHtml}
-        <div class="reply-section" id="reply-section-${comment.id}" style="display: none;">
-            <textarea class="reply-text" placeholder="Напишите ответ..." rows="2"></textarea>
-            <button class="send-btn add-reply-btn" data-comment-id="${comment.id}" ${!currentUser ? 'disabled' : ''}>Отправить ответ</button>
-        </div>
-    `;
-    
-    // Добавляем обработчики событий
-    const likeBtn = commentElement.querySelector('.like-comment-btn');
-    if (likeBtn && currentUser) {
-        likeBtn.addEventListener('click', function() {
-            if (!this.disabled) {
-                const commentId = this.getAttribute('data-comment-id');
-                const parentId = this.getAttribute('data-parent-id');
-                toggleCommentLike(commentId, parentId);
-            }
-        });
-    }
-    
-    const replyBtn = commentElement.querySelector('.reply-comment-btn');
-    if (replyBtn && currentUser) {
-        replyBtn.addEventListener('click', function() {
-            if (!this.disabled) {
-                const commentId = this.getAttribute('data-comment-id');
-                const replySection = document.getElementById(`reply-section-${commentId}`);
-                replySection.style.display = replySection.style.display === 'none' ? 'block' : 'none';
-            }
-        });
-    }
-    
-    const addReplyBtn = commentElement.querySelector('.add-reply-btn');
-    if (addReplyBtn && currentUser) {
-        addReplyBtn.addEventListener('click', function() {
-            if (!this.disabled) {
-                const commentId = this.getAttribute('data-comment-id');
-                addReply(commentId);
-            }
-        });
-    }
-    
-    return commentElement;
-}
-
-async function addComment() {
-    if (!currentUser) {
-        showNotification('Необходима авторизация', 'error');
-        return;
-    }
-
-    const commentText = document.getElementById('commentText');
-    const text = commentText.value.trim();
-    
-    if (!text) {
-        showNotification('Введите текст комментария', 'warning');
-        return;
-    }
-    
-    try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/posts/${currentPostId}/comments`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                text: text
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            commentText.value = '';
-            await loadComments(currentPostId);
-            loadPosts(); // Обновляем счетчик комментариев в посте
-            showNotification('Комментарий добавлен!', 'success');
-        } else {
-            showNotification('Ошибка добавления комментария: ' + data.message, 'error');
-        }
-    } catch (error) {
-        console.error('Ошибка добавления комментария:', error);
-        showNotification('Ошибка добавления комментария', 'error');
-    }
-}
-
-async function addReply(commentId) {
-    const replySection = document.getElementById(`reply-section-${commentId}`);
-    const replyText = replySection.querySelector('.reply-text');
-    const text = replyText.value.trim();
-    
-    if (!text) {
-        showNotification('Введите текст ответа', 'warning');
-        return;
-    }
-    
-    try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/posts/${currentPostId}/comments/${commentId}/reply`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                text: text
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            replyText.value = '';
-            replySection.style.display = 'none';
-            await loadComments(currentPostId);
-            showNotification('Ответ добавлен!', 'success');
-        } else {
-            showNotification('Ошибка добавления ответа: ' + data.message, 'error');
-        }
-    } catch (error) {
-        console.error('Ошибка добавления ответа:', error);
-        showNotification('Ошибка добавления ответа', 'error');
-    }
-}
-
-async function toggleCommentLike(commentId, parentId = null) {
-    try {
-        const token = localStorage.getItem('authToken');
-        const url = parentId ? 
-            `/api/posts/${currentPostId}/comments/${parentId}/replies/${commentId}/like` :
-            `/api/posts/${currentPostId}/comments/${commentId}/like`;
-            
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            await loadComments(currentPostId);
-        } else {
-            showNotification('Ошибка лайка комментария: ' + data.message, 'error');
-        }
-    } catch (error) {
-        console.error('Ошибка лайка комментария:', error);
-        showNotification('Ошибка лайка комментария', 'error');
-    }
-}
-
-function sharePost(postId) {
-    const postUrl = `${window.location.origin}/post/${postId}`;
-    
-    if (navigator.share) {
-        navigator.share({
-            title: 'Посмотрите этот пост в Epic Messenger',
-            text: 'Интересный пост в Epic Messenger',
-            url: postUrl
-        })
-        .then(() => console.log('Успешный шеринг'))
-        .catch((error) => {
-            console.log('Ошибка шеринга:', error);
-            copyToClipboard(postUrl);
-        });
-    } else {
-        copyToClipboard(postUrl);
-    }
-}
-
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification('Ссылка скопирована в буфер обмена!', 'success');
-    }).catch(() => {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        showNotification('Ссылка скопирована в буфер обмена!', 'success');
-    });
-}
-
 async function deletePost(postId) {
     if (!confirm('Вы уверены, что хотите удалить этот пост?')) return;
     
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/posts?postId=${postId}`, {
+        const response = await fetch(`/api/posts/${postId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -679,293 +249,26 @@ async function deletePost(postId) {
     }
 }
 
-// Вспомогательные функции
-function processMentions(text) {
-    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
-}
-
-function openImageModal(imageUrl) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    `;
-    
-    modal.innerHTML = `
-        <div style="position: relative;">
-            <img src="${imageUrl}" style="max-width: 90vw; max-height: 90vh;">
-            <button onclick="this.parentElement.parentElement.remove()" style="
-                position: absolute;
-                top: -40px;
-                right: 0;
-                background: none;
-                border: none;
-                color: white;
-                font-size: 24px;
-                cursor: pointer;
-            ">×</button>
-        </div>
-    `;
-    
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    };
-    
-    document.body.appendChild(modal);
-}
-
-// Функции для загрузки файлов
-function setupFileUpload() {
-    const fileInput = document.getElementById('postFileInput');
-    const fileUploadArea = document.getElementById('postFileUpload');
-    const filePreview = document.getElementById('postFilePreview');
-    
-    if (fileInput && fileUploadArea) {
-        // Обработчик клика по области загрузки
-        fileUploadArea.addEventListener('click', function() {
-            fileInput.click();
-        });
-        
-        // Обработчик drag & drop
-        fileUploadArea.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            fileUploadArea.style.backgroundColor = 'var(--bg-secondary)';
-        });
-        
-        fileUploadArea.addEventListener('dragleave', function() {
-            fileUploadArea.style.backgroundColor = '';
-        });
-        
-        fileUploadArea.addEventListener('drop', function(e) {
-            e.preventDefault();
-            fileUploadArea.style.backgroundColor = '';
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
-        });
-        
-        // Обработчик выбора файла
-        fileInput.addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-    }
-}
-
-function handleFileSelect(file) {
-    const filePreview = document.getElementById('postFilePreview');
-    const fileInput = document.getElementById('postFileInput');
-    
-    if (!file) return;
-    
-    // Проверка размера файла (макс. 50 МБ)
-    if (file.size > 50 * 1024 * 1024) {
-        showNotification('Файл слишком большой (макс. 50 МБ)', 'error');
-        return;
-    }
-    
-    // Показываем превью
-    const fileType = file.type.split('/')[0];
-    let previewHTML = '';
-    
-    if (fileType === 'image') {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewHTML = `
-                <div class="file-preview-item">
-                    <img src="${e.target.result}" alt="Превью" style="max-width: 200px; max-height: 200px;">
-                    <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
-                </div>
-            `;
-            filePreview.innerHTML = previewHTML;
-            
-            // Сохраняем информацию о файле для отправки
-            fileInput.dataset.fileUrl = e.target.result;
-            fileInput.dataset.fileName = file.name;
-            fileInput.dataset.fileType = 'image';
-        };
-        reader.readAsDataURL(file);
-    } else if (fileType === 'video') {
-        previewHTML = `
-            <div class="file-preview-item">
-                <div class="file-icon">🎥</div>
-                <span>${file.name}</span>
-                <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
-            </div>
-        `;
-        filePreview.innerHTML = previewHTML;
-        
-        // Для видео/аудио нужно загрузить на сервер
-        uploadFile(file);
-    } else if (fileType === 'audio') {
-        previewHTML = `
-            <div class="file-preview-item">
-                <div class="file-icon">🎵</div>
-                <span>${file.name}</span>
-                <button onclick="removeFilePreview()" class="remove-file-btn">×</button>
-            </div>
-        `;
-        filePreview.innerHTML = previewHTML;
-        
-        // Для аудио нужно загрузить на сервер
-        uploadFile(file);
-    } else {
-        showNotification('Неподдерживаемый тип файла', 'error');
-    }
-}
-
-function removeFilePreview() {
-    const filePreview = document.getElementById('postFilePreview');
-    const fileInput = document.getElementById('postFileInput');
-    
-    filePreview.innerHTML = '';
-    fileInput.dataset.fileUrl = '';
-    fileInput.dataset.fileName = '';
-    fileInput.dataset.fileType = '';
-    fileInput.value = '';
-}
-
-async function uploadFile(file) {
-    try {
-        const token = localStorage.getItem('authToken');
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch('/api/upload-file', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            const fileInput = document.getElementById('postFileInput');
-            fileInput.dataset.fileUrl = data.fileUrl;
-            fileInput.dataset.fileName = file.name;
-            fileInput.dataset.fileType = file.type.split('/')[0];
-            
-            showNotification('Файл загружен', 'success');
-        } else {
-            showNotification('Ошибка загрузки файла: ' + data.message, 'error');
-            removeFilePreview();
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки файла:', error);
-        showNotification('Ошибка загрузки файла', 'error');
-        removeFilePreview();
-    }
-}
-
 // Инициализация постов
-async function initializePosts() {
-    console.log('🚀 Инициализация постов...');
+function initializePosts() {
+    const publishPostBtn = document.getElementById('publishPostBtn');
+    const addFileBtn = document.getElementById('addFileBtn');
     
-    try {
-        // Сначала загружаем данные пользователя
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            console.log('🔐 Проверяем авторизацию...');
-            const response = await fetch('/api/current-user', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    currentUser = data.user;
-                    console.log('✅ Пользователь загружен:', currentUser.username);
-                    
-                    // Обновляем интерфейс пользователя
-                    updateUserInterface();
-                } else {
-                    console.log('❌ Ошибка загрузки пользователя:', data.message);
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login.html';
-                    return;
-                }
-            } else if (response.status === 401) {
-                console.log('❌ Токен недействителен');
-                localStorage.removeItem('authToken');
-                window.location.href = '/login.html';
-                return;
-            }
-        } else {
-            console.log('❌ Токен не найден, перенаправляем на страницу входа');
-            window.location.href = '/login.html';
-            return;
-        }
-        
-        // Настраиваем обработчики событий
-        const publishPostBtn = document.getElementById('publishPostBtn');
-        const addFileBtn = document.getElementById('addFileBtn');
-        
-        if (publishPostBtn) {
-            publishPostBtn.addEventListener('click', publishPost);
-        }
-        
-        if (addFileBtn) {
-            addFileBtn.addEventListener('click', function() {
-                document.getElementById('postFileInput').click();
-            });
-        }
-        
-        // Настраиваем загрузку файлов
-        setupFileUpload();
-        
-        // Загружаем посты
-        await loadPosts();
-        
-        console.log('✅ Инициализация постов завершена');
-        
-    } catch (error) {
-        console.error('❌ Ошибка инициализации:', error);
-        showNotification('Ошибка инициализации: ' + error.message, 'error');
-    }
-}
-
-function updateUserInterface() {
-    // Обновляем аватар и имя в форме создания поста
-    const postUserAvatar = document.getElementById('postUserAvatar');
-    const postUserName = document.getElementById('postUserName');
-    
-    if (postUserAvatar && currentUser) {
-        if (currentUser.avatar) {
-            postUserAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
-        } else {
-            postUserAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
-        }
+    if (publishPostBtn) {
+        publishPostBtn.addEventListener('click', publishPost);
     }
     
-    if (postUserName && currentUser) {
-        postUserName.textContent = currentUser.displayName || 'Вы';
+    if (addFileBtn) {
+        addFileBtn.addEventListener('click', function() {
+            document.getElementById('postFileInput').click();
+        });
     }
     
-    // Показываем/скрываем кнопку админ-панели
-    const adminPanelBtn = document.getElementById('adminPanelBtn');
-    if (adminPanelBtn && currentUser) {
-        adminPanelBtn.style.display = currentUser.isDeveloper ? 'flex' : 'none';
-    }
+    // Загружаем посты при инициализации
+    loadPosts();
 }
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('📄 DOM загружен, запускаем инициализацию...');
     initializePosts();
 });
