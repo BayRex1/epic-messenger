@@ -65,6 +65,20 @@ class DataManager {
         this.music.forEach(track => track.createdAt = new Date(track.createdAt));
         this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
         this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
+        
+        // Восстанавливаем даты комментариев
+        this.posts.forEach(post => {
+            if (post.comments) {
+                post.comments.forEach(comment => {
+                    comment.createdAt = new Date(comment.createdAt);
+                    if (comment.replies) {
+                        comment.replies.forEach(reply => {
+                            reply.createdAt = new Date(reply.createdAt);
+                        });
+                    }
+                });
+            }
+        });
     }
 
     saveData() {
@@ -136,13 +150,22 @@ class DataManager {
             {
                 id: '1',
                 userId: 'system',
-                text: 'Добро пожаловать в Epic Messenger! 🚀',
+                text: 'Добро пожаловать в Epic Messenger! 🚀\n\nЗдесь вы можете:\n• Общаться с друзьями 💬\n• Делиться постами 📝\n• Отправлять подарки 🎁\n• Слушать музыку 🎵\n• Зарабатывать E-COIN 💰\n\nПрисоединяйтесь к нашему сообществу!',
                 image: null,
                 file: null,
                 fileName: null,
                 fileType: null,
                 likes: [],
-                comments: [],
+                comments: [
+                    {
+                        id: 'comment1',
+                        userId: 'system',
+                        text: 'Для начала работы зарегистрируйтесь или войдите в свой аккаунт!',
+                        likes: [],
+                        replies: [],
+                        createdAt: new Date()
+                    }
+                ],
                 views: 0,
                 createdAt: new Date()
             }
@@ -156,6 +179,9 @@ class DataManager {
         this.bannedIPs = new Map();
         this.devices = new Map();
         this.maintenanceMode = false;
+        
+        // Сохраняем начальные данные
+        this.saveData();
     }
 
     generateId() {
@@ -171,13 +197,18 @@ class DataManager {
     }
 
     decrypt(encryptedText) {
-        const parts = encryptedText.split(':');
-        const iv = Buffer.from(parts[0], 'hex');
-        const encrypted = parts[1];
-        const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
-        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
+        try {
+            const parts = encryptedText.split(':');
+            const iv = Buffer.from(parts[0], 'hex');
+            const encrypted = parts[1];
+            const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
+            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+        } catch (error) {
+            console.log('❌ Ошибка дешифрования:', error);
+            return encryptedText; // Возвращаем оригинальный текст в случае ошибки
+        }
     }
 
     isIPBanned(ip) {
