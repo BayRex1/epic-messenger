@@ -313,12 +313,19 @@ class ApiHandlers {
                     }
                     break;
 
-                // 🔥 НОВЫЕ API ДЛЯ КОММЕНТАРИЕВ
+                // 🔥 API ДЛЯ КОММЕНТАРИЕВ
                 case '/api/posts/comments':
                     if (method === 'GET') {
                         response = this.handleGetComments(token, query);
                     } else if (method === 'POST') {
                         response = this.handleAddComment(token, data);
+                    }
+                    break;
+
+                // 🔥 API ДЛЯ ОТВЕТОВ НА КОММЕНТАРИИ
+                case '/api/posts/comments/reply':
+                    if (method === 'POST') {
+                        response = this.handleAddReply(token, data);
                     }
                     break;
                     
@@ -356,7 +363,7 @@ class ApiHandlers {
                             response = this.handleLikeComment(token, postId, commentId);
                         } else if (pathParts.length === 7 && pathParts[5] === 'reply' && method === 'POST') {
                             const commentId = pathParts[4];
-                            response = this.handleAddReply(token, postId, commentId, data);
+                            response = this.handleAddReplyToComment(token, postId, commentId, data);
                         } else if (pathParts.length === 8 && pathParts[7] === 'like' && method === 'POST') {
                             const commentId = pathParts[4];
                             const replyId = pathParts[6];
@@ -383,7 +390,7 @@ class ApiHandlers {
         res.end(JSON.stringify(response));
     }
 
-    // 🔐 ОБНОВЛЕННАЯ АУТЕНТИФИКАЦИЯ
+    // 🔐 АУТЕНТИФИКАЦИЯ
     authenticateToken(token) {
         const session = this.securitySystem.validateSession(token);
         if (!session) return null;
@@ -391,10 +398,307 @@ class ApiHandlers {
         return this.dataManager.users.find(u => u.id === session.userId);
     }
 
+    // 🔥 МЕТОД ДЛЯ ДОБАВЛЕНИЯ ОТВЕТА НА КОММЕНТАРИЙ
+    handleAddReplyToComment(token, postId, commentId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { text } = data;
+        
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Текст ответа не может быть пустым' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
+
+        const reply = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: sanitizedText,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        if (!comment.replies) {
+            comment.replies = [];
+        }
+
+        comment.replies.push(reply);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}, chars:${sanitizedText.length}`);
+
+        console.log(`💬 Пользователь ${user.displayName} ответил на комментарий ${commentId}`);
+
+        return {
+            success: true,
+            reply: {
+                ...reply,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    // 🔥 МЕТОД ДЛЯ ЛАЙКА ОТВЕТА
+    handleLikeReply(token, postId, commentId, replyId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const reply = comment.replies.find(r => r.id === replyId);
+        if (!reply) {
+            return { success: false, message: 'Ответ не найден' };
+        }
+
+        const likeIndex = reply.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            reply.likes.push(user.id);
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
+        } else {
+            reply.likes.splice(likeIndex, 1);
+            this.securitySystem.logSecurityEvent(user, 'UNLIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
+        }
+
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            likes: reply.likes
+        };
+    }
+
+    // Старый метод для обратной совместимости
+    handleAddReply(token, data) {
+        const { postId, commentId, text } = data;
+        return this.handleAddReplyToComment(token, postId, commentId, { text });
+    }
+
+    // 🔥 МЕТОД ДЛЯ ЛАЙКА КОММЕНТАРИЯ
+    handleLikeComment(token, postId, commentId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const likeIndex = comment.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            comment.likes.push(user.id);
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`);
+        } else {
+            comment.likes.splice(likeIndex, 1);
+            this.securitySystem.logSecurityEvent(user, 'UNLIKE_COMMENT', `post:${postId}, comment:${commentId}`);
+        }
+
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            likes: comment.likes
+        };
+    }
+
+    // 🔥 МЕТОД ДЛЯ ПОЛУЧЕНИЯ КОММЕНТАРИЕВ ПОСТА
+    handleGetPostComments(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        // Увеличиваем счетчик просмотров
+        post.views = (post.views || 0) + 1;
+        this.dataManager.saveData();
+
+        const commentsWithUserInfo = (post.comments || []).map(comment => {
+            const commentUser = this.dataManager.users.find(u => u.id === comment.userId);
+            const repliesWithUserInfo = (comment.replies || []).map(reply => {
+                const replyUser = this.dataManager.users.find(u => u.id === reply.userId);
+                return {
+                    ...reply,
+                    userName: replyUser ? replyUser.displayName : 'Неизвестный',
+                    userAvatar: replyUser ? replyUser.avatar : null,
+                    userVerified: replyUser ? replyUser.verified : false
+                };
+            });
+
+            return {
+                ...comment,
+                userName: commentUser ? commentUser.displayName : 'Неизвестный',
+                userAvatar: commentUser ? commentUser.avatar : null,
+                userVerified: commentUser ? commentUser.verified : false,
+                replies: repliesWithUserInfo
+            };
+        });
+
+        this.securitySystem.logSecurityEvent(user, 'GET_POST_COMMENTS', `post:${postId}, count:${commentsWithUserInfo.length}`);
+
+        return {
+            success: true,
+            comments: commentsWithUserInfo
+        };
+    }
+
+    // 🔥 МЕТОД ДЛЯ ДОБАВЛЕНИЯ КОММЕНТАРИЯ К ПОСТУ
+    handleAddPostComment(token, postId, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { text } = data;
+        
+        if (!text || text.trim() === '') {
+            return { success: false, message: 'Текст комментария не может быть пустым' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
+
+        const comment = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: sanitizedText,
+            likes: [],
+            replies: [],
+            createdAt: new Date()
+        };
+
+        if (!post.comments) {
+            post.comments = [];
+        }
+
+        post.comments.push(comment);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}, chars:${sanitizedText.length}`);
+
+        console.log(`💬 Пользователь ${user.displayName} добавил комментарий к посту ${postId}`);
+
+        return {
+            success: true,
+            comment: {
+                ...comment,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    // Старые методы для обратной совместимости
+    handleGetComments(token, query) {
+        const { postId } = query;
+        return this.handleGetPostComments(token, postId);
+    }
+
+    handleAddComment(token, data) {
+        const { postId, text } = data;
+        return this.handleAddPostComment(token, postId, { text });
+    }
+
+    // 🔧 МЕТОДЫ ДЛЯ ТЕХНИЧЕСКИХ РАБОТ
+    handleMaintenanceMode(token, data) {
+        const user = this.authenticateToken(token);
+        
+        if (!user || !this.securitySystem.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { enabled } = data;
+        
+        this.dataManager.setMaintenanceMode(enabled);
+        
+        this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', `enabled:${enabled}`);
+        
+        console.log(`🔧 Администратор ${user.username} ${enabled ? 'ВКЛЮЧИЛ' : 'выключил'} режим технических работ`);
+        
+        return {
+            success: true,
+            message: `Режим технических работ ${enabled ? 'ВКЛЮЧЕН' : 'выключен'}`,
+            maintenanceMode: enabled
+        };
+    }
+
+    handleGetMaintenanceStatus(token) {
+        const user = this.authenticateToken(token);
+        
+        if (!user || !this.securitySystem.isAdmin(user)) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        return {
+            success: true,
+            maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
+        };
+    }
+
     handleLogin(data, req) {
         const { username, password } = data;
         
-        // 🔐 Валидация входных данных
         if (!this.securitySystem.validateInput(username, 'username') || !password) {
             return { success: false, message: 'Некорректные данные для входа' };
         }
@@ -407,7 +711,6 @@ class ApiHandlers {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'LOGIN_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
@@ -430,7 +733,6 @@ class ApiHandlers {
 
         const device = this.dataManager.registerDevice(user.id, req);
         
-        // 🔐 Создаем сессию вместо возврата ID пользователя
         const sessionToken = this.securitySystem.createSession(user.id);
 
         user.status = 'online';
@@ -474,7 +776,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш IP адрес заблокирован. Регистрация невозможна.' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode()) {
             this.securitySystem.logSecurityEvent({ username }, 'REGISTER_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
@@ -487,7 +788,6 @@ class ApiHandlers {
             return { success: false, message: 'Все поля обязательны для заполнения' };
         }
 
-        // 🔐 Валидация входных данных
         if (!this.securitySystem.validateInput(username, 'username')) {
             return { success: false, message: 'Некорректное имя пользователя' };
         }
@@ -549,7 +849,6 @@ class ApiHandlers {
 
         const device = this.dataManager.registerDevice(newUser.id, req);
         
-        // 🔐 Создаем сессию для нового пользователя
         const sessionToken = this.securitySystem.createSession(newUser.id);
         
         this.dataManager.saveData();
@@ -687,45 +986,6 @@ class ApiHandlers {
                 giftsCount: user.giftsCount || 0,
                 banned: user.banned || false
             }
-        };
-    }
-
-    // 🔧 НОВЫЕ МЕТОДЫ ДЛЯ ТЕХНИЧЕСКИХ РАБОТ
-    handleMaintenanceMode(token, data) {
-        const user = this.authenticateToken(token);
-        
-        // 🔐 Только администраторы могут управлять техработами
-        if (!user || !this.securitySystem.isAdmin(user)) {
-            this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { enabled } = data;
-        
-        this.dataManager.setMaintenanceMode(enabled);
-        
-        this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', `enabled:${enabled}`);
-        
-        console.log(`🔧 Администратор ${user.username} ${enabled ? 'ВКЛЮЧИЛ' : 'выключил'} режим технических работ`);
-        
-        return {
-            success: true,
-            message: `Режим технических работ ${enabled ? 'ВКЛЮЧЕН' : 'выключен'}`,
-            maintenanceMode: enabled
-        };
-    }
-
-    handleGetMaintenanceStatus(token) {
-        const user = this.authenticateToken(token);
-        
-        // 🔐 Только администраторы могут смотреть статус
-        if (!user || !this.securitySystem.isAdmin(user)) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        return {
-            success: true,
-            maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
         };
     }
 
@@ -919,7 +1179,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE_DURING_MAINTENANCE', `to:${toUserId}`, false);
             return { 
@@ -1048,7 +1307,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_POST_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
@@ -1189,257 +1447,6 @@ class ApiHandlers {
         };
     }
 
-    // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ КОММЕНТАРИЕВ
-    handleGetPostComments(token, postId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        // Увеличиваем счетчик просмотров
-        post.views = (post.views || 0) + 1;
-        this.dataManager.saveData();
-
-        const commentsWithUserInfo = (post.comments || []).map(comment => {
-            const commentUser = this.dataManager.users.find(u => u.id === comment.userId);
-            const repliesWithUserInfo = (comment.replies || []).map(reply => {
-                const replyUser = this.dataManager.users.find(u => u.id === reply.userId);
-                return {
-                    ...reply,
-                    userName: replyUser ? replyUser.displayName : 'Неизвестный',
-                    userAvatar: replyUser ? replyUser.avatar : null,
-                    userVerified: replyUser ? replyUser.verified : false
-                };
-            });
-
-            return {
-                ...comment,
-                userName: commentUser ? commentUser.displayName : 'Неизвестный',
-                userAvatar: commentUser ? commentUser.avatar : null,
-                userVerified: commentUser ? commentUser.verified : false,
-                replies: repliesWithUserInfo
-            };
-        });
-
-        this.securitySystem.logSecurityEvent(user, 'GET_POST_COMMENTS', `post:${postId}, count:${commentsWithUserInfo.length}`);
-
-        return {
-            success: true,
-            comments: commentsWithUserInfo
-        };
-    }
-
-    handleAddPostComment(token, postId, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { text } = data;
-        
-        if (!text || text.trim() === '') {
-            return { success: false, message: 'Текст комментария не может быть пустым' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
-
-        const comment = {
-            id: this.dataManager.generateId(),
-            userId: user.id,
-            text: sanitizedText,
-            likes: [],
-            replies: [],
-            createdAt: new Date()
-        };
-
-        if (!post.comments) {
-            post.comments = [];
-        }
-
-        post.comments.push(comment);
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}, chars:${sanitizedText.length}`);
-
-        console.log(`💬 Пользователь ${user.displayName} добавил комментарий к посту ${postId}`);
-
-        return {
-            success: true,
-            comment: {
-                ...comment,
-                userName: user.displayName,
-                userAvatar: user.avatar,
-                userVerified: user.verified
-            }
-        };
-    }
-
-    handleAddReply(token, postId, commentId, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { text } = data;
-        
-        if (!text || text.trim() === '') {
-            return { success: false, message: 'Текст ответа не может быть пустым' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const comment = post.comments.find(c => c.id === commentId);
-        if (!comment) {
-            return { success: false, message: 'Комментарий не найден' };
-        }
-
-        const sanitizedText = this.securitySystem.sanitizeContent(text.trim());
-
-        const reply = {
-            id: this.dataManager.generateId(),
-            userId: user.id,
-            text: sanitizedText,
-            likes: [],
-            createdAt: new Date()
-        };
-
-        if (!comment.replies) {
-            comment.replies = [];
-        }
-
-        comment.replies.push(reply);
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'ADD_REPLY', `post:${postId}, comment:${commentId}, chars:${sanitizedText.length}`);
-
-        console.log(`💬 Пользователь ${user.displayName} ответил на комментарий ${commentId}`);
-
-        return {
-            success: true,
-            reply: {
-                ...reply,
-                userName: user.displayName,
-                userAvatar: user.avatar,
-                userVerified: user.verified
-            }
-        };
-    }
-
-    handleLikeComment(token, postId, commentId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const comment = post.comments.find(c => c.id === commentId);
-        if (!comment) {
-            return { success: false, message: 'Комментарий не найден' };
-        }
-
-        const likeIndex = comment.likes.indexOf(user.id);
-        if (likeIndex === -1) {
-            comment.likes.push(user.id);
-            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}`);
-        } else {
-            comment.likes.splice(likeIndex, 1);
-            this.securitySystem.logSecurityEvent(user, 'UNLIKE_COMMENT', `post:${postId}, comment:${commentId}`);
-        }
-
-        this.dataManager.saveData();
-
-        return {
-            success: true,
-            likes: comment.likes
-        };
-    }
-
-    handleLikeReply(token, postId, commentId, replyId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const comment = post.comments.find(c => c.id === commentId);
-        if (!comment) {
-            return { success: false, message: 'Комментарий не найден' };
-        }
-
-        const reply = comment.replies.find(r => r.id === replyId);
-        if (!reply) {
-            return { success: false, message: 'Ответ не найден' };
-        }
-
-        const likeIndex = reply.likes.indexOf(user.id);
-        if (likeIndex === -1) {
-            reply.likes.push(user.id);
-            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
-        } else {
-            reply.likes.splice(likeIndex, 1);
-            this.securitySystem.logSecurityEvent(user, 'UNLIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}`);
-        }
-
-        this.dataManager.saveData();
-
-        return {
-            success: true,
-            likes: reply.likes
-        };
-    }
-
-    // Старые методы для обратной совместимости
-    handleGetComments(token, query) {
-        const { postId } = query;
-        return this.handleGetPostComments(token, postId);
-    }
-
-    handleAddComment(token, data) {
-        const { postId, text } = data;
-        return this.handleAddPostComment(token, postId, { text });
-    }
-
     handleGetGifts(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1538,7 +1545,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'BUY_GIFT_DURING_MAINTENANCE', `gift:${giftId}`, false);
             return { 
@@ -1712,7 +1718,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'ACTIVATE_PROMOCODE_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
@@ -1766,7 +1771,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'UPDATE_PROFILE_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
@@ -1858,7 +1862,6 @@ class ApiHandlers {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR_DURING_MAINTENANCE', 'SYSTEM', false);
             return { 
