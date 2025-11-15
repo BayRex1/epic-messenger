@@ -1,5 +1,7 @@
 // Функции для работы с постами
 
+let currentPostId = null;
+
 async function loadPosts() {
     try {
         const token = localStorage.getItem('authToken');
@@ -40,6 +42,7 @@ function renderPosts(posts) {
 function createPostElement(post) {
     const postElement = document.createElement('div');
     postElement.className = 'post';
+    postElement.id = `post-${post.id}`;
     
     let mediaHtml = '';
     if (post.image) {
@@ -107,6 +110,18 @@ function createPostElement(post) {
                 </svg>
                 <span>${post.likes ? post.likes.length : 0}</span>
             </button>
+            <button class="post-action comment-btn" data-post-id="${post.id}">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M12,23A1,1 0 0,1 11,22V19H7A2,2 0 0,1 5,17V7A2,2 0 0,1 7,5H21A2,2 0 0,1 23,7V17A2,2 0 0,1 21,19H16.9L13.2,22.71C13,22.89 12.76,23 12.5,23H12M13,17V20.08L16.08,17H21V7H7V17H13M3,15H1V3A2,2 0 0,1 3,1H19V3H3V15Z"/>
+                </svg>
+                <span>${post.comments ? post.comments.length : 0}</span>
+            </button>
+            <button class="post-action share-btn" data-post-id="${post.id}">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
+                </svg>
+                <span>Поделиться</span>
+            </button>
             <div class="post-views">
                 <svg viewBox="0 0 24 24" width="16" height="16">
                     <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
@@ -120,6 +135,20 @@ function createPostElement(post) {
     if (likeBtn) {
         likeBtn.addEventListener('click', function() {
             toggleLike(post.id);
+        });
+    }
+
+    const commentBtn = postElement.querySelector('.comment-btn');
+    if (commentBtn) {
+        commentBtn.addEventListener('click', function() {
+            openCommentsModal(post.id);
+        });
+    }
+
+    const shareBtn = postElement.querySelector('.share-btn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', function() {
+            sharePost(post.id);
         });
     }
 
@@ -221,6 +250,314 @@ async function toggleLike(postId) {
         console.error('Ошибка лайка:', error);
         showNotification('Ошибка лайка', 'error');
     }
+}
+
+async function openCommentsModal(postId) {
+    currentPostId = postId;
+    const modal = document.getElementById('commentsModal');
+    const title = document.getElementById('commentsModalTitle');
+    const commentsList = document.getElementById('commentsList');
+    
+    title.textContent = 'Комментарии к посту';
+    commentsList.innerHTML = '<div class="system-message">Загрузка комментариев...</div>';
+    
+    modal.style.display = 'block';
+    
+    await loadComments(postId);
+    
+    // Добавляем обработчики событий
+    document.getElementById('closeCommentsModal').onclick = () => {
+        modal.style.display = 'none';
+    };
+    
+    document.getElementById('addCommentBtn').onclick = addComment;
+    
+    // Закрытие по клику вне модального окна
+    window.onclick = (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    };
+}
+
+async function loadComments(postId) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/posts/${postId}/comments`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        const commentsList = document.getElementById('commentsList');
+        
+        if (data.success) {
+            renderComments(data.comments, commentsList);
+        } else {
+            commentsList.innerHTML = '<div class="system-message">Ошибка загрузки комментариев</div>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки комментариев:', error);
+        document.getElementById('commentsList').innerHTML = '<div class="system-message">Ошибка загрузки комментариев</div>';
+    }
+}
+
+function renderComments(comments, container) {
+    container.innerHTML = '';
+    
+    if (comments.length === 0) {
+        container.innerHTML = '<div class="system-message">Пока нет комментариев. Будьте первым!</div>';
+        return;
+    }
+    
+    comments.forEach(comment => {
+        const commentElement = createCommentElement(comment);
+        container.appendChild(commentElement);
+    });
+}
+
+function createCommentElement(comment) {
+    const commentElement = document.createElement('div');
+    commentElement.className = 'comment';
+    
+    let repliesHtml = '';
+    if (comment.replies && comment.replies.length > 0) {
+        repliesHtml = `
+            <div class="comment-replies">
+                ${comment.replies.map(reply => `
+                    <div class="comment reply">
+                        <div class="comment-header">
+                            <div class="comment-user">
+                                <div class="comment-avatar">
+                                    ${reply.userAvatar ? 
+                                        `<img src="${reply.userAvatar}" alt="${reply.userName}" style="width: 24px; height: 24px; border-radius: 50%;">` : 
+                                        reply.userName ? reply.userName.charAt(0).toUpperCase() : 'U'
+                                    }
+                                </div>
+                                <div class="comment-user-info">
+                                    <h5>${reply.userName || 'Неизвестный'}</h5>
+                                    <div class="comment-time">${new Date(reply.createdAt).toLocaleString()}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comment-text">${reply.text}</div>
+                        <div class="comment-actions">
+                            <button class="comment-action like-comment-btn ${reply.likes && reply.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${reply.id}" data-parent-id="${comment.id}">
+                                <svg viewBox="0 0 24 24" width="14" height="14">
+                                    <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
+                                </svg>
+                                <span>${reply.likes ? reply.likes.length : 0}</span>
+                            </button>
+                            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}">
+                                Ответить
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    commentElement.innerHTML = `
+        <div class="comment-header">
+            <div class="comment-user">
+                <div class="comment-avatar">
+                    ${comment.userAvatar ? 
+                        `<img src="${comment.userAvatar}" alt="${comment.userName}" style="width: 32px; height: 32px; border-radius: 50%;">` : 
+                        comment.userName ? comment.userName.charAt(0).toUpperCase() : 'U'
+                    }
+                </div>
+                <div class="comment-user-info">
+                    <h4>${comment.userName || 'Неизвестный'}</h4>
+                    <div class="comment-time">${new Date(comment.createdAt).toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+        <div class="comment-text">${comment.text}</div>
+        <div class="comment-actions">
+            <button class="comment-action like-comment-btn ${comment.likes && comment.likes.includes(currentUser.id) ? 'liked' : ''}" data-comment-id="${comment.id}">
+                <svg viewBox="0 0 24 24" width="14" height="14">
+                    <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
+                </svg>
+                <span>${comment.likes ? comment.likes.length : 0}</span>
+            </button>
+            <button class="comment-action reply-comment-btn" data-comment-id="${comment.id}">
+                Ответить
+            </button>
+        </div>
+        ${repliesHtml}
+        <div class="reply-section" id="reply-section-${comment.id}" style="display: none;">
+            <textarea class="reply-text" placeholder="Напишите ответ..." rows="2"></textarea>
+            <button class="send-btn add-reply-btn" data-comment-id="${comment.id}">Отправить ответ</button>
+        </div>
+    `;
+    
+    // Добавляем обработчики событий
+    const likeBtn = commentElement.querySelector('.like-comment-btn');
+    if (likeBtn) {
+        likeBtn.addEventListener('click', function() {
+            const commentId = this.getAttribute('data-comment-id');
+            const parentId = this.getAttribute('data-parent-id');
+            toggleCommentLike(commentId, parentId);
+        });
+    }
+    
+    const replyBtn = commentElement.querySelector('.reply-comment-btn');
+    if (replyBtn) {
+        replyBtn.addEventListener('click', function() {
+            const commentId = this.getAttribute('data-comment-id');
+            const replySection = document.getElementById(`reply-section-${commentId}`);
+            replySection.style.display = replySection.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+    
+    const addReplyBtn = commentElement.querySelector('.add-reply-btn');
+    if (addReplyBtn) {
+        addReplyBtn.addEventListener('click', function() {
+            const commentId = this.getAttribute('data-comment-id');
+            addReply(commentId);
+        });
+    }
+    
+    return commentElement;
+}
+
+async function addComment() {
+    const commentText = document.getElementById('commentText');
+    const text = commentText.value.trim();
+    
+    if (!text) {
+        showNotification('Введите текст комментария', 'warning');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/posts/${currentPostId}/comments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            commentText.value = '';
+            await loadComments(currentPostId);
+            loadPosts(); // Обновляем счетчик комментариев в посте
+            showNotification('Комментарий добавлен!', 'success');
+        } else {
+            showNotification('Ошибка добавления комментария: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка добавления комментария:', error);
+        showNotification('Ошибка добавления комментария', 'error');
+    }
+}
+
+async function addReply(commentId) {
+    const replySection = document.getElementById(`reply-section-${commentId}`);
+    const replyText = replySection.querySelector('.reply-text');
+    const text = replyText.value.trim();
+    
+    if (!text) {
+        showNotification('Введите текст ответа', 'warning');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/posts/${currentPostId}/comments/${commentId}/reply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            replyText.value = '';
+            replySection.style.display = 'none';
+            await loadComments(currentPostId);
+            showNotification('Ответ добавлен!', 'success');
+        } else {
+            showNotification('Ошибка добавления ответа: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка добавления ответа:', error);
+        showNotification('Ошибка добавления ответа', 'error');
+    }
+}
+
+async function toggleCommentLike(commentId, parentId = null) {
+    try {
+        const token = localStorage.getItem('authToken');
+        const url = parentId ? 
+            `/api/posts/${currentPostId}/comments/${parentId}/replies/${commentId}/like` :
+            `/api/posts/${currentPostId}/comments/${commentId}/like`;
+            
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadComments(currentPostId);
+        } else {
+            showNotification('Ошибка лайка комментария: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка лайка комментария:', error);
+        showNotification('Ошибка лайка комментария', 'error');
+    }
+}
+
+function sharePost(postId) {
+    const postUrl = `https://epic-messenger.onrender.com/post/${postId}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Посмотрите этот пост в Epic Messenger',
+            text: 'Интересный пост в Epic Messenger',
+            url: postUrl
+        })
+        .then(() => console.log('Успешный шеринг'))
+        .catch((error) => {
+            console.log('Ошибка шеринга:', error);
+            copyToClipboard(postUrl);
+        });
+    } else {
+        copyToClipboard(postUrl);
+    }
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Ссылка скопирована в буфер обмена!', 'success');
+    }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showNotification('Ссылка скопирована в буфер обмена!', 'success');
+    });
 }
 
 async function deletePost(postId) {
