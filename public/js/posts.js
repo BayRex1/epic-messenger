@@ -1,6 +1,7 @@
 // Функции для работы с постами
 
 let currentPostId = null;
+let posts = [];
 
 async function loadPosts() {
     try {
@@ -584,6 +585,53 @@ async function deletePost(postId) {
         console.error('Ошибка удаления поста:', error);
         showNotification('Ошибка удаления поста', 'error');
     }
+}
+
+// Вспомогательные функции
+function processMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+}
+
+function openImageModal(imageUrl) {
+    // Реализация модального окна для изображений
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    `;
+    
+    modal.innerHTML = `
+        <div style="position: relative;">
+            <img src="${imageUrl}" style="max-width: 90vw; max-height: 90vh;">
+            <button onclick="this.parentElement.parentElement.remove()" style="
+                position: absolute;
+                top: -40px;
+                right: 0;
+                background: none;
+                border: none;
+                color: white;
+                font-size: 24px;
+                cursor: pointer;
+            ">×</button>
+        </div>
+    `;
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    };
+    
+    document.body.appendChild(modal);
 }
 
 // Инициализация постов
