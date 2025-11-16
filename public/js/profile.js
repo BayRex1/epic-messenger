@@ -1,6 +1,17 @@
 // Функции для работы с профилем
 
 function initializeProfile() {
+    // Проверяем, что пользователь авторизован
+    if (!currentUser) {
+        console.log('❌ Пользователь не авторизован, перенаправляем...');
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 1000);
+        return;
+    }
+
+    console.log('✅ Инициализация профиля для пользователя:', currentUser.username);
+    
     const editProfileBtn = document.getElementById('editProfileBtn');
     const changeAvatarBtn = document.getElementById('changeAvatarBtn');
     const closeEditProfile = document.getElementById('closeEditProfile');
@@ -163,10 +174,16 @@ async function saveAvatarData() {
 }
 
 async function loadUserProfileData() {
-    await Promise.all([
-        loadUserPosts(),
-        loadUserGifts()
-    ]);
+    try {
+        await Promise.all([
+            loadUserPosts(),
+            loadUserGifts()
+        ]);
+        console.log('✅ Данные профиля загружены');
+    } catch (error) {
+        console.error('❌ Ошибка загрузки данных профиля:', error);
+        showNotification('Ошибка загрузки данных профиля', 'error');
+    }
 }
 
 async function loadUserPosts() {
@@ -256,5 +273,20 @@ function renderUserGifts(gifts) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    initializeProfile();
+    console.log('📄 Страница профиля загружена');
+    
+    // Ждем инициализации приложения
+    setTimeout(() => {
+        if (!currentUser) {
+            console.log('⚠️ currentUser не определен, пытаемся инициализировать...');
+            initializeApp().then(() => {
+                initializeProfile();
+            }).catch(error => {
+                console.error('❌ Ошибка инициализации приложения:', error);
+                window.location.href = '/login.html';
+            });
+        } else {
+            initializeProfile();
+        }
+    }, 1000);
 });
