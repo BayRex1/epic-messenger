@@ -1,8 +1,16 @@
-let currentAvatarFile = null;
-let currentUser = null;
+// Используем var вместо let для избежания повторного объявления
+var currentAvatarFile = null;
+var currentUser = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Инициализация страницы профиля...');
+    
+    // Проверяем, не была ли уже выполнена инициализация
+    if (window.profileInitialized) {
+        console.log('ℹ️ Профиль уже инициализирован, пропускаем...');
+        return;
+    }
+    window.profileInitialized = true;
     
     // Добавляем стили для модальных окон
     addModalStyles();
