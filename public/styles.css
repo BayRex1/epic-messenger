@@ -3479,3 +3479,294 @@ input:checked + .slider:before {
     transform: scale(1.1);
     transition: all 0.2s ease-in-out;
 }
+
+/* Стили для кнопок создания чата и группы */
+.chat-actions-header {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chat-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.chat-action-btn:hover {
+    background: var(--accent-hover);
+}
+
+.chat-action-btn svg {
+    flex-shrink: 0;
+}
+
+/* Стили для поиска пользователей */
+.user-search-container {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.search-input-wrapper {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.search-input-wrapper input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.close-search {
+    background: var(--error-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-search-results {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Стили для создания группы */
+.create-group-container {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.group-form h4 {
+    margin-bottom: 15px;
+    color: var(--text-primary);
+}
+
+.group-form input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.group-members-selection {
+    margin: 15px 0;
+}
+
+.group-members-selection h5 {
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.available-users {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.available-user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    transition: background-color 0.2s;
+}
+
+.available-user-item:hover {
+    background: var(--bg-hover);
+}
+
+.user-checkbox {
+    flex-shrink: 0;
+}
+
+.user-checkbox input {
+    margin: 0;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.user-info {
+    flex: 1;
+}
+
+.user-name {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.user-username {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.selected-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.selected-member-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 16px;
+    font-size: 12px;
+}
+
+.member-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.member-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.remove-member {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.remove-member:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.group-form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Стили для групповых чатов */
+.group-icon {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+.group-badge {
+    background: var(--accent-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-left: 5px;
+}
+
+.group-avatar-icon {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+/* Стили для отправителя сообщения в группе */
+.message-sender {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    font-weight: bold;
+}
+
+/* Анимации */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-search-container,
+.create-group-container {
+    animation: slideIn 0.2s ease-out;
+}
