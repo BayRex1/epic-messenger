@@ -1792,7 +1792,7 @@ class ApiHandlers {
         });
         res.end(JSON.stringify({ success: false, message: message }));
     }
-
+ 
     getFileExtension(fileType) {
         const extensions = {
             'image': '.jpg',
