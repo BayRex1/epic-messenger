@@ -1,5 +1,7 @@
 // Функции для работы с чатом
 
+let selectedMembers = new Set();
+
 async function loadChats() {
     try {
         const token = localStorage.getItem('authToken');
@@ -46,18 +48,23 @@ function renderChats(chats) {
             }
         }
         
+        // Добавляем иконку группы если это группа
+        const groupIcon = chat.isGroup ? '<span class="group-icon">👥</span>' : '';
+        
         chatElement.innerHTML = `
             <div class="chat-avatar">
                 ${chat.avatar ? 
                     `<img src="${chat.avatar}" alt="${chat.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
                     chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U'
                 }
+                ${groupIcon}
             </div>
             <div class="chat-info">
                 <h4>
                     ${chat.displayName || 'Пользователь'}
                     ${chat.verified ? '<span class="verified-badge">✓</span>' : ''}
                     ${chat.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    ${chat.isGroup ? '<span class="group-badge">Группа</span>' : ''}
                     <span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                 </h4>
                 <div class="chat-last-message">${lastMessageText}</div>
@@ -83,7 +90,11 @@ function selectChat(chat) {
     
     if (currentChatName) currentChatName.textContent = chat.displayName || 'Пользователь';
     if (currentChatStatus) {
-        currentChatStatus.textContent = chat.status === 'online' ? 'В сети' : `Был(а) в сети ${new Date(chat.lastSeen).toLocaleString()}`;
+        if (chat.isGroup) {
+            currentChatStatus.textContent = `Участников: ${chat.memberCount || 1}`;
+        } else {
+            currentChatStatus.textContent = chat.status === 'online' ? 'В сети' : `Был(а) в сети ${new Date(chat.lastSeen).toLocaleString()}`;
+        }
     }
     
     if (currentChatAvatar) {
@@ -91,6 +102,10 @@ function selectChat(chat) {
             currentChatAvatar.innerHTML = `<img src="${chat.avatar}" alt="${chat.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
         } else {
             currentChatAvatar.textContent = chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U';
+        }
+        // Добавляем иконку группы
+        if (chat.isGroup) {
+            currentChatAvatar.innerHTML += '<span class="group-avatar-icon">👥</span>';
         }
     }
     
@@ -181,8 +196,18 @@ function renderNewMessage(message) {
         </div>`;
     }
     
+    // Добавляем информацию об отправителе для групповых чатов
+    let senderInfo = '';
+    if (currentChat && currentChat.isGroup && !isOutgoing) {
+        const sender = allUsers.find(u => u.id === message.senderId);
+        if (sender) {
+            senderInfo = `<div class="message-sender">${sender.displayName}</div>`;
+        }
+    }
+    
     if (message.type === 'gift') {
         messageElement.innerHTML = `
+            ${senderInfo}
             <div class="message-gift">
                 <div class="gift-preview">
                     ${message.giftImage ? 
@@ -219,6 +244,7 @@ function renderNewMessage(message) {
         }
         
         messageElement.innerHTML = `
+            ${senderInfo}
             <div class="message-file">
                 <div class="message-text">${message.text || ''}</div>
                 <div class="message-file-content">
@@ -241,6 +267,7 @@ function renderNewMessage(message) {
         });
         
         messageElement.innerHTML = `
+            ${senderInfo}
             <div class="message-text">${messageText}</div>
             <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
             ${readStatus}
@@ -350,6 +377,377 @@ function showUploadFileModal(fileType) {
     modal.style.display = 'flex';
 }
 
+// Функции для создания новых чатов и групп
+function initializeChatActions() {
+    const newChatBtn = document.getElementById('newChatBtn');
+    const createGroupBtn = document.getElementById('createGroupBtn');
+    const closeUserSearch = document.getElementById('closeUserSearch');
+    const userSearchInput = document.getElementById('userSearchInput');
+    const cancelGroupCreate = document.getElementById('cancelGroupCreate');
+    const confirmGroupCreate = document.getElementById('confirmGroupCreate');
+
+    // Кнопка "Новый чат"
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', function() {
+            showUserSearch();
+        });
+    }
+
+    // Кнопка "Создать группу"
+    if (createGroupBtn) {
+        createGroupBtn.addEventListener('click', function() {
+            showGroupCreation();
+        });
+    }
+
+    // Закрытие поиска пользователей
+    if (closeUserSearch) {
+        closeUserSearch.addEventListener('click', function() {
+            hideUserSearch();
+        });
+    }
+
+    // Поиск пользователей
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', function(e) {
+            searchUsersForChat(e.target.value);
+        });
+    }
+
+    // Отмена создания группы
+    if (cancelGroupCreate) {
+        cancelGroupCreate.addEventListener('click', function() {
+            hideGroupCreation();
+        });
+    }
+
+    // Подтверждение создания группы
+    if (confirmGroupCreate) {
+        confirmGroupCreate.addEventListener('click', function() {
+            createNewGroup();
+        });
+    }
+}
+
+function showUserSearch() {
+    const userSearchContainer = document.getElementById('userSearchContainer');
+    const userSearchInput = document.getElementById('userSearchInput');
+    
+    if (userSearchContainer && userSearchInput) {
+        userSearchContainer.style.display = 'block';
+        userSearchInput.focus();
+        hideGroupCreation(); // Скрываем создание группы если открыто
+    }
+}
+
+function hideUserSearch() {
+    const userSearchContainer = document.getElementById('userSearchContainer');
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSearchResults = document.getElementById('userSearchResults');
+    
+    if (userSearchContainer) userSearchContainer.style.display = 'none';
+    if (userSearchInput) userSearchInput.value = '';
+    if (userSearchResults) userSearchResults.innerHTML = '';
+}
+
+function showGroupCreation() {
+    const createGroupContainer = document.getElementById('createGroupContainer');
+    
+    if (createGroupContainer) {
+        createGroupContainer.style.display = 'block';
+        hideUserSearch(); // Скрываем поиск пользователей если открыт
+        loadAvailableUsersForGroup();
+    }
+}
+
+function hideGroupCreation() {
+    const createGroupContainer = document.getElementById('createGroupContainer');
+    const groupNameInput = document.getElementById('groupNameInput');
+    const groupUsernameInput = document.getElementById('groupUsernameInput');
+    
+    if (createGroupContainer) createGroupContainer.style.display = 'none';
+    if (groupNameInput) groupNameInput.value = '';
+    if (groupUsernameInput) groupUsernameInput.value = '';
+    clearSelectedMembers();
+}
+
+async function searchUsersForChat(searchTerm) {
+    const userSearchResults = document.getElementById('userSearchResults');
+    if (!userSearchResults) return;
+
+    if (searchTerm.length < 2) {
+        userSearchResults.innerHTML = '<div class="system-message">Введите имя пользователя для поиска</div>';
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchTerm)}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            renderUserSearchResultsForChat(data.users);
+        } else {
+            userSearchResults.innerHTML = '<div class="system-message">Пользователи не найдены</div>';
+        }
+    } catch (error) {
+        console.error('Ошибка поиска пользователей:', error);
+        userSearchResults.innerHTML = '<div class="system-message">Ошибка поиска</div>';
+    }
+}
+
+function renderUserSearchResultsForChat(users) {
+    const userSearchResults = document.getElementById('userSearchResults');
+    if (!userSearchResults) return;
+    
+    userSearchResults.innerHTML = '';
+
+    if (users.length === 0) {
+        userSearchResults.innerHTML = '<div class="system-message">Пользователи не найдены</div>';
+        return;
+    }
+
+    // Фильтруем текущего пользователя
+    const filteredUsers = users.filter(user => user.id !== currentUser.id);
+
+    filteredUsers.forEach(user => {
+        const userElement = document.createElement('div');
+        userElement.className = 'chat-item';
+        userElement.innerHTML = `
+            <div class="chat-avatar">
+                ${user.avatar ? 
+                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                    user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                }
+            </div>
+            <div class="chat-info">
+                <h4>
+                    ${user.displayName || 'Пользователь'}
+                    ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+                    ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    <span class="${user.status === 'online' ? 'online-status' : 'offline-status'}"></span>
+                </h4>
+                <span>@${user.username}</span>
+            </div>
+        `;
+        
+        userElement.addEventListener('click', () => {
+            startNewChat(user);
+        });
+        
+        userSearchResults.appendChild(userElement);
+    });
+}
+
+function startNewChat(user) {
+    // Создаем объект чата
+    const chat = {
+        id: user.id,
+        displayName: user.displayName || 'Пользователь',
+        avatar: user.avatar,
+        verified: user.verified,
+        isDeveloper: user.isDeveloper,
+        status: user.status,
+        lastSeen: user.lastSeen,
+        lastMessage: null,
+        unreadCount: 0,
+        isGroup: false
+    };
+    
+    // Выбираем этот чат
+    selectChat(chat);
+    
+    // Скрываем поиск
+    hideUserSearch();
+    
+    // Показываем уведомление
+    showNotification(`Чат с ${user.displayName} начат`, 'success');
+}
+
+async function loadAvailableUsersForGroup() {
+    const availableUsersList = document.getElementById('availableUsersList');
+    if (!availableUsersList) return;
+
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/users', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            renderAvailableUsers(data.users);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки пользователей:', error);
+    }
+}
+
+function renderAvailableUsers(users) {
+    const availableUsersList = document.getElementById('availableUsersList');
+    if (!availableUsersList) return;
+    
+    availableUsersList.innerHTML = '';
+
+    // Фильтруем текущего пользователя
+    const filteredUsers = users.filter(user => user.id !== currentUser.id);
+
+    filteredUsers.forEach(user => {
+        const userElement = document.createElement('div');
+        userElement.className = 'available-user-item';
+        userElement.setAttribute('data-user-id', user.id);
+        userElement.innerHTML = `
+            <div class="user-checkbox">
+                <input type="checkbox" id="user-${user.id}" class="user-select-checkbox">
+            </div>
+            <div class="user-avatar">
+                ${user.avatar ? 
+                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 32px; height: 32px; border-radius: 50%;">` : 
+                    user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                }
+            </div>
+            <div class="user-info">
+                <div class="user-name">${user.displayName || 'Пользователь'}</div>
+                <div class="user-username">@${user.username}</div>
+            </div>
+        `;
+        
+        const checkbox = userElement.querySelector('.user-select-checkbox');
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                selectedMembers.add(user.id);
+            } else {
+                selectedMembers.delete(user.id);
+            }
+            updateSelectedMembersList();
+        });
+        
+        availableUsersList.appendChild(userElement);
+    });
+}
+
+function updateSelectedMembersList() {
+    const selectedMembersList = document.getElementById('selectedMembersList');
+    if (!selectedMembersList) return;
+    
+    selectedMembersList.innerHTML = '';
+    
+    if (selectedMembers.size === 0) {
+        selectedMembersList.innerHTML = '<div class="system-message">Выберите участников группы</div>';
+        return;
+    }
+    
+    selectedMembers.forEach(userId => {
+        const user = allUsers.find(u => u.id === userId);
+        if (user) {
+            const memberElement = document.createElement('div');
+            memberElement.className = 'selected-member-item';
+            memberElement.innerHTML = `
+                <div class="member-avatar">
+                    ${user.avatar ? 
+                        `<img src="${user.avatar}" alt="${user.displayName}" style="width: 24px; height: 24px; border-radius: 50%;">` : 
+                        user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                    }
+                </div>
+                <div class="member-name">${user.displayName}</div>
+                <button class="remove-member" data-user-id="${user.id}">&times;</button>
+            `;
+            
+            const removeBtn = memberElement.querySelector('.remove-member');
+            removeBtn.addEventListener('click', function() {
+                selectedMembers.delete(user.id);
+                // Снимаем галочку в основном списке
+                const checkbox = document.querySelector(`#user-${user.id}`);
+                if (checkbox) checkbox.checked = false;
+                updateSelectedMembersList();
+            });
+            
+            selectedMembersList.appendChild(memberElement);
+        }
+    });
+}
+
+function clearSelectedMembers() {
+    selectedMembers.clear();
+    // Снимаем все галочки
+    const checkboxes = document.querySelectorAll('.user-select-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedMembersList();
+}
+
+async function createNewGroup() {
+    const groupNameInput = document.getElementById('groupNameInput');
+    const groupUsernameInput = document.getElementById('groupUsernameInput');
+    
+    const groupName = groupNameInput.value.trim();
+    const groupUsername = groupUsernameInput.value.trim();
+    
+    if (!groupName) {
+        showNotification('Введите название группы', 'error');
+        return;
+    }
+    
+    if (selectedMembers.size === 0) {
+        showNotification('Выберите хотя бы одного участника', 'error');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/groups/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                name: groupName,
+                username: groupUsername || null,
+                members: Array.from(selectedMembers)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification(`Группа "${groupName}" создана!`, 'success');
+            hideGroupCreation();
+            
+            // Создаем объект чата для группы
+            const groupChat = {
+                id: data.group.id,
+                displayName: data.group.name,
+                avatar: data.group.avatar,
+                isGroup: true,
+                memberCount: data.group.members.length + 1, // +1 для создателя
+                lastMessage: null,
+                unreadCount: 0
+            };
+            
+            // Выбираем созданную группу
+            selectChat(groupChat);
+            
+            // Обновляем список чатов
+            loadChats();
+        } else {
+            showNotification('Ошибка создания группы: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка создания группы:', error);
+        showNotification('Ошибка создания группы', 'error');
+    }
+}
+
 // Инициализация чата
 function initializeChat() {
     const sendMessageBtn = document.getElementById('sendMessageBtn');
@@ -419,6 +817,9 @@ function initializeChat() {
             currentFileType = null;
         });
     }
+    
+    // Инициализация действий чата
+    initializeChatActions();
     
     // Загружаем чаты при инициализации
     loadChats();
