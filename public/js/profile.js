@@ -1,10 +1,26 @@
-// profile.js - исправленная версия
+// profile.js - исправленная версия с совместимостью токенов
 (function() {
     'use strict';
     
     console.log('🔄 Загрузка profile.js');
     
-    // Проверяем, не объявлены ли переменные уже
+    // Функция для получения токена (совместимость с common.js)
+    function getToken() {
+        return localStorage.getItem('token') || localStorage.getItem('authToken');
+    }
+
+    // Проверяем авторизацию при загрузке
+    const token = getToken();
+    if (!token) {
+        console.log('❌ Токен не найден, перенаправляем на логин');
+        showNotification('Необходимо авторизоваться', 'error');
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 2000);
+        return;
+    }
+
+    // Глобальные переменные для модуля профиля
     if (typeof window._profileCurrentAvatarFile === 'undefined') {
         window._profileCurrentAvatarFile = null;
     }
@@ -14,11 +30,6 @@
     if (typeof window._profileInitialized === 'undefined') {
         window._profileInitialized = false;
     }
-
-    // Локальные ссылки на глобальные переменные
-    const currentAvatarFile = window._profileCurrentAvatarFile;
-    const currentUser = window._profileCurrentUser;
-    let initialized = window._profileInitialized;
 
     function addModalStyles() {
         if (document.getElementById('profile-modal-styles')) return;
@@ -149,6 +160,30 @@
             .modal-buttons { flex-direction: column; }
             .modal-btn { min-width: auto; width: 100%; }
         }
+
+        /* Стили для предпросмотра аватара */
+        .avatar-preview-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .avatar-preview-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-color);
+        }
+        .avatar-preview-info {
+            flex: 1;
+        }
+        .avatar-preview-info div {
+            margin-bottom: 5px;
+        }
         </style>`;
         
         document.head.insertAdjacentHTML('beforeend', modalStyles);
@@ -156,7 +191,16 @@
 
     function checkElements() {
         console.log('🔍 Проверка элементов профиля...');
-        const elements = ['editProfileBtn', 'changeAvatarBtn', 'editProfileModal', 'changeAvatarModal', 'saveProfile', 'saveAvatar'];
+        const elements = [
+            'editProfileBtn',
+            'changeAvatarBtn', 
+            'editProfileModal',
+            'changeAvatarModal',
+            'saveProfile',
+            'saveAvatar',
+            'userPostsList',
+            'profileGiftsList'
+        ];
         
         elements.forEach(id => {
             const element = document.getElementById(id);
@@ -173,38 +217,64 @@
             return;
         }
         
-        uploadArea.addEventListener('click', () => fileInput.click());
+        console.log('✅ Инициализация загрузки аватара');
+        
+        // Клик по области
+        uploadArea.addEventListener('click', () => {
+            console.log('📁 Открытие диалога выбора файла');
+            fileInput.click();
+        });
+        
+        // Drag & drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
         });
+        
         uploadArea.addEventListener('dragleave', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
         });
+        
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
+            
             const files = e.dataTransfer.files;
-            if (files.length > 0) handleAvatarFile(files[0]);
+            if (files.length > 0) {
+                console.log('📁 Файл перетащен:', files[0].name);
+                handleAvatarFile(files[0]);
+            }
         });
+        
+        // Изменение файла через input
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) handleAvatarFile(e.target.files[0]);
+            if (e.target.files.length > 0) {
+                console.log('📁 Файл выбран:', e.target.files[0].name);
+                handleAvatarFile(e.target.files[0]);
+            }
         });
     }
 
     function handleAvatarFile(file) {
+        console.log('🔍 Проверка файла:', file.name, file.type, file.size);
+        
+        // Проверяем тип файла
         if (!file.type.startsWith('image/')) {
             showNotification('Пожалуйста, выберите изображение (JPG, PNG, GIF, WEBP)', 'error');
             return;
         }
+
+        // Проверяем размер файла (макс. 5MB)
         if (file.size > 5 * 1024 * 1024) {
             showNotification('Размер файла не должен превышать 5 МБ', 'error');
             return;
         }
 
         const reader = new FileReader();
+        
         reader.onload = function(e) {
+            console.log('✅ Файл прочитан, создаем предпросмотр');
             const preview = document.getElementById('avatarPreview');
             if (preview) {
                 preview.innerHTML = `
@@ -214,17 +284,27 @@
                             <div><strong>${file.name}</strong></div>
                             <div>${(file.size / 1024).toFixed(2)} KB • ${file.type}</div>
                         </div>
-                    </div>`;
+                    </div>
+                `;
             }
+            
+            // Сохраняем файл для отправки
             window._profileCurrentAvatarFile = file;
+            console.log('✅ Файл сохранен для отправки');
         };
-        reader.onerror = () => showNotification('Ошибка чтения файла', 'error');
+        
+        reader.onerror = function() {
+            console.error('❌ Ошибка чтения файла');
+            showNotification('Ошибка чтения файла', 'error');
+        };
+        
         reader.readAsDataURL(file);
     }
 
     function setupEventListeners() {
-        console.log('🔧 Настройка обработчиков событий...');
+        console.log('🔧 Настройка обработчиков событий профиля...');
         
+        // Кнопка редактирования профиля
         const editProfileBtn = document.getElementById('editProfileBtn');
         const changeAvatarBtn = document.getElementById('changeAvatarBtn');
         const closeEditProfile = document.getElementById('closeEditProfile');
@@ -235,21 +315,66 @@
         const saveAvatarBtn = document.getElementById('saveAvatar');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        if (editProfileBtn) editProfileBtn.addEventListener('click', openEditProfileModal);
-        if (changeAvatarBtn) changeAvatarBtn.addEventListener('click', openChangeAvatarModal);
-        if (closeEditProfile) closeEditProfile.addEventListener('click', closeEditProfileModal);
-        if (cancelEditProfile) cancelEditProfile.addEventListener('click', closeEditProfileModal);
-        if (closeChangeAvatar) closeChangeAvatar.addEventListener('click', closeChangeAvatarModal);
-        if (cancelChangeAvatar) cancelChangeAvatar.addEventListener('click', closeChangeAvatarModal);
-        if (saveProfileBtn) saveProfileBtn.addEventListener('click', saveProfileData);
-        if (saveAvatarBtn) saveAvatarBtn.addEventListener('click', saveAvatarData);
-        if (logoutBtn) logoutBtn.addEventListener('click', logout);
-
+        if (editProfileBtn) {
+            editProfileBtn.addEventListener('click', openEditProfileModal);
+            console.log('✅ Обработчик для editProfileBtn установлен');
+        } else {
+            console.log('❌ editProfileBtn не найден');
+        }
+        
+        if (changeAvatarBtn) {
+            changeAvatarBtn.addEventListener('click', openChangeAvatarModal);
+            console.log('✅ Обработчик для changeAvatarBtn установлен');
+        } else {
+            console.log('❌ changeAvatarBtn не найден');
+        }
+        
+        // Закрытие модальных окон
+        if (closeEditProfile) {
+            closeEditProfile.addEventListener('click', closeEditProfileModal);
+        }
+        
+        if (cancelEditProfile) {
+            cancelEditProfile.addEventListener('click', closeEditProfileModal);
+        }
+        
+        if (closeChangeAvatar) {
+            closeChangeAvatar.addEventListener('click', closeChangeAvatarModal);
+        }
+        
+        if (cancelChangeAvatar) {
+            cancelChangeAvatar.addEventListener('click', closeChangeAvatarModal);
+        }
+        
+        // Сохранение профиля
+        if (saveProfileBtn) {
+            saveProfileBtn.addEventListener('click', saveProfileData);
+        }
+        
+        if (saveAvatarBtn) {
+            saveAvatarBtn.addEventListener('click', saveAvatarData);
+        }
+        
+        // Выход из системы
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', logout);
+        }
+        
+        // Закрытие модальных окон при клике вне их
         document.addEventListener('click', function(e) {
-            if (e.target === document.getElementById('editProfileModal')) closeEditProfileModal();
-            if (e.target === document.getElementById('changeAvatarModal')) closeChangeAvatarModal();
+            const editModal = document.getElementById('editProfileModal');
+            const avatarModal = document.getElementById('changeAvatarModal');
+            
+            if (editModal && e.target === editModal) {
+                closeEditProfileModal();
+            }
+            
+            if (avatarModal && e.target === avatarModal) {
+                closeChangeAvatarModal();
+            }
         });
         
+        // Закрытие по ESC
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeEditProfileModal();
@@ -260,44 +385,84 @@
 
     function setupTabNavigation() {
         const tabs = document.querySelectorAll('.profile-tab');
+        
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 const targetTab = tab.getAttribute('data-tab');
+                
+                // Обновляем активные табы
                 tabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
+                
+                // Показываем соответствующий контент
                 document.querySelectorAll('.profile-tab-content').forEach(content => {
                     content.classList.remove('active');
                 });
                 document.getElementById(targetTab).classList.add('active');
                 
-                if (targetTab === 'user-posts') loadUserPosts();
-                else if (targetTab === 'user-gifts') loadUserGifts();
+                // Загружаем данные для таба
+                if (targetTab === 'user-posts') {
+                    loadUserPosts();
+                } else if (targetTab === 'user-gifts') {
+                    loadUserGifts();
+                }
             });
         });
     }
 
     async function loadUserProfile() {
+        console.log('👤 Загрузка профиля пользователя...');
+        
         try {
             const token = getToken();
             if (!token) {
-                window.location.href = '/login.html';
+                console.log('❌ Токен не найден');
+                showNotification('Необходимо авторизоваться', 'error');
+                setTimeout(() => {
+                    window.location.href = '/login.html';
+                }, 2000);
                 return;
             }
 
+            console.log('🔄 Запрос к /api/current-user...');
             const response = await fetch('/api/current-user', {
                 method: 'GET',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
 
+            console.log('📨 Статус ответа:', response.status);
+            
+            if (!response.ok) {
+                console.log('❌ Ошибка HTTP:', response.status);
+                if (response.status === 401) {
+                    showNotification('Сессия истекла. Войдите снова.', 'error');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('authToken');
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
+            console.log('📊 Ответ API:', result);
+            
             if (result.success) {
+                console.log('✅ Профиль загружен:', result.user);
                 window._profileCurrentUser = result.user;
                 displayUserProfile(result.user);
                 loadUserPosts();
                 loadUserGifts();
             } else {
+                console.log('❌ Ошибка в ответе API:', result.message);
                 showNotification(result.message, 'error');
-                setTimeout(() => window.location.href = '/login.html', 2000);
+                if (result.message.includes('авторизован') || result.message.includes('token')) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('authToken');
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 2000);
+                }
             }
         } catch (error) {
             console.error('❌ Ошибка загрузки профиля:', error);
@@ -306,23 +471,30 @@
     }
 
     function displayUserProfile(user) {
+        console.log('🎨 Отображение профиля пользователя:', user.username);
+        
+        // Обновляем сайдбар
         updateElementText('userName', user.displayName);
         updateElementText('userUsername', `@${user.username}`);
+        updateAvatarElement(document.getElementById('userAvatar'), user.avatar, user.displayName);
+        
+        // Обновляем основной профиль
         updateElementText('profileUserName', user.displayName);
         updateElementText('profileUserUsername', `@${user.username}`);
-        
-        updateAvatarElement(document.getElementById('userAvatar'), user.avatar, user.displayName);
         updateAvatarElement(document.getElementById('profileUserAvatar'), user.avatar, user.displayName);
         
+        // Обновляем бейджи
         updateBadgeVisibility('verifiedBadge', user.verified);
         updateBadgeVisibility('profileVerifiedBadge', user.verified);
         updateBadgeVisibility('developerBadge', user.isDeveloper);
         updateBadgeVisibility('profileDeveloperBadge', user.isDeveloper);
         
+        // Обновляем статистику
         updateElementText('profilePostsCount', user.postsCount || 0);
         updateElementText('profileGiftsCount', user.giftsCount || 0);
         updateElementText('profileCoinsCount', user.coins || 0);
         
+        // Показываем админ-панель если пользователь администратор
         const adminPanelBtn = document.getElementById('adminPanelBtn');
         if (adminPanelBtn && (user.isDeveloper || user.isAdmin)) {
             adminPanelBtn.style.display = 'flex';
@@ -331,19 +503,25 @@
 
     function updateElementText(elementId, text) {
         const element = document.getElementById(elementId);
-        if (element) element.textContent = text;
+        if (element) {
+            element.textContent = text;
+        }
     }
 
     function updateBadgeVisibility(badgeId, isVisible) {
         const badge = document.getElementById(badgeId);
-        if (badge) badge.style.display = isVisible ? 'inline' : 'none';
+        if (badge) {
+            badge.style.display = isVisible ? 'inline' : 'none';
+        }
     }
 
     function updateAvatarElement(element, avatarUrl, displayName) {
         if (!element) return;
+        
         if (avatarUrl) {
             element.style.backgroundImage = `url(${avatarUrl})`;
             element.textContent = '';
+            console.log('✅ Аватар обновлен:', avatarUrl);
         } else {
             element.style.backgroundImage = '';
             element.textContent = getInitials(displayName);
@@ -356,11 +534,14 @@
     }
 
     function openEditProfileModal() {
+        console.log('📝 Открытие модального окна редактирования профиля');
+        
         if (!window._profileCurrentUser) {
             showNotification('Данные пользователя не загружены', 'error');
             return;
         }
         
+        // Заполняем поля текущими данными
         document.getElementById('editDisplayName').value = window._profileCurrentUser.displayName || '';
         document.getElementById('editUsername').value = window._profileCurrentUser.username || '';
         document.getElementById('editEmail').value = window._profileCurrentUser.email || '';
@@ -382,6 +563,9 @@
     }
 
     function openChangeAvatarModal() {
+        console.log('🖼️ Открытие модального окна смены аватара');
+        
+        // Сбрасываем состояние
         window._profileCurrentAvatarFile = null;
         document.getElementById('avatarPreview').innerHTML = '';
         document.getElementById('avatarUrl').value = '';
@@ -403,6 +587,8 @@
     }
 
     async function saveProfileData() {
+        console.log('💾 Сохранение профиля...');
+        
         const displayName = document.getElementById('editDisplayName').value.trim();
         const username = document.getElementById('editUsername').value.trim();
         const email = document.getElementById('editEmail').value.trim();
@@ -420,10 +606,16 @@
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${getToken()}`
                 },
-                body: JSON.stringify({ displayName, username, email, description })
+                body: JSON.stringify({
+                    displayName,
+                    username,
+                    email,
+                    description
+                })
             });
             
             const result = await response.json();
+            
             if (result.success) {
                 showNotification('Профиль успешно обновлен', 'success');
                 window._profileCurrentUser = result.user;
@@ -439,13 +631,21 @@
     }
 
     async function saveAvatarData() {
+        console.log('💾 Сохранение аватара...');
+        
         const avatarUrl = document.getElementById('avatarUrl').value.trim();
         
+        // Если есть файл - загружаем его
         if (window._profileCurrentAvatarFile) {
+            console.log('📤 Загрузка файла аватара:', window._profileCurrentAvatarFile.name);
             await uploadAvatarFile();
-        } else if (avatarUrl) {
+        }
+        // Если есть URL - сохраняем его
+        else if (avatarUrl) {
+            console.log('🌐 Сохранение аватара по URL:', avatarUrl);
             await saveAvatarUrl(avatarUrl);
-        } else {
+        }
+        else {
             showNotification('Выберите файл или введите URL', 'error');
         }
     }
@@ -460,13 +660,19 @@
             const formData = new FormData();
             formData.append('avatar', window._profileCurrentAvatarFile);
             
+            console.log('📤 Отправка файла на сервер...');
+            
             const response = await fetch('/api/upload-avatar', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${getToken()}` },
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                },
                 body: formData
             });
             
             const result = await response.json();
+            console.log('📥 Ответ сервера:', result);
+            
             if (result.success) {
                 showNotification('Аватар успешно обновлен', 'success');
                 window._profileCurrentUser = result.user;
@@ -487,22 +693,26 @@
             return;
         }
         
-        if (!avatarUrl.startsWith('http')) {
-            showNotification('Некорректный URL', 'error');
-            return;
-        }
-        
         try {
+            // Проверяем URL
+            if (!avatarUrl.startsWith('http')) {
+                showNotification('Некорректный URL', 'error');
+                return;
+            }
+            
             const response = await fetch('/api/update-avatar', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${getToken()}`
                 },
-                body: JSON.stringify({ avatar: avatarUrl })
+                body: JSON.stringify({
+                    avatar: avatarUrl
+                })
             });
             
             const result = await response.json();
+            
             if (result.success) {
                 showNotification('Аватар успешно обновлен', 'success');
                 window._profileCurrentUser = result.user;
@@ -518,14 +728,23 @@
     }
 
     async function loadUserPosts() {
+        console.log('📝 Загрузка постов пользователя...');
+        
         try {
             const response = await fetch('/api/posts', {
                 method: 'GET',
-                headers: { 'Authorization': `Bearer ${getToken()}` }
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
             });
             
             const result = await response.json();
-            if (result.success) displayUserPosts(result.posts);
+            
+            if (result.success) {
+                displayUserPosts(result.posts);
+            } else {
+                console.log('❌ Ошибка загрузки постов:', result.message);
+            }
         } catch (error) {
             console.error('❌ Ошибка загрузки постов:', error);
         }
@@ -540,7 +759,9 @@
             return;
         }
         
+        // Фильтруем посты текущего пользователя
         const userPosts = posts.filter(post => post.userId === window._profileCurrentUser.id);
+        
         if (userPosts.length === 0) {
             container.innerHTML = '<div class="system-message">У вас пока нет постов</div>';
             return;
@@ -581,14 +802,23 @@
     }
 
     async function loadUserGifts() {
+        console.log('🎁 Загрузка подарков пользователя...');
+        
         try {
             const response = await fetch('/api/my-gifts', {
                 method: 'GET',
-                headers: { 'Authorization': `Bearer ${getToken()}` }
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
             });
             
             const result = await response.json();
-            if (result.success) displayUserGifts(result.gifts);
+            
+            if (result.success) {
+                displayUserGifts(result.gifts);
+            } else {
+                console.log('❌ Ошибка загрузки подарков:', result.message);
+            }
         } catch (error) {
             console.error('❌ Ошибка загрузки подарков:', error);
         }
@@ -625,21 +855,32 @@
         const now = new Date();
         const diff = now - date;
         
-        if (diff < 60000) return 'только что';
-        else if (diff < 3600000) return `${Math.floor(diff / 60000)} мин. назад`;
-        else if (diff < 86400000) return `${Math.floor(diff / 3600000)} ч. назад`;
-        else return date.toLocaleDateString('ru-RU');
+        if (diff < 60000) { // Меньше минуты
+            return 'только что';
+        } else if (diff < 3600000) { // Меньше часа
+            const minutes = Math.floor(diff / 60000);
+            return `${minutes} мин. назад`;
+        } else if (diff < 86400000) { // Меньше суток
+            const hours = Math.floor(diff / 3600000);
+            return `${hours} ч. назад`;
+        } else {
+            return date.toLocaleDateString('ru-RU');
+        }
     }
 
     async function likePost(postId) {
         try {
             const response = await fetch(`/api/posts/${postId}/like`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${getToken()}` }
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
             });
             
             const result = await response.json();
+            
             if (result.success) {
+                // Обновляем отображение лайков
                 const likeBtn = document.querySelector(`[data-post-id="${postId}"] .like-btn`);
                 if (likeBtn) {
                     const isLiked = likeBtn.classList.contains('liked');
@@ -653,14 +894,17 @@
     }
 
     function logout() {
+        console.log('🚪 Выход из системы...');
+        
         localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
         localStorage.removeItem('currentUser');
+        
         showNotification('Вы вышли из системы', 'success');
-        setTimeout(() => window.location.href = '/login.html', 1000);
-    }
-
-    function getToken() {
-        return localStorage.getItem('token');
+        
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 1000);
     }
 
     function showNotification(message, type = 'info') {
@@ -673,14 +917,17 @@
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.textContent = message;
+        
         container.appendChild(notification);
         
         setTimeout(() => {
-            if (notification.parentNode) notification.remove();
+            if (notification.parentNode) {
+                notification.remove();
+            }
         }, 5000);
     }
 
-    // Экспортируем функции глобально
+    // Экспортируем функции для глобального использования
     window.profileLikePost = likePost;
     window.profileOpenEditModal = openEditProfileModal;
     window.profileOpenAvatarModal = openChangeAvatarModal;
@@ -688,7 +935,7 @@
     // Инициализация
     function init() {
         if (window._profileInitialized) {
-            console.log('ℹ️ Профиль уже инициализирован');
+            console.log('ℹ️ Профиль уже инициализирован, пропускаем...');
             return;
         }
         
