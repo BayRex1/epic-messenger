@@ -1,4 +1,4 @@
-// profile.js - исправленная версия с совместимостью токенов
+// profile.js - исправленная версия с детальной отладкой
 (function() {
     'use strict';
     
@@ -7,17 +7,6 @@
     // Функция для получения токена (совместимость с common.js)
     function getToken() {
         return localStorage.getItem('token') || localStorage.getItem('authToken');
-    }
-
-    // Проверяем авторизацию при загрузке
-    const token = getToken();
-    if (!token) {
-        console.log('❌ Токен не найден, перенаправляем на логин');
-        showNotification('Необходимо авторизоваться', 'error');
-        setTimeout(() => {
-            window.location.href = '/login.html';
-        }, 2000);
-        return;
     }
 
     // Глобальные переменные для модуля профиля
@@ -189,6 +178,111 @@
         document.head.insertAdjacentHTML('beforeend', modalStyles);
     }
 
+    function addDebugControls() {
+        // Проверяем, не добавлены ли уже debug controls
+        if (document.getElementById('profile-debug-panel')) return;
+        
+        const debugDiv = document.createElement('div');
+        debugDiv.id = 'profile-debug-panel';
+        debugDiv.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10000;
+            font-size: 12px;
+            border: 1px solid #444;
+            max-width: 300px;
+        `;
+        
+        debugDiv.innerHTML = `
+            <div style="margin-bottom: 8px; font-weight: bold; color: #00ff00;">🔧 Debug Panel</div>
+            <div style="margin-bottom: 5px; font-size: 10px; opacity: 0.8;">Profile.js v2.0</div>
+            <button onclick="window._debugLoadProfile()" style="background: #007bff; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; margin: 2px; font-size: 10px;">
+                Force Load
+            </button>
+            <button onclick="window._debugCheckToken()" style="background: #28a745; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; margin: 2px; font-size: 10px;">
+                Check Token
+            </button>
+            <button onclick="window._debugClearTokens()" style="background: #dc3545; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; margin: 2px; font-size: 10px;">
+                Clear Tokens
+            </button>
+            <button onclick="window._debugTestAPI()" style="background: #ffc107; color: black; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; margin: 2px; font-size: 10px;">
+                Test API
+            </button>
+            <div id="debug-status" style="margin-top: 8px; padding: 5px; background: #333; border-radius: 3px; font-size: 10px; min-height: 20px;"></div>
+        `;
+        
+        document.body.appendChild(debugDiv);
+    }
+
+    // Debug функции
+    window._debugLoadProfile = function() {
+        console.log('🔧 Принудительная загрузка профиля...');
+        updateDebugStatus('🔄 Принудительная загрузка...');
+        loadUserProfile();
+    };
+
+    window._debugCheckToken = function() {
+        const token = localStorage.getItem('token');
+        const authToken = localStorage.getItem('authToken');
+        console.log('🔐 Токены в localStorage:');
+        console.log('token:', token ? `✅ (${token.length} chars)` : '❌');
+        console.log('authToken:', authToken ? `✅ (${authToken.length} chars)` : '❌');
+        
+        let status = '🔐 Токены:<br>';
+        status += `token: ${token ? `✅ (${token.length} chars)` : '❌'}<br>`;
+        status += `authToken: ${authToken ? `✅ (${authToken.length} chars)` : '❌'}`;
+        updateDebugStatus(status);
+    };
+
+    window._debugClearTokens = function() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        console.log('🗑️ Токены очищены');
+        updateDebugStatus('🗑️ Токены очищены');
+        showNotification('Токены очищены', 'info');
+    };
+
+    window._debugTestAPI = async function() {
+        const token = getToken();
+        if (!token) {
+            updateDebugStatus('❌ Нет токена для теста');
+            return;
+        }
+        
+        updateDebugStatus('🔄 Тестирование API...');
+        
+        try {
+            const response = await fetch('/api/current-user', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            const result = await response.json();
+            console.log('🧪 Результат теста API:', result);
+            
+            let status = `🧪 API Test:<br>`;
+            status += `Status: ${response.status}<br>`;
+            status += `Success: ${result.success ? '✅' : '❌'}<br>`;
+            status += `Message: ${result.message || 'N/A'}`;
+            updateDebugStatus(status);
+            
+        } catch (error) {
+            console.error('❌ Ошибка теста API:', error);
+            updateDebugStatus(`❌ API Error: ${error.message}`);
+        }
+    };
+
+    function updateDebugStatus(message) {
+        const statusEl = document.getElementById('debug-status');
+        if (statusEl) {
+            statusEl.innerHTML = message;
+        }
+    }
+
     function checkElements() {
         console.log('🔍 Проверка элементов профиля...');
         const elements = [
@@ -202,10 +296,15 @@
             'profileGiftsList'
         ];
         
+        let foundCount = 0;
         elements.forEach(id => {
             const element = document.getElementById(id);
             console.log(`${element ? '✅' : '❌'} ${id}:`, element);
+            if (element) foundCount++;
         });
+        
+        console.log(`📊 Найдено элементов: ${foundCount}/${elements.length}`);
+        updateDebugStatus(`📊 Элементы: ${foundCount}/${elements.length}`);
     }
 
     function initAvatarUpload() {
@@ -415,6 +514,9 @@
         
         try {
             const token = getToken();
+            console.log('🔐 Токен для запроса:', token ? `✅ Длина: ${token.length} символов` : '❌ Отсутствует');
+            updateDebugStatus(`🔐 Токен: ${token ? `${token.length} chars` : '❌'}`);
+            
             if (!token) {
                 console.log('❌ Токен не найден');
                 showNotification('Необходимо авторизоваться', 'error');
@@ -425,6 +527,8 @@
             }
 
             console.log('🔄 Запрос к /api/current-user...');
+            updateDebugStatus('🔄 Запрос к API...');
+            
             const response = await fetch('/api/current-user', {
                 method: 'GET',
                 headers: {
@@ -436,12 +540,37 @@
             
             if (!response.ok) {
                 console.log('❌ Ошибка HTTP:', response.status);
-                if (response.status === 401) {
+                let errorMessage = 'Ошибка сервера';
+                
+                try {
+                    const errorData = await response.text();
+                    console.log('📨 Тело ошибки:', errorData);
+                    
+                    if (errorData) {
+                        try {
+                            const errorJson = JSON.parse(errorData);
+                            errorMessage = errorJson.message || errorMessage;
+                        } catch (e) {
+                            errorMessage = errorData;
+                        }
+                    }
+                } catch (e) {
+                    console.log('❌ Не удалось прочитать тело ошибки');
+                }
+                
+                updateDebugStatus(`❌ HTTP ${response.status}: ${errorMessage}`);
+                
+                if (response.status === 401 || response.status === 400) {
                     showNotification('Сессия истекла. Войдите снова.', 'error');
                     localStorage.removeItem('token');
                     localStorage.removeItem('authToken');
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 2000);
+                } else {
+                    showNotification(errorMessage, 'error');
                 }
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return;
             }
 
             const result = await response.json();
@@ -449,12 +578,14 @@
             
             if (result.success) {
                 console.log('✅ Профиль загружен:', result.user);
+                updateDebugStatus('✅ Профиль загружен');
                 window._profileCurrentUser = result.user;
                 displayUserProfile(result.user);
                 loadUserPosts();
                 loadUserGifts();
             } else {
                 console.log('❌ Ошибка в ответе API:', result.message);
+                updateDebugStatus(`❌ API: ${result.message}`);
                 showNotification(result.message, 'error');
                 if (result.message.includes('авторизован') || result.message.includes('token')) {
                     localStorage.removeItem('token');
@@ -466,7 +597,8 @@
             }
         } catch (error) {
             console.error('❌ Ошибка загрузки профиля:', error);
-            showNotification('Ошибка загрузки профиля', 'error');
+            updateDebugStatus(`❌ Error: ${error.message}`);
+            showNotification('Ошибка загрузки профиля: ' + error.message, 'error');
         }
     }
 
@@ -943,6 +1075,7 @@
         window._profileInitialized = true;
         
         addModalStyles();
+        addDebugControls();
         setTimeout(checkElements, 500);
         initAvatarUpload();
         setupEventListeners();
