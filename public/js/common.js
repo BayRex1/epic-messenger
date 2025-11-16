@@ -10,30 +10,101 @@ let currentFileType = null;
 let currentFileData = null;
 let socket = null;
 
+// Глобальная проверка аутентификации
+function checkAuth() {
+    const token = localStorage.getItem('authToken');
+    const currentPath = window.location.pathname;
+    
+    // Если нет токена и мы не на странице логина
+    if (!token && !currentPath.includes('login.html')) {
+        console.log('🔐 Нет токена, перенаправляем на логин');
+        window.location.href = '/login.html';
+        return false;
+    }
+    
+    return true;
+}
+
 // Основная функция инициализации приложения
 async function initializeApp() {
     try {
-        // Загружаем сохраненную тему
+        console.log('🚀 Начало инициализации приложения...');
+        
+        // Сначала загружаем тему
         loadTheme();
         
-        // Инициализируем пользователя
+        // Затем инициализируем пользователя (это критично)
         await initializeUser();
         
-        // Инициализируем WebSocket соединение
+        // Если пользователь не авторизован, initializeUser() перенаправит на логин
+        if (!currentUser) {
+            console.log('❌ Пользователь не авторизован после initializeUser()');
+            return;
+        }
+        
+        console.log('✅ Пользователь авторизован, продолжаем инициализацию...');
+        
+        // Затем остальные компоненты
         initializeWebSocket();
-        
-        // Инициализируем интерфейс
         initializeUI();
-        
-        // Загружаем начальные данные
         await loadInitialData();
         
         // Показываем приветственное уведомление
         showNotification('Добро пожаловать в Epic Messenger!', 'success');
         
+        console.log('✅ Приложение полностью инициализировано');
+        
     } catch (error) {
-        console.error('Ошибка инициализации приложения:', error);
+        console.error('❌ Ошибка инициализации приложения:', error);
         showNotification('Ошибка загрузки приложения', 'error');
+        
+        // При серьезной ошибке перенаправляем на логин
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 2000);
+    }
+}
+
+// Инициализация пользователя
+async function initializeUser() {
+    try {
+        const token = localStorage.getItem('authToken');
+        console.log('🔐 Токен из localStorage:', token ? 'присутствует' : 'отсутствует');
+        
+        if (!token) {
+            console.log('❌ Токен не найден, перенаправляем на страницу входа');
+            window.location.href = '/login.html';
+            return;
+        }
+
+        const response = await fetch('/api/current-user', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        console.log('📡 Статус ответа:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Ответ от сервера:', data);
+        
+        if (data.success && data.user) {
+            currentUser = data.user;
+            console.log('✅ Пользователь инициализирован:', currentUser.username);
+            updateUserInterface();
+        } else {
+            console.log('❌ Ошибка в ответе сервера:', data.message);
+            localStorage.removeItem('authToken');
+            window.location.href = '/login.html';
+        }
+    } catch (error) {
+        console.error('❌ Ошибка инициализации пользователя:', error);
+        localStorage.removeItem('authToken');
+        window.location.href = '/login.html';
     }
 }
 
@@ -191,37 +262,6 @@ function updateUserStatusInChats(userId, status) {
             }
         }
     });
-}
-
-// Инициализация пользователя
-async function initializeUser() {
-    try {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-            window.location.href = '/login.html';
-            return;
-        }
-
-        const response = await fetch('/api/current-user', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentUser = data.user;
-            updateUserInterface();
-        } else {
-            localStorage.removeItem('authToken');
-            window.location.href = '/login.html';
-        }
-    } catch (error) {
-        console.error('Ошибка инициализации:', error);
-        localStorage.removeItem('authToken');
-        window.location.href = '/login.html';
-    }
 }
 
 // Обновление интерфейса пользователя
@@ -1510,7 +1550,16 @@ if (closeUserProfile) {
     });
 }
 
-// Инициализация приложения при загрузке страницы
+// Проверяем аутентификацию при загрузке любой страницы
 document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+    console.log('🔐 Проверка аутентификации...');
+    
+    if (!checkAuth()) {
+        return;
+    }
+    
+    // Если есть токен, инициализируем приложение
+    initializeApp().catch(error => {
+        console.error('❌ Критическая ошибка инициализации:', error);
+    });
 });
