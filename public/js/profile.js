@@ -1076,7 +1076,7 @@
         
         addModalStyles();
         addDebugControls();
-        setTimeout(checkElements, 500);
+        setTimeout(checkElements, 500); 
         initAvatarUpload();
         setupEventListeners();
         loadUserProfile();
