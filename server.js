@@ -97,7 +97,7 @@ class SimpleServer {
         });
     }
 
-    start(port = 3000) {
+    start(port = process.env.PORT || 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = require('url').parse(req.url, true);
             const pathname = parsedUrl.pathname;
@@ -119,7 +119,7 @@ class SimpleServer {
         // Инициализируем WebSocket сервер
         new WebSocketServer(server, this.dataManager);
 
-        server.listen(port, () => {
+        server.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
             console.log(`🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
@@ -196,6 +196,11 @@ class SimpleServer {
             console.log(`   ✅ Улучшена обработка ошибок`);
             console.log(`   ✅ Добавлена проверка авторизации`);
             console.log(`   ✅ Улучшено логирование`);
+        });
+
+        // Обработка ошибок сервера
+        server.on('error', (error) => {
+            console.error('❌ Server error:', error);
         });
 
         return server;
@@ -366,4 +371,6 @@ class SimpleServer {
     }
 }
 
-module.exports = SimpleServer;
+// Запуск сервера
+const server = new SimpleServer();
+server.start();
