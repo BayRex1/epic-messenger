@@ -105,198 +105,79 @@
             overflow-y: auto;
         }
 
-        /* Музыка */
-        .music-container {
-            padding: 20px;
+        /* Раздел в разработке */
+        .development-container {
+            padding: 40px 20px;
+            text-align: center;
         }
 
-        .music-player {
+        .development-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
             background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 25px;
-            margin-bottom: 25px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-
-        .now-playing {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .track-cover {
-            width: 80px;
-            height: 80px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 32px;
-            flex-shrink: 0;
-            overflow: hidden;
-        }
-
-        .track-cover img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .track-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .track-title {
-            font-weight: 600;
-            font-size: 18px;
-            margin-bottom: 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .track-artist {
-            color: var(--text-secondary);
-            font-size: 14px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .audio-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .audio-play-btn {
-            background: var(--accent-color);
-            border: none;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s;
-            flex-shrink: 0;
+            border: 3px solid var(--accent-color);
         }
 
-        .audio-play-btn:hover {
-            background: var(--accent-hover);
-            transform: scale(1.05);
+        .development-icon svg {
+            width: 60px;
+            height: 60px;
+            color: var(--accent-color);
         }
 
-        .audio-waveform {
-            flex: 1;
-            height: 30px;
-            background: linear-gradient(90deg, var(--accent-color) 30%, var(--bg-tertiary) 30%);
-            background-size: 6px 100%;
-            border-radius: 15px;
-            position: relative;
-            overflow: hidden;
+        .development-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--accent-color);
         }
 
-        .audio-progress {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            background: var(--accent-color);
-            width: 30%;
-            border-radius: 15px;
-            transition: width 0.3s ease;
+        .development-message {
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            max-width: 300px;
+            margin: 0 auto 30px;
         }
 
-        /* Список треков */
-        .tracks-list {
-            margin-top: 20px;
-        }
-
-        .track-item {
-            display: flex;
-            align-items: center;
-            padding: 15px;
+        .development-progress {
             background: var(--bg-secondary);
-            border-radius: 12px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 0 auto 30px;
+            max-width: 300px;
             border: 1px solid var(--border-color);
         }
 
-        .track-item:hover {
+        .progress-bar {
+            height: 6px;
             background: var(--bg-tertiary);
-            transform: translateY(-1px);
-        }
-
-        .track-item.active {
-            background: var(--accent-color);
-            color: white;
-        }
-
-        .track-item-cover {
-            width: 50px;
-            height: 50px;
-            border-radius: 8px;
-            background: var(--bg-tertiary);
-            margin-right: 15px;
-            flex-shrink: 0;
+            border-radius: 3px;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-secondary);
-            font-size: 20px;
+            margin-bottom: 10px;
         }
 
-        .track-item-cover img {
-            width: 100%;
+        .progress-fill {
             height: 100%;
-            object-fit: cover;
+            background: var(--accent-color);
+            border-radius: 3px;
+            width: 65%;
+            animation: pulse 2s infinite;
         }
 
-        .track-item-info {
-            flex: 1;
-            min-width: 0;
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
         }
 
-        .track-item-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .track-item-artist {
+        .progress-text {
             font-size: 12px;
             color: var(--text-secondary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .track-item.active .track-item-artist {
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .track-item-duration {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-left: 10px;
-            flex-shrink: 0;
-        }
-
-        .track-item.active .track-item-duration {
-            color: rgba(255, 255, 255, 0.8);
         }
 
         /* Нижняя панель навигации */
@@ -365,66 +246,27 @@
             to { transform: translateX(0); opacity: 1; }
         }
 
-        .system-message {
-            text-align: center;
-            color: var(--text-secondary);
-            font-size: 16px;
-            padding: 60px 20px;
-            font-style: italic;
-            line-height: 1.6;
-        }
-
-        /* Загрузка */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid var(--accent-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         @media (max-width: 480px) {
-            .music-container {
-                padding: 15px;
+            .development-container {
+                padding: 30px 15px;
             }
             
-            .music-player {
-                padding: 20px;
+            .development-icon {
+                width: 100px;
+                height: 100px;
             }
             
-            .now-playing {
-                gap: 15px;
+            .development-icon svg {
+                width: 50px;
+                height: 50px;
             }
             
-            .track-cover {
-                width: 70px;
-                height: 70px;
+            .development-title {
+                font-size: 20px;
             }
             
-            .track-title {
-                font-size: 16px;
-            }
-            
-            .audio-play-btn {
-                width: 45px;
-                height: 45px;
-            }
-            
-            .track-item {
-                padding: 12px;
-            }
-            
-            .track-item-cover {
-                width: 45px;
-                height: 45px;
-                margin-right: 12px;
+            .development-message {
+                font-size: 14px;
             }
         }
     </style>
@@ -449,53 +291,37 @@
                         <line x1="12" y1="8" x2="12" y2="16"></line>
                     </svg>
                 </a>
-                <button class="mobile-header-btn" onclick="refreshMusic()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M23 4v6h-6"></path>
-                        <path d="M1 20v-6h6"></path>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
-                        <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
-                    </svg>
-                </button>
             </div>
         </div>
     </div>
 
     <div class="main-content">
-        <div class="music-container">
-            <div class="music-player">
-                <div class="now-playing">
-                    <div class="track-cover" id="currentTrackCover">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 18V5l12-2v13"></path>
-                            <circle cx="6" cy="18" r="3"></circle>
-                            <circle cx="18" cy="16" r="3"></circle>
-                        </svg>
-                    </div>
-                    <div class="track-info">
-                        <div class="track-title" id="currentTrackTitle">Выберите трек</div>
-                        <div class="track-artist" id="currentTrackArtist">Начните воспроизведение</div>
-                    </div>
-                </div>
-                <div class="audio-controls">
-                    <button class="audio-play-btn" onclick="togglePlay()" id="playBtn">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                    </button>
-                    <div class="audio-waveform">
-                        <div class="audio-progress" id="audioProgress"></div>
-                    </div>
-                </div>
+        <div class="development-container">
+            <div class="development-icon">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"></path>
+                    <circle cx="6" cy="18" r="3"></circle>
+                    <circle cx="18" cy="16" r="3"></circle>
+                    <path d="M12 8v4"></path>
+                    <path d="M12 16h.01"></path>
+                </svg>
             </div>
-
-            <div class="tracks-list" id="tracksList">
-                <div class="system-message">
-                    Музыкальный раздел в разработке<br>
-                    <small style="font-size: 14px; margin-top: 10px; display: block;">
-                        Скоро здесь появится возможность слушать музыку
-                    </small>
+            
+            <div class="development-title">Раздел в активной разработке</div>
+            
+            <div class="development-message">
+                Мы работаем над созданием музыкального раздела. Скоро здесь появится возможность слушать и делиться музыкой!
+            </div>
+            
+            <div class="development-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
                 </div>
+                <div class="progress-text">Разработка: 65% завершено</div>
+            </div>
+            
+            <div class="development-message" style="font-size: 14px;">
+                Ожидайте обновления в ближайшее время
             </div>
         </div>
     </div>
@@ -567,10 +393,6 @@
 
     <script>
         let currentUser = null;
-        let music = [];
-        let currentTrack = null;
-        let isPlaying = false;
-        let audioElement = null;
 
         // Загрузка темы
         function loadTheme() {
@@ -610,203 +432,6 @@
             }
         }
 
-        // Загрузка музыки
-        async function loadMusic() {
-            try {
-                const token = localStorage.getItem('authToken');
-                const response = await fetch('/api/music', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    music = data.music;
-                    renderMusicList();
-                } else {
-                    console.log('Музыка не найдена');
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки музыки:', error);
-            }
-        }
-
-        // Рендер списка музыки
-        function renderMusicList() {
-            const tracksList = document.getElementById('tracksList');
-            if (!tracksList) return;
-            
-            tracksList.innerHTML = '';
-            
-            if (music.length === 0) {
-                tracksList.innerHTML = `
-                    <div class="system-message">
-                        Пока нет загруженной музыки<br>
-                        <small style="font-size: 14px; margin-top: 10px; display: block;">
-                            Станьте первым, кто загрузит трек!
-                        </small>
-                    </div>
-                `;
-                return;
-            }
-            
-            music.forEach(track => {
-                const trackElement = document.createElement('div');
-                trackElement.className = `track-item ${currentTrack && currentTrack.id === track.id ? 'active' : ''}`;
-                trackElement.onclick = () => playTrack(track);
-                
-                const duration = track.duration ? formatDuration(track.duration) : '--:--';
-                
-                trackElement.innerHTML = `
-                    <div class="track-item-cover">
-                        ${track.coverUrl ? 
-                            `<img src="${track.coverUrl}" alt="${track.title}">` :
-                            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>'
-                        }
-                    </div>
-                    <div class="track-item-info">
-                        <div class="track-item-title">${track.title}</div>
-                        <div class="track-item-artist">${track.artist} • ${track.genre}</div>
-                    </div>
-                    <div class="track-item-duration">${duration}</div>
-                `;
-                
-                tracksList.appendChild(trackElement);
-            });
-        }
-
-        // Форматирование длительности
-        function formatDuration(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        // Воспроизведение трек
-        function playTrack(track) {
-            if (currentTrack && currentTrack.id === track.id) {
-                togglePlay();
-                return;
-            }
-            
-            currentTrack = track;
-            isPlaying = true;
-            
-            // Обновляем интерфейс
-            document.getElementById('currentTrackTitle').textContent = track.title;
-            document.getElementById('currentTrackArtist').textContent = `${track.artist} • ${track.genre}`;
-            
-            if (track.coverUrl) {
-                document.getElementById('currentTrackCover').innerHTML = `<img src="${track.coverUrl}" alt="${track.title}">`;
-            } else {
-                document.getElementById('currentTrackCover').innerHTML = `
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18V5l12-2v13"></path>
-                        <circle cx="6" cy="18" r="3"></circle>
-                        <circle cx="18" cy="16" r="3"></circle>
-                    </svg>
-                `;
-            }
-            
-            // Обновляем кнопку воспроизведения
-            updatePlayButton();
-            
-            // Сбрасываем прогресс
-            document.getElementById('audioProgress').style.width = '0%';
-            
-            // Обновляем активный трек в списке
-            renderMusicList();
-            
-            showNotification(`Воспроизведение: ${track.title} - ${track.artist}`, 'success');
-        }
-
-        // Переключение воспроизведения/паузы
-        function togglePlay() {
-            if (!currentTrack) {
-                showNotification('Выберите трек для воспроизведения', 'warning');
-                return;
-            }
-            
-            isPlaying = !isPlaying;
-            updatePlayButton();
-            
-            if (isPlaying) {
-                showNotification('Воспроизведение', 'success');
-                // Симуляция прогресса
-                simulateProgress();
-            } else {
-                showNotification('Пауза', 'warning');
-            }
-        }
-
-        // Обновление кнопки воспроизведения
-        function updatePlayButton() {
-            const playBtn = document.getElementById('playBtn');
-            if (isPlaying) {
-                playBtn.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="6" y="4" width="4" height="16"></rect>
-                        <rect x="14" y="4" width="4" height="16"></rect>
-                    </svg>
-                `;
-            } else {
-                playBtn.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                `;
-            }
-        }
-
-        // Симуляция прогресса воспроизведения
-        function simulateProgress() {
-            if (!isPlaying) return;
-            
-            let progress = 0;
-            const progressBar = document.getElementById('audioProgress');
-            const interval = setInterval(() => {
-                if (!isPlaying) {
-                    clearInterval(interval);
-                    return;
-                }
-                
-                progress += 0.5;
-                if (progress <= 100) {
-                    progressBar.style.width = progress + '%';
-                } else {
-                    clearInterval(interval);
-                    // Следующий трек
-                    playNextTrack();
-                }
-            }, 1000);
-        }
-
-        // Следующий трек
-        function playNextTrack() {
-            if (!currentTrack || music.length === 0) return;
-            
-            const currentIndex = music.findIndex(track => track.id === currentTrack.id);
-            const nextIndex = (currentIndex + 1) % music.length;
-            playTrack(music[nextIndex]);
-        }
-
-        // Предыдущий трек
-        function playPreviousTrack() {
-            if (!currentTrack || music.length === 0) return;
-            
-            const currentIndex = music.findIndex(track => track.id === currentTrack.id);
-            const prevIndex = (currentIndex - 1 + music.length) % music.length;
-            playTrack(music[prevIndex]);
-        }
-
-        // Обновление музыки
-        function refreshMusic() {
-            loadMusic();
-            showNotification('Список музыки обновлен', 'success');
-        }
-
         // Показать уведомление
         function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
@@ -822,25 +447,12 @@
             }, 3000);
         }
 
-        // Горячие клавиши
-        document.addEventListener('keydown', function(event) {
-            if (event.code === 'Space') {
-                event.preventDefault();
-                togglePlay();
-            } else if (event.code === 'ArrowRight') {
-                playNextTrack();
-            } else if (event.code === 'ArrowLeft') {
-                playPreviousTrack();
-            }
-        });
-
         // Инициализация
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             const user = await checkAuth();
             if (user) {
-                await loadMusic();
-                updatePlayButton();
+                console.log('Музыкальный раздел в разработке');
             }
         });
     </script>
