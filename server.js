@@ -97,6 +97,93 @@ class SimpleServer {
         });
     }
 
+    // Новый метод для обработки мобильных маршрутов
+    handleMobileRoutes(req, res, pathname) {
+        const mobileRoutes = {
+            '/mobile': 'public/mobile/index.html',
+            '/mobile/chat': 'public/mobile/chat.html',
+            '/mobile/posts': 'public/mobile/posts.html',
+            '/mobile/search': 'public/mobile/search.html',
+            '/mobile/ecoin': 'public/mobile/ecoin.html',
+            '/mobile/profile': 'public/mobile/profile.html'
+        };
+
+        if (mobileRoutes[pathname]) {
+            serveStaticFile(res, mobileRoutes[pathname], 'text/html');
+            return true;
+        }
+
+        // Обработка динамических профилей пользователей
+        if (pathname.startsWith('/mobile/profile/')) {
+            const username = pathname.split('/').pop();
+            if (username && username !== 'profile') {
+                this.handleMobileUserProfile(req, res, username);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Метод для обработки мобильных профилей пользователей
+    handleMobileUserProfile(req, res, username) {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Сначала проверяем авторизацию
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        
+        let currentUser = null;
+        if (token) {
+            currentUser = this.apiHandlers.authenticateToken(token);
+        }
+
+        // Ищем пользователя по username
+        const targetUser = this.dataManager.users.find(u => u.username === username);
+        
+        if (!targetUser) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                success: false, 
+                message: 'Пользователь не найден' 
+            }));
+            return;
+        }
+
+        // Читаем шаблон профиля
+        const profileTemplatePath = path.join(process.cwd(), 'public/mobile/profile.html');
+        
+        fs.readFile(profileTemplatePath, 'utf8', (err, template) => {
+            if (err) {
+                console.log('❌ Ошибка чтения шаблона профиля:', err);
+                res.writeHead(500);
+                res.end('Internal Server Error');
+                return;
+            }
+
+            // Заменяем плейсхолдеры на реальные данные
+            const isOwnProfile = currentUser && currentUser.id === targetUser.id;
+            
+            const profileHtml = template
+                .replace(/\{\{displayName\}\}/g, targetUser.displayName || 'Пользователь')
+                .replace(/\{\{username\}\}/g, targetUser.username)
+                .replace(/\{\{description\}\}/g, targetUser.description || '')
+                .replace(/\{\{avatar\}\}/g, targetUser.avatar || '')
+                .replace(/\{\{isOwnProfile\}\}/g, isOwnProfile.toString())
+                .replace(/\{\{userId\}\}/g, targetUser.id)
+                .replace(/\{\{coins\}\}/g, targetUser.coins || 0)
+                .replace(/\{\{isDeveloper\}\}/g, (targetUser.isDeveloper || false).toString())
+                .replace(/\{\{isVerified\}\}/g, (targetUser.verified || false).toString());
+
+            res.writeHead(200, { 
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-cache'
+            });
+            res.end(profileHtml);
+        });
+    }
+
     start(port = process.env.PORT || 3000) {
         const server = http.createServer((req, res) => {
             const parsedUrl = require('url').parse(req.url, true);
@@ -106,6 +193,11 @@ class SimpleServer {
 
             // Устанавливаем безопасные заголовки
             this.securitySystem.setSecurityHeaders(res);
+
+            // Сначала проверяем мобильные маршруты
+            if (this.handleMobileRoutes(req, res, pathname)) {
+                return;
+            }
 
             if (pathname.startsWith('/api/')) {
                 this.handleApiRequest(req, res);
@@ -122,7 +214,15 @@ class SimpleServer {
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
-            console.log(`🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
+            console.log(`📱 МОБИЛЬНАЯ ВЕРСИЯ АКТИВИРОВАНА:`);
+            console.log(`   ✅ /mobile - Главная навигация`);
+            console.log(`   ✅ /mobile/chat - Чаты`);
+            console.log(`   ✅ /mobile/posts - Посты`);
+            console.log(`   ✅ /mobile/search - Поиск`);
+            console.log(`   ✅ /mobile/ecoin - E-COIN`);
+            console.log(`   ✅ /mobile/profile - Профиль`);
+            console.log(`   ✅ /mobile/profile/{username} - Профили пользователей`);
+            console.log(`\n🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
             console.log(`   ✅ Rate limiting включен`);
             console.log(`   ✅ Система сессий активирована`);
             console.log(`   ✅ Проверка прав доступа включена`);
@@ -140,6 +240,7 @@ class SimpleServer {
             console.log(`   - BayRex - получает права администратора при регистрации`);
             console.log(`\n📄 Доступные страницы:`);
             console.log(`   - Основное приложение: http://localhost:${port}/`);
+            console.log(`   - Мобильная версия: http://localhost:${port}/mobile`);
             console.log(`   - Админ-панель: http://localhost:${port}/admin`);
             console.log(`   - Настройки: http://localhost:${port}/settings`);
             console.log(`   - Подарки: http://localhost:${port}/gifts`);
@@ -213,7 +314,8 @@ class SimpleServer {
             !pathname.startsWith('/api/admin') &&
             pathname !== '/TehnicalWork' &&
             pathname !== '/TechnicalWork.html' &&
-            pathname !== '/technical-work') {
+            pathname !== '/technical-work' &&
+            !pathname.startsWith('/mobile')) {
             
             // Разрешаем доступ только разработчикам
             const authHeader = req.headers['authorization'];
@@ -241,7 +343,7 @@ class SimpleServer {
             '/': 'public/main.html',
             '/index.html': 'public/main.html',
             '/mobile.html': 'public/mobile.html',
-            '/mobile': 'public/mobile.html',
+            '/mobile': 'public/mobile/index.html',
             '/login.html': 'public/login.html',
             '/about.html': 'public/about.html',
             '/about': 'public/about.html',
@@ -363,7 +465,7 @@ class SimpleServer {
             const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
             
             if (isMobile) {
-                serveStaticFile(res, 'public/mobile.html', 'text/html');
+                serveStaticFile(res, 'public/mobile/index.html', 'text/html');
             } else {
                 serveStaticFile(res, 'public/main.html', 'text/html');
             }
