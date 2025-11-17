@@ -1,0 +1,261 @@
+<div class="chat-container">
+    <!-- Мобильный хедер -->
+    <div class="mobile-header">
+        <div class="mobile-header-content">
+            <div class="mobile-header-left">
+                <div class="mobile-header-avatar" id="mobileHeaderAvatar">
+                    <span>U</span>
+                </div>
+                <div class="mobile-header-title">Сообщения</div>
+            </div>
+            <div class="mobile-header-actions">
+                <button class="mobile-header-btn" onclick="toggleSearch()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="chats-sidebar">
+        <div class="chats-header">
+            <button class="chats-menu-btn" onclick="toggleGroupCreation()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+            <div class="search-box">
+                <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
+            </div>
+        </div>
+        <div class="chats-list" id="chatsList">
+            <div class="system-message">Загрузка чатов...</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mobile-header {
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        padding: 12px 16px;
+        margin: -15px -15px 15px -15px;
+    }
+
+    .mobile-header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .mobile-header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .mobile-header-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .mobile-header-title {
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .mobile-header-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: none;
+        color: var(--text-primary);
+        cursor: pointer;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .chats-sidebar {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .chats-header {
+        padding: 15px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .chats-menu-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: none;
+        color: var(--text-primary);
+        cursor: pointer;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .search-box {
+        flex: 1;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 20px;
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .chats-list {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .chat-item {
+        padding: 15px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--bg-tertiary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        margin-right: 12px;
+    }
+
+    .chat-info {
+        flex: 1;
+    }
+
+    .chat-info h4 {
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .chat-last-message {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .unread-badge {
+        background: var(--accent-color);
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+    }
+
+    .system-message {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+        padding: 20px;
+    }
+</style>
+
+<script>
+    let chats = [];
+
+    async function loadChats() {
+        try {
+            // Имитация загрузки чатов
+            setTimeout(() => {
+                chats = [
+                    { id: 1, displayName: 'Алексей', lastMessage: 'Привет! Как дела?', unreadCount: 2 },
+                    { id: 2, displayName: 'Мария', lastMessage: 'Жду тебя завтра', unreadCount: 0 },
+                    { id: 3, displayName: 'Дмитрий', lastMessage: 'Отправил файл', unreadCount: 1 }
+                ];
+                renderChats();
+            }, 1000);
+        } catch (error) {
+            console.error('Ошибка загрузки чатов:', error);
+        }
+    }
+
+    function renderChats() {
+        const chatsList = document.getElementById('chatsList');
+        chatsList.innerHTML = '';
+        
+        chats.forEach(chat => {
+            const chatElement = document.createElement('div');
+            chatElement.className = 'chat-item';
+            chatElement.onclick = () => openChat(chat);
+            
+            chatElement.innerHTML = `
+                <div class="chat-avatar">
+                    ${chat.displayName.charAt(0)}
+                </div>
+                <div class="chat-info">
+                    <h4>${chat.displayName}</h4>
+                    <div class="chat-last-message">${chat.lastMessage}</div>
+                </div>
+                ${chat.unreadCount > 0 ? `<div class="unread-badge">${chat.unreadCount}</div>` : ''}
+            `;
+            
+            chatsList.appendChild(chatElement);
+        });
+    }
+
+    function openChat(chat) {
+        window.location.href = `/mobile/chat/${chat.id}`;
+    }
+
+    function filterChats(searchTerm) {
+        const chatItems = document.querySelectorAll('.chat-item');
+        chatItems.forEach(item => {
+            const chatName = item.querySelector('h4').textContent.toLowerCase();
+            if (chatName.includes(searchTerm.toLowerCase())) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function toggleSearch() {
+        window.location.href = '/mobile/search';
+    }
+
+    function toggleGroupCreation() {
+        showNotification('Создание групп в разработке', 'info');
+    }
+
+    // Загружаем чаты при загрузке страницы
+    document.addEventListener('DOMContentLoaded', loadChats);
+</script>
