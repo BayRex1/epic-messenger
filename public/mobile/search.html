@@ -4,7 +4,262 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Поиск - Epic Messenger</title>
-    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mobile-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .mobile-header-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Поиск */
+        .search-container {
+            padding: 20px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 20px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+
+        .search-results {
+            margin-top: 15px;
+        }
+
+        .user-search-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid var(--border-color);
+        }
+
+        .user-search-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateY(-1px);
+        }
+
+        .chat-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 15px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .chat-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .chat-info h4 {
+            font-size: 16px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-info div {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .send-btn {
+            padding: 8px 16px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .system-message {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+
+        /* Бейджи */
+        .verified-badge, .developer-badge {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 2px;
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Загрузка */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .search-container {
+                padding: 15px;
+            }
+            
+            .user-search-item {
+                padding: 12px;
+            }
+            
+            .chat-avatar {
+                width: 45px;
+                height: 45px;
+                margin-right: 12px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <div class="mobile-header">
@@ -23,7 +278,7 @@
 
     <div class="main-content">
         <div class="search-container">
-            <div class="search-box" style="margin-bottom: 20px;">
+            <div class="search-box">
                 <input type="text" placeholder="Введите имя пользователя..." id="userSearch" oninput="searchUsers(this.value)">
             </div>
             
@@ -33,6 +288,181 @@
         </div>
     </div>
 
-    <script src="/mobile/scripts/search.js"></script>
+    <script>
+        let currentUser = null;
+        let allUsers = [];
+
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Поиск пользователей
+        async function searchUsers(query) {
+            if (query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '<div class="system-message">Введите имя пользователя</div>';
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/user-by-username', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: query
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderSearchResults([data.user]);
+                } else {
+                    document.getElementById('searchResults').innerHTML = '<div class="system-message">Пользователь не найден</div>';
+                }
+            } catch (error) {
+                console.error('Ошибка поиска пользователей:', error);
+                showNotification('Ошибка поиска пользователей', 'error');
+            }
+        }
+
+        // Рендер результатов поиска
+        function renderSearchResults(users) {
+            const searchResults = document.getElementById('searchResults');
+            if (!searchResults) return;
+            
+            searchResults.innerHTML = '';
+            
+            if (users.length === 0) {
+                searchResults.innerHTML = '<div class="system-message">Пользователи не найдены</div>';
+                return;
+            }
+            
+            users.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'user-search-item';
+                userElement.onclick = () => openUserProfile(user);
+                
+                userElement.innerHTML = `
+                    <div class="chat-avatar">
+                        ${user.avatar ? 
+                            `<img src="${user.avatar}" alt="${user.displayName}" style="width:100%;height:100%;object-fit:cover">` : 
+                            user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                        }
+                    </div>
+                    <div class="chat-info">
+                        <h4>
+                            ${user.displayName || 'Пользователь'}
+                            ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+                            ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                        </h4>
+                        <div>@${user.username}</div>
+                    </div>
+                    <button class="send-btn" onclick="event.stopPropagation(); startChatWithUser('${user.id}')">Написать</button>
+                `;
+                
+                searchResults.appendChild(userElement);
+            });
+        }
+
+        // Начать чат с пользователем
+        async function startChatWithUser(userId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/chats/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: userId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Чат создан', 'success');
+                    // Переходим в чаты
+                    setTimeout(() => {
+                        window.location.href = '/mobile/chats';
+                    }, 1000);
+                } else {
+                    showNotification(data.message || 'Ошибка создания чата', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка создания чата:', error);
+                showNotification('Ошибка создания чата', 'error');
+            }
+        }
+
+        // Открытие профиля пользователя
+        function openUserProfile(user) {
+            // В мобильной версии просто начинаем чат
+            startChatWithUser(user.id);
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const user = await checkAuth();
+            if (user) {
+                console.log('Поиск доступен');
+            }
+        });
+    </script>
 </body>
 </html>
