@@ -1,99 +1,56 @@
-<div class="ecoins-container">
-    <h2 class="section-title">E-COIN кошелек</h2>
-    
-    <div class="balance-card">
-        <div>Ваш баланс</div>
-        <div class="balance-amount" id="userBalance">1,250 E-COIN</div>
-        <div class="balance-actions">
-            <button class="send-btn" onclick="showGiftModal()">Отправить подарок</button>
-            <button class="send-btn" onclick="activatePromoCode()">Активировать промокод</button>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-COIN - Epic Messenger</title>
+    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+</head>
+<body class="theme-dark">
+    <div class="mobile-header">
+        <div class="mobile-header-content">
+            <div class="mobile-header-left">
+                <a href="/mobile" class="mobile-header-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                </a>
+                <div class="mobile-header-title">E-COIN</div>
+            </div>
         </div>
     </div>
-    
-    <div class="menu-section">
-        <div class="menu-item" onclick="loadMyGifts()">
-            <div class="menu-icon">🎁</div>
-            Мои подарки
+
+    <div class="main-content">
+        <div class="ecoins-container">
+            <div class="balance-card">
+                <div>Ваш баланс</div>
+                <div class="balance-amount" id="userBalance">0 E-COIN</div>
+                <div class="balance-actions">
+                    <button class="send-btn" onclick="showGiftModal()">Отправить подарок</button>
+                    <button class="send-btn" onclick="activatePromoCode()">Активировать промокод</button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <div class="menu-item" onclick="loadMyGifts()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                    </div>
+                    Мои подарки
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-<style>
-    .balance-card {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-        text-align: center;
-    }
+    <!-- Модальные окна -->
+    <div class="gifts-modal" id="giftsModal" style="display: none;">
+        <!-- Содержимое модального окна подарков -->
+    </div>
 
-    .balance-amount {
-        font-size: 32px;
-        font-weight: bold;
-        color: var(--accent-color);
-        margin: 10px 0;
-    }
-
-    .balance-actions {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-        margin-top: 15px;
-    }
-
-    .menu-section {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        padding: 20px;
-    }
-
-    .menu-item {
-        display: flex;
-        align-items: center;
-        padding: 12px 0;
-        color: var(--text-primary);
-        text-decoration: none;
-        border: none;
-        background: none;
-        cursor: pointer;
-        font-size: 16px;
-        gap: 12px;
-        width: 100%;
-        text-align: left;
-    }
-
-    .menu-icon {
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .send-btn {
-        padding: 10px 20px;
-        background: var(--accent-color);
-        color: white;
-        border: none;
-        border-radius: 20px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-</style>
-
-<script>
-    function showGiftModal() {
-        showNotification('Выбор подарка в разработке', 'info');
-    }
-
-    function activatePromoCode() {
-        const promoCode = prompt('Введите промокод:');
-        if (promoCode) {
-            showNotification('Промокод активирован! +100 E-COIN', 'success');
-        }
-    }
-
-    function loadMyGifts() {
-        showNotification('Загрузка подарков...', 'info');
-    }
-</script>
+    <script src="/mobile/scripts/ecoin.js"></script>
+</body>
+</html>
