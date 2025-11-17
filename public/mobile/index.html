@@ -3,173 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Epic Messenger</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        :root {
-            --bg-primary: #0f1419;
-            --bg-secondary: #1a232c;
-            --bg-tertiary: #2a3a4a;
-            --border-color: #2a3a4a;
-            --text-primary: #e6e6e6;
-            --text-secondary: #8a9ba8;
-            --accent-color: #00b4b4;
-            --accent-hover: #00cccc;
-            background: #0f1419;
-        }
-
-        .theme-light {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f5f5f5;
-            --bg-tertiary: #e0e0e0;
-            --border-color: #dddddd;
-            --text-primary: #333333;
-            --text-secondary: #666666;
-            --accent-color: #00b4b4;
-            background: #ffffff;
-        }
-
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* Мобильная навигация */
-        .mobile-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border-color);
-            z-index: 1000;
-            padding: 8px 0;
-        }
-
-        .mobile-nav-items {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-
-        .mobile-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 8px 12px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 10px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            transition: all 0.3s;
-            flex: 1;
-            max-width: 60px;
-        }
-
-        .mobile-nav-item.active {
-            color: var(--accent-color);
-        }
-
-        .mobile-nav-icon {
-            width: 24px;
-            height: 24px;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .mobile-nav-icon svg {
-            width: 20px;
-            height: 20px;
-        }
-
-        /* Основной контент */
-        .main-content {
-            padding-bottom: 60px;
-            height: 100vh;
-            overflow-y: auto;
-        }
-
-        .content-area {
-            padding: 15px;
-            height: 100%;
-        }
-
-        .section-title {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: var(--text-primary);
-        }
-
-        /* Уведомления */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 16px;
-            background: var(--accent-color);
-            color: white;
-            border-radius: 8px;
-            z-index: 1000;
-            animation: slideInRight 0.3s;
-        }
-
-        .notification.success { background: #00b894; }
-        .notification.error { background: #e17055; }
-
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        /* Загрузка */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid var(--accent-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    <title>Epic Messenger - Мобильная версия</title>
+    <link rel="stylesheet" href="/mobile/styles/mobile.css">
 </head>
 <body class="theme-dark">
-    <!-- Основной контент -->
-    <div class="main-content" id="mainContent">
-        <div class="content-area">
-            <h2 class="section-title">Epic Messenger</h2>
-            <p>Загрузка...</p>
+    <div class="mobile-header">
+        <div class="mobile-header-content">
+            <div class="mobile-header-title">Epic Messenger</div>
         </div>
     </div>
 
-    <!-- Мобильная навигация -->
-    <div class="mobile-nav">
-        <div class="mobile-nav-items">
-            <a class="mobile-nav-item active" href="/mobile/chat">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <div class="main-content">
+        <div class="mobile-grid">
+            <a href="/mobile/chats" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
                 </div>
                 <span>Чаты</span>
             </a>
             
-            <a class="mobile-nav-item" href="/mobile/posts">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <a href="/mobile/posts" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <line x1="8" y1="12" x2="16" y2="12"></line>
                         <line x1="12" y1="8" x2="12" y2="16"></line>
@@ -178,9 +35,9 @@
                 <span>Посты</span>
             </a>
             
-            <a class="mobile-nav-item" href="/mobile/search">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <a href="/mobile/search" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <path d="m21 21-4.35-4.35"></path>
                     </svg>
@@ -188,9 +45,9 @@
                 <span>Поиск</span>
             </a>
             
-            <a class="mobile-nav-item" href="/mobile/ecoin">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <a href="/mobile/ecoin" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="m9 12 2 2 4-4"></path>
                     </svg>
@@ -198,64 +55,30 @@
                 <span>E-COIN</span>
             </a>
             
-            <a class="mobile-nav-item" href="/mobile/profile">
-                <div class="mobile-nav-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
+            <a href="/mobile/music" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18V5l12-2v13"></path>
+                        <circle cx="6" cy="18" r="3"></circle>
+                        <circle cx="18" cy="16" r="3"></circle>
                     </svg>
                 </div>
-                <span>Профиль</span>
+                <span>Музыка</span>
+            </a>
+            
+            <a href="/mobile/settings" class="mobile-grid-item">
+                <div class="mobile-grid-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </div>
+                <span>Настройки</span>
             </a>
         </div>
     </div>
 
-    <script>
-        // Определяем активную страницу в навигации
-        document.addEventListener('DOMContentLoaded', function() {
-            const currentPath = window.location.pathname;
-            const navItems = document.querySelectorAll('.mobile-nav-item');
-            
-            navItems.forEach(item => {
-                item.classList.remove('active');
-                if (item.getAttribute('href') === currentPath) {
-                    item.classList.add('active');
-                }
-            });
-            
-            // Загружаем контент страницы
-            loadPageContent(currentPath);
-        });
-
-        async function loadPageContent(path) {
-            try {
-                const response = await fetch(path);
-                const html = await response.text();
-                document.getElementById('mainContent').innerHTML = html;
-            } catch (error) {
-                console.error('Ошибка загрузки страницы:', error);
-                document.getElementById('mainContent').innerHTML = `
-                    <div class="content-area">
-                        <h2 class="section-title">Ошибка</h2>
-                        <p>Не удалось загрузить страницу</p>
-                    </div>
-                `;
-            }
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 3000);
-        }
-    </script>
+    <script src="/mobile/scripts/main.js"></script>
 </body>
 </html>
