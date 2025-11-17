@@ -4,7 +4,410 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Настройки - Epic Messenger</title>
-    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mobile-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .mobile-header-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Меню настроек */
+        .menu-container {
+            padding: 20px;
+        }
+
+        .menu-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 0;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .menu-section-title {
+            padding: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 18px 20px;
+            color: var(--text-primary);
+            text-decoration: none;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            gap: 15px;
+            width: 100%;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .menu-item.danger {
+            color: var(--error-color);
+        }
+
+        .menu-item.danger:hover {
+            background: rgba(225, 112, 85, 0.1);
+        }
+
+        .menu-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .menu-item-content {
+            flex: 1;
+        }
+
+        .menu-item-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .menu-item-description {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .menu-item-arrow {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Переключатель темы */
+        .theme-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+            margin-left: auto;
+        }
+
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .theme-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-tertiary);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .theme-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .theme-slider {
+            background-color: var(--accent-color);
+        }
+
+        input:checked + .theme-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Модальные окна */
+        .gifts-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1004;
+            padding: 20px;
+        }
+
+        .gifts-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Формы */
+        .edit-profile-form {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .send-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        .send-btn.danger {
+            background: var(--error-color);
+        }
+
+        .send-btn.danger:hover {
+            background: #c0392b;
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Загрузка */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .user-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 0 auto 20px;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-info {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .user-name {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .user-username {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        @media (max-width: 480px) {
+            .menu-container {
+                padding: 15px;
+            }
+            
+            .menu-item {
+                padding: 16px;
+            }
+            
+            .gifts-container {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <div class="mobile-header">
@@ -23,7 +426,20 @@
 
     <div class="main-content">
         <div class="menu-container">
+            <!-- Профиль пользователя -->
             <div class="menu-section">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">
+                        <span>U</span>
+                    </div>
+                    <div class="user-name" id="userName">Пользователь</div>
+                    <div class="user-username" id="userUsername">@username</div>
+                </div>
+            </div>
+
+            <!-- Основные настройки -->
+            <div class="menu-section">
+                <div class="menu-section-title">Основные</div>
                 <button class="menu-item" onclick="openProfile()">
                     <div class="menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -31,20 +447,66 @@
                             <circle cx="12" cy="7" r="4"></circle>
                         </svg>
                     </div>
-                    Мой профиль
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Редактировать профиль</div>
+                        <div class="menu-item-description">Изменить информацию о себе</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
                 </button>
+                
                 <button class="menu-item" onclick="toggleTheme()">
                     <div class="menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                         </svg>
                     </div>
-                    Сменить тему
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Тема оформления</div>
+                        <div class="menu-item-description">Светлая или темная тема</div>
+                    </div>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                        <span class="theme-slider"></span>
+                    </label>
                 </button>
             </div>
-            
+
+            <!-- Безопасность -->
             <div class="menu-section">
-                <button class="menu-item" onclick="logout()">
+                <div class="menu-section-title">Безопасность</div>
+                <button class="menu-item" onclick="showDevices()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                            <path d="M12 12h.01"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Активные устройства</div>
+                        <div class="menu-item-description">Управление сеансами</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+                
+                <button class="menu-item" onclick="showPrivacy()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Конфиденциальность</div>
+                        <div class="menu-item-description">Настройки приватности</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+            </div>
+
+            <!-- Аккаунт -->
+            <div class="menu-section">
+                <div class="menu-section-title">Аккаунт</div>
+                <button class="menu-item danger" onclick="logout()">
                     <div class="menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -52,17 +514,321 @@
                             <line x1="21" y1="12" x2="9" y2="12"></line>
                         </svg>
                     </div>
-                    Выйти
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Выйти</div>
+                        <div class="menu-item-description">Завершить текущий сеанс</div>
+                    </div>
+                </button>
+                
+                <button class="menu-item danger" onclick="deleteAccount()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Удалить аккаунт</div>
+                        <div class="menu-item-description">Безвозвратное удаление</div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Информация -->
+            <div class="menu-section">
+                <div class="menu-section-title">О приложении</div>
+                <button class="menu-item" onclick="showAbout()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 16v-4"></path>
+                            <path d="M12 8h.01"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">О Epic Messenger</div>
+                        <div class="menu-item-description">Версия 1.0.0</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+                
+                <button class="menu-item" onclick="showHelp()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Помощь и поддержка</div>
+                        <div class="menu-item-description">Часто задаваемые вопросы</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно профиля -->
+    <!-- Модальное окно редактирования профиля -->
     <div class="gifts-modal" id="profileModal" style="display: none;">
-        <!-- Содержимое модального окна профиля -->
+        <div class="gifts-container">
+            <h3 style="margin-bottom: 20px;">Редактирование профиля</h3>
+            
+            <div class="edit-profile-form">
+                <div class="form-group">
+                    <label class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-input" id="editUsername" placeholder="Введите имя пользователя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Отображаемое имя</label>
+                    <input type="text" class="form-input" id="editDisplayName" placeholder="Введите отображаемое имя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-input" id="editDescription" rows="3" placeholder="Расскажите о себе..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Аватар</label>
+                    <input type="file" class="form-input" id="editAvatar" accept="image/*">
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="send-btn" onclick="saveProfile()" id="saveProfileBtn" style="flex: 1;">Сохранить</button>
+                <button class="send-btn" onclick="closeProfileModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
     </div>
 
-    <script src="/mobile/scripts/settings.js"></script>
+    <script>
+        let currentUser = null;
+
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+            
+            // Устанавливаем состояние переключателя
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.checked = savedTheme === 'light';
+            }
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Обновление интерфейса пользователя
+        function updateUserInterface() {
+            if (!currentUser) return;
+            
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            const userUsername = document.getElementById('userUsername');
+            
+            if (currentUser.avatar) {
+                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            } else {
+                userAvatar.innerHTML = `<span>${currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}</span>`;
+            }
+
+            userName.textContent = currentUser.displayName || 'Пользователь';
+            userUsername.textContent = `@${currentUser.username}`;
+        }
+
+        // Смена темы
+        function toggleTheme() {
+            const currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.classList.remove(`theme-${currentTheme}`);
+            document.body.classList.add(`theme-${newTheme}`);
+            localStorage.setItem('theme', newTheme);
+            
+            showNotification(`Тема изменена на ${newTheme === 'dark' ? 'темную' : 'светлую'}`, 'success');
+        }
+
+        // Открытие профиля
+        function openProfile() {
+            document.getElementById('profileModal').style.display = 'flex';
+            
+            // Заполняем форму текущими данными
+            document.getElementById('editUsername').value = currentUser.username || '';
+            document.getElementById('editDisplayName').value = currentUser.displayName || '';
+            document.getElementById('editDescription').value = currentUser.description || '';
+        }
+
+        // Закрытие модального окна профиля
+        function closeProfileModal() {
+            document.getElementById('profileModal').style.display = 'none';
+        }
+
+        // Сохранение профиля
+        async function saveProfile() {
+            const username = document.getElementById('editUsername').value.trim();
+            const displayName = document.getElementById('editDisplayName').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            const avatarFile = document.getElementById('editAvatar').files[0];
+            
+            if (!username || !displayName) {
+                showNotification('Заполните обязательные поля', 'warning');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveProfileBtn');
+            const originalText = saveBtn.textContent;
+            saveBtn.innerHTML = '<div class="loading"></div>';
+            saveBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                
+                // Сначала загружаем аватар если выбран
+                let avatarUrl = currentUser.avatar;
+                if (avatarFile) {
+                    const formData = new FormData();
+                    formData.append('file', avatarFile);
+                    
+                    const uploadResponse = await fetch('/api/upload-avatar', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadResponse.json();
+                    if (uploadData.success) {
+                        avatarUrl = uploadData.avatarUrl;
+                    }
+                }
+                
+                // Обновляем профиль
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        displayName: displayName,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    closeProfileModal();
+                    showNotification('Профиль успешно обновлен!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка обновления профиля', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения профиля:', error);
+                showNotification('Ошибка сохранения профиля', 'error');
+            } finally {
+                saveBtn.textContent = originalText;
+                saveBtn.disabled = false;
+            }
+        }
+
+        // Показать устройства
+        function showDevices() {
+            showNotification('Функция в разработке', 'warning');
+        }
+
+        // Показать настройки приватности
+        function showPrivacy() {
+            showNotification('Функция в разработке', 'warning');
+        }
+
+        // Показать информацию о приложении
+        function showAbout() {
+            showNotification('Epic Messenger v1.0.0\nМобильная версия', 'success');
+        }
+
+        // Показать помощь
+        function showHelp() {
+            showNotification('Раздел помощи в разработке', 'warning');
+        }
+
+        // Выход
+        function logout() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+            }
+        }
+
+        // Удаление аккаунта
+        function deleteAccount() {
+            if (confirm('ВНИМАНИЕ: Это действие нельзя отменить! Все ваши данные будут удалены безвозвратно. Вы уверены, что хотите удалить аккаунт?')) {
+                showNotification('Функция удаления аккаунта в разработке', 'warning');
+            }
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const user = await checkAuth();
+            if (user) {
+                console.log('Настройки загружены');
+            }
+        });
+    </script>
 </body>
 </html>
