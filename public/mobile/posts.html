@@ -4,7 +4,302 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Посты - Epic Messenger</title>
-    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+    <style>
+        /* Все стили для постов из оригинального mobile.html */
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mobile-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .mobile-header-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Посты */
+        .posts-container {
+            padding: 15px;
+        }
+
+        .post {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .post-user {
+            display: flex;
+            align-items: center;
+        }
+
+        .post-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            overflow: hidden;
+        }
+
+        .post-user-info h4 {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .post-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .post-content {
+            margin-bottom: 12px;
+        }
+
+        .post-text {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .post-textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .post-media {
+            margin-top: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .post-media img, .post-media video {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+        }
+
+        .post-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .post-action {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+
+        .post-action:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .post-action.liked {
+            color: var(--error-color);
+        }
+
+        .send-btn {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .send-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        .system-message {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        /* Бейджи */
+        .verified-badge, .developer-badge {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 2px;
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Загрузка */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .posts-container {
+                padding: 10px;
+            }
+            
+            .post {
+                padding: 15px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <div class="mobile-header">
@@ -57,6 +352,266 @@
         </div>
     </div>
 
-    <script src="/mobile/scripts/posts.js"></script>
+    <script>
+        let currentUser = null;
+        let posts = [];
+
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Обновление интерфейса пользователя
+        function updateUserInterface() {
+            if (!currentUser) return;
+            
+            const postAvatar = document.getElementById('postUserAvatar');
+            if (currentUser.avatar) {
+                postAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}" style="width:100%;height:100%;object-fit:cover">`;
+            } else {
+                postAvatar.innerHTML = `<span>${currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}</span>`;
+            }
+
+            document.getElementById('postUserName').textContent = currentUser.displayName;
+        }
+
+        // Загрузка постов
+        async function loadPosts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/posts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    posts = data.posts;
+                    renderPosts();
+                } else {
+                    showNotification('Ошибка загрузки постов', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки постов:', error);
+                showNotification('Ошибка загрузки постов', 'error');
+            }
+        }
+
+        // Рендер постов
+        function renderPosts() {
+            const postsList = document.getElementById('postsList');
+            if (!postsList) return;
+            
+            postsList.innerHTML = '';
+            
+            if (posts.length === 0) {
+                postsList.innerHTML = '<div class="system-message">Пока нет постов</div>';
+                return;
+            }
+            
+            posts.forEach(post => {
+                const postElement = createPostElement(post);
+                postsList.appendChild(postElement);
+            });
+        }
+
+        // Создание элемента поста
+        function createPostElement(post) {
+            const postElement = document.createElement('div');
+            postElement.className = 'post';
+            
+            let mediaHtml = '';
+            if (post.image) {
+                mediaHtml = `
+                    <div class="post-media">
+                        <img src="${post.image}" alt="Изображение поста">
+                    </div>
+                `;
+            } else if (post.file && post.fileType === 'video') {
+                mediaHtml = `
+                    <div class="post-media">
+                        <video controls>
+                            <source src="${post.file}" type="video/mp4">
+                            Ваш браузер не поддерживает видео.
+                        </video>
+                    </div>
+                `;
+            }
+            
+            const isLiked = post.likes && post.likes.includes(currentUser.id);
+            
+            postElement.innerHTML = `
+                <div class="post-header">
+                    <div class="post-user">
+                        <div class="post-avatar">
+                            ${post.userAvatar ? 
+                                `<img src="${post.userAvatar}" alt="${post.userName}" style="width:100%;height:100%;object-fit:cover">` : 
+                                post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
+                            }
+                        </div>
+                        <div class="post-user-info">
+                            <h4>
+                                ${post.userName || 'Неизвестный'}
+                                ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                                ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                            </h4>
+                            <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="post-content">
+                    <div class="post-text">${post.text || ''}</div>
+                    ${mediaHtml}
+                </div>
+                <div class="post-actions">
+                    <button class="post-action like-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="${isLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        <span>${post.likes ? post.likes.length : 0}</span>
+                    </button>
+                </div>
+            `;
+            
+            return postElement;
+        }
+
+        // Публикация поста
+        async function publishPost() {
+            const postText = document.getElementById('postText');
+            const text = postText.value.trim();
+            
+            if (!text) {
+                showNotification('Введите текст поста', 'warning');
+                return;
+            }
+            
+            const publishBtn = document.getElementById('publishPostBtn');
+            const originalText = publishBtn.textContent;
+            publishBtn.innerHTML = '<div class="loading"></div>';
+            publishBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        text: text
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    postText.value = '';
+                    loadPosts();
+                    showNotification('Пост опубликован!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка публикации поста', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка публикации поста:', error);
+                showNotification('Ошибка публикации поста', 'error');
+            } finally {
+                publishBtn.textContent = originalText;
+                publishBtn.disabled = false;
+            }
+        }
+
+        // Лайк поста
+        async function toggleLike(postId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadPosts();
+                } else {
+                    showNotification('Ошибка лайка', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка лайка:', error);
+                showNotification('Ошибка лайка', 'error');
+            }
+        }
+
+        // Обработка выбора файла для поста
+        function handlePostFileSelect(files) {
+            if (files.length > 0) {
+                showNotification('Файл выбран: ' + files[0].name, 'success');
+            }
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const user = await checkAuth();
+            if (user) {
+                await loadPosts();
+            }
+        });
+    </script>
 </body>
 </html>
