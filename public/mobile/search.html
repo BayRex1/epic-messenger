@@ -1,0 +1,96 @@
+<div class="search-container">
+    <h2 class="section-title">Поиск людей</h2>
+    <div class="search-box" style="margin-bottom: 20px;">
+        <input type="text" placeholder="Введите имя пользователя..." id="userSearch" oninput="searchUsers(this.value)">
+    </div>
+    
+    <div class="search-results" id="searchResults">
+        <div class="system-message">Введите имя пользователя для поиска</div>
+    </div>
+</div>
+
+<style>
+    .search-box input {
+        width: 100%;
+        padding: 12px 15px;
+        border: none;
+        border-radius: 20px;
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .user-search-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        margin-bottom: 10px;
+    }
+
+    .system-message {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+        padding: 20px;
+    }
+</style>
+
+<script>
+    const allUsers = [
+        { id: 1, username: 'alexey', displayName: 'Алексей' },
+        { id: 2, username: 'maria', displayName: 'Мария' },
+        { id: 3, username: 'dmitry', displayName: 'Дмитрий' }
+    ];
+
+    function searchUsers(query) {
+        const searchResults = document.getElementById('searchResults');
+        
+        if (query.length < 2) {
+            searchResults.innerHTML = '<div class="system-message">Введите имя пользователя</div>';
+            return;
+        }
+
+        const filteredUsers = allUsers.filter(user => 
+            user.displayName.toLowerCase().includes(query.toLowerCase()) ||
+            user.username.toLowerCase().includes(query.toLowerCase())
+        );
+
+        renderSearchResults(filteredUsers);
+    }
+
+    function renderSearchResults(users) {
+        const searchResults = document.getElementById('searchResults');
+        
+        if (users.length === 0) {
+            searchResults.innerHTML = '<div class="system-message">Пользователи не найдены</div>';
+            return;
+        }
+
+        searchResults.innerHTML = '';
+        
+        users.forEach(user => {
+            const userElement = document.createElement('div');
+            userElement.className = 'user-search-item';
+            
+            userElement.innerHTML = `
+                <div class="chat-avatar">
+                    ${user.displayName.charAt(0)}
+                </div>
+                <div class="chat-info" style="flex: 1;">
+                    <h4>${user.displayName}</h4>
+                    <div>@${user.username}</div>
+                </div>
+                <button class="send-btn" onclick="startChatWithUser(${user.id})">Написать</button>
+            `;
+            
+            searchResults.appendChild(userElement);
+        });
+    }
+
+    function startChatWithUser(userId) {
+        window.location.href = '/mobile/chat';
+        showNotification('Чат открыт', 'success');
+    }
+</script>
