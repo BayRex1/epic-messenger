@@ -1,0 +1,133 @@
+<div class="profile-container">
+    <h2 class="section-title">Профиль</h2>
+    
+    <div class="profile-header">
+        <div class="profile-avatar">
+            <span>U</span>
+        </div>
+        <div class="profile-info">
+            <h3 id="profileName">Пользователь</h3>
+            <p id="profileUsername">@username</p>
+        </div>
+    </div>
+    
+    <div class="menu-section">
+        <button class="menu-item" onclick="editProfile()">
+            <div class="menu-icon">✏️</div>
+            Редактировать профиль
+        </button>
+        <button class="menu-item" onclick="toggleTheme()">
+            <div class="menu-icon">🌙</div>
+            Сменить тему
+        </button>
+        <button class="menu-item" onclick="logout()">
+            <div class="menu-icon">🚪</div>
+            Выйти
+        </button>
+    </div>
+</div>
+
+<style>
+    .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .profile-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 24px;
+        font-weight: 600;
+    }
+
+    .profile-info h3 {
+        margin-bottom: 5px;
+    }
+
+    .profile-info p {
+        color: var(--text-secondary);
+    }
+
+    .menu-section {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .menu-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 0;
+        color: var(--text-primary);
+        text-decoration: none;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 16px;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .menu-item:last-child {
+        border-bottom: none;
+    }
+
+    .menu-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<script>
+    function editProfile() {
+        const newName = prompt('Введите новое имя:', document.getElementById('profileName').textContent);
+        if (newName) {
+            document.getElementById('profileName').textContent = newName;
+            showNotification('Профиль обновлен', 'success');
+        }
+    }
+
+    function toggleTheme() {
+        const body = document.body;
+        if (body.classList.contains('theme-dark')) {
+            body.classList.remove('theme-dark');
+            body.classList.add('theme-light');
+        } else {
+            body.classList.remove('theme-light');
+            body.classList.add('theme-dark');
+        }
+        showNotification('Тема изменена', 'success');
+    }
+
+    function logout() {
+        if (confirm('Вы уверены, что хотите выйти?')) {
+            showNotification('Выход из системы...', 'info');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1000);
+        }
+    }
+
+    // Загружаем данные профиля
+    document.addEventListener('DOMContentLoaded', function() {
+        // Здесь будет загрузка реальных данных пользователя
+        document.getElementById('profileName').textContent = 'Иван Иванов';
+        document.getElementById('profileUsername').textContent = '@ivanov';
+    });
+</script>
