@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чаты - Epic Messenger</title>
+    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+</head>
+<body class="theme-dark">
+    <div class="mobile-header">
+        <div class="mobile-header-content">
+            <div class="mobile-header-left">
+                <a href="/mobile" class="mobile-header-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                </a>
+                <div class="mobile-header-title">Чаты</div>
+            </div>
+            <div class="mobile-header-actions">
+                <button class="mobile-header-btn" onclick="toggleSearch()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="chats-sidebar">
+                <div class="chats-header">
+                    <div class="search-box">
+                        <input type="text" placeholder="Поиск чатов..." id="chatSearch" oninput="filterChats(this.value)">
+                    </div>
+                </div>
+                <div class="chats-list" id="chatsList">
+                    <div class="system-message">Загрузка чатов...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Полноэкранный чат -->
+    <div class="chat-area" id="chatArea">
+        <!-- Содержимое чата будет таким же как в оригинале -->
+    </div>
+
+    <script src="/mobile/scripts/chats.js"></script>
+</body>
+</html>
