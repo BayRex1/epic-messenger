@@ -1,0 +1,196 @@
+<div class="posts-container">
+    <h2 class="section-title">Лента постов</h2>
+    
+    <div class="post" id="createPostCard">
+        <div class="post-header">
+            <div class="post-user">
+                <div class="post-avatar" id="postUserAvatar">U</div>
+                <div class="post-user-info">
+                    <h4 id="postUserName">Вы</h4>
+                </div>
+            </div>
+        </div>
+        <div class="post-content">
+            <textarea class="post-textarea" placeholder="Что у вас нового?" id="postText"></textarea>
+        </div>
+        <div class="post-actions">
+            <button class="post-action" onclick="document.getElementById('postFileInput').click()">
+                📎 Файл
+            </button>
+            <button class="send-btn" onclick="publishPost()">Опубликовать</button>
+        </div>
+        <input type="file" id="postFileInput" style="display: none;">
+    </div>
+    
+    <div id="postsList">
+        <div class="system-message">Загрузка постов...</div>
+    </div>
+</div>
+
+<style>
+    .post {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+
+    .post-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .post-user {
+        display: flex;
+        align-items: center;
+    }
+
+    .post-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--bg-tertiary);
+        margin-right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+    }
+
+    .post-user-info h4 {
+        font-size: 14px;
+    }
+
+    .post-content {
+        margin-bottom: 12px;
+    }
+
+    .post-textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 14px;
+        resize: vertical;
+        min-height: 80px;
+        font-family: inherit;
+    }
+
+    .post-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .post-action {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 13px;
+        padding: 6px 10px;
+        border-radius: 8px;
+    }
+
+    .send-btn {
+        padding: 10px 20px;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .system-message {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+        padding: 20px;
+    }
+</style>
+
+<script>
+    let posts = [];
+
+    async function loadPosts() {
+        try {
+            // Имитация загрузки постов
+            setTimeout(() => {
+                posts = [
+                    { id: 1, userName: 'Алексей', text: 'Отличный день для программирования!', likes: 5 },
+                    { id: 2, userName: 'Мария', text: 'Новый проект запущен! 🚀', likes: 12 }
+                ];
+                renderPosts();
+            }, 1000);
+        } catch (error) {
+            console.error('Ошибка загрузки постов:', error);
+        }
+    }
+
+    function renderPosts() {
+        const postsList = document.getElementById('postsList');
+        postsList.innerHTML = '';
+        
+        posts.forEach(post => {
+            const postElement = document.createElement('div');
+            postElement.className = 'post';
+            
+            postElement.innerHTML = `
+                <div class="post-header">
+                    <div class="post-user">
+                        <div class="post-avatar">${post.userName.charAt(0)}</div>
+                        <div class="post-user-info">
+                            <h4>${post.userName}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="post-content">
+                    <div class="post-text">${post.text}</div>
+                </div>
+                <div class="post-actions">
+                    <button class="post-action" onclick="toggleLike(${post.id})">
+                        ❤️ ${post.likes}
+                    </button>
+                </div>
+            `;
+            
+            postsList.appendChild(postElement);
+        });
+    }
+
+    function publishPost() {
+        const text = document.getElementById('postText').value.trim();
+        if (!text) {
+            showNotification('Введите текст поста', 'warning');
+            return;
+        }
+
+        const newPost = {
+            id: Date.now(),
+            userName: 'Вы',
+            text: text,
+            likes: 0
+        };
+
+        posts.unshift(newPost);
+        renderPosts();
+        document.getElementById('postText').value = '';
+        showNotification('Пост опубликован!', 'success');
+    }
+
+    function toggleLike(postId) {
+        const post = posts.find(p => p.id === postId);
+        if (post) {
+            post.likes++;
+            renderPosts();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPosts);
+</script>
