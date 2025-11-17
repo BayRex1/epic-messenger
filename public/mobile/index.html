@@ -4,7 +4,182 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Messenger - Мобильная версия</title>
-    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+    <style>
+        /* Темы */
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+            --glass-bg: rgba(0, 0, 0, 0.1);
+            --glass-border: rgba(0, 0, 0, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: 100vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        /* Сетка навигации */
+        .mobile-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .mobile-grid-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 20px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            min-height: 140px;
+        }
+
+        .mobile-grid-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .mobile-grid-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent-color);
+            border-radius: 20px;
+            color: white;
+        }
+
+        .mobile-grid-icon svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .mobile-grid-item span {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            .mobile-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                padding: 15px;
+            }
+            
+            .mobile-grid-item {
+                padding: 25px 15px;
+                min-height: 120px;
+            }
+            
+            .mobile-grid-icon {
+                width: 50px;
+                height: 50px;
+                border-radius: 15px;
+            }
+            
+            .mobile-grid-icon svg {
+                width: 24px;
+                height: 24px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <div class="mobile-header">
@@ -79,6 +254,68 @@
         </div>
     </div>
 
-    <script src="/mobile/scripts/main.js"></script>
+    <script>
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTheme();
+            checkAuth().then(user => {
+                if (user) {
+                    console.log('Пользователь авторизован:', user.username);
+                }
+            });
+        });
+    </script>
 </body>
 </html>
