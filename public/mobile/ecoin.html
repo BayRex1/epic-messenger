@@ -4,7 +4,376 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-COIN - Epic Messenger</title>
-    <link rel="stylesheet" href="/mobile/styles/mobile.css">
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mobile-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .mobile-header-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* E-COIN */
+        .ecoins-container {
+            padding: 20px;
+        }
+
+        .balance-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 30px 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .balance-amount {
+            font-size: 42px;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin: 20px 0;
+            text-shadow: 0 2px 4px rgba(0, 180, 180, 0.3);
+        }
+
+        .balance-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .send-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .menu-section {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 0;
+            color: var(--text-primary);
+            text-decoration: none;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            gap: 15px;
+            width: 100%;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            color: var(--accent-color);
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .menu-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Модальные окна */
+        .gifts-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1004;
+            padding: 20px;
+        }
+
+        .gifts-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .gifts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .gift-item {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid var(--border-color);
+        }
+
+        .gift-item:hover {
+            background: var(--accent-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .gift-preview {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .gift-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .gift-price {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .gift-item:hover .gift-price {
+            color: white;
+        }
+
+        /* Формы */
+        .edit-profile-form {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Загрузка */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .system-message {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+
+        @media (max-width: 480px) {
+            .ecoins-container {
+                padding: 15px;
+            }
+            
+            .balance-card {
+                padding: 25px 15px;
+            }
+            
+            .balance-amount {
+                font-size: 36px;
+            }
+            
+            .balance-actions {
+                flex-direction: column;
+            }
+            
+            .send-btn {
+                width: 100%;
+            }
+            
+            .gifts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <div class="mobile-header">
@@ -24,7 +393,7 @@
     <div class="main-content">
         <div class="ecoins-container">
             <div class="balance-card">
-                <div>Ваш баланс</div>
+                <div style="font-size: 16px; color: var(--text-secondary);">Ваш баланс</div>
                 <div class="balance-amount" id="userBalance">0 E-COIN</div>
                 <div class="balance-actions">
                     <button class="send-btn" onclick="showGiftModal()">Отправить подарок</button>
@@ -33,7 +402,7 @@
             </div>
             
             <div class="menu-section">
-                <div class="menu-item" onclick="loadMyGifts()">
+                <button class="menu-item" onclick="loadMyGifts()">
                     <div class="menu-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
@@ -41,16 +410,277 @@
                         </svg>
                     </div>
                     Мои подарки
-                </div>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Модальные окна -->
+    <!-- Модальное окно подарков -->
     <div class="gifts-modal" id="giftsModal" style="display: none;">
-        <!-- Содержимое модального окна подарков -->
+        <div class="gifts-container">
+            <h3 style="margin-bottom: 10px;">Отправить подарок</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Выберите подарок для отправки</p>
+            
+            <div class="gifts-grid" id="giftsGrid">
+                <div class="system-message">Загрузка подарков...</div>
+            </div>
+            
+            <div class="balance-actions" style="margin-top: 20px;">
+                <button class="send-btn" onclick="closeGiftModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
     </div>
 
-    <script src="/mobile/scripts/ecoin.js"></script>
+    <!-- Модальное окно активации промокода -->
+    <div class="gifts-modal" id="promoModal" style="display: none;">
+        <div class="gifts-container">
+            <h3 style="margin-bottom: 20px;">Активация промокода</h3>
+            
+            <div class="edit-profile-form">
+                <div class="form-group">
+                    <label class="form-label">Промокод</label>
+                    <input type="text" class="form-input" id="promoCode" placeholder="Введите промокод">
+                </div>
+            </div>
+            
+            <div class="balance-actions" style="margin-top: 20px;">
+                <button class="send-btn" onclick="activatePromoCodeSubmit()" id="activatePromoBtn">Активировать</button>
+                <button class="send-btn" onclick="closePromoModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let gifts = [];
+
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Обновление интерфейса пользователя
+        function updateUserInterface() {
+            if (!currentUser) return;
+            
+            document.getElementById('userBalance').textContent = `${currentUser.coins || 0} E-COIN`;
+        }
+
+        // Загрузка подарков
+        async function loadGifts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    gifts = data.gifts;
+                } else {
+                    console.error('Ошибка загрузки подарков');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+            }
+        }
+
+        // Показать модальное окно подарков
+        function showGiftModal() {
+            // Для отправки подарка нужно выбрать чат
+            showNotification('Перейдите в чаты для отправки подарка', 'warning');
+            setTimeout(() => {
+                window.location.href = '/mobile/chats';
+            }, 1500);
+        }
+
+        // Закрыть модальное окно подарков
+        function closeGiftModal() {
+            document.getElementById('giftsModal').style.display = 'none';
+        }
+
+        // Активация промокода
+        function activatePromoCode() {
+            document.getElementById('promoModal').style.display = 'flex';
+        }
+
+        // Закрытие модального окна промокода
+        function closePromoModal() {
+            document.getElementById('promoModal').style.display = 'none';
+        }
+
+        // Отправка промокода
+        async function activatePromoCodeSubmit() {
+            const promoCode = document.getElementById('promoCode').value.trim();
+            
+            if (!promoCode) {
+                showNotification('Введите промокод', 'warning');
+                return;
+            }
+            
+            const activateBtn = document.getElementById('activatePromoBtn');
+            const originalText = activateBtn.textContent;
+            activateBtn.innerHTML = '<div class="loading"></div>';
+            activateBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/promo-codes/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        code: promoCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closePromoModal();
+                    showNotification(data.message || 'Промокод активирован!', 'success');
+                    
+                    // Обновляем баланс
+                    if (data.user) {
+                        currentUser.coins = data.user.coins;
+                        updateUserInterface();
+                    }
+                } else {
+                    showNotification(data.message || 'Ошибка активации промокода', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка активации промокода:', error);
+                showNotification('Ошибка активации промокода', 'error');
+            } finally {
+                activateBtn.textContent = originalText;
+                activateBtn.disabled = false;
+            }
+        }
+
+        // Загрузка моих подарков
+        async function loadMyGifts() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/my-gifts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMyGiftsModal(data.gifts);
+                } else {
+                    showNotification('Ошибка загрузки подарков', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки подарков:', error);
+                showNotification('Ошибка загрузки подарков', 'error');
+            }
+        }
+
+        // Показать модальное окно с моими подарками
+        function showMyGiftsModal(gifts) {
+            const modal = document.createElement('div');
+            modal.className = 'gifts-modal';
+            modal.style.display = 'flex';
+            
+            let giftsHtml = '';
+            if (gifts.length === 0) {
+                giftsHtml = '<div class="system-message">У вас пока нет подарков</div>';
+            } else {
+                gifts.forEach(gift => {
+                    giftsHtml += `
+                        <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 32px;">${gift.giftPreview || '🎁'}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold; margin-bottom: 5px;">${gift.giftName}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 3px;">От: ${gift.fromUserName}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">${new Date(gift.timestamp).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            modal.innerHTML = `
+                <div class="gifts-container">
+                    <h3 style="margin-bottom: 20px;">Мои подарки</h3>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        ${giftsHtml}
+                    </div>
+                    <div class="balance-actions" style="margin-top: 20px;">
+                        <button class="send-btn" onclick="this.closest('.gifts-modal').remove()" style="background: var(--error-color);">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const user = await checkAuth();
+            if (user) {
+                await loadGifts();
+            }
+        });
+    </script>
 </body>
 </html>
