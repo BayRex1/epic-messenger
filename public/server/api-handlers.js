@@ -3383,7 +3383,7 @@ class ApiHandlers {
         const user = this.authenticateToken(token);
         
         if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен', 403 };
+            return { success: false, message: 'Доступ запрещен' };
         }
 
         const stats = {
