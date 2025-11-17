@@ -101,11 +101,14 @@ class SimpleServer {
     handleMobileRoutes(req, res, pathname) {
         const mobileRoutes = {
             '/mobile': 'public/mobile/index.html',
-            '/mobile/chat': 'public/mobile/chat.html',
+            '/mobile/chats': 'public/mobile/chat.html',
             '/mobile/posts': 'public/mobile/posts.html',
             '/mobile/search': 'public/mobile/search.html',
             '/mobile/ecoin': 'public/mobile/ecoin.html',
-            '/mobile/profile': 'public/mobile/profile.html'
+            '/mobile/profile': 'public/mobile/profile.html',
+            '/mobile/music': 'public/mobile/music.html',
+            '/mobile/gifts': 'public/mobile/gifts.html',
+            '/mobile/settings': 'public/mobile/settings.html'
         };
 
         if (mobileRoutes[pathname]) {
@@ -216,11 +219,14 @@ class SimpleServer {
             console.log(`📧 Epic Messenger готов к работе!`);
             console.log(`📱 МОБИЛЬНАЯ ВЕРСИЯ АКТИВИРОВАНА:`);
             console.log(`   ✅ /mobile - Главная навигация`);
-            console.log(`   ✅ /mobile/chat - Чаты`);
+            console.log(`   ✅ /mobile/chats - Чаты`);
             console.log(`   ✅ /mobile/posts - Посты`);
             console.log(`   ✅ /mobile/search - Поиск`);
             console.log(`   ✅ /mobile/ecoin - E-COIN`);
             console.log(`   ✅ /mobile/profile - Профиль`);
+            console.log(`   ✅ /mobile/music - Музыка`);
+            console.log(`   ✅ /mobile/gifts - Подарки`);
+            console.log(`   ✅ /mobile/settings - Настройки`);
             console.log(`   ✅ /mobile/profile/{username} - Профили пользователей`);
             console.log(`\n🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
             console.log(`   ✅ Rate limiting включен`);
@@ -338,6 +344,19 @@ class SimpleServer {
 
         const path = require('path');
         const fs = require('fs');
+
+        // 🔥 НОВОЕ: Автоматическое перенаправление на мобильную версию для телефонов
+        const userAgent = req.headers['user-agent'] || '';
+        const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+        
+        // Если это мобильное устройство и запрашивается корневая страница - перенаправляем на мобильную версию
+        if (isMobile && (pathname === '/' || pathname === '/index.html')) {
+            res.writeHead(302, {
+                'Location': '/mobile'
+            });
+            res.end();
+            return;
+        }
 
         const routes = {
             '/': 'public/main.html',
@@ -460,10 +479,7 @@ class SimpleServer {
             
             serveStaticFile(res, 'public' + pathname, contentType);
         } else {
-            // По умолчанию отдаем мобильную версию для мобильных устройств
-            const userAgent = req.headers['user-agent'] || '';
-            const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
-            
+            // 🔥 ОБНОВЛЕНО: По умолчанию отдаем мобильную версию для мобильных устройств
             if (isMobile) {
                 serveStaticFile(res, 'public/mobile/index.html', 'text/html');
             } else {
