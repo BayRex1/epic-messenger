@@ -97,18 +97,18 @@ class SimpleServer {
         });
     }
 
-    // Новый метод для обработки мобильных маршрутов
+    // Обработка мобильных маршрутов
     handleMobileRoutes(req, res, pathname) {
         const mobileRoutes = {
             '/mobile': 'public/mobile/index.html',
-            '/mobile/chats': 'public/mobile/chat.html',
-            '/mobile/posts': 'public/mobile/posts.html',
+            '/mobile/chats': 'public/mobile/chats.html',
+            '/mobile/posts': 'public/mobile/posts.html', 
             '/mobile/search': 'public/mobile/search.html',
             '/mobile/ecoin': 'public/mobile/ecoin.html',
-            '/mobile/profile': 'public/mobile/profile.html',
             '/mobile/music': 'public/mobile/music.html',
-            '/mobile/gifts': 'public/mobile/gifts.html',
-            '/mobile/settings': 'public/mobile/settings.html'
+            '/mobile/settings': 'public/mobile/settings.html',
+            '/mobile/profile': 'public/mobile/profile.html',
+            '/mobile/gifts': 'public/mobile/gifts.html'
         };
 
         if (mobileRoutes[pathname]) {
@@ -123,6 +123,19 @@ class SimpleServer {
                 this.handleMobileUserProfile(req, res, username);
                 return true;
             }
+        }
+
+        // Обработка статических файлов мобильной версии
+        if (pathname.startsWith('/mobile/styles/') || pathname.startsWith('/mobile/scripts/')) {
+            const filePath = path.join(process.cwd(), pathname);
+            const ext = path.extname(pathname);
+            const contentType = {
+                '.css': 'text/css',
+                '.js': 'application/javascript'
+            }[ext] || 'text/plain';
+            
+            serveStaticFile(res, filePath, contentType);
+            return true;
         }
 
         return false;
@@ -217,16 +230,16 @@ class SimpleServer {
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
-            console.log(`📱 МОБИЛЬНАЯ ВЕРСИЯ АКТИВИРОВАНА:`);
+            console.log(`\n📱 МОБИЛЬНАЯ ВЕРСИЯ АКТИВИРОВАНА:`);
             console.log(`   ✅ /mobile - Главная навигация`);
             console.log(`   ✅ /mobile/chats - Чаты`);
             console.log(`   ✅ /mobile/posts - Посты`);
             console.log(`   ✅ /mobile/search - Поиск`);
             console.log(`   ✅ /mobile/ecoin - E-COIN`);
-            console.log(`   ✅ /mobile/profile - Профиль`);
             console.log(`   ✅ /mobile/music - Музыка`);
-            console.log(`   ✅ /mobile/gifts - Подарки`);
             console.log(`   ✅ /mobile/settings - Настройки`);
+            console.log(`   ✅ /mobile/profile - Профиль`);
+            console.log(`   ✅ /mobile/gifts - Подарки`);
             console.log(`   ✅ /mobile/profile/{username} - Профили пользователей`);
             console.log(`\n🛡️  СИСТЕМА БЕЗОПАСНОСТИ АКТИВИРОВАНА:`);
             console.log(`   ✅ Rate limiting включен`);
@@ -297,7 +310,7 @@ class SimpleServer {
             console.log(`   ✅ Поиск пользователей для чатов`);
             console.log(`   ✅ Групповые сообщения`);
             console.log(`   ✅ Управление участниками групп`);
-            console.log(`   ✅ Приватные группы по ссылке`);
+            console.log(`   ✅ Приватные группы по ссылку`);
             console.log(`\n🔧 ИСПРАВЛЕНИЯ ПРОБЛЕМ:`);
             console.log(`   ✅ Исправлена бесконечная загрузка постов`);
             console.log(`   ✅ Улучшена обработка ошибок`);
@@ -314,14 +327,18 @@ class SimpleServer {
     }
 
     handleStaticFiles(req, res, pathname) {
+        const path = require('path');
+        const fs = require('fs');
+
         // Проверка технических работ
-        if (this.dataManager.isMaintenanceMode() && 
+        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && 
             !pathname.startsWith('/admin') && 
             !pathname.startsWith('/api/admin') &&
             pathname !== '/TehnicalWork' &&
             pathname !== '/TechnicalWork.html' &&
             pathname !== '/technical-work' &&
-            !pathname.startsWith('/mobile')) {
+            !pathname.startsWith('/mobile') &&
+            !pathname.startsWith('/login')) {
             
             // Разрешаем доступ только разработчикам
             const authHeader = req.headers['authorization'];
@@ -342,9 +359,6 @@ class SimpleServer {
             }
         }
 
-        const path = require('path');
-        const fs = require('fs');
-
         // 🔥 НОВОЕ: Автоматическое перенаправление на мобильную версию для телефонов
         const userAgent = req.headers['user-agent'] || '';
         const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
@@ -364,6 +378,7 @@ class SimpleServer {
             '/mobile.html': 'public/mobile.html',
             '/mobile': 'public/mobile/index.html',
             '/login.html': 'public/login.html',
+            '/login': 'public/login.html',
             '/about.html': 'public/about.html',
             '/about': 'public/about.html',
             '/music.html': 'public/music.html',
@@ -386,7 +401,8 @@ class SimpleServer {
             '/ecoin.html': 'public/ecoin.html',
             '/ecoin': 'public/ecoin.html',
             '/TehnicalWork': 'public/additions/TechnicalWork.html',
-            '/technical-work': 'public/additions/TechnicalWork.html'
+            '/technical-work': 'public/additions/TechnicalWork.html',
+            '/TechnicalWork.html': 'public/additions/TechnicalWork.html'
         };
 
         // 🔥 НОВОЕ: Обработка отдельных постов
