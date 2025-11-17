@@ -375,6 +375,43 @@ class ApiHandlers {
                     }
                     break;
 
+                // 🔥 НОВЫЕ API ДЛЯ МОБИЛЬНОЙ ВЕРСИИ
+                case '/api/mobile/chats':
+                    if (method === 'GET') {
+                        response = this.handleGetChats(token);
+                    }
+                    break;
+
+                case '/api/mobile/posts':
+                    if (method === 'GET') {
+                        response = this.handleGetPosts(token);
+                    }
+                    break;
+
+                case '/api/mobile/ecoin':
+                    if (method === 'GET') {
+                        response = this.handleGetBalance(token);
+                    }
+                    break;
+
+                case '/api/mobile/music':
+                    if (method === 'GET') {
+                        response = this.handleGetMusic(token);
+                    }
+                    break;
+
+                case '/api/mobile/gifts':
+                    if (method === 'GET') {
+                        response = this.handleGetGifts(token);
+                    }
+                    break;
+
+                case '/api/mobile/settings':
+                    if (method === 'GET') {
+                        response = this.handleCurrentUser(token, req);
+                    }
+                    break;
+
                 case '/api/my-gifts':
                     if (method === 'GET') {
                         response = this.handleGetMyGifts(token);
