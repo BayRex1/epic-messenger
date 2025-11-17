@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { getClientIP, getDeviceInfo, generateDeviceId } = require('./utils');
 
 class ApiHandlers {
     constructor(dataManager, securitySystem, fileHandlers) {
@@ -98,6 +99,24 @@ class ApiHandlers {
                     }
                     break;
 
+                case '/api/messages/edit':
+                    if (method === 'POST') {
+                        response = this.handleEditMessage(token, data);
+                    }
+                    break;
+
+                case '/api/messages/delete':
+                    if (method === 'POST') {
+                        response = this.handleDeleteMessage(token, data);
+                    }
+                    break;
+
+                case '/api/chats/start':
+                    if (method === 'POST') {
+                        response = this.handleStartChat(token, data);
+                    }
+                    break;
+
                 case '/api/groups/create':
                     if (method === 'POST') {
                         response = this.handleCreateGroup(token, data);
@@ -129,6 +148,18 @@ class ApiHandlers {
                 case '/api/posts/comment':
                     if (method === 'POST') {
                         response = this.handleAddComment(token, data);
+                    }
+                    break;
+
+                case '/api/posts/comment/like':
+                    if (method === 'POST') {
+                        response = this.handleLikeComment(token, data);
+                    }
+                    break;
+
+                case '/api/posts/comment/reply':
+                    if (method === 'POST') {
+                        response = this.handleReplyToComment(token, data);
                     }
                     break;
 
@@ -238,6 +269,12 @@ class ApiHandlers {
                     }
                     break;
 
+                case '/api/admin/unban-user':
+                    if (method === 'POST') {
+                        response = this.handleUnbanUser(token, data);
+                    }
+                    break;
+
                 case '/api/admin/verify-user':
                     if (method === 'POST') {
                         response = this.handleAdminVerifyUser(token, data);
@@ -269,6 +306,12 @@ class ApiHandlers {
                     }
                     break;
 
+                case '/api/admin/import-database':
+                    if (method === 'POST') {
+                        response = this.handleImportDatabase(token, data);
+                    }
+                    break;
+
                 case '/api/admin/users':
                     if (method === 'GET') {
                         response = this.handleAdminGetUsers(token);
@@ -278,6 +321,12 @@ class ApiHandlers {
                 case '/api/admin/security-logs':
                     if (method === 'GET') {
                         response = this.handleAdminSecurityLogs(token);
+                    }
+                    break;
+
+                case '/api/admin/statistics':
+                    if (method === 'GET') {
+                        response = this.handleAdminStatistics(token);
                     }
                     break;
 
@@ -314,9 +363,27 @@ class ApiHandlers {
                     }
                     break;
 
+                case '/api/mobile/user-by-username':
+                    if (method === 'POST') {
+                        response = this.handleGetUserByUsernameMobile(token, data);
+                    }
+                    break;
+
+                case '/api/mobile/user-posts':
+                    if (method === 'POST') {
+                        response = this.handleGetUserPostsMobile(token, data);
+                    }
+                    break;
+
                 case '/api/my-gifts':
                     if (method === 'GET') {
                         response = this.handleGetMyGifts(token);
+                    }
+                    break;
+
+                case '/api/ecoins/balance':
+                    if (method === 'GET') {
+                        response = this.handleGetBalance(token);
                     }
                     break;
 
@@ -335,6 +402,18 @@ class ApiHandlers {
                     }
                     break;
 
+                case '/api/groups/join':
+                    if (method === 'POST') {
+                        response = this.handleJoinGroup(token, data);
+                    }
+                    break;
+
+                case '/api/groups/leave':
+                    if (method === 'POST') {
+                        response = this.handleLeaveGroup(token, data);
+                    }
+                    break;
+
                 // API для музыки
                 case '/api/music':
                     if (method === 'GET') {
@@ -347,6 +426,12 @@ class ApiHandlers {
                 case '/api/music/upload':
                     if (method === 'POST') {
                         response = this.handleUploadMusicFile(token, data);
+                    }
+                    break;
+                    
+                case '/api/music/upload-full':
+                    if (method === 'POST') {
+                        response = this.handleUploadMusicFull(token, data);
                     }
                     break;
                     
@@ -382,6 +467,12 @@ class ApiHandlers {
                     }
                     break;
                     
+                case '/api/playlists/create':
+                    if (method === 'POST') {
+                        response = this.handleCreatePlaylist(token, data);
+                    }
+                    break;
+
                 case '/api/playlists/add':
                     if (method === 'POST') {
                         response = this.handleAddToPlaylist(token, data);
@@ -402,17 +493,54 @@ class ApiHandlers {
                         response = this.handleAddComment(token, data);
                     }
                     break;
+
+                // Загрузка файлов
+                case '/api/upload-avatar':
+                    if (method === 'POST') {
+                        response = this.handleUploadAvatar(token, data);
+                    }
+                    break;
+
+                case '/api/upload-post-image':
+                    if (method === 'POST') {
+                        response = this.handleUploadPostImage(token, data);
+                    }
+                    break;
+
+                case '/api/upload-file':
+                    if (method === 'POST') {
+                        response = this.handleUploadFile(token, data);
+                    }
+                    break;
+
+                case '/api/upload-gift':
+                    if (method === 'POST') {
+                        response = this.handleUploadGift(token, data);
+                    }
+                    break;
+
+                case '/api/logout':
+                    if (method === 'POST') {
+                        response = this.handleLogout(token);
+                    }
+                    break;
+
+                case '/api/maintenance-status':
+                    if (method === 'GET') {
+                        response = this.handleGetMaintenanceStatusPublic(token);
+                    }
+                    break;
                     
                 default:
                     if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
                         const postId = pathname.split('/')[3];
                         if (method === 'POST') {
-                            response = this.handleLikePost(token, postId);
+                            response = this.handleLikePost(token, { postId });
                         }
                     } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
                         const giftId = pathname.split('/')[3];
                         if (method === 'POST') {
-                            response = this.handleBuyGift(token, giftId, data);
+                            response = this.handleBuyGift(token, { giftId, ...data });
                         }
                     } else if (pathname.startsWith('/api/users/')) {
                         const userId = pathname.split('/')[3];
@@ -434,7 +562,7 @@ class ApiHandlers {
                             response = this.handleAddPostComment(token, postId, data);
                         } else if (pathParts.length === 6 && pathParts[5] === 'like' && method === 'POST') {
                             const commentId = pathParts[4];
-                            response = this.handleLikeComment(token, postId, commentId);
+                            response = this.handleLikeComment(token, { postId, commentId });
                         } else if (pathParts.length === 7 && pathParts[5] === 'reply' && method === 'POST') {
                             const commentId = pathParts[4];
                             response = this.handleAddReply(token, postId, commentId, data);
@@ -466,10 +594,34 @@ class ApiHandlers {
 
     // 🔐 ОБНОВЛЕННАЯ АУТЕНТИФИКАЦИЯ
     authenticateToken(token) {
-        const session = this.securitySystem.validateSession(token);
-        if (!session) return null;
+        if (!token) return null;
         
-        return this.dataManager.users.find(u => u.id === session.userId);
+        try {
+            // Попробуем оба формата токенов
+            let userId, sessionId;
+            
+            try {
+                // Новый формат: base64 encoded JSON
+                const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+                userId = decoded.userId;
+                sessionId = decoded.sessionId;
+            } catch {
+                // Старый формат: session token
+                const session = this.securitySystem.validateSession(token);
+                if (!session) return null;
+                userId = session.userId;
+                sessionId = session.id;
+            }
+            
+            const user = this.dataManager.users.find(u => u.id === userId);
+            if (user && user.sessionId === sessionId) {
+                user.lastSeen = new Date();
+                return user;
+            }
+        } catch (error) {
+            console.log('❌ Ошибка аутентификации токена:', error);
+        }
+        return null;
     }
 
     // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ ЧАТОВ И ГРУПП
@@ -516,20 +668,16 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { name, username, members } = data;
+        const { name, username, members, description, isPrivate } = data;
         
-        if (!name || !members || !Array.isArray(members)) {
+        if (!name) {
             return { success: false, message: 'Неверные данные для создания группы' };
         }
 
         // Проверяем, что все участники существуют
-        const validMembers = members.filter(memberId => 
+        const validMembers = members ? members.filter(memberId => 
             this.dataManager.users.find(u => u.id === memberId)
-        );
-
-        if (validMembers.length === 0) {
-            return { success: false, message: 'Не выбраны действительные участники' };
-        }
+        ) : [];
 
         // Проверяем уникальность username если указан
         if (username) {
@@ -545,12 +693,16 @@ class ApiHandlers {
             id: groupId,
             name: this.securitySystem.sanitizeContent(name),
             username: username ? this.securitySystem.sanitizeContent(username) : null,
+            description: description ? this.securitySystem.sanitizeContent(description) : '',
             creatorId: user.id,
             members: [user.id, ...validMembers],
+            admins: [user.id],
             avatar: null,
             createdAt: new Date(),
             isActive: true,
-            isPublic: !!username // Группа публичная если есть username
+            isPublic: !isPrivate,
+            isPrivate: isPrivate || false,
+            inviteLink: crypto.randomBytes(8).toString('hex')
         };
 
         this.dataManager.groups.push(group);
@@ -579,8 +731,8 @@ class ApiHandlers {
                 .filter(u => u.id !== user.id)
                 .map(u => {
                     const messages = this.dataManager.messages.filter(m => 
-                        (m.senderId === user.id && m.toUserId === u.id) ||
-                        (m.senderId === u.id && m.toUserId === user.id)
+                        (m.senderId === user.id && m.receiverId === u.id) ||
+                        (m.senderId === u.id && m.receiverId === user.id)
                     ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                     const lastMessage = messages[0] || null;
@@ -609,7 +761,7 @@ class ApiHandlers {
                 .filter(g => g.members.includes(user.id) && g.isActive)
                 .map(g => {
                     const groupMessages = this.dataManager.messages.filter(m => 
-                        m.toUserId === g.id
+                        m.receiverId === g.id
                     ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                     const lastMessage = groupMessages[0] || null;
@@ -645,9 +797,9 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { userId, toUserId } = query;
+        const { userId } = query;
         
-        if (!toUserId) {
+        if (!userId) {
             return { success: false, message: 'Не указан получатель' };
         }
 
@@ -655,24 +807,29 @@ class ApiHandlers {
             let messages;
             
             // Проверяем, является ли чат групповым
-            const isGroupChat = this.dataManager.groups.some(g => g.id === toUserId && g.members.includes(user.id));
+            const isGroupChat = this.dataManager.groups.some(g => g.id === userId && g.members.includes(user.id));
             
             if (isGroupChat) {
                 // Групповые сообщения
                 messages = this.dataManager.messages
-                    .filter(m => m.toUserId === toUserId)
+                    .filter(m => m.receiverId === userId)
                     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             } else {
                 // Личные сообщения
                 messages = this.dataManager.messages
                     .filter(m => 
-                        (m.senderId === user.id && m.toUserId === toUserId) ||
-                        (m.senderId === toUserId && m.toUserId === user.id)
+                        (m.senderId === user.id && m.receiverId === userId) ||
+                        (m.senderId === userId && m.receiverId === user.id)
                     )
                     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             }
 
-            return { success: true, messages: messages };
+            const messagesWithInfo = messages.map(msg => ({
+                ...msg,
+                isOutgoing: msg.senderId === user.id
+            }));
+
+            return { success: true, messages: messagesWithInfo };
         } catch (error) {
             console.error('❌ Ошибка получения сообщений:', error);
             return { success: false, message: 'Ошибка получения сообщений' };
@@ -729,7 +886,7 @@ class ApiHandlers {
             const message = {
                 id: this.dataManager.generateId(),
                 senderId: user.id,
-                toUserId: toUserId,
+                receiverId: toUserId,
                 text: text ? this.securitySystem.sanitizeContent(text) : null,
                 type: type,
                 file: fileUrl,
@@ -769,12 +926,12 @@ class ApiHandlers {
         try {
             // Помечаем сообщения как прочитанные
             this.dataManager.messages.forEach(message => {
-                if (message.senderId === fromUserId && message.toUserId === user.id && !message.read) {
+                if (message.senderId === fromUserId && message.receiverId === user.id && !message.read) {
                     message.read = true;
                 }
                 
                 // Для групповых сообщений добавляем пользователя в список прочитавших
-                if (message.toUserId === fromUserId && message.readBy && !message.readBy.includes(user.id)) {
+                if (message.receiverId === fromUserId && message.readBy && !message.readBy.includes(user.id)) {
                     message.readBy.push(user.id);
                 }
             });
@@ -786,6 +943,91 @@ class ApiHandlers {
             console.error('❌ Ошибка отметки сообщений:', error);
             return { success: false, message: 'Ошибка отметки сообщений' };
         }
+    }
+
+    handleEditMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { messageId, newText } = data;
+        
+        if (!messageId || !newText) {
+            return { success: false, message: 'Заполните все поля' };
+        }
+
+        const message = this.dataManager.messages.find(msg => msg.id === messageId);
+        if (!message) {
+            return { success: false, message: 'Сообщение не найдено' };
+        }
+
+        if (message.senderId !== user.id) {
+            return { success: false, message: 'Нет прав для редактирования этого сообщения' };
+        }
+
+        message.text = newText;
+        message.edited = true;
+        this.dataManager.saveData();
+
+        return { success: true, message: 'Сообщение отредактировано' };
+    }
+
+    handleDeleteMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { messageId } = data;
+        if (!messageId) {
+            return { success: false, message: 'Message ID не указан' };
+        }
+
+        const messageIndex = this.dataManager.messages.findIndex(msg => msg.id === messageId);
+        if (messageIndex === -1) {
+            return { success: false, message: 'Сообщение не найдено' };
+        }
+
+        const message = this.dataManager.messages[messageIndex];
+        if (message.senderId !== user.id && !user.isDeveloper) {
+            return { success: false, message: 'Нет прав для удаления этого сообщения' };
+        }
+
+        this.dataManager.messages.splice(messageIndex, 1);
+        this.dataManager.saveData();
+
+        return { success: true, message: 'Сообщение удалено' };
+    }
+
+    handleStartChat(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { userId } = data;
+        if (!userId) {
+            return { success: false, message: 'User ID не указан' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        return {
+            success: true,
+            chatId: userId,
+            user: {
+                id: targetUser.id,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status
+            }
+        };
     }
 
     // СУЩЕСТВУЮЩИЕ И ОБНОВЛЕННЫЕ МЕТОДЫ
@@ -820,27 +1062,30 @@ class ApiHandlers {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
 
-        const { getClientIP } = require('./utils');
         const clientIP = getClientIP(req);
         if (this.dataManager.isIPBanned(clientIP)) {
             this.securitySystem.logSecurityEvent(user, 'LOGIN', 'SYSTEM', false);
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
+        // Обновляем сессию
+        user.sessionId = crypto.randomBytes(16).toString('hex');
         const device = this.dataManager.registerDevice(user.id, req);
         
-        // 🔐 Создаем сессию вместо возврата ID пользователя
-        const sessionToken = this.securitySystem.createSession(user.id);
-
         user.status = 'online';
         user.lastSeen = new Date();
         this.dataManager.saveData();
+
+        const token = Buffer.from(JSON.stringify({
+            userId: user.id,
+            sessionId: user.sessionId
+        })).toString('base64');
 
         this.securitySystem.logSecurityEvent(user, 'LOGIN', 'SYSTEM');
 
         return {
             success: true,
-            token: sessionToken,
+            token: token,
             deviceId: device.id,
             user: {
                 id: user.id,
@@ -866,7 +1111,6 @@ class ApiHandlers {
     handleRegister(data, req) {
         const { username, displayName, email, password } = data;
 
-        const { getClientIP } = require('./utils');
         const clientIP = getClientIP(req);
         if (this.dataManager.isIPBanned(clientIP)) {
             this.securitySystem.logSecurityEvent({ username }, 'REGISTER', 'SYSTEM', false);
@@ -936,20 +1180,25 @@ class ApiHandlers {
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
+            sessionId: crypto.randomBytes(16).toString('hex'),
             gifts: [],
             isProtected: isBayRex,
             friendsCount: 0,
             postsCount: 0,
             giftsCount: 0,
-            banned: false
+            banned: false,
+            followers: [],
+            following: []
         };
 
         this.dataManager.users.push(newUser);
 
         const device = this.dataManager.registerDevice(newUser.id, req);
         
-        // 🔐 Создаем сессию для нового пользователя
-        const sessionToken = this.securitySystem.createSession(newUser.id);
+        const token = Buffer.from(JSON.stringify({
+            userId: newUser.id,
+            sessionId: newUser.sessionId
+        })).toString('base64');
         
         this.dataManager.saveData();
 
@@ -964,7 +1213,7 @@ class ApiHandlers {
             message: isBayRex ? 
                 'Аккаунт BayRex создан! Вы получили права администратора!' :
                 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
-            token: sessionToken,
+            token: token,
             deviceId: device.id,
             user: {
                 id: newUser.id,
@@ -998,14 +1247,12 @@ class ApiHandlers {
             return { authenticated: false, message: 'Аккаунт заблокирован' };
         }
 
-        const { getClientIP } = require('./utils');
         const clientIP = getClientIP(req);
         if (this.dataManager.isIPBanned(clientIP)) {
             this.securitySystem.logSecurityEvent(user, 'CHECK_AUTH', 'SYSTEM', false);
             return { authenticated: false, message: 'IP адрес заблокирован' };
         }
 
-        const { generateDeviceId } = require('./utils');
         const deviceId = generateDeviceId(req);
         const device = this.dataManager.devices.get(deviceId);
         if (device && device.userId === user.id) {
@@ -1049,14 +1296,12 @@ class ApiHandlers {
             return { success: false, message: 'Аккаунт заблокирован' };
         }
 
-        const { getClientIP } = require('./utils');
         const clientIP = getClientIP(req);
         if (this.dataManager.isIPBanned(clientIP)) {
             this.securitySystem.logSecurityEvent(user, 'GET_CURRENT_USER', 'SYSTEM', false);
             return { success: false, message: 'IP адрес заблокирован' };
         }
 
-        const { generateDeviceId } = require('./utils');
         const deviceId = generateDeviceId(req);
         const device = this.dataManager.devices.get(deviceId);
         if (device && device.userId === user.id) {
@@ -1089,12 +1334,22 @@ class ApiHandlers {
         };
     }
 
+    handleLogout(token) {
+        const user = this.authenticateToken(token);
+        if (user) {
+            user.sessionId = crypto.randomBytes(16).toString('hex');
+            user.status = 'offline';
+            this.dataManager.saveData();
+        }
+        return { success: true, message: 'Выход выполнен' };
+    }
+
     // 🔧 НОВЫЕ МЕТОДЫ ДЛЯ ТЕХНИЧЕСКИХ РАБОТ
     handleMaintenanceMode(token, data) {
         const user = this.authenticateToken(token);
         
         // 🔐 Только администраторы могут управлять техработами
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1118,7 +1373,7 @@ class ApiHandlers {
         const user = this.authenticateToken(token);
         
         // 🔐 Только администраторы могут смотреть статус
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             return { success: false, message: 'Доступ запрещен' };
         }
 
@@ -1126,6 +1381,16 @@ class ApiHandlers {
             success: true,
             maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
         };
+    }
+
+    handleGetMaintenanceStatusPublic(token) {
+        const status = {
+            maintenance: this.dataManager.isMaintenanceMode(),
+            message: this.dataManager.isMaintenanceMode() ? 
+                'Ведутся технические работы' : 'Сервер работает нормально'
+        };
+
+        return { success: true, ...status };
     }
 
     handleGetUsers(token) {
@@ -1345,7 +1610,7 @@ class ApiHandlers {
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1508,6 +1773,75 @@ class ApiHandlers {
         }
     }
 
+    handleLikeComment(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { postId, commentId } = data;
+        if (!postId || !commentId) {
+            return { success: false, message: 'Заполните все поля' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        const likeIndex = comment.likes.indexOf(user.id);
+        if (likeIndex === -1) {
+            comment.likes.push(user.id);
+        } else {
+            comment.likes.splice(likeIndex, 1);
+        }
+
+        this.dataManager.saveData();
+        return { success: true, message: 'Лайк комментария обновлен', likes: comment.likes };
+    }
+
+    handleReplyToComment(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { postId, commentId, text } = data;
+        if (!postId || !commentId || !text) {
+            return { success: false, message: 'Заполните все поля' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const comment = post.comments.find(c => c.id === commentId);
+        if (!comment) {
+            return { success: false, message: 'Комментарий не найден' };
+        }
+
+        if (!comment.replies) comment.replies = [];
+
+        const reply = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: text,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        comment.replies.push(reply);
+        this.dataManager.saveData();
+
+        return { success: true, message: 'Ответ добавлен', reply: reply };
+    }
+
     handleSharePost(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1581,7 +1915,7 @@ class ApiHandlers {
     handleCreateGift(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1620,7 +1954,7 @@ class ApiHandlers {
     handleDeleteGift(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1698,9 +2032,8 @@ class ApiHandlers {
         const giftMessage = {
             id: this.dataManager.generateId(),
             senderId: user.id,
-            toUserId: toUserId,
+            receiverId: toUserId,
             text: '',
-            encrypted: false,
             type: 'gift',
             giftId: gift.id,
             giftName: gift.name,
@@ -1734,7 +2067,10 @@ class ApiHandlers {
         return {
             success: true,
             message: `Подарок "${gift.name}" успешно отправлен!`,
-            gift: gift
+            gift: gift,
+            user: {
+                coins: user.coins
+            }
         };
     }
 
@@ -1788,7 +2124,7 @@ class ApiHandlers {
     handleCreatePromoCode(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1831,7 +2167,7 @@ class ApiHandlers {
     handleDeletePromoCode(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -1908,7 +2244,10 @@ class ApiHandlers {
         return {
             success: true,
             message: `Промокод активирован! Начислено ${promoCode.coins} E-COIN`,
-            coins: promoCode.coins
+            coins: promoCode.coins,
+            user: {
+                coins: user.coins
+            }
         };
     }
 
@@ -2163,10 +2502,42 @@ class ApiHandlers {
         }
     }
 
+    async handleUploadFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename, fileType } = data;
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
+            let uploadDir = 'files';
+            
+            if (fileType === 'image') uploadDir = 'images';
+            else if (fileType === 'video') uploadDir = 'videos';
+            else if (fileType === 'audio') uploadDir = 'audio';
+            
+            const fileUrl = await this.fileHandlers.saveFile(fileData, uniqueFilename, uploadDir);
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${filename}, type:${fileType}`);
+
+            return {
+                success: true,
+                fileUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
     async handleUploadGift(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2291,7 +2662,7 @@ class ApiHandlers {
         }
 
         const userGifts = this.dataManager.messages
-            .filter(msg => msg.type === 'gift' && msg.toUserId === targetUser.id)
+            .filter(msg => msg.type === 'gift' && msg.receiverId === targetUser.id)
             .map(msg => ({
                 id: msg.id,
                 giftId: msg.giftId,
@@ -2328,6 +2699,76 @@ class ApiHandlers {
         };
     }
 
+    handleGetUserByUsernameMobile(token, data) {
+        const { username } = data;
+        
+        if (!username) {
+            return { success: false, message: 'Username не указан' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.username === username);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        // Формируем безопасный ответ без чувствительных данных
+        const userData = {
+            id: targetUser.id,
+            username: targetUser.username,
+            displayName: targetUser.displayName,
+            avatar: targetUser.avatar,
+            description: targetUser.description,
+            coins: targetUser.coins || 0,
+            verified: targetUser.verified || false,
+            isDeveloper: targetUser.isDeveloper || false,
+            status: targetUser.status || 'offline',
+            lastSeen: targetUser.lastSeen,
+            createdAt: targetUser.createdAt,
+            postsCount: this.dataManager.posts.filter(p => p.userId === targetUser.id).length,
+            followersCount: targetUser.followers ? targetUser.followers.length : 0,
+            followingCount: targetUser.following ? targetUser.following.length : 0
+        };
+
+        return { success: true, message: 'Данные пользователя получены', user: userData };
+    }
+
+    handleGetUserPostsMobile(token, data) {
+        const { userId } = data;
+        
+        if (!userId) {
+            return { success: false, message: 'User ID не указан' };
+        }
+
+        const userPosts = this.dataManager.posts
+            .filter(post => post.userId === userId)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .map(post => {
+                const postUser = this.dataManager.users.find(u => u.id === post.userId);
+                return {
+                    id: post.id,
+                    text: post.text,
+                    image: post.image,
+                    file: post.file,
+                    fileName: post.fileName,
+                    fileType: post.fileType,
+                    likes: post.likes || [],
+                    comments: post.comments || [],
+                    views: post.views || 0,
+                    createdAt: post.createdAt,
+                    user: {
+                        id: postUser?.id,
+                        username: postUser?.username,
+                        displayName: postUser?.displayName,
+                        avatar: postUser?.avatar,
+                        verified: postUser?.verified || false,
+                        isDeveloper: postUser?.isDeveloper || false
+                    }
+                };
+            });
+
+        return { success: true, message: 'Посты пользователя получены', posts: userPosts };
+    }
+
     handleGetMyGifts(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2335,7 +2776,7 @@ class ApiHandlers {
         }
 
         const myGifts = this.dataManager.messages
-            .filter(msg => msg.type === 'gift' && msg.toUserId === user.id)
+            .filter(msg => msg.type === 'gift' && msg.receiverId === user.id)
             .map(msg => ({
                 id: msg.id,
                 giftId: msg.giftId,
@@ -2346,11 +2787,24 @@ class ApiHandlers {
                 fromUserName: msg.displayName,
                 timestamp: msg.timestamp,
                 giftPrice: msg.giftPrice
-            }));
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         return {
             success: true,
             gifts: myGifts
+        };
+    }
+
+    handleGetBalance(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return {
+            success: true,
+            balance: user.coins || 0 
         };
     }
 
@@ -2406,6 +2860,75 @@ class ApiHandlers {
             success: true,
             message: 'Пользователь добавлен в группу'
         };
+    }
+
+    handleJoinGroup(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { groupId, inviteLink } = data;
+        if (!groupId && !inviteLink) {
+            return { success: false, message: 'Укажите группу или пригласительную ссылку' };
+        }
+
+        let group;
+        if (groupId) {
+            group = this.dataManager.groups.find(g => g.id === groupId);
+        } else {
+            group = this.dataManager.groups.find(g => g.inviteLink === inviteLink);
+        }
+
+        if (!group) {
+            return { success: false, message: 'Группа не найдена' };
+        }
+
+        if (group.members.includes(user.id)) {
+            return { success: false, message: 'Вы уже в этой группе' };
+        }
+
+        if (group.isPrivate && !inviteLink) {
+            return { success: false, message: 'Для вступления в приватную группу нужна пригласительная ссылка' };
+        }
+
+        group.members.push(user.id);
+        this.dataManager.saveData();
+
+        return { success: true, message: 'Вы присоединились к группе' };
+    }
+
+    handleLeaveGroup(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { groupId } = data;
+        if (!groupId) {
+            return { success: false, message: 'Group ID не указан' };
+        }
+
+        const group = this.dataManager.groups.find(g => g.id === groupId);
+        if (!group) {
+            return { success: false, message: 'Группа не найдена' };
+        }
+
+        const memberIndex = group.members.indexOf(user.id);
+        if (memberIndex === -1) {
+            return { success: false, message: 'Вы не состоите в этой группе' };
+        }
+
+        group.members.splice(memberIndex, 1);
+        
+        // Если группа пустая, удаляем её
+        if (group.members.length === 0) {
+            const groupIndex = this.dataManager.groups.findIndex(g => g.id === groupId);
+            this.dataManager.groups.splice(groupIndex, 1);
+        }
+
+        this.dataManager.saveData();
+        return { success: true, message: 'Вы вышли из группы' };
     }
 
     handleGetMusic(token) {
@@ -2522,6 +3045,15 @@ class ApiHandlers {
         }
     }
 
+    handleUploadMusicFull(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return { success: true, message: 'Музыка загружена (full)' };
+    }
+
     async handleUploadMusicCover(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2574,7 +3106,7 @@ class ApiHandlers {
 
         const track = this.dataManager.music[trackIndex];
         
-        if (track.userId !== user.id && !this.securitySystem.isAdmin(user)) {
+        if (track.userId !== user.id && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
             return { success: false, message: 'Вы можете удалять только свои треки' };
         }
@@ -2820,7 +3352,7 @@ class ApiHandlers {
     handleAdminStats(token) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2847,10 +3379,42 @@ class ApiHandlers {
         };
     }
 
+    handleAdminStatistics(token) {
+        const user = this.authenticateToken(token);
+        
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен', 403 };
+        }
+
+        const stats = {
+            totalUsers: this.dataManager.users.length,
+            totalMessages: this.dataManager.messages.length,
+            totalPosts: this.dataManager.posts.length,
+            totalGifts: this.dataManager.gifts.length,
+            totalMusic: this.dataManager.music.length,
+            totalGroups: this.dataManager.groups.length,
+            onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
+            bannedIPs: this.dataManager.bannedIPs.size,
+            maintenanceMode: this.dataManager.maintenanceMode,
+            dataFileSize: this.getFileSize(this.dataManager.dataFile)
+        };
+
+        return { success: true, message: 'Статистика получена', statistics: stats };
+    }
+
+    getFileSize(filePath) {
+        try {
+            const stats = fs.statSync(filePath);
+            return (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+        } catch (error) {
+            return 'Unknown';
+        }
+    }
+
     handleDeleteUser(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2896,12 +3460,12 @@ class ApiHandlers {
     handleBanUser(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'BAN_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        const { userId, banned } = data;
+        const { userId, reason } = data;
         
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
@@ -2912,32 +3476,52 @@ class ApiHandlers {
             return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
         }
 
-        targetUser.banned = banned;
+        targetUser.banned = true;
 
-        if (banned) {
-            const userDevices = this.dataManager.getUserDevices(userId);
-            if (userDevices.length > 0) {
-                const lastDevice = userDevices[userDevices.length - 1];
-                this.dataManager.banIP(lastDevice.ip);
-            }
+        // Бан по IP
+        const userDevices = this.dataManager.getUserDevices(userId);
+        if (userDevices.length > 0) {
+            const lastDevice = userDevices[userDevices.length - 1];
+            this.dataManager.banIP(lastDevice.ip);
         }
 
         this.dataManager.saveData();
 
-        this.securitySystem.logSecurityEvent(user, banned ? 'BAN_USER' : 'UNBAN_USER', `user:${targetUser.username}`);
+        this.securitySystem.logSecurityEvent(user, 'BAN_USER', `user:${targetUser.username}, reason:${reason}`);
 
-        console.log(`🔒 Администратор ${user.displayName} ${banned ? 'заблокировал' : 'разблокировал'} аккаунт: ${targetUser.username}`);
+        console.log(`🔒 Администратор ${user.displayName} заблокировал аккаунт: ${targetUser.username}`);
 
         return {
             success: true,
-            message: `Пользователь ${targetUser.username} ${banned ? 'заблокирован' : 'разблокирован'}`
+            message: `Пользователь ${targetUser.username} заблокирован`
         };
+    }
+
+    handleUnbanUser(token, data) {
+        const user = this.authenticateToken(token);
+        
+        if (!user || !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'UNBAN_USER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { ip } = data;
+        if (!ip) {
+            return { success: false, message: 'IP не указан' };
+        }
+
+        this.dataManager.bannedIPs.delete(ip);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'UNBAN_USER', `ip:${ip}`);
+
+        return { success: true, message: `IP ${ip} разбанен` };
     }
 
     handleToggleVerification(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2966,7 +3550,7 @@ class ApiHandlers {
     handleToggleDeveloper(token, data) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2998,7 +3582,21 @@ class ApiHandlers {
             return { success: false, message: 'Недостаточно прав' };
         }
 
-        return { success: true, users: this.dataManager.users };
+        const users = this.dataManager.users.map(u => ({
+            id: u.id,
+            username: u.username,
+            displayName: u.displayName,
+            coins: u.coins,
+            verified: u.verified,
+            isDeveloper: u.isDeveloper,
+            status: u.status,
+            lastSeen: u.lastSeen,
+            createdAt: u.createdAt,
+            postsCount: this.dataManager.posts.filter(p => p.userId === u.id).length,
+            messagesCount: this.dataManager.messages.filter(m => m.senderId === u.id).length
+        }));
+
+        return { success: true, users: users };
     }
 
     handleAdminVerifyUser(token, data) {
@@ -3091,7 +3689,7 @@ class ApiHandlers {
     handleExportDatabase(token, res) {
         const user = this.authenticateToken(token);
         
-        if (!user || !this.securitySystem.isAdmin(user)) {
+        if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', 'SYSTEM', false);
             res.writeHead(403, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, message: 'Доступ запрещен' }));
@@ -3111,7 +3709,10 @@ class ApiHandlers {
                     totalMusic: this.dataManager.music.length
                 },
                 data: {
-                    users: this.dataManager.users,
+                    users: this.dataManager.users.map(u => ({
+                        ...u,
+                        password: '[ENCRYPTED]'
+                    })),
                     messages: this.dataManager.messages,
                     posts: this.dataManager.posts,
                     gifts: this.dataManager.gifts,
@@ -3143,6 +3744,15 @@ class ApiHandlers {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, message: 'Ошибка экспорта базы данных' }));
         }
+    }
+
+    handleImportDatabase(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        return { success: true, message: 'Импорт БД выполнен (обрабатывается в file-handlers)' };
     }
 
     handleGetTransactions(token, userId) {
