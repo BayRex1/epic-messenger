@@ -549,13 +549,18 @@
         .verified-badge, .developer-badge {
             display: inline-flex;
             align-items: center;
-            margin-left: 2px;
+            margin-left: 4px;
         }
 
         .verified-badge img, .developer-badge img {
-            width: 16px;
-            height: 16px;
+            width: 24px;
+            height: 24px;
             object-fit: contain;
+            transition: transform 0.2s ease;
+        }
+
+        .verified-badge:hover img, .developer-badge:hover img {
+            transform: scale(1.1);
         }
 
         .banned-badge {
