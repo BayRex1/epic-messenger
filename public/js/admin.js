@@ -239,8 +239,8 @@ function renderAdminUsers(users) {
             <div class="admin-user-info">
                 <h4>
                     ${user.displayName || 'Пользователь'}
-                    ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
-                    ${user.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                    ${user.verified ? '<span class="verified-badge"><img src="/assets/verified-developer/verified.png" alt="Verified"></span>' : ''}
+                    ${user.isDeveloper ? '<span class="developer-badge"><img src="/assets/verified-developer/developer.png" alt="Developer"></span>' : ''}
                     ${user.banned ? '<span class="banned-badge">ЗАБАНЕН</span>' : ''}
                 </h4>
                 <div class="admin-user-stats">
