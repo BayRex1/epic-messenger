@@ -4,7 +4,7 @@ let selectedMembers = new Set();
 let currentChat = null;
 let currentFileData = null;
 let currentFileType = null;
-let currentUser = null;
+// УБИРАЕМ объявление currentUser - оно уже есть в common.js
 let allUsers = [];
 let emojiList = [];
 let socket = null;
@@ -61,44 +61,48 @@ function formatLastSeen(lastSeen) {
     }
 }
 
-// 🔥 ФУНКЦИЯ ЗАГРУЗКИ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
 async function loadCurrentUser() {
     try {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-            console.error('❌ Токен не найден, перенаправление на страницу входа');
-            window.location.href = '/login.html';
-            return;
-        }
-
-        const response = await fetch('/api/current-user', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentUser = data.user;
-            console.log('✅ Пользователь загружен:', currentUser.username);
-            
-            // Обновляем интерфейс пользователя
-            updateUserInterface();
-            
-            // Загружаем список всех пользователей
-            await loadAllUsers();
-            
-        } else {
-            console.error('❌ Ошибка загрузки пользователя:', data.message);
-            showNotification('Ошибка авторизации', 'error');
-            setTimeout(() => {
+        // currentUser уже должен быть установлен в common.js
+        if (!window.currentUser) {
+            console.error('❌ currentUser не найден в глобальной области');
+            const token = localStorage.getItem('authToken');
+            if (!token) {
                 window.location.href = '/login.html';
-            }, 2000);
+                return;
+            }
+
+            const response = await fetch('/api/current-user', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                window.currentUser = data.user;
+                console.log('✅ Пользователь загружен в chat.js:', window.currentUser.username);
+            } else {
+                throw new Error(data.message);
+            }
+        } else {
+            console.log('✅ Пользователь уже загружен:', window.currentUser.username);
         }
+        
+        // Обновляем интерфейс пользователя
+        updateUserInterface();
+        
+        // Загружаем список всех пользователей
+        await loadAllUsers();
+        
     } catch (error) {
         console.error('❌ Ошибка загрузки пользователя:', error);
-        showNotification('Ошибка соединения', 'error');
+        showNotification('Ошибка авторизации', 'error');
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 2000);
     }
 }
 
@@ -112,30 +116,30 @@ function updateUserInterface() {
     const adminPanelBtn = document.getElementById('adminPanelBtn');
 
     if (userAvatar) {
-        if (currentUser.avatar) {
-            userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+        if (window.currentUser.avatar) {
+            userAvatar.innerHTML = `<img src="${window.currentUser.avatar}" alt="${window.currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
         } else {
-            userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+            userAvatar.textContent = window.currentUser.displayName ? window.currentUser.displayName.charAt(0).toUpperCase() : 'U';
         }
     }
 
     if (userName) {
-        userName.textContent = currentUser.displayName || 'Пользователь';
+        userName.textContent = window.currentUser.displayName || 'Пользователь';
     }
 
     if (userUsername) {
-        userUsername.textContent = `@${currentUser.username}`;
+        userUsername.textContent = `@${window.currentUser.username}`;
     }
 
     if (verifiedBadge) {
-        verifiedBadge.style.display = currentUser.verified ? 'inline-block' : 'none';
+        verifiedBadge.style.display = window.currentUser.verified ? 'inline-block' : 'none';
     }
 
     if (developerBadge) {
-        developerBadge.style.display = currentUser.isDeveloper ? 'inline-block' : 'none';
+        developerBadge.style.display = window.currentUser.isDeveloper ? 'inline-block' : 'none';
     }
 
-    if (adminPanelBtn && currentUser.isDeveloper) {
+    if (adminPanelBtn && window.currentUser.isDeveloper) {
         adminPanelBtn.style.display = 'block';
     }
 }
@@ -163,14 +167,12 @@ async function loadAllUsers() {
     }
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ЧАТОВ
 async function loadChats() {
     try {
         const token = localStorage.getItem('authToken');
         if (!token) {
             console.error('❌ Токен не найден');
             showNotification('Необходима авторизация', 'error');
-            window.location.href = '/login.html';
             return;
         }
 
@@ -180,17 +182,6 @@ async function loadChats() {
                 'Authorization': `Bearer ${token}`
             }
         });
-        
-        // Добавьте проверку статуса ответа
-        if (!response.ok) {
-            if (response.status === 401) {
-                showNotification('Сессия истекла', 'error');
-                localStorage.removeItem('authToken');
-                window.location.href = '/login.html';
-                return;
-            }
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
         
         const data = await response.json();
         
@@ -386,8 +377,8 @@ async function loadChatMessages(chatId) {
         
         // ИСПРАВЛЕНИЕ: Правильный endpoint для получения сообщений
         const url = currentChat.isGroup ? 
-            `/api/messages?userId=${currentUser.id}&toUserId=${chatId}` :
-            `/api/messages?userId=${currentUser.id}&toUserId=${chatId}`;
+            `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}` :
+            `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}`;
         
         console.log('📨 Загрузка сообщений для:', {
             chatId: chatId,
@@ -445,7 +436,7 @@ function renderNewMessage(message) {
     if (!chatMessages) return;
 
     const messageElement = document.createElement('div');
-    const isOutgoing = message.senderId === currentUser.id;
+    const isOutgoing = message.senderId === window.currentUser.id;
     messageElement.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
     messageElement.setAttribute('data-message-id', message.id);
     
@@ -691,7 +682,6 @@ function initializeChatActions() {
         refreshChatsBtn.addEventListener('click', function() {
             console.log('🔄 Нажата кнопка обновления чатов');
             loadChats();
-            showNotification('Чаты обновлены', 'info');
         });
         console.log('✅ Кнопка обновления чатов инициализирована');
     } else {
@@ -817,7 +807,7 @@ function renderUserSearchResultsForChat(users) {
     }
 
     // Фильтруем текущего пользователя
-    const filteredUsers = users.filter(user => user.id !== currentUser.id);
+    const filteredUsers = users.filter(user => user.id !== window.currentUser.id);
 
     filteredUsers.forEach(user => {
         const userElement = document.createElement('div');
@@ -902,7 +892,7 @@ function renderAvailableUsers(users) {
     availableUsersList.innerHTML = '';
 
     // Фильтруем текущего пользователя
-    const filteredUsers = users.filter(user => user.id !== currentUser.id);
+    const filteredUsers = users.filter(user => user.id !== window.currentUser.id);
 
     filteredUsers.forEach(user => {
         const userElement = document.createElement('div');
@@ -1066,11 +1056,106 @@ async function initializeChat() {
         // Сначала загружаем данные пользователя
         await loadCurrentUser();
         
-        // Отладка
-        debugChatState();
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const messageInput = document.getElementById('messageInput');
+        const uploadImageBtn = document.getElementById('uploadImageBtn');
+        const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+        const uploadAudioBtn = document.getElementById('uploadAudioBtn');
+        const sendFileBtn = document.getElementById('sendFile');
+        const closeUploadFile = document.getElementById('closeUploadFile');
+        const cancelUploadFile = document.getElementById('cancelUploadFile');
+
+        if (sendMessageBtn) {
+            sendMessageBtn.addEventListener('click', sendMessage);
+        }
         
-        // Инициализируем обработчики событий
-        initializeEventHandlers();
+        if (messageInput) {
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+        }
+
+        // Кнопки загрузки файлов
+        if (uploadImageBtn) {
+            uploadImageBtn.addEventListener('click', function() {
+                showUploadFileModal('image');
+            });
+        }
+
+        if (uploadVideoBtn) {
+            uploadVideoBtn.addEventListener('click', function() {
+                showUploadFileModal('video');
+            });
+        }
+
+        if (uploadAudioBtn) {
+            uploadAudioBtn.addEventListener('click', function() {
+                showUploadFileModal('audio');
+            });
+        }
+
+        // Отправка файла
+        if (sendFileBtn) {
+            sendFileBtn.addEventListener('click', function() {
+                if (currentFileData) {
+                    sendMessage();
+                } else {
+                    showNotification('Выберите файл для отправки', 'warning');
+                }
+            });
+        }
+
+        // Закрытие модального окна загрузки файла
+        if (closeUploadFile) {
+            closeUploadFile.addEventListener('click', function() {
+                const uploadFileModal = document.getElementById('uploadFileModal');
+                if (uploadFileModal) uploadFileModal.style.display = 'none';
+                currentFileData = null;
+                currentFileType = null;
+            });
+        }
+
+        if (cancelUploadFile) {
+            cancelUploadFile.addEventListener('click', function() {
+                const uploadFileModal = document.getElementById('uploadFileModal');
+                if (uploadFileModal) uploadFileModal.style.display = 'none';
+                currentFileData = null;
+                currentFileType = null;
+            });
+        }
+        
+        // Обработка загрузки файлов
+        const fileInput = document.getElementById('fileInput');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        
+        if (fileInput && fileUploadArea) {
+            fileUploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.style.backgroundColor = 'var(--hover-color)';
+            });
+            
+            fileUploadArea.addEventListener('dragleave', () => {
+                fileUploadArea.style.backgroundColor = '';
+            });
+            
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.style.backgroundColor = '';
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                }
+            });
+        }
         
         // Инициализация действий чата
         initializeChatActions();
@@ -1082,136 +1167,6 @@ async function initializeChat() {
     } catch (error) {
         console.error('❌ Ошибка инициализации чата:', error);
         showNotification('Ошибка инициализации чата', 'error');
-    }
-}
-
-// Функция для отладки состояния чата
-function debugChatState() {
-    console.log('🔍 Отладка состояния чата:', {
-        currentUser: currentUser ? {
-            id: currentUser.id,
-            username: currentUser.username
-        } : null,
-        currentChat: currentChat ? {
-            id: currentChat.id,
-            name: currentChat.displayName,
-            isGroup: currentChat.isGroup
-        } : null,
-        token: localStorage.getItem('authToken') ? 'Есть' : 'Нет',
-        allUsersCount: allUsers.length
-    });
-}
-
-function initializeEventHandlers() {
-    const sendMessageBtn = document.getElementById('sendMessageBtn');
-    const messageInput = document.getElementById('messageInput');
-    const uploadImageBtn = document.getElementById('uploadImageBtn');
-    const uploadVideoBtn = document.getElementById('uploadVideoBtn');
-    const uploadAudioBtn = document.getElementById('uploadAudioBtn');
-    const sendFileBtn = document.getElementById('sendFile');
-    const closeUploadFile = document.getElementById('closeUploadFile');
-    const cancelUploadFile = document.getElementById('cancelUploadFile');
-
-    if (sendMessageBtn) {
-        sendMessageBtn.addEventListener('click', sendMessage);
-        console.log('✅ Кнопка отправки сообщения инициализирована');
-    } else {
-        console.error('❌ Кнопка отправки сообщения не найдена');
-    }
-    
-    if (messageInput) {
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-        console.log('✅ Поле ввода сообщения инициализировано');
-    }
-
-    // Кнопки загрузки файлов
-    if (uploadImageBtn) {
-        uploadImageBtn.addEventListener('click', function() {
-            showUploadFileModal('image');
-        });
-        console.log('✅ Кнопка загрузки изображения инициализирована');
-    }
-
-    if (uploadVideoBtn) {
-        uploadVideoBtn.addEventListener('click', function() {
-            showUploadFileModal('video');
-        });
-        console.log('✅ Кнопка загрузки видео инициализирована');
-    }
-
-    if (uploadAudioBtn) {
-        uploadAudioBtn.addEventListener('click', function() {
-            showUploadFileModal('audio');
-        });
-        console.log('✅ Кнопка загрузки аудио инициализирована');
-    }
-
-    // Отправка файла
-    if (sendFileBtn) {
-        sendFileBtn.addEventListener('click', function() {
-            if (currentFileData) {
-                sendMessage();
-            } else {
-                showNotification('Выберите файл для отправки', 'warning');
-            }
-        });
-        console.log('✅ Кнопка отправки файла инициализирована');
-    }
-
-    // Закрытие модального окна загрузки файла
-    if (closeUploadFile) {
-        closeUploadFile.addEventListener('click', function() {
-            const uploadFileModal = document.getElementById('uploadFileModal');
-            if (uploadFileModal) uploadFileModal.style.display = 'none';
-            currentFileData = null;
-            currentFileType = null;
-        });
-    }
-
-    if (cancelUploadFile) {
-        cancelUploadFile.addEventListener('click', function() {
-            const uploadFileModal = document.getElementById('uploadFileModal');
-            if (uploadFileModal) uploadFileModal.style.display = 'none';
-            currentFileData = null;
-            currentFileType = null;
-        });
-    }
-    
-    // Обработка загрузки файлов
-    const fileInput = document.getElementById('fileInput');
-    const fileUploadArea = document.getElementById('fileUploadArea');
-    
-    if (fileInput && fileUploadArea) {
-        fileUploadArea.addEventListener('click', () => {
-            fileInput.click();
-        });
-        
-        fileUploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            fileUploadArea.style.backgroundColor = 'var(--hover-color)';
-        });
-        
-        fileUploadArea.addEventListener('dragleave', () => {
-            fileUploadArea.style.backgroundColor = '';
-        });
-        
-        fileUploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            fileUploadArea.style.backgroundColor = '';
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-        
-        console.log('✅ Загрузка файлов инициализирована');
     }
 }
 
@@ -1250,26 +1205,5 @@ function openImageModal(imageUrl) {
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM загружен, инициализация чата...');
-    
-    // Проверяем наличие необходимых элементов DOM
-    const requiredElements = [
-        'chatsList', 'messageInput', 'sendMessageBtn', 
-        'currentChatName', 'chatMessages'
-    ];
-    
-    let allElementsExist = true;
-    requiredElements.forEach(elementId => {
-        const element = document.getElementById(elementId);
-        if (!element) {
-            console.error(`❌ Элемент не найден: ${elementId}`);
-            allElementsExist = false;
-        }
-    });
-    
-    if (allElementsExist) {
-        initializeChat();
-    } else {
-        console.error('❌ Не все необходимые элементы DOM найдены');
-        showNotification('Ошибка загрузки интерфейса', 'error');
-    }
+    initializeChat();
 });
