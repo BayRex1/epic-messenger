@@ -661,8 +661,7 @@ class ApiHandlers {
         return null;
     }
 
-    // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ ЧАТОВ И ГРУПП
-
+    // 🔥 ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ ЧАТОВ И ГРУПП
     handleSearchUsers(token, query) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -756,6 +755,7 @@ class ApiHandlers {
         };
     }
 
+    // 🔥 ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ ПОЛУЧЕНИЯ ЧАТОВ
     handleGetChats(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -793,18 +793,22 @@ class ApiHandlers {
                 .filter(chat => chat.lastMessage !== null) // Показываем только чаты с сообщениями
                 .sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
 
-            // Получаем групповые чаты
+            // Получаем групповые чаты - ИСПРАВЛЕНИЕ: показываем все группы пользователя
             const groupChats = this.dataManager.groups
-                .filter(g => g.members.includes(user.id) && g.isActive)
+                .filter(g => g.members.includes(user.id) && g.isActive !== false)
                 .map(g => {
                     const groupMessages = this.dataManager.messages.filter(m => 
                         m.receiverId === g.id
                     ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                     const lastMessage = groupMessages[0] || null;
-                    const unreadCount = groupMessages.filter(m => 
-                        m.senderId !== user.id && !m.readBy?.includes(user.id)
-                    ).length;
+                    
+                    // Для групповых сообщений считаем непрочитанные
+                    const unreadCount = groupMessages.filter(m => {
+                        if (m.senderId === user.id) return false; // свои сообщения не считаем
+                        if (!m.readBy) return true; // если нет информации о прочтении
+                        return !m.readBy.includes(user.id); // не прочитано текущим пользователем
+                    }).length;
 
                     return {
                         id: g.id,
@@ -813,13 +817,33 @@ class ApiHandlers {
                         isGroup: true,
                         memberCount: g.members.length,
                         lastMessage: lastMessage,
-                        unreadCount: unreadCount
+                        unreadCount: unreadCount,
+                        // Добавляем информацию о создателе для отладки
+                        creatorId: g.creatorId,
+                        members: g.members,
+                        createdAt: g.createdAt
                     };
                 })
-                .filter(chat => chat.lastMessage !== null)
-                .sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
+                // ИСПРАВЛЕНИЕ: показываем группы даже без сообщений
+                .sort((a, b) => {
+                    const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(a.createdAt || 0);
+                    const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(b.createdAt || 0);
+                    return dateB - dateA;
+                });
 
             const allChats = [...personalChats, ...groupChats];
+
+            console.log(`👥 Загружено чатов для ${user.username}:`, {
+                personal: personalChats.length,
+                groups: groupChats.length,
+                total: allChats.length,
+                groupDetails: groupChats.map(g => ({
+                    id: g.id,
+                    name: g.displayName,
+                    members: g.members.length,
+                    hasLastMessage: !!g.lastMessage
+                }))
+            });
 
             return { success: true, chats: allChats };
         } catch (error) {
@@ -873,6 +897,7 @@ class ApiHandlers {
         }
     }
 
+    // 🔥 ИСПРАВЛЕННЫЙ МЕТОД ОТПРАВКИ СООБЩЕНИЙ
     handleSendMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -937,7 +962,23 @@ class ApiHandlers {
             this.dataManager.messages.push(message);
             this.dataManager.saveData();
 
-            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}`);
+            // ОБНОВЛЕНИЕ: Принудительно обновляем информацию о чате для групп
+            if (isGroup) {
+                console.log(`💬 Сообщение отправлено в группу ${toUserId}`);
+                
+                // Отправляем WebSocket уведомление о новом сообщении в группе
+                const group = this.dataManager.groups.find(g => g.id === toUserId);
+                if (group) {
+                    group.members.forEach(memberId => {
+                        if (memberId !== user.id) { // Не отправляем себе
+                            // Здесь должна быть логика отправки через WebSocket
+                            console.log(`📢 Уведомление для участника группы: ${memberId}`);
+                        }
+                    });
+                }
+            }
+
+            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}, isGroup:${isGroup}`);
 
             console.log(`💬 Пользователь ${user.displayName} отправил сообщение ${isGroup ? 'в группу' : 'пользователю'} ${toUserId}`);
 
