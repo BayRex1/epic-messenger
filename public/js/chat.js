@@ -4,31 +4,74 @@ let selectedMembers = new Set();
 let currentChat = null;
 let currentFileData = null;
 let currentFileType = null;
+let currentUser = null;
+let allUsers = [];
+let emojiList = [];
+let socket = null;
+
+// Глобальные функции, которые должны быть доступны
+function showNotification(message, type = 'info') {
+    console.log(`🔔 ${type}: ${message}`);
+    // Базовая реализация уведомлений
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: ${type === 'error' ? '#f44336' : type === 'success' ? '#4caf50' : '#2196f3'};
+        color: white;
+        border-radius: 4px;
+        z-index: 1000;
+        max-width: 300px;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
 
 // Вспомогательная функция для форматирования времени
 function formatLastSeen(lastSeen) {
     if (!lastSeen) return 'давно';
     
-    const date = new Date(lastSeen);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин назад`;
-    if (diffHours < 24) return `${diffHours} ч назад`;
-    if (diffDays === 1) return 'вчера';
-    if (diffDays < 7) return `${diffDays} дн назад`;
-    
-    return date.toLocaleDateString();
+    try {
+        const date = new Date(lastSeen);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffMins < 1) return 'только что';
+        if (diffMins < 60) return `${diffMins} мин назад`;
+        if (diffHours < 24) return `${diffHours} ч назад`;
+        if (diffDays === 1) return 'вчера';
+        if (diffDays < 7) return `${diffDays} дн назад`;
+        
+        return date.toLocaleDateString();
+    } catch (error) {
+        return 'давно';
+    }
 }
 
-async function loadChats() {
+// 🔥 ФУНКЦИЯ ЗАГРУЗКИ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
+async function loadCurrentUser() {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch('/api/chats', {
+        if (!token) {
+            console.error('❌ Токен не найден, перенаправление на страницу входа');
+            window.location.href = '/login.html';
+            return;
+        }
+
+        const response = await fetch('/api/current-user', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -37,13 +80,129 @@ async function loadChats() {
         const data = await response.json();
         
         if (data.success) {
-            renderChats(data.chats);
+            currentUser = data.user;
+            console.log('✅ Пользователь загружен:', currentUser.username);
+            
+            // Обновляем интерфейс пользователя
+            updateUserInterface();
+            
+            // Загружаем список всех пользователей
+            await loadAllUsers();
+            
         } else {
-            console.error('Ошибка загрузки чатов:', data.message);
+            console.error('❌ Ошибка загрузки пользователя:', data.message);
+            showNotification('Ошибка авторизации', 'error');
+            setTimeout(() => {
+                window.location.href = '/login.html';
+            }, 2000);
         }
     } catch (error) {
-        console.error('Ошибка загрузки чатов:', error);
+        console.error('❌ Ошибка загрузки пользователя:', error);
+        showNotification('Ошибка соединения', 'error');
+    }
+}
+
+// Функция обновления интерфейса пользователя
+function updateUserInterface() {
+    const userAvatar = document.getElementById('userAvatar');
+    const userName = document.getElementById('userName');
+    const userUsername = document.getElementById('userUsername');
+    const verifiedBadge = document.getElementById('verifiedBadge');
+    const developerBadge = document.getElementById('developerBadge');
+    const adminPanelBtn = document.getElementById('adminPanelBtn');
+
+    if (userAvatar) {
+        if (currentUser.avatar) {
+            userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+        } else {
+            userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+        }
+    }
+
+    if (userName) {
+        userName.textContent = currentUser.displayName || 'Пользователь';
+    }
+
+    if (userUsername) {
+        userUsername.textContent = `@${currentUser.username}`;
+    }
+
+    if (verifiedBadge) {
+        verifiedBadge.style.display = currentUser.verified ? 'inline-block' : 'none';
+    }
+
+    if (developerBadge) {
+        developerBadge.style.display = currentUser.isDeveloper ? 'inline-block' : 'none';
+    }
+
+    if (adminPanelBtn && currentUser.isDeveloper) {
+        adminPanelBtn.style.display = 'block';
+    }
+}
+
+// Функция загрузки всех пользователей
+async function loadAllUsers() {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/users', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allUsers = data.users;
+            console.log('✅ Загружено пользователей:', allUsers.length);
+        } else {
+            console.error('❌ Ошибка загрузки пользователей:', data.message);
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки пользователей:', error);
+    }
+}
+
+async function loadChats() {
+    try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            console.error('❌ Токен не найден');
+            showNotification('Необходима авторизация', 'error');
+            return;
+        }
+
+        console.log('📨 Запрос чатов...');
+        const response = await fetch('/api/chats', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        console.log('📨 Ответ от сервера:', data);
+        
+        if (data.success) {
+            console.log('✅ Чаты загружены:', data.chats.length);
+            renderChats(data.chats);
+        } else {
+            console.error('❌ Ошибка загрузки чатов:', data.message);
+            showNotification('Ошибка загрузки чатов: ' + data.message, 'error');
+            
+            const chatsList = document.getElementById('chatsList');
+            if (chatsList) {
+                chatsList.innerHTML = '<div class="system-message">Ошибка загрузки чатов</div>';
+            }
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки чатов:', error);
         showNotification('Ошибка загрузки чатов', 'error');
+        
+        const chatsList = document.getElementById('chatsList');
+        if (chatsList) {
+            chatsList.innerHTML = '<div class="system-message">Ошибка соединения</div>';
+        }
     }
 }
 
@@ -480,8 +639,10 @@ function showUploadFileModal(fileType) {
     modal.style.display = 'flex';
 }
 
-// Функции для создания новых чатов и групп
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ДЕЙСТВИЙ ЧАТА
 function initializeChatActions() {
+    console.log('🔧 Инициализация действий чата...');
+    
     const newChatBtn = document.getElementById('newChatBtn');
     const createGroupBtn = document.getElementById('createGroupBtn');
     const closeUserSearch = document.getElementById('closeUserSearch');
@@ -492,20 +653,29 @@ function initializeChatActions() {
     // Кнопка "Новый чат"
     if (newChatBtn) {
         newChatBtn.addEventListener('click', function() {
+            console.log('🆕 Нажата кнопка нового чата');
             showUserSearch();
         });
+        console.log('✅ Кнопка нового чата инициализирована');
+    } else {
+        console.error('❌ Кнопка нового чата не найдена');
     }
 
     // Кнопка "Создать группу"
     if (createGroupBtn) {
         createGroupBtn.addEventListener('click', function() {
+            console.log('👥 Нажата кнопка создания группы');
             showGroupCreation();
         });
+        console.log('✅ Кнопка создания группы инициализирована');
+    } else {
+        console.error('❌ Кнопка создания группы не найдена');
     }
 
     // Закрытие поиска пользователей
     if (closeUserSearch) {
         closeUserSearch.addEventListener('click', function() {
+            console.log('❌ Закрытие поиска пользователей');
             hideUserSearch();
         });
     }
@@ -513,6 +683,7 @@ function initializeChatActions() {
     // Поиск пользователей
     if (userSearchInput) {
         userSearchInput.addEventListener('input', function(e) {
+            console.log('🔍 Поиск пользователей:', e.target.value);
             searchUsersForChat(e.target.value);
         });
     }
@@ -520,6 +691,7 @@ function initializeChatActions() {
     // Отмена создания группы
     if (cancelGroupCreate) {
         cancelGroupCreate.addEventListener('click', function() {
+            console.log('❌ Отмена создания группы');
             hideGroupCreation();
         });
     }
@@ -527,9 +699,12 @@ function initializeChatActions() {
     // Подтверждение создания группы
     if (confirmGroupCreate) {
         confirmGroupCreate.addEventListener('click', function() {
+            console.log('✅ Подтверждение создания группы');
             createNewGroup();
         });
     }
+    
+    console.log('✅ Действия чата инициализированы');
 }
 
 function showUserSearch() {
@@ -857,8 +1032,13 @@ async function createNewGroup() {
     }
 }
 
-// Инициализация чата
-function initializeChat() {
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ЧАТА
+async function initializeChat() {
+    console.log('🚀 Инициализация чата...');
+    
+    // Сначала загружаем данные пользователя
+    await loadCurrentUser();
+    
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     const messageInput = document.getElementById('messageInput');
     const uploadImageBtn = document.getElementById('uploadImageBtn');
@@ -870,12 +1050,16 @@ function initializeChat() {
 
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessage);
+        console.log('✅ Кнопка отправки сообщения инициализирована');
+    } else {
+        console.error('❌ Кнопка отправки сообщения не найдена');
     }
     
     if (messageInput) {
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') sendMessage();
         });
+        console.log('✅ Поле ввода сообщения инициализировано');
     }
 
     // Кнопки загрузки файлов
@@ -883,18 +1067,21 @@ function initializeChat() {
         uploadImageBtn.addEventListener('click', function() {
             showUploadFileModal('image');
         });
+        console.log('✅ Кнопка загрузки изображения инициализирована');
     }
 
     if (uploadVideoBtn) {
         uploadVideoBtn.addEventListener('click', function() {
             showUploadFileModal('video');
         });
+        console.log('✅ Кнопка загрузки видео инициализирована');
     }
 
     if (uploadAudioBtn) {
         uploadAudioBtn.addEventListener('click', function() {
             showUploadFileModal('audio');
         });
+        console.log('✅ Кнопка загрузки аудио инициализирована');
     }
 
     // Отправка файла
@@ -906,6 +1093,7 @@ function initializeChat() {
                 showNotification('Выберите файл для отправки', 'warning');
             }
         });
+        console.log('✅ Кнопка отправки файла инициализирована');
     }
 
     // Закрытие модального окна загрузки файла
@@ -958,13 +1146,17 @@ function initializeChat() {
                 handleFileSelect(e.target.files[0]);
             }
         });
+        
+        console.log('✅ Загрузка файлов инициализирована');
     }
     
     // Инициализация действий чата
     initializeChatActions();
     
     // Загружаем чаты при инициализации
-    loadChats();
+    await loadChats();
+    
+    console.log('✅ Чат полностью инициализирован');
 }
 
 function handleFileSelect(file) {
@@ -1001,5 +1193,6 @@ function openImageModal(imageUrl) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM загружен, инициализация чата...');
     initializeChat();
 });
