@@ -163,12 +163,14 @@ async function loadAllUsers() {
     }
 }
 
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ЧАТОВ
 async function loadChats() {
     try {
         const token = localStorage.getItem('authToken');
         if (!token) {
             console.error('❌ Токен не найден');
             showNotification('Необходима авторизация', 'error');
+            window.location.href = '/login.html';
             return;
         }
 
@@ -178,6 +180,17 @@ async function loadChats() {
                 'Authorization': `Bearer ${token}`
             }
         });
+        
+        // Добавьте проверку статуса ответа
+        if (!response.ok) {
+            if (response.status === 401) {
+                showNotification('Сессия истекла', 'error');
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
@@ -645,6 +658,7 @@ function initializeChatActions() {
     
     const newChatBtn = document.getElementById('newChatBtn');
     const createGroupBtn = document.getElementById('createGroupBtn');
+    const refreshChatsBtn = document.getElementById('refreshChatsBtn');
     const closeUserSearch = document.getElementById('closeUserSearch');
     const userSearchInput = document.getElementById('userSearchInput');
     const cancelGroupCreate = document.getElementById('cancelGroupCreate');
@@ -670,6 +684,18 @@ function initializeChatActions() {
         console.log('✅ Кнопка создания группы инициализирована');
     } else {
         console.error('❌ Кнопка создания группы не найдена');
+    }
+
+    // Кнопка "Обновить чаты"
+    if (refreshChatsBtn) {
+        refreshChatsBtn.addEventListener('click', function() {
+            console.log('🔄 Нажата кнопка обновления чатов');
+            loadChats();
+            showNotification('Чаты обновлены', 'info');
+        });
+        console.log('✅ Кнопка обновления чатов инициализирована');
+    } else {
+        console.error('❌ Кнопка обновления чатов не найдена');
     }
 
     // Закрытие поиска пользователей
@@ -1036,9 +1062,47 @@ async function createNewGroup() {
 async function initializeChat() {
     console.log('🚀 Инициализация чата...');
     
-    // Сначала загружаем данные пользователя
-    await loadCurrentUser();
-    
+    try {
+        // Сначала загружаем данные пользователя
+        await loadCurrentUser();
+        
+        // Отладка
+        debugChatState();
+        
+        // Инициализируем обработчики событий
+        initializeEventHandlers();
+        
+        // Инициализация действий чата
+        initializeChatActions();
+        
+        // Загружаем чаты при инициализации
+        await loadChats();
+        
+        console.log('✅ Чат полностью инициализирован');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации чата:', error);
+        showNotification('Ошибка инициализации чата', 'error');
+    }
+}
+
+// Функция для отладки состояния чата
+function debugChatState() {
+    console.log('🔍 Отладка состояния чата:', {
+        currentUser: currentUser ? {
+            id: currentUser.id,
+            username: currentUser.username
+        } : null,
+        currentChat: currentChat ? {
+            id: currentChat.id,
+            name: currentChat.displayName,
+            isGroup: currentChat.isGroup
+        } : null,
+        token: localStorage.getItem('authToken') ? 'Есть' : 'Нет',
+        allUsersCount: allUsers.length
+    });
+}
+
+function initializeEventHandlers() {
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     const messageInput = document.getElementById('messageInput');
     const uploadImageBtn = document.getElementById('uploadImageBtn');
@@ -1149,14 +1213,6 @@ async function initializeChat() {
         
         console.log('✅ Загрузка файлов инициализирована');
     }
-    
-    // Инициализация действий чата
-    initializeChatActions();
-    
-    // Загружаем чаты при инициализации
-    await loadChats();
-    
-    console.log('✅ Чат полностью инициализирован');
 }
 
 function handleFileSelect(file) {
@@ -1194,5 +1250,26 @@ function openImageModal(imageUrl) {
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM загружен, инициализация чата...');
-    initializeChat();
+    
+    // Проверяем наличие необходимых элементов DOM
+    const requiredElements = [
+        'chatsList', 'messageInput', 'sendMessageBtn', 
+        'currentChatName', 'chatMessages'
+    ];
+    
+    let allElementsExist = true;
+    requiredElements.forEach(elementId => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            console.error(`❌ Элемент не найден: ${elementId}`);
+            allElementsExist = false;
+        }
+    });
+    
+    if (allElementsExist) {
+        initializeChat();
+    } else {
+        console.error('❌ Не все необходимые элементы DOM найдены');
+        showNotification('Ошибка загрузки интерфейса', 'error');
+    }
 });
