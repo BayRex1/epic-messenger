@@ -1,6 +1,29 @@
 // Функции для работы с чатом
 
 let selectedMembers = new Set();
+let currentChat = null;
+let currentFileData = null;
+let currentFileType = null;
+
+// Вспомогательная функция для форматирования времени
+function formatLastSeen(lastSeen) {
+    if (!lastSeen) return 'давно';
+    
+    const date = new Date(lastSeen);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 1) return 'только что';
+    if (diffMins < 60) return `${diffMins} мин назад`;
+    if (diffHours < 24) return `${diffHours} ч назад`;
+    if (diffDays === 1) return 'вчера';
+    if (diffDays < 7) return `${diffDays} дн назад`;
+    
+    return date.toLocaleDateString();
+}
 
 async function loadChats() {
     try {
@@ -15,12 +38,16 @@ async function loadChats() {
         
         if (data.success) {
             renderChats(data.chats);
+        } else {
+            console.error('Ошибка загрузки чатов:', data.message);
         }
     } catch (error) {
         console.error('Ошибка загрузки чатов:', error);
+        showNotification('Ошибка загрузки чатов', 'error');
     }
 }
 
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ РЕНДЕРИНГА ЧАТОВ
 function renderChats(chats) {
     const chatsList = document.getElementById('chatsList');
     if (!chatsList) return;
@@ -32,10 +59,22 @@ function renderChats(chats) {
         return;
     }
     
+    // Разделяем чаты и группы для отладки
+    const personalChats = chats.filter(chat => !chat.isGroup);
+    const groupChats = chats.filter(chat => chat.isGroup);
+    
+    console.log('📋 Рендерим чаты:', {
+        total: chats.length,
+        personal: personalChats.length,
+        groups: groupChats.length,
+        groupsList: groupChats.map(g => ({ id: g.id, name: g.displayName }))
+    });
+    
     chats.forEach(chat => {
         const chatElement = document.createElement('div');
         chatElement.className = 'chat-item';
-        chatElement.setAttribute('data-user-id', chat.id);
+        chatElement.setAttribute('data-chat-id', chat.id);
+        chatElement.setAttribute('data-chat-type', chat.isGroup ? 'group' : 'personal');
         
         let lastMessageText = 'Нет сообщений';
         if (chat.lastMessage) {
@@ -46,10 +85,17 @@ function renderChats(chats) {
             } else {
                 lastMessageText = chat.lastMessage.text || 'Сообщение';
             }
+        } else if (chat.isGroup) {
+            lastMessageText = 'Группа создана';
         }
         
         // Добавляем иконку группы если это группа
         const groupIcon = chat.isGroup ? '<span class="group-icon">👥</span>' : '';
+        
+        // Для групп показываем количество участников вместо статуса
+        const statusInfo = chat.isGroup ? 
+            `Участников: ${chat.memberCount || 1}` : 
+            (chat.status === 'online' ? 'В сети' : `Был(а) в сети ${formatLastSeen(chat.lastSeen)}`);
         
         chatElement.innerHTML = `
             <div class="chat-avatar">
@@ -58,6 +104,7 @@ function renderChats(chats) {
                     chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U'
                 }
                 ${groupIcon}
+                ${chat.isGroup ? '' : `<span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>`}
             </div>
             <div class="chat-info">
                 <h4>
@@ -65,9 +112,9 @@ function renderChats(chats) {
                     ${chat.verified ? '<span class="verified-badge">✓</span>' : ''}
                     ${chat.isDeveloper ? '<span class="developer-badge">👑</span>' : ''}
                     ${chat.isGroup ? '<span class="group-badge">Группа</span>' : ''}
-                    <span class="${chat.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                 </h4>
                 <div class="chat-last-message">${lastMessageText}</div>
+                <div class="chat-status">${statusInfo}</div>
             </div>
             ${chat.unreadCount > 0 ? `<div class="unread-badge">${chat.unreadCount}</div>` : ''}
         `;
@@ -77,23 +124,41 @@ function renderChats(chats) {
     });
 }
 
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ВЫБОРА ЧАТА
 function selectChat(chat) {
     currentChat = chat;
     
+    console.log('💬 Выбран чат:', {
+        id: chat.id,
+        name: chat.displayName,
+        isGroup: chat.isGroup,
+        type: chat.isGroup ? 'group' : 'personal'
+    });
+    
     // Отмечаем сообщения как прочитанные
-    markAsRead(chat.id);
+    if (!chat.isGroup) {
+        markAsRead(chat.id);
+    }
     
     // Обновляем информацию о чате
     const currentChatName = document.getElementById('currentChatName');
     const currentChatStatus = document.getElementById('currentChatStatus');
     const currentChatAvatar = document.getElementById('currentChatAvatar');
     
-    if (currentChatName) currentChatName.textContent = chat.displayName || 'Пользователь';
+    if (currentChatName) {
+        currentChatName.textContent = chat.displayName || 'Пользователь';
+        if (chat.isGroup) {
+            currentChatName.innerHTML += ' <span class="group-badge-small">Группа</span>';
+        }
+    }
+    
     if (currentChatStatus) {
         if (chat.isGroup) {
             currentChatStatus.textContent = `Участников: ${chat.memberCount || 1}`;
         } else {
-            currentChatStatus.textContent = chat.status === 'online' ? 'В сети' : `Был(а) в сети ${new Date(chat.lastSeen).toLocaleString()}`;
+            currentChatStatus.textContent = chat.status === 'online' ? 
+                'В сети' : 
+                `Был(а) в сети ${formatLastSeen(chat.lastSeen)}`;
         }
     }
     
@@ -142,10 +207,23 @@ async function markAsRead(fromUserId) {
     }
 }
 
-async function loadChatMessages(userId) {
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ СООБЩЕНИЙ
+async function loadChatMessages(chatId) {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`/api/messages?userId=${currentUser.id}&toUserId=${userId}`, {
+        
+        // ИСПРАВЛЕНИЕ: Правильный endpoint для получения сообщений
+        const url = currentChat.isGroup ? 
+            `/api/messages?userId=${currentUser.id}&toUserId=${chatId}` :
+            `/api/messages?userId=${currentUser.id}&toUserId=${chatId}`;
+        
+        console.log('📨 Загрузка сообщений для:', {
+            chatId: chatId,
+            isGroup: currentChat.isGroup,
+            url: url
+        });
+        
+        const response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -153,11 +231,21 @@ async function loadChatMessages(userId) {
         
         const data = await response.json();
         
+        console.log('📨 Получены сообщения:', {
+            success: data.success,
+            count: data.messages ? data.messages.length : 0,
+            chatId: chatId
+        });
+        
         if (data.success) {
             renderChatMessages(data.messages);
+        } else {
+            console.error('Ошибка загрузки сообщений:', data.message);
+            showNotification('Ошибка загрузки сообщений: ' + data.message, 'error');
         }
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
+        showNotification('Ошибка загрузки сообщений', 'error');
     }
 }
 
@@ -280,11 +368,17 @@ function renderNewMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ СООБЩЕНИЙ
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
     
     if (!text && !currentFileData) return;
+    
+    if (!currentChat) {
+        showNotification('Выберите чат для отправки сообщения', 'warning');
+        return;
+    }
     
     try {
         const token = localStorage.getItem('authToken');
@@ -303,6 +397,12 @@ async function sendMessage() {
             requestData.fileType = fileType;
             requestData.type = fileType;
         }
+
+        console.log('📤 Отправка сообщения:', {
+            toUserId: currentChat.id,
+            isGroup: currentChat.isGroup,
+            hasFile: !!currentFileData
+        });
 
         const response = await fetch('/api/messages/send', {
             method: 'POST',
@@ -335,11 +435,14 @@ async function sendMessage() {
             // Обновляем интерфейс
             renderNewMessage(data.message);
             loadChats();
+            
+            console.log('✅ Сообщение отправлено успешно');
         } else {
             showNotification('Ошибка отправки сообщения: ' + data.message, 'error');
+            console.error('❌ Ошибка отправки сообщения:', data.message);
         }
     } catch (error) {
-        console.error('Ошибка отправки сообщения:', error);
+        console.error('❌ Ошибка отправки сообщения:', error);
         showNotification('Ошибка отправки сообщения', 'error');
     }
 }
@@ -685,6 +788,7 @@ function clearSelectedMembers() {
     updateSelectedMembersList();
 }
 
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ ГРУППЫ
 async function createNewGroup() {
     const groupNameInput = document.getElementById('groupNameInput');
     const groupUsernameInput = document.getElementById('groupUsernameInput');
@@ -713,7 +817,8 @@ async function createNewGroup() {
             body: JSON.stringify({
                 name: groupName,
                 username: groupUsername || null,
-                members: Array.from(selectedMembers)
+                members: Array.from(selectedMembers),
+                description: `Группа "${groupName}"`
             })
         });
         
@@ -723,15 +828,18 @@ async function createNewGroup() {
             showNotification(`Группа "${groupName}" создана!`, 'success');
             hideGroupCreation();
             
+            console.log('✅ Группа создана:', data.group);
+            
             // Создаем объект чата для группы
             const groupChat = {
                 id: data.group.id,
                 displayName: data.group.name,
                 avatar: data.group.avatar,
                 isGroup: true,
-                memberCount: data.group.members.length + 1, // +1 для создателя
+                memberCount: data.group.members.length,
                 lastMessage: null,
-                unreadCount: 0
+                unreadCount: 0,
+                createdAt: data.group.createdAt
             };
             
             // Выбираем созданную группу
@@ -741,9 +849,10 @@ async function createNewGroup() {
             loadChats();
         } else {
             showNotification('Ошибка создания группы: ' + data.message, 'error');
+            console.error('❌ Ошибка создания группы:', data.message);
         }
     } catch (error) {
-        console.error('Ошибка создания группы:', error);
+        console.error('❌ Ошибка создания группы:', error);
         showNotification('Ошибка создания группы', 'error');
     }
 }
@@ -818,11 +927,76 @@ function initializeChat() {
         });
     }
     
+    // Обработка загрузки файлов
+    const fileInput = document.getElementById('fileInput');
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    
+    if (fileInput && fileUploadArea) {
+        fileUploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = 'var(--hover-color)';
+        });
+        
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.style.backgroundColor = '';
+        });
+        
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = '';
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+    }
+    
     // Инициализация действий чата
     initializeChatActions();
     
     // Загружаем чаты при инициализации
     loadChats();
+}
+
+function handleFileSelect(file) {
+    const reader = new FileReader();
+    const filePreview = document.getElementById('filePreview');
+    
+    reader.onload = function(e) {
+        currentFileData = e.target.result;
+        
+        if (file.type.startsWith('image/')) {
+            filePreview.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px;">`;
+        } else if (file.type.startsWith('video/')) {
+            filePreview.innerHTML = `<video controls style="max-width: 200px;"><source src="${e.target.result}" type="${file.type}"></video>`;
+        } else if (file.type.startsWith('audio/')) {
+            filePreview.innerHTML = `<audio controls><source src="${e.target.result}" type="${file.type}"></audio>`;
+        } else {
+            filePreview.innerHTML = `<div>Файл: ${file.name}</div>`;
+        }
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+// Вспомогательные функции
+function processMentions(text) {
+    // Простая обработка упоминаний - можно расширить
+    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+}
+
+function openImageModal(imageUrl) {
+    // Реализация открытия модального окна с изображением
+    console.log('Открытие изображения:', imageUrl);
 }
 
 // Инициализация при загрузке страницы
