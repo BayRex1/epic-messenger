@@ -4,7 +4,7 @@ let selectedMembers = new Set();
 let currentChat = null;
 let currentFileData = null;
 let currentFileType = null;
-// УБИРАЕМ объявление currentUser - оно уже есть в common.js
+// УБИРАЕМ currentUser полностью - он уже в common.js
 let allUsers = [];
 let emojiList = [];
 let socket = null;
