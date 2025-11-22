@@ -4,8 +4,6 @@ let selectedMembers = new Set();
 let currentChat = null;
 let currentFileData = null;
 let currentFileType = null;
-// УБИРАЕМ currentUser - он уже объявлен в common.js
-let allUsers = [];
 let emojiList = [];
 let socket = null;
 
@@ -64,35 +62,39 @@ function formatLastSeen(lastSeen) {
 // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
 async function loadCurrentUser() {
     try {
-        // currentUser уже должен быть установлен в common.js
+        console.log('👤 Загрузка текущего пользователя для чата...');
+        
+        // Ждем инициализации из common.js
         if (!window.currentUser) {
-            console.error('❌ currentUser не найден в глобальной области');
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                window.location.href = '/login.html';
-                return;
-            }
-
-            const response = await fetch('/api/current-user', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
+            console.log('⏳ Ожидаем инициализации пользователя из common.js...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (!window.currentUser) {
+                console.error('❌ currentUser не найден даже после ожидания');
+                const token = localStorage.getItem('authToken');
+                if (!token) {
+                    window.location.href = '/login.html';
+                    return;
                 }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                window.currentUser = data.user;
-                console.log('✅ Пользователь загружен в chat.js:', window.currentUser.username);
-            } else {
-                throw new Error(data.message);
+
+                const response = await fetch('/api/current-user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.currentUser = data.user;
+                    console.log('✅ Пользователь загружен в chat.js:', window.currentUser.username);
+                } else {
+                    throw new Error(data.message);
+                }
             }
-        } else {
-            console.log('✅ Пользователь уже загружен:', window.currentUser.username);
         }
         
-        // Обновляем интерфейс пользователя
-        updateUserInterface();
+        console.log('✅ Пользователь готов:', window.currentUser.username);
         
         // Загружаем список всех пользователей
         await loadAllUsers();
@@ -103,44 +105,6 @@ async function loadCurrentUser() {
         setTimeout(() => {
             window.location.href = '/login.html';
         }, 2000);
-    }
-}
-
-// Функция обновления интерфейса пользователя
-function updateUserInterface() {
-    const userAvatar = document.getElementById('userAvatar');
-    const userName = document.getElementById('userName');
-    const userUsername = document.getElementById('userUsername');
-    const verifiedBadge = document.getElementById('verifiedBadge');
-    const developerBadge = document.getElementById('developerBadge');
-    const adminPanelBtn = document.getElementById('adminPanelBtn');
-
-    if (userAvatar) {
-        if (window.currentUser.avatar) {
-            userAvatar.innerHTML = `<img src="${window.currentUser.avatar}" alt="${window.currentUser.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
-        } else {
-            userAvatar.textContent = window.currentUser.displayName ? window.currentUser.displayName.charAt(0).toUpperCase() : 'U';
-        }
-    }
-
-    if (userName) {
-        userName.textContent = window.currentUser.displayName || 'Пользователь';
-    }
-
-    if (userUsername) {
-        userUsername.textContent = `@${window.currentUser.username}`;
-    }
-
-    if (verifiedBadge) {
-        verifiedBadge.style.display = window.currentUser.verified ? 'inline-block' : 'none';
-    }
-
-    if (developerBadge) {
-        developerBadge.style.display = window.currentUser.isDeveloper ? 'inline-block' : 'none';
-    }
-
-    if (adminPanelBtn && window.currentUser.isDeveloper) {
-        adminPanelBtn.style.display = 'block';
     }
 }
 
@@ -157,8 +121,9 @@ async function loadAllUsers() {
         const data = await response.json();
         
         if (data.success) {
-            allUsers = data.users;
-            console.log('✅ Загружено пользователей:', allUsers.length);
+            // Используем глобальную переменную из common.js
+            window.allUsers = data.users;
+            console.log('✅ Загружено пользователей:', window.allUsers.length);
         } else {
             console.error('❌ Ошибка загрузки пользователей:', data.message);
         }
@@ -183,6 +148,11 @@ async function loadChats() {
             }
         });
         
+        // Проверяем статус ответа
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         console.log('📨 Ответ от сервера:', data);
@@ -201,11 +171,11 @@ async function loadChats() {
         }
     } catch (error) {
         console.error('❌ Ошибка загрузки чатов:', error);
-        showNotification('Ошибка загрузки чатов', 'error');
+        showNotification('Ошибка загрузки чатов: ' + error.message, 'error');
         
         const chatsList = document.getElementById('chatsList');
         if (chatsList) {
-            chatsList.innerHTML = '<div class="system-message">Ошибка соединения</div>';
+            chatsList.innerHTML = '<div class="system-message">Ошибка соединения: ' + error.message + '</div>';
         }
     }
 }
@@ -213,25 +183,19 @@ async function loadChats() {
 // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ РЕНДЕРИНГА ЧАТОВ
 function renderChats(chats) {
     const chatsList = document.getElementById('chatsList');
-    if (!chatsList) return;
+    if (!chatsList) {
+        console.error('❌ Элемент chatsList не найден');
+        return;
+    }
     
     chatsList.innerHTML = '';
     
-    if (chats.length === 0) {
+    if (!chats || chats.length === 0) {
         chatsList.innerHTML = '<div class="system-message">У вас пока нет чатов</div>';
         return;
     }
     
-    // Разделяем чаты и группы для отладки
-    const personalChats = chats.filter(chat => !chat.isGroup);
-    const groupChats = chats.filter(chat => chat.isGroup);
-    
-    console.log('📋 Рендерим чаты:', {
-        total: chats.length,
-        personal: personalChats.length,
-        groups: groupChats.length,
-        groupsList: groupChats.map(g => ({ id: g.id, name: g.displayName }))
-    });
+    console.log('📋 Рендерим чаты:', chats.length);
     
     chats.forEach(chat => {
         const chatElement = document.createElement('div');
@@ -263,7 +227,7 @@ function renderChats(chats) {
         chatElement.innerHTML = `
             <div class="chat-avatar">
                 ${chat.avatar ? 
-                    `<img src="${chat.avatar}" alt="${chat.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                    `<img src="${chat.avatar}" alt="${chat.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">` : 
                     chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U'
                 }
                 ${groupIcon}
@@ -285,6 +249,8 @@ function renderChats(chats) {
         chatElement.addEventListener('click', () => selectChat(chat));
         chatsList.appendChild(chatElement);
     });
+    
+    console.log('✅ Чаты отрендерены');
 }
 
 // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ВЫБОРА ЧАТА
@@ -294,14 +260,8 @@ function selectChat(chat) {
     console.log('💬 Выбран чат:', {
         id: chat.id,
         name: chat.displayName,
-        isGroup: chat.isGroup,
-        type: chat.isGroup ? 'group' : 'personal'
+        isGroup: chat.isGroup
     });
-    
-    // Отмечаем сообщения как прочитанные
-    if (!chat.isGroup) {
-        markAsRead(chat.id);
-    }
     
     // Обновляем информацию о чате
     const currentChatName = document.getElementById('currentChatName');
@@ -326,14 +286,22 @@ function selectChat(chat) {
     }
     
     if (currentChatAvatar) {
+        currentChatAvatar.innerHTML = '';
         if (chat.avatar) {
-            currentChatAvatar.innerHTML = `<img src="${chat.avatar}" alt="${chat.displayName}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            const img = document.createElement('img');
+            img.src = chat.avatar;
+            img.alt = chat.displayName;
+            img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: 50%;';
+            currentChatAvatar.appendChild(img);
         } else {
             currentChatAvatar.textContent = chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U';
         }
         // Добавляем иконку группы
         if (chat.isGroup) {
-            currentChatAvatar.innerHTML += '<span class="group-avatar-icon">👥</span>';
+            const groupIcon = document.createElement('span');
+            groupIcon.className = 'group-avatar-icon';
+            groupIcon.textContent = '👥';
+            currentChatAvatar.appendChild(groupIcon);
         }
     }
     
@@ -377,7 +345,7 @@ async function loadChatMessages(chatId) {
         
         // ИСПРАВЛЕНИЕ: Правильный endpoint для получения сообщений
         const url = currentChat.isGroup ? 
-            `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}` :
+            `/api/messages/group/${chatId}` :
             `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}`;
         
         console.log('📨 Загрузка сообщений для:', {
@@ -392,12 +360,15 @@ async function loadChatMessages(chatId) {
             }
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         console.log('📨 Получены сообщения:', {
             success: data.success,
-            count: data.messages ? data.messages.length : 0,
-            chatId: chatId
+            count: data.messages ? data.messages.length : 0
         });
         
         if (data.success) {
@@ -408,7 +379,7 @@ async function loadChatMessages(chatId) {
         }
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
-        showNotification('Ошибка загрузки сообщений', 'error');
+        showNotification('Ошибка загрузки сообщений: ' + error.message, 'error');
     }
 }
 
@@ -450,7 +421,7 @@ function renderNewMessage(message) {
     // Добавляем информацию об отправителе для групповых чатов
     let senderInfo = '';
     if (currentChat && currentChat.isGroup && !isOutgoing) {
-        const sender = allUsers.find(u => u.id === message.senderId);
+        const sender = window.allUsers.find(u => u.id === message.senderId);
         if (sender) {
             senderInfo = `<div class="message-sender">${sender.displayName}</div>`;
         }
@@ -509,13 +480,12 @@ function renderNewMessage(message) {
         // Заменяем эмодзи коды на изображения и обрабатываем упоминания
         let messageText = message.text || '';
         messageText = processMentions(messageText);
-        emojiList.forEach(emoji => {
-            const emojiCode = `:${emoji.name}:`;
-            if (messageText.includes(emojiCode)) {
-                messageText = messageText.replace(new RegExp(emojiCode, 'g'), 
-                    `<img src="${emoji.url}" alt="${emoji.name}" style="width: 20px; height: 20px; vertical-align: middle;">`);
-            }
-        });
+        
+        // Простая обработка эмодзи (можно расширить)
+        messageText = messageText.replace(/:\)/g, '😊')
+                               .replace(/:\(/g, '😢')
+                               .replace(/:D/g, '😃')
+                               .replace(/<3/g, '❤️');
         
         messageElement.innerHTML = `
             ${senderInfo}
@@ -536,7 +506,10 @@ async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
     
-    if (!text && !currentFileData) return;
+    if (!text && !currentFileData) {
+        showNotification('Введите сообщение или выберите файл', 'warning');
+        return;
+    }
     
     if (!currentChat) {
         showNotification('Выберите чат для отправки сообщения', 'warning');
@@ -564,7 +537,8 @@ async function sendMessage() {
         console.log('📤 Отправка сообщения:', {
             toUserId: currentChat.id,
             isGroup: currentChat.isGroup,
-            hasFile: !!currentFileData
+            hasFile: !!currentFileData,
+            text: text
         });
 
         const response = await fetch('/api/messages/send', {
@@ -587,26 +561,19 @@ async function sendMessage() {
             const uploadFileModal = document.getElementById('uploadFileModal');
             if (uploadFileModal) uploadFileModal.style.display = 'none';
             
-            // Отправляем сообщение через WebSocket
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    type: 'new_message',
-                    message: data.message
-                }));
-            }
-            
             // Обновляем интерфейс
             renderNewMessage(data.message);
             loadChats();
             
             console.log('✅ Сообщение отправлено успешно');
+            showNotification('Сообщение отправлено', 'success');
         } else {
             showNotification('Ошибка отправки сообщения: ' + data.message, 'error');
             console.error('❌ Ошибка отправки сообщения:', data.message);
         }
     } catch (error) {
         console.error('❌ Ошибка отправки сообщения:', error);
-        showNotification('Ошибка отправки сообщения', 'error');
+        showNotification('Ошибка отправки сообщения: ' + error.message, 'error');
     }
 }
 
@@ -815,7 +782,7 @@ function renderUserSearchResultsForChat(users) {
         userElement.innerHTML = `
             <div class="chat-avatar">
                 ${user.avatar ? 
-                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">` : 
                     user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
                 }
             </div>
@@ -940,7 +907,7 @@ function updateSelectedMembersList() {
     }
     
     selectedMembers.forEach(userId => {
-        const user = allUsers.find(u => u.id === userId);
+        const user = window.allUsers.find(u => u.id === userId);
         if (user) {
             const memberElement = document.createElement('div');
             memberElement.className = 'selected-member-item';
@@ -1166,7 +1133,7 @@ async function initializeChat() {
         console.log('✅ Чат полностью инициализирован');
     } catch (error) {
         console.error('❌ Ошибка инициализации чата:', error);
-        showNotification('Ошибка инициализации чата', 'error');
+        showNotification('Ошибка инициализации чата: ' + error.message, 'error');
     }
 }
 
