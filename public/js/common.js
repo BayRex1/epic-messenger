@@ -10,6 +10,37 @@ let currentFileType = null;
 let currentFileData = null;
 let socket = null;
 
+// 🔥 ДОБАВЛЕНО: Функция для определения окружения и корректировки URL
+function isProduction() {
+    return window.location.hostname !== 'localhost' && 
+           window.location.hostname !== '127.0.0.1';
+}
+
+// 🔥 ДОБАВЛЕНО: Функция для корректировки URL файлов в зависимости от окружения
+function fixFileUrl(url) {
+    if (!url) return url;
+    
+    // Если это production и URL начинается с /uploads/, заменяем на /api/uploads/
+    if (isProduction() && url.startsWith('/uploads/')) {
+        return url.replace('/uploads/', '/api/uploads/');
+    }
+    
+    return url;
+}
+
+// 🔥 ДОБАВЛЕНО: Функция для корректировки всех URL в объекте пользователя
+function fixUserFileUrls(user) {
+    if (!user) return user;
+    
+    const fixedUser = { ...user };
+    
+    if (fixedUser.avatar) {
+        fixedUser.avatar = fixFileUrl(fixedUser.avatar);
+    }
+    
+    return fixedUser;
+}
+
 // Глобальная проверка аутентификации
 function checkAuth() {
     const token = localStorage.getItem('authToken');
@@ -29,6 +60,7 @@ function checkAuth() {
 async function initializeApp() {
     try {
         console.log('🚀 Начало инициализации приложения...');
+        console.log('🌍 Окружение:', isProduction() ? 'production' : 'development');
         
         // Сначала загружаем тему
         loadTheme();
@@ -93,7 +125,8 @@ async function initializeUser() {
         console.log('📊 Ответ от сервера:', data);
         
         if (data.success && data.user) {
-            currentUser = data.user;
+            // 🔥 ИСПРАВЛЕНО: Корректируем URL файлов пользователя для production
+            currentUser = fixUserFileUrls(data.user);
             console.log('✅ Пользователь инициализирован:', currentUser.username);
             updateUserInterface();
         } else {
@@ -275,9 +308,10 @@ function updateUserInterface() {
     const developerBadge = document.getElementById('developerBadge');
     const adminPanelBtn = document.getElementById('adminPanelBtn');
 
-    // Обновляем аватар
+    // 🔥 ИСПРАВЛЕНО: Используем fixFileUrl для аватара
     if (currentUser.avatar) {
-        userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+        const fixedAvatarUrl = fixFileUrl(currentUser.avatar);
+        userAvatar.innerHTML = `<img src="${fixedAvatarUrl}" alt="${currentUser.displayName}">`;
     } else {
         userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
     }
@@ -362,10 +396,11 @@ function updateProfilePage() {
     const profileGiftsCount = document.getElementById('profileGiftsCount');
     const profileCoinsCount = document.getElementById('profileCoinsCount');
 
-    // Аватар
+    // 🔥 ИСПРАВЛЕНО: Используем fixFileUrl для аватара профиля
     if (profileUserAvatar) {
         if (currentUser.avatar) {
-            profileUserAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            const fixedAvatarUrl = fixFileUrl(currentUser.avatar);
+            profileUserAvatar.innerHTML = `<img src="${fixedAvatarUrl}" alt="${currentUser.displayName}">`;
         } else {
             profileUserAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
         }
@@ -564,28 +599,30 @@ function renderUserSearchResults(users) {
     }
 
     users.forEach(user => {
+        // 🔥 ИСПРАВЛЕНО: Корректируем URL аватара пользователя
+        const fixedUser = fixUserFileUrls(user);
         const userElement = document.createElement('div');
         userElement.className = 'chat-item';
         userElement.innerHTML = `
             <div class="chat-avatar">
-                ${user.avatar ? 
-                    `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                    user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
+                ${fixedUser.avatar ? 
+                    `<img src="${fixedUser.avatar}" alt="${fixedUser.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                    fixedUser.displayName ? fixedUser.displayName.charAt(0).toUpperCase() : 'U'
                 }
             </div>
             <div class="chat-info">
                 <h4>
-                    ${user.displayName || 'Пользователь'}
-                    ${user.verified ? '<span class="verified-badge"><svg width="14" height="14" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)" /><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : ''}
-                    ${user.isDeveloper ? '<span class="developer-badge"><svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : ''}
-                    <span class="${user.status === 'online' ? 'online-status' : 'offline-status'}"></span>
+                    ${fixedUser.displayName || 'Пользователь'}
+                    ${fixedUser.verified ? '<span class="verified-badge"><svg width="14" height="14" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M128 10 L143 33 L170 25 L180 50 L207 45 L210 70 L235 80 L225 105 L245 125 L225 145 L235 170 L210 180 L207 205 L180 200 L170 225 L143 217 L128 240 L113 217 L86 225 L76 200 L49 205 L46 180 L21 170 L31 145 L11 125 L31 105 L21 80 L46 70 L49 45 L76 50 L86 25 L113 33 Z" fill="url(#goldGradient)" /><path d="M95 125 L120 150 L165 100" fill="none" stroke="#fff7c0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><defs><radialGradient id="goldGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#FFD700"/><stop offset="40%" stop-color="#FFC300"/><stop offset="100%" stop-color="#B8860B"/></radialGradient></defs></svg></span>' : ''}
+                    ${fixedUser.isDeveloper ? '<span class="developer-badge"><svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="8" fill="url(#grad)"/><text x="24" y="30" text-anchor="middle" fill="url(#neon)" font-size="26" font-family="Arial, sans-serif" font-weight="bold" style="filter: drop-shadow(0 0 4px #C71585) drop-shadow(0 0 6px #8A2BE2);">E</text><defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#8A2BE2"/><stop offset="1" stop-color="#C71585"/></linearGradient><linearGradient id="neon" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD1FF"/></linearGradient></defs></svg></span>' : ''}
+                    <span class="${fixedUser.status === 'online' ? 'online-status' : 'offline-status'}"></span>
                 </h4>
-                <span>@${user.username}</span>
+                <span>@${fixedUser.username}</span>
             </div>
         `;
         
         userElement.addEventListener('click', () => {
-            selectUserForGift(user);
+            selectUserForGift(fixedUser);
         });
         
         giftUserResults.appendChild(userElement);
@@ -616,7 +653,8 @@ function renderAvailableGifts(user) {
         giftElement.innerHTML = `
             <div class="gift-shop-preview">
                 ${gift.image ? 
-                    `<img src="${gift.image}" alt="${gift.name}">` : 
+                    // 🔥 ИСПРАВЛЕНО: Корректируем URL изображения подарка
+                    `<img src="${fixFileUrl(gift.image)}" alt="${gift.name}">` : 
                     gift.preview
                 }
             </div>
@@ -673,6 +711,9 @@ function filterAdminUsers(searchTerm) {
 }
 
 function initializeFileUploads() {
+    // 🔥 ДОБАВЛЕНО: Логирование окружения
+    console.log('📁 Инициализация загрузки файлов в окружении:', isProduction() ? 'production' : 'development');
+
     // Загрузка аватара
     const avatarFileInput = document.getElementById('avatarFileInput');
     const avatarUploadArea = document.getElementById('avatarUploadArea');
@@ -892,6 +933,46 @@ function initializeFileUploads() {
     });
 }
 
+// 🔥 ДОБАВЛЕНО: Функция для корректировки URL в посте
+function fixPostFileUrls(post) {
+    if (!post) return post;
+    
+    const fixedPost = { ...post };
+    
+    if (fixedPost.image) {
+        fixedPost.image = fixFileUrl(fixedPost.image);
+    }
+    
+    if (fixedPost.file) {
+        fixedPost.file = fixFileUrl(fixedPost.file);
+    }
+    
+    // Корректируем аватар автора поста
+    if (fixedPost.userAvatar) {
+        fixedPost.userAvatar = fixFileUrl(fixedPost.userAvatar);
+    }
+    
+    return fixedPost;
+}
+
+// 🔥 ДОБАВЛЕНО: Функция для корректировки URL в сообщении
+function fixMessageFileUrls(message) {
+    if (!message) return message;
+    
+    const fixedMessage = { ...message };
+    
+    if (fixedMessage.fileUrl) {
+        fixedMessage.fileUrl = fixFileUrl(fixedMessage.fileUrl);
+    }
+    
+    // Корректируем аватар отправителя
+    if (fixedMessage.senderAvatar) {
+        fixedMessage.senderAvatar = fixFileUrl(fixedMessage.senderAvatar);
+    }
+    
+    return fixedMessage;
+}
+
 function initializeMentions() {
     // Обработчик клика по упоминаниям
     document.addEventListener('click', function(e) {
@@ -956,6 +1037,8 @@ function showMentionSuggestions(searchTerm, position) {
     // Заполняем предложения
     suggestionsContainer.innerHTML = '';
     filteredUsers.forEach(user => {
+        // 🔥 ИСПРАВЛЕНО: Корректируем URL аватара пользователя
+        const fixedUser = fixUserFileUrls(user);
         const suggestion = document.createElement('div');
         suggestion.style.cssText = `
             padding: 8px 12px;
@@ -966,16 +1049,16 @@ function showMentionSuggestions(searchTerm, position) {
         `;
         suggestion.innerHTML = `
             <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-color); display: flex; align-items: center; justify-content: center; font-size: 12px; color: white;">
-                ${user.avatar ? `<img src="${user.avatar}" style="width: 100%; height: 100%; border-radius: 50%;">` : user.displayName.charAt(0).toUpperCase()}
+                ${fixedUser.avatar ? `<img src="${fixedUser.avatar}" style="width: 100%; height: 100%; border-radius: 50%;">` : fixedUser.displayName.charAt(0).toUpperCase()}
             </div>
             <div>
-                <div style="font-weight: bold; font-size: 14px;">${user.displayName}</div>
-                <div style="font-size: 12px; color: var(--text-secondary);">@${user.username}</div>
+                <div style="font-weight: bold; font-size: 14px;">${fixedUser.displayName}</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">@${fixedUser.username}</div>
             </div>
         `;
         
         suggestion.addEventListener('click', function() {
-            insertMention(user.username, position);
+            insertMention(fixedUser.username, position);
             suggestionsContainer.remove();
         });
         
@@ -1142,7 +1225,8 @@ async function loadAllUsers() {
         const data = await response.json();
         
         if (data.success) {
-            allUsers = data.users;
+            // 🔥 ИСПРАВЛЕНО: Корректируем URL файлов для всех пользователей
+            allUsers = data.users.map(user => fixUserFileUrls(user));
         }
     } catch (error) {
         console.error('Ошибка загрузки пользователей:', error);
@@ -1175,6 +1259,8 @@ function processMentions(text) {
 
 // Функция для открытия модального окна с изображением
 function openImageModal(imageUrl) {
+    // 🔥 ИСПРАВЛЕНО: Корректируем URL изображения
+    const fixedImageUrl = fixFileUrl(imageUrl);
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
@@ -1184,7 +1270,7 @@ function openImageModal(imageUrl) {
                 <span class="close" style="color: white; font-size: 30px; cursor: pointer;">&times;</span>
             </div>
             <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                <img src="${imageUrl}" alt="Изображение" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
+                <img src="${fixedImageUrl}" alt="Изображение" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
             </div>
         </div>
     `;
@@ -1224,7 +1310,8 @@ function openUserProfile(username) {
             <div class="profile-header-large">
                 <div class="avatar-large">
                     ${user.avatar ? 
-                        `<img src="${user.avatar}" alt="${user.displayName}">` : 
+                        // 🔥 ИСПРАВЛЕНО: Корректируем URL аватара
+                        `<img src="${fixFileUrl(user.avatar)}" alt="${user.displayName}">` : 
                         user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
                     }
                 </div>
@@ -1349,7 +1436,9 @@ function renderUserProfilePosts(posts) {
     }
     
     posts.forEach(post => {
-        const postElement = createPostElement(post);
+        // 🔥 ИСПРАВЛЕНО: Корректируем URL файлов в посте
+        const fixedPost = fixPostFileUrls(post);
+        const postElement = createPostElement(fixedPost);
         postsList.appendChild(postElement);
     });
 }
@@ -1390,7 +1479,8 @@ function renderUserProfileGifts(gifts) {
         giftElement.innerHTML = `
             <div class="my-gift-preview">
                 ${gift.giftImage ? 
-                    `<img src="${gift.giftImage}" alt="${gift.giftName}">` : 
+                    // 🔥 ИСПРАВЛЕНО: Корректируем URL изображения подарка
+                    `<img src="${fixFileUrl(gift.giftImage)}" alt="${gift.giftName}">` : 
                     gift.giftPreview || '🎁'
                 }
             </div>
@@ -1492,7 +1582,9 @@ function handleNewPost(post) {
     // Добавляем пост в ленту
     const postsList = document.getElementById('postsList');
     if (postsList) {
-        const postElement = createPostElement(post);
+        // 🔥 ИСПРАВЛЕНО: Корректируем URL файлов в посте
+        const fixedPost = fixPostFileUrls(post);
+        const postElement = createPostElement(fixedPost);
         postsList.insertBefore(postElement, postsList.firstChild);
     }
 }
@@ -1553,6 +1645,7 @@ if (closeUserProfile) {
 // Проверяем аутентификацию при загрузке любой страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔐 Проверка аутентификации...');
+    console.log('🌍 Окружение:', isProduction() ? 'production' : 'development');
     
     if (!checkAuth()) {
         return;
