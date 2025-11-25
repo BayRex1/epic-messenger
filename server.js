@@ -52,6 +52,12 @@ class SimpleServer {
         console.log(`Content-Type: ${req.headers['content-type']}`);
         console.log(`Content-Length: ${req.headers['content-length']}`);
         
+        // 🔥 НОВОЕ: Обработка загруженных файлов из /tmp
+        if (pathname.startsWith('/api/uploads/')) {
+            this.handleUploadedFile(req, res, pathname);
+            return;
+        }
+        
         // Rate limiting проверка
         const clientIP = getClientIP(req);
         if (!this.securitySystem.checkRateLimit(clientIP, pathname)) {
@@ -95,6 +101,65 @@ class SimpleServer {
             console.log(`=== END REQUEST ===`);
             this.apiHandlers.processApiRequest(pathname, method, data, parsedUrl.query, req, res);
         });
+    }
+
+    // 🔥 НОВЫЙ МЕТОД: Обработка загруженных файлов из /tmp
+    handleUploadedFile(req, res, pathname) {
+        const path = require('path');
+        const fs = require('fs');
+        
+        // Извлекаем путь к файлу
+        const filePath = pathname.replace('/api/uploads/', '');
+        const fullPath = path.join('/tmp', 'uploads', filePath);
+        
+        console.log(`📁 Serving uploaded file from: ${fullPath}`);
+        
+        if (!fs.existsSync(fullPath)) {
+            console.log('❌ File not found:', fullPath);
+            res.writeHead(404);
+            res.end('File not found');
+            return;
+        }
+        
+        const ext = path.extname(fullPath).toLowerCase();
+        const contentType = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.bmp': 'image/bmp',
+            '.webp': 'image/webp',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg',
+            '.m4a': 'audio/mp4',
+            '.aac': 'audio/aac',
+            '.mp4': 'video/mp4',
+            '.avi': 'video/x-msvideo',
+            '.mov': 'video/quicktime',
+            '.wmv': 'video/x-ms-wmv',
+            '.flv': 'video/x-flv',
+            '.webm': 'video/webm',
+            '.pdf': 'application/pdf',
+            '.txt': 'text/plain'
+        }[ext] || 'application/octet-stream';
+        
+        try {
+            const data = fs.readFileSync(fullPath);
+            console.log(`✅ Serving uploaded file: ${pathname}, type: ${contentType}, size: ${data.length} bytes`);
+            
+            res.writeHead(200, { 
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(data);
+        } catch (error) {
+            console.error('❌ Error serving uploaded file:', error);
+            res.writeHead(500);
+            res.end('Internal server error');
+        }
     }
 
     // Обработка мобильных маршрутов
@@ -230,6 +295,8 @@ class SimpleServer {
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
             console.log(`📧 Epic Messenger готов к работе!`);
+            console.log(`🌍 Окружение: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`📁 Upload base: ${process.env.NODE_ENV === 'production' ? '/tmp/uploads' : 'public/uploads'}`);
             console.log(`\n📱 МОБИЛЬНАЯ ВЕРСИЯ АКТИВИРОВАНА:`);
             console.log(`   ✅ /mobile - Главная навигация`);
             console.log(`   ✅ /mobile/chats - Чаты`);
@@ -290,14 +357,18 @@ class SimpleServer {
             console.log(`   ✅ Удаление подарков: DELETE /api/gifts (с передачей giftId в теле)`);
             console.log(`   ✅ Удаление промокодов: DELETE /api/promo-codes (с передачей promoCodeId в теле)`);
             console.log(`\n📁 Созданные директории для загрузок:`);
-            console.log(`   ✅ public/uploads/avatars`);
-            console.log(`   ✅ public/uploads/posts`);
-            console.log(`   ✅ public/uploads/music`);
-            console.log(`   ✅ public/uploads/gifts`);
-            console.log(`   ✅ public/uploads/images`);
-            console.log(`   ✅ public/uploads/videos`);
-            console.log(`   ✅ public/uploads/audio`);
-            console.log(`   ✅ public/uploads/files`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/avatars' : 'public/uploads/avatars'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/posts' : 'public/uploads/posts'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/music' : 'public/uploads/music'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/gifts' : 'public/uploads/gifts'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/images' : 'public/uploads/images'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/videos' : 'public/uploads/videos'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/audio' : 'public/uploads/audio'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/files' : 'public/uploads/files'}`);
+            console.log(`\n🔥 НОВЫЙ ФУНКЦИОНАЛ ДЛЯ RENDER:`);
+            console.log(`   ✅ Обработка файлов из /tmp/uploads через /api/uploads/`);
+            console.log(`   ✅ Автоматическое определение окружения (production/development)`);
+            console.log(`   ✅ Корректные URL для загруженных файлов`);
             console.log(`\n💬 НОВЫЙ ФУНКЦИОНАЛ КОММЕНТАРИЕВ:`);
             console.log(`   ✅ Комментарии к постам`);
             console.log(`   ✅ Ответы на комментарии`);
