@@ -69,23 +69,28 @@ function checkFileExists(filePath) {
 }
 
 function ensureUploadDirs() {
-    // ИСПРАВЛЕНО: правильные пути для структуры uploads внутри public
+    // 🔥 ИСПРАВЛЕНИЕ ДЛЯ RENDER: правильные пути для production и development
+    const baseDir = process.env.NODE_ENV === 'production' ? 
+        path.join('/tmp', 'uploads') : 
+        path.join(process.cwd(), 'public', 'uploads');
+    
     const requiredDirs = [
-        'public/uploads/music',
-        'public/uploads/music/covers',
-        'public/uploads/avatars',
-        'public/uploads/gifts',
-        'public/uploads/posts',
-        'public/uploads/images',
-        'public/uploads/videos',
-        'public/uploads/audio',
-        'public/uploads/files',
-        'public/assets/emoji'
+        'music',
+        'music/covers',
+        'avatars',
+        'gifts',
+        'posts',
+        'images',
+        'videos',
+        'audio',
+        'files'
     ];
     
     console.log('📁 Creating upload directories...');
+    console.log(`📁 Base directory: ${baseDir}`);
+    
     requiredDirs.forEach(dir => {
-        const fullPath = path.join(process.cwd(), dir);
+        const fullPath = path.join(baseDir, dir);
         if (!fs.existsSync(fullPath)) {
             fs.mkdirSync(fullPath, { recursive: true });
             console.log('✅ Created directory:', fullPath);
@@ -94,8 +99,9 @@ function ensureUploadDirs() {
         }
     });
     
+    // Проверяем права на запись
     requiredDirs.forEach(dir => {
-        const fullPath = path.join(process.cwd(), dir);
+        const fullPath = path.join(baseDir, dir);
         try {
             const testFile = path.join(fullPath, 'test.txt');
             fs.writeFileSync(testFile, 'test');
@@ -105,6 +111,13 @@ function ensureUploadDirs() {
             console.log(`❌ Write access FAILED: ${dir}`, error.message);
         }
     });
+    
+    // 🔥 ДОПОЛНИТЕЛЬНО: создаем директории для эмодзи в public
+    const emojiDir = path.join(process.cwd(), 'public', 'assets', 'emoji');
+    if (!fs.existsSync(emojiDir)) {
+        fs.mkdirSync(emojiDir, { recursive: true });
+        console.log('✅ Created emoji directory:', emojiDir);
+    }
 }
 
 module.exports = {
