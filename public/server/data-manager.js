@@ -18,7 +18,28 @@ class DataManager {
     }
 
     ensureUploadDirs() {
-        ensureUploadDirs();
+        // 🔥 ИСПРАВЛЕНИЕ ДЛЯ RENDER: правильные пути для загрузок
+        const fs = require('fs');
+        const path = require('path');
+        
+        const baseDir = process.env.NODE_ENV === 'production' ? 
+            path.join('/tmp', 'uploads') : 
+            path.join(process.cwd(), 'public', 'uploads');
+        
+        const dirs = [
+            'avatars', 'posts', 'gifts', 'music', 'music/covers',
+            'images', 'videos', 'audio', 'files'
+        ];
+        
+        dirs.forEach(dir => {
+            const fullPath = path.join(baseDir, dir);
+            if (!fs.existsSync(fullPath)) {
+                fs.mkdirSync(fullPath, { recursive: true });
+                console.log(`✅ Created upload directory: ${fullPath}`);
+            }
+        });
+        
+        console.log(`📁 Upload directories ready in: ${baseDir}`);
     }
 
     loadData() {
@@ -308,4 +329,4 @@ class DataManager {
     }
 }
 
-module.exports = DataManager; 
+module.exports = DataManager;
