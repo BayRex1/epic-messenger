@@ -339,6 +339,7 @@ class SimpleServer {
             console.log(`   - Музыкальный плеер: http://localhost:${port}/music`);
             console.log(`   - О проекте: http://localhost:${port}/about`);
             console.log(`   - Технические работы: http://localhost:${port}/TehnicalWork`);
+            console.log(`   - Страница 404: http://localhost:${port}/404`);
             console.log(`\n💾 Файл данных: ${this.dataManager.dataFile}`);
             console.log(`📊 Логи безопасности: /tmp/security.log`);
             console.log(`🎵 Для загрузки музыки используйте endpoint: /api/music/upload-full`);
@@ -401,6 +402,12 @@ class SimpleServer {
         const path = require('path');
         const fs = require('fs');
 
+        // 🔥 НОВОЕ: Обработка страницы 404
+        if (pathname === '/404') {
+            serveStaticFile(res, 'public/additions/404.html', 'text/html');
+            return;
+        }
+
         // Проверка технических работ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && 
             !pathname.startsWith('/admin') && 
@@ -409,7 +416,8 @@ class SimpleServer {
             pathname !== '/TechnicalWork.html' &&
             pathname !== '/technical-work' &&
             !pathname.startsWith('/mobile') &&
-            !pathname.startsWith('/login')) {
+            !pathname.startsWith('/login') &&
+            pathname !== '/404') {
             
             // Разрешаем доступ только разработчикам
             const authHeader = req.headers['authorization'];
@@ -473,7 +481,8 @@ class SimpleServer {
             '/ecoin': 'public/ecoin.html',
             '/TehnicalWork': 'public/additions/TechnicalWork.html',
             '/technical-work': 'public/additions/TechnicalWork.html',
-            '/TechnicalWork.html': 'public/additions/TechnicalWork.html'
+            '/TechnicalWork.html': 'public/additions/TechnicalWork.html',
+            '/404': 'public/additions/404.html'
         };
 
         // 🔥 НОВОЕ: Обработка отдельных постов
@@ -570,7 +579,8 @@ class SimpleServer {
             if (isMobile) {
                 serveStaticFile(res, 'public/mobile/index.html', 'text/html');
             } else {
-                serveStaticFile(res, 'public/main.html', 'text/html');
+                // 🔥 НОВОЕ: Если страница не найдена, показываем 404
+                serveStaticFile(res, 'public/additions/404.html', 'text/html');
             }
         }
     }
