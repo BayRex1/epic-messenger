@@ -408,6 +408,38 @@ class SimpleServer {
             return;
         }
 
+        // 🔥 НОВОЕ: Список разрешенных страниц мессенджера
+        const allowedPages = [
+            '/', '/index.html',
+            '/mobile', '/mobile.html',
+            '/login', '/login.html',
+            '/about', '/about.html',
+            '/music', '/music.html',
+            '/posts', '/posts.html',
+            '/chat', '/chat.html',
+            '/profile', '/profile.html',
+            '/admin', '/admin.html',
+            '/settings', '/settings.html',
+            '/gifts', '/gifts.html',
+            '/search', '/search.html',
+            '/ecoin', '/ecoin.html',
+            '/TehnicalWork', '/technical-work', '/TechnicalWork.html'
+        ];
+
+        // 🔥 НОВОЕ: Проверяем, является ли запрос к разрешенной странице
+        const isAllowedPage = allowedPages.some(page => pathname === page) ||
+                             pathname.startsWith('/mobile/') ||
+                             pathname.startsWith('/post/');
+
+        // 🔥 НОВОЕ: Если это не разрешенная страница - показываем 404
+        if (!isAllowedPage && !pathname.startsWith('/uploads/') && 
+            !pathname.endsWith('.css') && !pathname.endsWith('.js') && 
+            !pathname.startsWith('/assets/')) {
+            console.log(`❌ Page not found: ${pathname}`);
+            serveStaticFile(res, 'public/additions/404.html', 'text/html');
+            return;
+        }
+
         // Проверка технических работ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && 
             !pathname.startsWith('/admin') && 
@@ -505,8 +537,7 @@ class SimpleServer {
             fs.readFile(filePath, (err, data) => {
                 if (err) {
                     console.log('❌ Upload file not found:', filePath, err.message);
-                    res.writeHead(404);
-                    res.end('File not found');
+                    serveStaticFile(res, 'public/additions/404.html', 'text/html');
                     return;
                 }
                 
