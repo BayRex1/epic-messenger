@@ -1,11 +1,12 @@
 // Функции для работы с чатом
 
 let selectedMembers = new Set();
-let currentChat = null;
-let currentFileData = null;
-let currentFileType = null;
-let emojiList = [];
-let socket = null;
+
+// УДАЛЕНО: let currentChat = null; - дублируется в common.js
+// УДАЛЕНО: let currentFileData = null; - дублируется в common.js
+// УДАЛЕНО: let currentFileType = null; - дублируется в common.js
+// УДАЛЕНО: let emojiList = []; - дублируется в common.js
+// УДАЛЕНО: let socket = null; - дублируется в common.js
 
 // Глобальные функции, которые должны быть доступны
 function showNotification(message, type = 'info') {
@@ -255,7 +256,8 @@ function renderChats(chats) {
 
 // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ВЫБОРА ЧАТА
 function selectChat(chat) {
-    currentChat = chat;
+    // Используем глобальную переменную из common.js
+    window.currentChat = chat;
     
     console.log('💬 Выбран чат:', {
         id: chat.id,
@@ -327,8 +329,8 @@ async function markAsRead(fromUserId) {
         });
 
         // Отправляем WebSocket сообщение о прочтении
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
+        if (window.socket && window.socket.readyState === WebSocket.OPEN) {
+            window.socket.send(JSON.stringify({
                 type: 'mark_read',
                 fromUserId: fromUserId
             }));
@@ -344,13 +346,13 @@ async function loadChatMessages(chatId) {
         const token = localStorage.getItem('authToken');
         
         // ИСПРАВЛЕНИЕ: Правильный endpoint для получения сообщений
-        const url = currentChat.isGroup ? 
+        const url = window.currentChat.isGroup ? 
             `/api/messages/group/${chatId}` :
             `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}`;
         
         console.log('📨 Загрузка сообщений для:', {
             chatId: chatId,
-            isGroup: currentChat.isGroup,
+            isGroup: window.currentChat.isGroup,
             url: url
         });
         
@@ -420,7 +422,7 @@ function renderNewMessage(message) {
     
     // Добавляем информацию об отправителе для групповых чатов
     let senderInfo = '';
-    if (currentChat && currentChat.isGroup && !isOutgoing) {
+    if (window.currentChat && window.currentChat.isGroup && !isOutgoing) {
         const sender = window.allUsers.find(u => u.id === message.senderId);
         if (sender) {
             senderInfo = `<div class="message-sender">${sender.displayName}</div>`;
@@ -506,12 +508,12 @@ async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
     
-    if (!text && !currentFileData) {
+    if (!text && !window.currentFileData) {
         showNotification('Введите сообщение или выберите файл', 'warning');
         return;
     }
     
-    if (!currentChat) {
+    if (!window.currentChat) {
         showNotification('Выберите чат для отправки сообщения', 'warning');
         return;
     }
@@ -520,24 +522,24 @@ async function sendMessage() {
         const token = localStorage.getItem('authToken');
         
         let requestData = {
-            toUserId: currentChat.id,
+            toUserId: window.currentChat.id,
             text: text,
             type: 'text'
         };
 
         // Если есть файл, добавляем его в запрос
-        if (currentFileData) {
-            const fileType = currentFileType || 'file';
-            requestData.file = currentFileData;
+        if (window.currentFileData) {
+            const fileType = window.currentFileType || 'file';
+            requestData.file = window.currentFileData;
             requestData.fileName = document.getElementById('fileInput').files[0]?.name || 'file';
             requestData.fileType = fileType;
             requestData.type = fileType;
         }
 
         console.log('📤 Отправка сообщения:', {
-            toUserId: currentChat.id,
-            isGroup: currentChat.isGroup,
-            hasFile: !!currentFileData,
+            toUserId: window.currentChat.id,
+            isGroup: window.currentChat.isGroup,
+            hasFile: !!window.currentFileData,
             text: text
         });
 
@@ -554,8 +556,8 @@ async function sendMessage() {
         
         if (data.success) {
             messageInput.value = '';
-            currentFileData = null;
-            currentFileType = null;
+            window.currentFileData = null;
+            window.currentFileType = null;
             const filePreview = document.getElementById('filePreview');
             if (filePreview) filePreview.innerHTML = '';
             const uploadFileModal = document.getElementById('uploadFileModal');
@@ -578,7 +580,7 @@ async function sendMessage() {
 }
 
 function showUploadFileModal(fileType) {
-    currentFileType = fileType;
+    window.currentFileType = fileType;
     const modal = document.getElementById('uploadFileModal');
     const title = document.getElementById('uploadFileTitle');
     
@@ -1064,7 +1066,7 @@ async function initializeChat() {
         // Отправка файла
         if (sendFileBtn) {
             sendFileBtn.addEventListener('click', function() {
-                if (currentFileData) {
+                if (window.currentFileData) {
                     sendMessage();
                 } else {
                     showNotification('Выберите файл для отправки', 'warning');
@@ -1077,8 +1079,8 @@ async function initializeChat() {
             closeUploadFile.addEventListener('click', function() {
                 const uploadFileModal = document.getElementById('uploadFileModal');
                 if (uploadFileModal) uploadFileModal.style.display = 'none';
-                currentFileData = null;
-                currentFileType = null;
+                window.currentFileData = null;
+                window.currentFileType = null;
             });
         }
 
@@ -1086,8 +1088,8 @@ async function initializeChat() {
             cancelUploadFile.addEventListener('click', function() {
                 const uploadFileModal = document.getElementById('uploadFileModal');
                 if (uploadFileModal) uploadFileModal.style.display = 'none';
-                currentFileData = null;
-                currentFileType = null;
+                window.currentFileData = null;
+                window.currentFileType = null;
             });
         }
         
@@ -1142,7 +1144,7 @@ function handleFileSelect(file) {
     const filePreview = document.getElementById('filePreview');
     
     reader.onload = function(e) {
-        currentFileData = e.target.result;
+        window.currentFileData = e.target.result;
         
         if (file.type.startsWith('image/')) {
             filePreview.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px;">`;
