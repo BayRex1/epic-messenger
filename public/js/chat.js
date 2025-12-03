@@ -1,17 +1,8 @@
-// Функции для работы с чатом
-
 let selectedMembers = new Set();
-
-// УДАЛЕНО: let currentChat = null; - дублируется в common.js
-// УДАЛЕНО: let currentFileData = null; - дублируется в common.js
-// УДАЛЕНО: let currentFileType = null; - дублируется в common.js
-// УДАЛЕНО: let emojiList = []; - дублируется в common.js
-// УДАЛЕНО: let socket = null; - дублируется в common.js
 
 // Глобальные функции, которые должны быть доступны
 function showNotification(message, type = 'info') {
     console.log(`🔔 ${type}: ${message}`);
-    // Базовая реализация уведомлений
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
@@ -36,7 +27,6 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Вспомогательная функция для форматирования времени
 function formatLastSeen(lastSeen) {
     if (!lastSeen) return 'давно';
     
@@ -60,12 +50,10 @@ function formatLastSeen(lastSeen) {
     }
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
 async function loadCurrentUser() {
     try {
         console.log('👤 Загрузка текущего пользователя для чата...');
         
-        // Ждем инициализации из common.js
         if (!window.currentUser) {
             console.log('⏳ Ожидаем инициализации пользователя из common.js...');
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -97,7 +85,6 @@ async function loadCurrentUser() {
         
         console.log('✅ Пользователь готов:', window.currentUser.username);
         
-        // Загружаем список всех пользователей
         await loadAllUsers();
         
     } catch (error) {
@@ -109,7 +96,6 @@ async function loadCurrentUser() {
     }
 }
 
-// Функция загрузки всех пользователей
 async function loadAllUsers() {
     try {
         const token = localStorage.getItem('authToken');
@@ -122,7 +108,6 @@ async function loadAllUsers() {
         const data = await response.json();
         
         if (data.success) {
-            // Используем глобальную переменную из common.js
             window.allUsers = data.users;
             console.log('✅ Загружено пользователей:', window.allUsers.length);
         } else {
@@ -149,7 +134,6 @@ async function loadChats() {
             }
         });
         
-        // Проверяем статус ответа
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -181,7 +165,6 @@ async function loadChats() {
     }
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ РЕНДЕРИНГА ЧАТОВ
 function renderChats(chats) {
     const chatsList = document.getElementById('chatsList');
     if (!chatsList) {
@@ -217,10 +200,8 @@ function renderChats(chats) {
             lastMessageText = 'Группа создана';
         }
         
-        // Добавляем иконку группы если это группа
         const groupIcon = chat.isGroup ? '<span class="group-icon">👥</span>' : '';
         
-        // Для групп показываем количество участников вместо статуса
         const statusInfo = chat.isGroup ? 
             `Участников: ${chat.memberCount || 1}` : 
             (chat.status === 'online' ? 'В сети' : `Был(а) в сети ${formatLastSeen(chat.lastSeen)}`);
@@ -254,9 +235,7 @@ function renderChats(chats) {
     console.log('✅ Чаты отрендерены');
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ВЫБОРА ЧАТА
 function selectChat(chat) {
-    // Используем глобальную переменную из common.js
     window.currentChat = chat;
     
     console.log('💬 Выбран чат:', {
@@ -265,7 +244,6 @@ function selectChat(chat) {
         isGroup: chat.isGroup
     });
     
-    // Обновляем информацию о чате
     const currentChatName = document.getElementById('currentChatName');
     const currentChatStatus = document.getElementById('currentChatStatus');
     const currentChatAvatar = document.getElementById('currentChatAvatar');
@@ -298,7 +276,6 @@ function selectChat(chat) {
         } else {
             currentChatAvatar.textContent = chat.displayName ? chat.displayName.charAt(0).toUpperCase() : 'U';
         }
-        // Добавляем иконку группы
         if (chat.isGroup) {
             const groupIcon = document.createElement('span');
             groupIcon.className = 'group-avatar-icon';
@@ -307,10 +284,8 @@ function selectChat(chat) {
         }
     }
     
-    // Загружаем сообщения
     loadChatMessages(chat.id);
     
-    // Обновляем список чатов (убираем badge)
     loadChats();
 }
 
@@ -328,7 +303,6 @@ async function markAsRead(fromUserId) {
             })
         });
 
-        // Отправляем WebSocket сообщение о прочтении
         if (window.socket && window.socket.readyState === WebSocket.OPEN) {
             window.socket.send(JSON.stringify({
                 type: 'mark_read',
@@ -340,12 +314,10 @@ async function markAsRead(fromUserId) {
     }
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ СООБЩЕНИЙ
 async function loadChatMessages(chatId) {
     try {
         const token = localStorage.getItem('authToken');
         
-        // ИСПРАВЛЕНИЕ: Правильный endpoint для получения сообщений
         const url = window.currentChat.isGroup ? 
             `/api/messages/group/${chatId}` :
             `/api/messages?userId=${window.currentUser.id}&toUserId=${chatId}`;
@@ -400,7 +372,6 @@ function renderChatMessages(messages) {
         renderNewMessage(message);
     });
     
-    // Прокручиваем вниз
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -420,7 +391,6 @@ function renderNewMessage(message) {
         </div>`;
     }
     
-    // Добавляем информацию об отправителе для групповых чатов
     let senderInfo = '';
     if (window.currentChat && window.currentChat.isGroup && !isOutgoing) {
         const sender = window.allUsers.find(u => u.id === message.senderId);
@@ -479,11 +449,9 @@ function renderNewMessage(message) {
             ${readStatus}
         `;
     } else {
-        // Заменяем эмодзи коды на изображения и обрабатываем упоминания
         let messageText = message.text || '';
         messageText = processMentions(messageText);
         
-        // Простая обработка эмодзи (можно расширить)
         messageText = messageText.replace(/:\)/g, '😊')
                                .replace(/:\(/g, '😢')
                                .replace(/:D/g, '😃')
@@ -499,11 +467,9 @@ function renderNewMessage(message) {
     
     chatMessages.appendChild(messageElement);
     
-    // Прокручиваем вниз
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ СООБЩЕНИЙ
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
@@ -527,7 +493,6 @@ async function sendMessage() {
             type: 'text'
         };
 
-        // Если есть файл, добавляем его в запрос
         if (window.currentFileData) {
             const fileType = window.currentFileType || 'file';
             requestData.file = window.currentFileData;
@@ -563,7 +528,6 @@ async function sendMessage() {
             const uploadFileModal = document.getElementById('uploadFileModal');
             if (uploadFileModal) uploadFileModal.style.display = 'none';
             
-            // Обновляем интерфейс
             renderNewMessage(data.message);
             loadChats();
             
@@ -612,7 +576,6 @@ function showUploadFileModal(fileType) {
     modal.style.display = 'flex';
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ДЕЙСТВИЙ ЧАТА
 function initializeChatActions() {
     console.log('🔧 Инициализация действий чата...');
     
@@ -624,7 +587,6 @@ function initializeChatActions() {
     const cancelGroupCreate = document.getElementById('cancelGroupCreate');
     const confirmGroupCreate = document.getElementById('confirmGroupCreate');
 
-    // Кнопка "Новый чат"
     if (newChatBtn) {
         newChatBtn.addEventListener('click', function() {
             console.log('🆕 Нажата кнопка нового чата');
@@ -635,7 +597,6 @@ function initializeChatActions() {
         console.error('❌ Кнопка нового чата не найдена');
     }
 
-    // Кнопка "Создать группу"
     if (createGroupBtn) {
         createGroupBtn.addEventListener('click', function() {
             console.log('👥 Нажата кнопка создания группы');
@@ -646,7 +607,6 @@ function initializeChatActions() {
         console.error('❌ Кнопка создания группы не найдена');
     }
 
-    // Кнопка "Обновить чаты"
     if (refreshChatsBtn) {
         refreshChatsBtn.addEventListener('click', function() {
             console.log('🔄 Нажата кнопка обновления чатов');
@@ -657,7 +617,6 @@ function initializeChatActions() {
         console.error('❌ Кнопка обновления чатов не найдена');
     }
 
-    // Закрытие поиска пользователей
     if (closeUserSearch) {
         closeUserSearch.addEventListener('click', function() {
             console.log('❌ Закрытие поиска пользователей');
@@ -665,7 +624,6 @@ function initializeChatActions() {
         });
     }
 
-    // Поиск пользователей
     if (userSearchInput) {
         userSearchInput.addEventListener('input', function(e) {
             console.log('🔍 Поиск пользователей:', e.target.value);
@@ -673,7 +631,6 @@ function initializeChatActions() {
         });
     }
 
-    // Отмена создания группы
     if (cancelGroupCreate) {
         cancelGroupCreate.addEventListener('click', function() {
             console.log('❌ Отмена создания группы');
@@ -681,7 +638,6 @@ function initializeChatActions() {
         });
     }
 
-    // Подтверждение создания группы
     if (confirmGroupCreate) {
         confirmGroupCreate.addEventListener('click', function() {
             console.log('✅ Подтверждение создания группы');
@@ -699,7 +655,7 @@ function showUserSearch() {
     if (userSearchContainer && userSearchInput) {
         userSearchContainer.style.display = 'block';
         userSearchInput.focus();
-        hideGroupCreation(); // Скрываем создание группы если открыто
+        hideGroupCreation();
     }
 }
 
@@ -718,7 +674,7 @@ function showGroupCreation() {
     
     if (createGroupContainer) {
         createGroupContainer.style.display = 'block';
-        hideUserSearch(); // Скрываем поиск пользователей если открыт
+        hideUserSearch();
         loadAvailableUsersForGroup();
     }
 }
@@ -775,7 +731,6 @@ function renderUserSearchResultsForChat(users) {
         return;
     }
 
-    // Фильтруем текущего пользователя
     const filteredUsers = users.filter(user => user.id !== window.currentUser.id);
 
     filteredUsers.forEach(user => {
@@ -808,7 +763,6 @@ function renderUserSearchResultsForChat(users) {
 }
 
 function startNewChat(user) {
-    // Создаем объект чата
     const chat = {
         id: user.id,
         displayName: user.displayName || 'Пользователь',
@@ -822,13 +776,10 @@ function startNewChat(user) {
         isGroup: false
     };
     
-    // Выбираем этот чат
     selectChat(chat);
     
-    // Скрываем поиск
     hideUserSearch();
     
-    // Показываем уведомление
     showNotification(`Чат с ${user.displayName} начат`, 'success');
 }
 
@@ -860,7 +811,6 @@ function renderAvailableUsers(users) {
     
     availableUsersList.innerHTML = '';
 
-    // Фильтруем текущего пользователя
     const filteredUsers = users.filter(user => user.id !== window.currentUser.id);
 
     filteredUsers.forEach(user => {
@@ -927,7 +877,6 @@ function updateSelectedMembersList() {
             const removeBtn = memberElement.querySelector('.remove-member');
             removeBtn.addEventListener('click', function() {
                 selectedMembers.delete(user.id);
-                // Снимаем галочку в основном списке
                 const checkbox = document.querySelector(`#user-${user.id}`);
                 if (checkbox) checkbox.checked = false;
                 updateSelectedMembersList();
@@ -940,7 +889,6 @@ function updateSelectedMembersList() {
 
 function clearSelectedMembers() {
     selectedMembers.clear();
-    // Снимаем все галочки
     const checkboxes = document.querySelectorAll('.user-select-checkbox');
     checkboxes.forEach(checkbox => {
         checkbox.checked = false;
@@ -948,7 +896,6 @@ function clearSelectedMembers() {
     updateSelectedMembersList();
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ ГРУППЫ
 async function createNewGroup() {
     const groupNameInput = document.getElementById('groupNameInput');
     const groupUsernameInput = document.getElementById('groupUsernameInput');
@@ -990,7 +937,6 @@ async function createNewGroup() {
             
             console.log('✅ Группа создана:', data.group);
             
-            // Создаем объект чата для группы
             const groupChat = {
                 id: data.group.id,
                 displayName: data.group.name,
@@ -1002,10 +948,8 @@ async function createNewGroup() {
                 createdAt: data.group.createdAt
             };
             
-            // Выбираем созданную группу
             selectChat(groupChat);
             
-            // Обновляем список чатов
             loadChats();
         } else {
             showNotification('Ошибка создания группы: ' + data.message, 'error');
@@ -1017,12 +961,10 @@ async function createNewGroup() {
     }
 }
 
-// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ЧАТА
 async function initializeChat() {
     console.log('🚀 Инициализация чата...');
     
     try {
-        // Сначала загружаем данные пользователя
         await loadCurrentUser();
         
         const sendMessageBtn = document.getElementById('sendMessageBtn');
@@ -1044,7 +986,6 @@ async function initializeChat() {
             });
         }
 
-        // Кнопки загрузки файлов
         if (uploadImageBtn) {
             uploadImageBtn.addEventListener('click', function() {
                 showUploadFileModal('image');
@@ -1063,7 +1004,6 @@ async function initializeChat() {
             });
         }
 
-        // Отправка файла
         if (sendFileBtn) {
             sendFileBtn.addEventListener('click', function() {
                 if (window.currentFileData) {
@@ -1074,7 +1014,6 @@ async function initializeChat() {
             });
         }
 
-        // Закрытие модального окна загрузки файла
         if (closeUploadFile) {
             closeUploadFile.addEventListener('click', function() {
                 const uploadFileModal = document.getElementById('uploadFileModal');
@@ -1093,7 +1032,6 @@ async function initializeChat() {
             });
         }
         
-        // Обработка загрузки файлов
         const fileInput = document.getElementById('fileInput');
         const fileUploadArea = document.getElementById('fileUploadArea');
         
@@ -1126,10 +1064,8 @@ async function initializeChat() {
             });
         }
         
-        // Инициализация действий чата
         initializeChatActions();
         
-        // Загружаем чаты при инициализации
         await loadChats();
         
         console.log('✅ Чат полностью инициализирован');
@@ -1160,18 +1096,14 @@ function handleFileSelect(file) {
     reader.readAsDataURL(file);
 }
 
-// Вспомогательные функции
 function processMentions(text) {
-    // Простая обработка упоминаний - можно расширить
     return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
 }
 
 function openImageModal(imageUrl) {
-    // Реализация открытия модального окна с изображением
     console.log('Открытие изображения:', imageUrl);
 }
 
-// Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM загружен, инициализация чата...');
     initializeChat();
