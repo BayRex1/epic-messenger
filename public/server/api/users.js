@@ -1,13 +1,14 @@
 class UsersHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === ПОЛЬЗОВАТЕЛИ ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetUsers(token) {
         const user = this.authenticateToken(token);
@@ -341,10 +342,6 @@ class UsersHandler {
         };
     }
 
-    // ============================================
-    // === АВАТАРЫ ===
-    // ============================================
-
     handleUpdateAvatar(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -422,7 +419,7 @@ class UsersHandler {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'avatars', uniqueFilename);
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'avatars', uniqueFilename);
 
             if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                 this.fileHandlers.deleteFile(user.avatar);
@@ -480,10 +477,6 @@ class UsersHandler {
         }
     }
 
-    // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ ===
-    // ============================================
-
     handleUpdateCover(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -528,7 +521,7 @@ class UsersHandler {
             try {
                 const fileExt = path.extname(filename);
                 const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-                const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'covers', uniqueFilename);
+                const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'covers', uniqueFilename);
 
                 if (user.cover && user.cover.startsWith('/uploads/covers/')) {
                     this.fileHandlers.deleteFile(user.cover);
@@ -574,10 +567,6 @@ class UsersHandler {
             timestamp: new Date().toISOString()
         };
     }
-
-    // ============================================
-    // === E-COIN ===
-    // ============================================
 
     handleGetBalance(token) {
         const user = this.authenticateToken(token);
