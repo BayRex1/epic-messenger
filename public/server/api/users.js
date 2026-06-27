@@ -1,3 +1,5 @@
+const path = require('path');
+
 class UsersHandler {
     constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
@@ -477,7 +479,8 @@ class UsersHandler {
         }
     }
 
-    handleUpdateCover(token, data) {
+    // 🔥 ИСПРАВЛЕНО: добавлен async
+    async handleUpdateCover(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
