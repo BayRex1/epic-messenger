@@ -1,13 +1,14 @@
 class DevicesHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === УСТРОЙСТВА ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetDevices(token) {
         const user = this.authenticateToken(token);
@@ -16,7 +17,6 @@ class DevicesHandler {
         }
 
         const devices = this.dataManager.getUserDevices(user.id);
-            
         this.securitySystem.logSecurityEvent(user, 'GET_DEVICES', `count:${devices.length}`);
 
         return {
