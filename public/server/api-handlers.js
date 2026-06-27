@@ -38,6 +38,7 @@ class ApiHandlers {
 
         try {
             switch (pathname) {
+                // === АУТЕНТИФИКАЦИЯ ===
                 case '/api/login':
                     if (method === 'POST') {
                         response = this.handleLogin(data, req);
@@ -219,6 +220,13 @@ class ApiHandlers {
                 case '/api/update-avatar':
                     if (method === 'POST') {
                         response = this.handleUpdateAvatar(token, data);
+                    }
+                    break;
+
+                // 🔥 НОВЫЙ API ДЛЯ ОБЛОЖКИ ПРОФИЛЯ
+                case '/api/update-cover':
+                    if (method === 'POST') {
+                        response = this.handleUpdateCover(token, data);
                     }
                     break;
 
@@ -525,7 +533,6 @@ class ApiHandlers {
                     }
                     break;
 
-                // ЗАГРУЗКА ФАЙЛОВ
                 case '/api/upload-avatar':
                     if (method === 'POST') {
                         response = this.handleUploadAvatar(token, data);
@@ -563,50 +570,56 @@ class ApiHandlers {
                     break;
                     
                 default:
-                    if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like')) {
+                    // 🔥 Обработка /api/posts/:id (получение одного поста)
+                    if (pathname.startsWith('/api/posts/') && method === 'GET') {
                         const postId = pathname.split('/')[3];
-                        if (method === 'POST') {
-                            response = this.handleLikePost(token, { postId });
+                        if (postId && !pathname.includes('/comments')) {
+                            response = this.handleGetPostById(token, postId);
+                            break;
                         }
-                    } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy')) {
-                        const giftId = pathname.split('/')[3];
-                        if (method === 'POST') {
-                            response = this.handleBuyGift(token, { giftId, ...data });
-                        }
-                    } else if (pathname.startsWith('/api/users/')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetUser(token, userId);
-                        }
-                    } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                        const userId = pathname.split('/')[3];
-                        if (method === 'GET') {
-                            response = this.handleGetTransactions(token, userId);
-                        }
-                    } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
-                        const pathParts = pathname.split('/');
-                        const postId = pathParts[3];
+                    }
+                    
+                    // 🔥 Обработка /api/posts/:postId/comments
+                    if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+                        const parts = pathname.split('/');
+                        const postId = parts[3];
                         
-                        if (pathParts.length === 5 && pathParts[4] === 'comments' && method === 'GET') {
-                            response = this.handleGetPostComments(token, postId);
-                        } else if (pathParts.length === 5 && pathParts[4] === 'comments' && method === 'POST') {
-                            response = this.handleAddPostComment(token, postId, data);
-                        } else if (pathParts.length === 6 && pathParts[5] === 'like' && method === 'POST') {
-                            const commentId = pathParts[4];
+                        if (parts.length === 5 && parts[4] === 'comments') {
+                            if (method === 'GET') response = this.handleGetPostComments(token, postId);
+                            else if (method === 'POST') response = this.handleAddPostComment(token, postId, data);
+                        } else if (parts.length === 6 && parts[5] === 'like' && method === 'POST') {
+                            const commentId = parts[4];
                             response = this.handleLikeComment(token, { postId, commentId });
-                        } else if (pathParts.length === 7 && pathParts[5] === 'reply' && method === 'POST') {
-                            const commentId = pathParts[4];
-                            response = this.handleAddReply(token, postId, commentId, data);
-                        } else if (pathParts.length === 8 && pathParts[7] === 'like' && method === 'POST') {
-                            const commentId = pathParts[4];
-                            const replyId = pathParts[6];
-                            response = this.handleLikeReply(token, postId, commentId, replyId);
+                        } else if (parts.length === 7 && parts[5] === 'reply' && method === 'POST') {
+                            const commentId = parts[4];
+                            response = this.handleReplyToComment(token, { postId, commentId, ...data });
+                        } else if (parts.length === 8 && parts[7] === 'like' && method === 'POST') {
+                            const commentId = parts[4];
+                            const replyId = parts[6];
+                            response = this.handleLikeReply(token, { postId, commentId, replyId });
                         } else {
                             response = { success: false, message: 'API endpoint not found' };
                         }
-                    } else {
-                        response = { success: false, message: 'API endpoint not found' };
+                        break;
                     }
+                    
+                    // 🔥 Обработка /api/gifts/:giftId/buy
+                    if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
+                        const giftId = pathname.split('/')[3];
+                        response = this.handleBuyGift(token, { giftId, ...data });
+                        break;
+                    }
+                    
+                    // 🔥 Обработка /api/user/:userId/transactions
+                    if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetTransactions(token, userId);
+                            break;
+                        }
+                    }
+                    
+                    response = { success: false, message: 'API endpoint not found' };
             }
         } catch (error) {
             console.error('API Error:', error);
@@ -654,6 +667,94 @@ class ApiHandlers {
         }
         return null;
     }
+
+    // ============================================
+    // === ОБЛОЖКА ПРОФИЛЯ (НОВЫЙ МЕТОД) ===
+    // ============================================
+
+    handleUpdateCover(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { cover, fileData, filename } = data;
+
+        // Если передан base64 или URL напрямую
+        if (cover) {
+            // Удаляем старую обложку если есть
+            if (user.cover && user.cover.startsWith('/uploads/covers/')) {
+                this.fileHandlers.deleteFile(user.cover);
+            }
+
+            user.cover = cover;
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
+
+            return {
+                success: true,
+                coverUrl: cover,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    cover: cover
+                }
+            };
+        }
+
+        // Если передан файл
+        if (fileData && filename) {
+            if (!this.fileHandlers.validateCoverFile(filename)) {
+                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
+                return { success: false, message: 'Недопустимый формат файла для обложки' };
+            }
+
+            try {
+                const fileExt = path.extname(filename);
+                const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+                const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'covers', uniqueFilename);
+
+                if (user.cover && user.cover.startsWith('/uploads/covers/')) {
+                    this.fileHandlers.deleteFile(user.cover);
+                }
+
+                user.cover = fileUrl;
+                this.dataManager.saveData();
+
+                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`);
+
+                console.log(`🖼️ Пользователь ${user.username} загрузил обложку профиля: ${filename}`);
+
+                return {
+                    success: true,
+                    coverUrl: fileUrl,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        cover: fileUrl
+                    }
+                };
+            } catch (error) {
+                console.error('Ошибка загрузки обложки:', error);
+                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
+                return { success: false, message: 'Ошибка загрузки файла' };
+            }
+        }
+
+        return { success: false, message: 'Не указана обложка или файл' };
+    }
+
+    // ============================================
+    // === ОСТАЛЬНЫЕ МЕТОДЫ ===
+    // ============================================
 
     handleLogin(data, req) {
         const { username, password } = data;
@@ -712,6 +813,7 @@ class ApiHandlers {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
+                cover: user.cover || null,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -789,6 +891,7 @@ class ApiHandlers {
             email: sanitizedEmail,
             password: this.securitySystem.hashPassword(password),
             avatar: null,
+            cover: null,
             description: 'Новый пользователь Epic Messenger',
             coins: isBayRex ? 50000 : 1000,
             verified: isBayRex,
@@ -838,6 +941,7 @@ class ApiHandlers {
                 displayName: newUser.displayName,
                 email: newUser.email,
                 avatar: newUser.avatar,
+                cover: newUser.cover,
                 description: newUser.description,
                 coins: newUser.coins,
                 verified: newUser.verified,
@@ -887,6 +991,7 @@ class ApiHandlers {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
+                cover: user.cover || null,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -936,6 +1041,7 @@ class ApiHandlers {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
+                cover: user.cover || null,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -978,6 +1084,7 @@ class ApiHandlers {
                 username: u.username,
                 displayName: u.displayName,
                 avatar: u.avatar,
+                cover: u.cover || null,
                 description: u.description,
                 coins: u.coins,
                 verified: u.verified,
@@ -1024,6 +1131,7 @@ class ApiHandlers {
                 username: targetUser.username,
                 displayName: targetUser.displayName,
                 avatar: targetUser.avatar,
+                cover: targetUser.cover || null,
                 description: targetUser.description,
                 coins: targetUser.coins,
                 verified: targetUser.verified,
@@ -1059,6 +1167,7 @@ class ApiHandlers {
             username: u.username,
             displayName: u.displayName,
             avatar: u.avatar,
+            cover: u.cover || null,
             description: u.description,
             coins: u.coins,
             verified: u.verified,
@@ -1113,6 +1222,7 @@ class ApiHandlers {
                 username: targetUser.username,
                 displayName: targetUser.displayName,
                 avatar: targetUser.avatar,
+                cover: targetUser.cover || null,
                 description: targetUser.description,
                 coins: targetUser.coins,
                 verified: targetUser.verified,
@@ -1147,6 +1257,7 @@ class ApiHandlers {
             username: targetUser.username,
             displayName: targetUser.displayName,
             avatar: targetUser.avatar,
+            cover: targetUser.cover || null,
             description: targetUser.description,
             coins: targetUser.coins || 0,
             verified: targetUser.verified || false,
@@ -1190,6 +1301,7 @@ class ApiHandlers {
                         username: postUser?.username,
                         displayName: postUser?.displayName,
                         avatar: postUser?.avatar,
+                        cover: postUser?.cover || null,
                         verified: postUser?.verified || false,
                         isDeveloper: postUser?.isDeveloper || false
                     }
@@ -1275,6 +1387,7 @@ class ApiHandlers {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
+                cover: user.cover || null,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -1330,6 +1443,7 @@ class ApiHandlers {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
+                cover: user.cover || null,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
@@ -1426,6 +1540,48 @@ class ApiHandlers {
             success: true,
             posts: postsWithUserInfo
         };
+    }
+
+    handleGetPostById(token, postId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const post = this.dataManager.posts.find(p => p.id === postId);
+        if (!post) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        post.views = (post.views || 0) + 1;
+        this.dataManager.saveData();
+
+        const postUser = this.dataManager.users.find(u => u.id === post.userId);
+        const postWithUser = {
+            ...post,
+            userName: postUser ? postUser.displayName : 'Неизвестный',
+            userAvatar: postUser ? postUser.avatar : null,
+            userVerified: postUser ? postUser.verified : false,
+            userDeveloper: postUser ? postUser.isDeveloper : false,
+            comments: (post.comments || []).map(comment => {
+                const commentUser = this.dataManager.users.find(u => u.id === comment.userId);
+                return {
+                    ...comment,
+                    userName: commentUser ? commentUser.displayName : 'Неизвестный',
+                    userAvatar: commentUser ? commentUser.avatar : null,
+                    replies: (comment.replies || []).map(reply => {
+                        const replyUser = this.dataManager.users.find(u => u.id === reply.userId);
+                        return {
+                            ...reply,
+                            userName: replyUser ? replyUser.displayName : 'Неизвестный',
+                            userAvatar: replyUser ? replyUser.avatar : null
+                        };
+                    })
+                };
+            })
+        };
+
+        return { success: true, post: postWithUser };
     }
 
     handleGetUserPosts(token, query) {
@@ -3364,6 +3520,10 @@ class ApiHandlers {
             this.fileHandlers.deleteFile(targetUser.avatar);
         }
 
+        if (targetUser.cover && targetUser.cover.startsWith('/uploads/covers/')) {
+            this.fileHandlers.deleteFile(targetUser.cover);
+        }
+
         Array.from(this.dataManager.devices.entries()).forEach(([deviceId, device]) => {
             if (device.userId === userId) {
                 this.dataManager.devices.delete(deviceId);
@@ -3511,6 +3671,8 @@ class ApiHandlers {
             id: u.id,
             username: u.username,
             displayName: u.displayName,
+            avatar: u.avatar,
+            cover: u.cover || null,
             coins: u.coins,
             verified: u.verified,
             isDeveloper: u.isDeveloper,
