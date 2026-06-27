@@ -1,13 +1,14 @@
 class PromoHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === ПРОМОКОДЫ ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetPromoCodes(token) {
         const user = this.authenticateToken(token);
@@ -25,14 +26,12 @@ class PromoHandler {
 
     handleCreatePromoCode(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { code, coins, max_uses } = data;
-        
         if (!code || !coins) {
             return { success: false, message: 'Код и количество коинов обязательны' };
         }
@@ -68,7 +67,6 @@ class PromoHandler {
 
     handleDeletePromoCode(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_PROMOCODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -76,7 +74,6 @@ class PromoHandler {
 
         const { promoCodeId } = data;
         const promoIndex = this.dataManager.promoCodes.findIndex(p => p.id === promoCodeId);
-        
         if (promoIndex === -1) {
             return { success: false, message: 'Промокод не найден' };
         }
@@ -116,7 +113,6 @@ class PromoHandler {
         }
 
         const { code } = data;
-        
         if (!this.securitySystem.validateInput(code, 'text')) {
             return { success: false, message: 'Некорректный промокод' };
         }
