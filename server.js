@@ -4,7 +4,7 @@ const fs = require('fs');
 const WebSocketServer = require('./public/server/websocket-server');
 const SecuritySystem = require('./public/server/security-system');
 const FileHandlers = require('./public/server/file-handlers');
-const ApiHandlers = require('./public/server/api-handlers');
+const ApiHandlers = require('./public/server/api');
 const DataManager = require('./public/server/data-manager');
 const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId, ensureUploadDirs } = require('./public/server/utils');
 
