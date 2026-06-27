@@ -4,213 +4,1123 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Настройки - Epic Messenger</title>
-    <link rel="stylesheet" href="/styles.css">
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a232c;
+            --bg-tertiary: #2a3a4a;
+            --border-color: #2a3a4a;
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a9ba8;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #00b894;
+            --error-color: #e17055;
+            --warning-color: #fdcb6e;
+        }
+
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --border-color: #dddddd;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #00b4b4;
+            --accent-hover: #00cccc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Мобильный хедер */
+        .mobile-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .mobile-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .mobile-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .mobile-header-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .mobile-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Основной контент */
+        .main-content {
+            padding-top: 60px;
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        /* Меню настроек */
+        .menu-container {
+            padding: 20px;
+        }
+
+        .menu-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 0;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .menu-section-title {
+            padding: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 18px 20px;
+            color: var(--text-primary);
+            text-decoration: none;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            gap: 15px;
+            width: 100%;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .menu-item.danger {
+            color: var(--error-color);
+        }
+
+        .menu-item.danger:hover {
+            background: rgba(225, 112, 85, 0.1);
+        }
+
+        .menu-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .menu-item-content {
+            flex: 1;
+        }
+
+        .menu-item-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .menu-item-description {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .menu-item-arrow {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Нижняя панель навигации */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-around;
+            z-index: 999;
+            height: 60px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 10px;
+            gap: 4px;
+            flex: 1;
+            transition: all 0.3s;
+        }
+
+        .nav-item.active {
+            color: var(--accent-color);
+        }
+
+        .nav-item:hover {
+            color: var(--accent-color);
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Переключатель темы */
+        .theme-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+            margin-left: auto;
+        }
+
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .theme-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-tertiary);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .theme-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .theme-slider {
+            background-color: var(--accent-color);
+        }
+
+        input:checked + .theme-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Стили для обложки в мобильной версии */
+        .profile-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .profile-cover-container {
+            position: relative;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .profile-cover-container:hover .cover-overlay {
+            opacity: 1;
+        }
+
+        .profile-cover-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .cover-overlay svg {
+            width: 24px;
+            height: 24px;
+            color: white;
+        }
+
+        .profile-info-wrapper {
+            padding: 15px 20px 20px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar-mobile {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 3px solid var(--bg-secondary);
+            margin-top: -35px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            overflow: hidden;
+            flex-shrink: 0;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .user-avatar-mobile:hover .avatar-overlay {
+            opacity: 1;
+        }
+
+        .user-avatar-mobile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: 50%;
+        }
+
+        .avatar-overlay svg {
+            width: 20px;
+            height: 20px;
+            color: white;
+        }
+
+        .user-info-mobile {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name-mobile {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .user-username-mobile {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Модальные окна */
+        .gifts-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1004;
+            padding: 20px;
+        }
+
+        .gifts-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .edit-profile-form {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .send-btn.danger {
+            background: var(--error-color);
+        }
+
+        .send-btn.danger:hover {
+            background: #c0392b;
+        }
+
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideInRight 0.3s;
+            max-width: 300px;
+        }
+
+        .notification.success { background: var(--success-color); }
+        .notification.error { background: var(--error-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .menu-container {
+                padding: 15px;
+            }
+            
+            .menu-item {
+                padding: 16px;
+            }
+            
+            .gifts-container {
+                padding: 20px;
+            }
+
+            .user-avatar-mobile {
+                width: 60px;
+                height: 60px;
+                font-size: 22px;
+                margin-top: -30px;
+            }
+
+            .profile-cover-container {
+                height: 100px;
+            }
+
+            .profile-info-wrapper {
+                padding: 10px 15px 15px 15px;
+            }
+
+            .user-name-mobile {
+                font-size: 16px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
-    <!-- Сайдбар -->
-    <div class="sidebar" id="sidebar">
-        <div class="profile-section" id="profileSection">
-            <div class="profile-header">
-                <div class="avatar" id="userAvatar">U</div>
-                <div class="profile-info">
-                    <h3 id="userName">
-                        Пользователь
-                        <span class="verified-badge" id="verifiedBadge" style="display: none;">
-                            <svg viewBox="0 0 24 24">
-                                <path class="gold-path" d="M23,12L20.56,9.22L20.9,5.54L17.29,4.72L15.4,1.54L12,3L8.6,1.54L6.71,4.72L3.1,5.53L3.44,9.21L1,12L3.44,14.78L3.1,18.47L6.71,19.29L8.6,22.47L12,21L15.4,22.46L17.29,19.28L20.9,18.46L20.56,14.78L23,12Z"/>
-                            </svg>
-                        </span>
-                        <span class="developer-badge" id="developerBadge" style="display: none;">
-                            <svg viewBox="0 0 24 24">
-                                <path class="blue-path" d="M12,15A2,2 0 0,1 10,13C10,11.89 10.9,11 12,11A2,2 0 0,1 14,13A2,2 0 0,1 12,15M7,7C7,5.89 7.89,5 9,5A2,2 0 0,1 11,7A2,2 0 0,1 9,9C7.89,9 7,8.1 7,7M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.89 10.9,2 12,2M15,18V20H9V18C9,16.67 10.67,16 12,16C13.33,16 15,16.67 15,18M19,5C19,3.89 18.1,3 17,3C15.9,3 15,3.9 15,5C15,6.1 15.9,7 17,7C18.1,7 19,6.1 19,5M19,19V21H15V19C15,17.67 16.67,17 18,17C19.33,17 21,17.67 21,19V21H17V19H19Z"/>
-                            </svg>
-                        </span>
-                    </h3>
-                    <div class="username" id="userUsername">@username</div>
-                </div>
+    <div class="mobile-header">
+        <div class="mobile-header-content">
+            <div class="mobile-header-left">
+                <a href="/mobile" class="mobile-header-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                </a>
+                <div class="mobile-header-title">Настройки</div>
             </div>
-        </div>
-
-        <div class="compact-menu">
-            <button class="menu-item" onclick="window.location.href='/'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2Z"/>
+            <div class="mobile-header-actions">
+                <a href="/mobile" class="mobile-header-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
                     </svg>
-                </div>
-                <div class="menu-text">Сообщения</div>
-            </button>
-            
-            <button class="menu-item" onclick="window.location.href='/posts'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Посты</div>
-            </button>
-            
-            <button class="menu-item" onclick="window.location.href='/gifts'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M22,12V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V12A1,1 0 0,1 1,11V8A2,2 0 0,1 3,6H6.17C6.06,5.69 6,5.35 6,5A3,3 0 0,1 9,2C10,2 10.88,2.5 11.43,3.24V3.23L12,4L12.57,3.23V3.24C13.12,2.5 14,2 15,2A3,3 0 0,1 18,5C18,5.35 17.94,5.69 17.83,6H21A2,2 0 0,1 23,8V11A1,1 0 0,1 22,12M4,20H11V12H4V20M20,20V12H13V20H20M9,4A1,1 0 0,0 8,5A1,1 0 0,0 9,6A1,1 0 0,0 10,5A1,1 0 0,0 9,4M15,4A1,1 0 0,0 14,5A1,1 0 0,0 15,6A1,1 0 0,0 16,5A1,1 0 0,0 15,4M3,8V10H11V8H3M13,8V10H21V8H13Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Подарки</div>
-            </button>
-            
-            <button class="menu-item" onclick="window.location.href='/ecoin'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,17H13A2,2 0 0,0 15,15V13.5A1.5,1.5 0 0,0 13.5,12A1.5,1.5 0 0,0 15,10.5V9A2,2 0 0,0 13,7H11A2,2 0 0,0 9,9V9.5H11V9H13V10.5H11V11H13A2,2 0 0,0 15,13V13.5A1.5,1.5 0 0,0 13.5,15A1.5,1.5 0 0,0 15,16.5V17A2,2 0 0,0 13,19H11A2,2 0 0,0 9,17V16.5H11V17Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">E-COIN</div>
-            </button>
-            
-            <button class="menu-item" onclick="window.location.href='/music'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12,3V12.26C11.5,12.09 11,12 10.5,12C8,12 6,14 6,16.5C6,19 8,21 10.5,21C13,21 15,19 15,16.5V6H19V3H12Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Музыка</div>
-            </button>
-
-            <button class="menu-item" onclick="window.location.href='/search'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Поиск</div>
-            </button>
-            
-            <div class="menu-divider"></div>
-            
-            <button class="menu-item" onclick="window.location.href='/profile'">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Мой профиль</div>
-            </button>
-            
-            <button class="menu-item active">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Настройки</div>
-            </button>
-            
-            <button class="menu-item" id="adminPanelBtn" onclick="window.location.href='/admin'" style="display: none;">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.5 16,12.1 16,12.7V16.5C16,17.1 15.4,17.7 14.8,17.7H9.2C8.6,17.7 8,17.1 8,16.5V12.6C8,12 8.6,11.4 9.2,11.4V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,9.5V11.5H13.5V9.5C13.5,8.7 12.8,8.2 12,8.2Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Админ панель</div>
-            </button>
-            
-            <div class="menu-divider"></div>
-            
-            <button class="menu-item" id="logoutBtn">
-                <div class="menu-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
-                    </svg>
-                </div>
-                <div class="menu-text">Выйти</div>
-            </button>
+                </a>
+            </div>
         </div>
     </div>
 
     <div class="main-content">
-        <!-- Настройки -->
-        <div class="content-area active">
-            <div class="settings-container">
-                <div class="section-title">Настройки</div>
-                
-                <div class="post">
-                    <h3>Внешний вид</h3>
-                    <div class="theme-selector">
-                        <div class="theme-option active" data-theme="dark">
-                            <div class="custom-theme-preview" style="background: #0f1419;"></div>
-                            <div class="custom-theme-name">Темная</div>
-                        </div>
-                        <div class="theme-option" data-theme="light">
-                            <div class="custom-theme-preview" style="background: #ffffff;"></div>
-                            <div class="custom-theme-name">Светлая</div>
-                        </div>
-                        <div class="theme-option custom-theme-option" data-theme="custom1">
-                            <div class="custom-theme-preview" style="background: linear-gradient(135deg, #8a2be2, #4b0082);"></div>
-                            <div class="custom-theme-name">Фиолетовая</div>
-                        </div>
-                        <div class="theme-option custom-theme-option" data-theme="custom2">
-                            <div class="custom-theme-preview" style="background: linear-gradient(135deg, #ff6b6b, #ee5a24);"></div>
-                            <div class="custom-theme-name">Красная</div>
+        <div class="menu-container">
+            <!-- Карточка профиля с обложкой -->
+            <div class="profile-card">
+                <div class="profile-cover-container" id="mobileCoverContainer" onclick="document.getElementById('mobileCoverInput').click()">
+                    <img id="mobileCover" src="" alt="Обложка" style="display: none;">
+                    <div class="cover-overlay">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="8" y1="12" x2="16" y2="12"></line>
+                            <line x1="12" y1="8" x2="12" y2="16"></line>
+                        </svg>
+                    </div>
+                    <input type="file" id="mobileCoverInput" accept="image/*" style="display: none;" onchange="uploadMobileCover(this.files[0])">
+                </div>
+                <div class="profile-info-wrapper">
+                    <div class="user-avatar-mobile" id="mobileUserAvatar" onclick="document.getElementById('mobileAvatarInput').click()">
+                        <span>U</span>
+                        <div class="avatar-overlay">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="8" y1="12" x2="16" y2="12"></line>
+                                <line x1="12" y1="8" x2="12" y2="16"></line>
+                            </svg>
                         </div>
                     </div>
+                    <input type="file" id="mobileAvatarInput" accept="image/*" style="display: none;" onchange="uploadMobileAvatar(this.files[0])">
+                    <div class="user-info-mobile">
+                        <div class="user-name-mobile" id="mobileUserName">Пользователь</div>
+                        <div class="user-username-mobile" id="mobileUserUsername">@username</div>
+                    </div>
                 </div>
+            </div>
 
-                <div class="post">
-                    <h3>Версия приложения</h3>
-                    <div class="version-switcher">
-                        <button class="version-btn active" id="desktopVersionBtn">
-                            🖥️ Компьютерная версия
-                        </button>
+            <!-- Основные настройки -->
+            <div class="menu-section">
+                <div class="menu-section-title">Основные</div>
+                <button class="menu-item" onclick="openProfileEdit()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
                     </div>
-                </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Редактировать профиль</div>
+                        <div class="menu-item-description">Изменить информацию о себе</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
                 
-                <div class="post">
-                    <h3>Уведомления</h3>
-                    <div class="post-actions">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="notificationsEnabled" checked>
-                            <span>Включить уведомления</span>
-                        </label>
+                <button class="menu-item" onclick="toggleTheme()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
                     </div>
-                    <div class="post-actions">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="soundEnabled" checked>
-                            <span>Звуковые уведомления</span>
-                        </label>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Тема оформления</div>
+                        <div class="menu-item-description">Светлая или темная тема</div>
                     </div>
-                </div>
-                
-                <div class="post">
-                    <h3>Конфиденциальность</h3>
-                    <div class="post-actions">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="profilePublic" checked>
-                            <span>Публичный профиль</span>
-                        </label>
-                    </div>
-                    <div class="post-actions">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="showOnlineStatus" checked>
-                            <span>Показывать статус онлайн</span>
-                        </label>
-                    </div>
-                </div>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                        <span class="theme-slider"></span>
+                    </label>
+                </button>
+            </div>
 
-                <div class="post">
-                    <h3>Устройства</h3>
-                    <div class="devices-container" id="devicesContainer">
-                        <div class="system-message">Загрузка устройств...</div>
+            <!-- Безопасность -->
+            <div class="menu-section">
+                <div class="menu-section-title">Безопасность</div>
+                <button class="menu-item" onclick="showDevices()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                            <path d="M12 12h.01"></path>
+                        </svg>
                     </div>
-                </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Активные устройства</div>
+                        <div class="menu-item-description">Управление сеансами</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+                
+                <button class="menu-item" onclick="showPrivacy()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Конфиденциальность</div>
+                        <div class="menu-item-description">Настройки приватности</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+            </div>
+
+            <!-- Аккаунт -->
+            <div class="menu-section">
+                <div class="menu-section-title">Аккаунт</div>
+                <button class="menu-item danger" onclick="logout()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16,17 21,12 16,7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Выйти</div>
+                        <div class="menu-item-description">Завершить текущий сеанс</div>
+                    </div>
+                </button>
+                
+                <button class="menu-item danger" onclick="deleteAccount()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Удалить аккаунт</div>
+                        <div class="menu-item-description">Безвозвратное удаление</div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Информация -->
+            <div class="menu-section">
+                <div class="menu-section-title">О приложении</div>
+                <button class="menu-item" onclick="showAbout()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 16v-4"></path>
+                            <path d="M12 8h.01"></path>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">О Epic Messenger</div>
+                        <div class="menu-item-description">Версия 1.0.0</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
+                
+                <button class="menu-item" onclick="showHelp()">
+                    <div class="menu-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                    </div>
+                    <div class="menu-item-content">
+                        <div class="menu-item-title">Помощь и поддержка</div>
+                        <div class="menu-item-description">Часто задаваемые вопросы</div>
+                    </div>
+                    <div class="menu-item-arrow">›</div>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Уведомления -->
-    <div id="notificationsContainer"></div>
+    <!-- Нижняя панель навигации -->
+    <div class="bottom-nav">
+        <a href="/mobile/chats" class="nav-item">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <span>Чаты</span>
+        </a>
+        
+        <a href="/mobile/posts" class="nav-item">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                </svg>
+            </div>
+            <span>Посты</span>
+        </a>
+        
+        <a href="/mobile/search" class="nav-item">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </div>
+            <span>Поиск</span>
+        </a>
+        
+        <a href="/mobile/ecoin" class="nav-item">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="m9 12 2 2 4-4"></path>
+                </svg>
+            </div>
+            <span>E-COIN</span>
+        </a>
+        
+        <a href="/mobile/music" class="nav-item">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"></path>
+                    <circle cx="6" cy="18" r="3"></circle>
+                    <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+            </div>
+            <span>Музыка</span>
+        </a>
+        
+        <a href="/mobile/settings" class="nav-item active">
+            <div class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </div>
+            <span>Настройки</span>
+        </a>
+    </div>
 
-    <script src="/js/auth.js"></script>
-    <script src="/js/settings.js"></script>
+    <!-- Модальное окно редактирования профиля -->
+    <div class="gifts-modal" id="profileModal" style="display: none;">
+        <div class="gifts-container">
+            <h3 style="margin-bottom: 20px;">Редактирование профиля</h3>
+            
+            <div class="edit-profile-form">
+                <div class="form-group">
+                    <label class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-input" id="editUsername" placeholder="Введите имя пользователя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Отображаемое имя</label>
+                    <input type="text" class="form-input" id="editDisplayName" placeholder="Введите отображаемое имя">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-input" id="editDescription" rows="3" placeholder="Расскажите о себе..."></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="send-btn" onclick="saveMobileProfile()" id="saveProfileBtn" style="flex: 1;">Сохранить</button>
+                <button class="send-btn" onclick="closeProfileModal()" style="background: var(--error-color);">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        // Загрузка темы
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.className = `theme-${savedTheme}`;
+            
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.checked = savedTheme === 'light';
+            }
+        }
+
+        // Проверка авторизации
+        async function checkAuth() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/check-auth', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    return data.user;
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                    return null;
+                }
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return null;
+            }
+        }
+
+        // Обновление интерфейса пользователя
+        function updateUserInterface() {
+            if (!currentUser) return;
+            
+            // Обновляем аватар
+            const avatarElement = document.getElementById('mobileUserAvatar');
+            if (currentUser.avatar) {
+                avatarElement.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}"><div class="avatar-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line><line x1="12" y1="8" x2="12" y2="16"></line></svg></div>`;
+            } else {
+                avatarElement.innerHTML = `<span>${currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}</span><div class="avatar-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line><line x1="12" y1="8" x2="12" y2="16"></line></svg></div>`;
+            }
+
+            // Обновляем обложку
+            const coverImg = document.getElementById('mobileCover');
+            const container = document.getElementById('mobileCoverContainer');
+            
+            if (currentUser.cover) {
+                coverImg.src = currentUser.cover;
+                coverImg.style.display = 'block';
+                container.style.background = 'none';
+            } else {
+                coverImg.style.display = 'none';
+                container.style.background = 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)';
+            }
+
+            document.getElementById('mobileUserName').textContent = currentUser.displayName || 'Пользователь';
+            document.getElementById('mobileUserUsername').textContent = `@${currentUser.username}`;
+        }
+
+        // Смена темы
+        function toggleTheme() {
+            const currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.classList.remove(`theme-${currentTheme}`);
+            document.body.classList.add(`theme-${newTheme}`);
+            localStorage.setItem('theme', newTheme);
+            
+            showNotification(`Тема изменена на ${newTheme === 'dark' ? 'темную' : 'светлую'}`, 'success');
+        }
+
+        // Открытие редактирования профиля
+        function openProfileEdit() {
+            document.getElementById('profileModal').style.display = 'flex';
+            
+            document.getElementById('editUsername').value = currentUser.username || '';
+            document.getElementById('editDisplayName').value = currentUser.displayName || '';
+            document.getElementById('editDescription').value = currentUser.description || '';
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').style.display = 'none';
+        }
+
+        // Сохранение профиля (мобильная версия)
+        async function saveMobileProfile() {
+            const username = document.getElementById('editUsername').value.trim();
+            const displayName = document.getElementById('editDisplayName').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            
+            if (!username || !displayName) {
+                showNotification('Заполните обязательные поля', 'warning');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveProfileBtn');
+            const originalText = saveBtn.textContent;
+            saveBtn.innerHTML = '<div class="loading"></div>';
+            saveBtn.disabled = true;
+            
+            try {
+                const token = localStorage.getItem('authToken');
+                
+                const response = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        displayName: displayName,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                    closeProfileModal();
+                    showNotification('Профиль успешно обновлен!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка обновления профиля', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения профиля:', error);
+                showNotification('Ошибка сохранения профиля', 'error');
+            } finally {
+                saveBtn.textContent = originalText;
+                saveBtn.disabled = false;
+            }
+        }
+
+        // Загрузка обложки (мобильная)
+        async function uploadMobileCover(file) {
+            if (!file) return;
+            
+            const maxSize = 5 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showNotification('Размер файла не должен превышать 5 МБ', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/update-cover', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser.cover = data.coverUrl;
+                    updateUserInterface();
+                    showNotification('Обложка обновлена!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка загрузки обложки', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки обложки:', error);
+                showNotification('Ошибка загрузки обложки', 'error');
+            }
+        }
+
+        // Загрузка аватара (мобильная)
+        async function uploadMobileAvatar(file) {
+            if (!file) return;
+            
+            const maxSize = 2 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showNotification('Размер файла не должен превышать 2 МБ', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/upload-avatar', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser.avatar = data.avatarUrl;
+                    updateUserInterface();
+                    showNotification('Аватар обновлен!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка загрузки аватара', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки аватара:', error);
+                showNotification('Ошибка загрузки аватара', 'error');
+            }
+        }
+
+        function showDevices() {
+            showNotification('Функция в разработке', 'warning');
+        }
+
+        function showPrivacy() {
+            showNotification('Функция в разработке', 'warning');
+        }
+
+        function showAbout() {
+            showNotification('Epic Messenger v1.0.0\nМобильная версия', 'success');
+        }
+
+        function showHelp() {
+            showNotification('Раздел помощи в разработке', 'warning');
+        }
+
+        function logout() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+            }
+        }
+
+        function deleteAccount() {
+            if (confirm('ВНИМАНИЕ: Это действие нельзя отменить! Все ваши данные будут удалены безвозвратно. Вы уверены, что хотите удалить аккаунт?')) {
+                showNotification('Функция удаления аккаунта в разработке', 'warning');
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const user = await checkAuth();
+            if (user) {
+                console.log('Настройки загружены');
+            }
+        });
+    </script>
 </body>
 </html>
