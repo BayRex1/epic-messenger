@@ -229,4 +229,96 @@ class ApiHandler {
                 response = this.admin.handleDeleteUser(token, data);
             } else if (pathname === '/api/admin/ban-user' && method === 'POST') {
                 response = this.admin.handleBanUser(token, data);
-           
+            } else if (pathname === '/api/admin/unban-user' && method === 'POST') {
+                response = this.admin.handleUnbanUser(token, data);
+            } else if (pathname === '/api/admin/verify-user' && method === 'POST') {
+                response = this.admin.handleAdminVerifyUser(token, data);
+            } else if (pathname === '/api/admin/make-developer' && method === 'POST') {
+                response = this.admin.handleAdminMakeDeveloper(token, data);
+            } else if (pathname === '/api/admin/toggle-verification' && method === 'POST') {
+                response = this.admin.handleToggleVerification(token, data);
+            } else if (pathname === '/api/admin/toggle-developer' && method === 'POST') {
+                response = this.admin.handleToggleDeveloper(token, data);
+            } else if (pathname === '/api/admin/users' && method === 'GET') {
+                response = this.admin.handleAdminGetUsers(token);
+            } else if (pathname === '/api/admin/security-logs' && method === 'GET') {
+                response = this.admin.handleAdminSecurityLogs(token);
+            } else if (pathname === '/api/admin/export-database' && method === 'GET') {
+                response = this.admin.handleExportDatabase(token, res);
+                return;
+            } else if (pathname === '/api/admin/import-database' && method === 'POST') {
+                response = this.admin.handleImportDatabase(token, data);
+            } else if (pathname === '/api/admin/maintenance' && method === 'POST') {
+                response = this.admin.handleMaintenanceMode(token, data);
+            } else if (pathname === '/api/admin/maintenance' && method === 'GET') {
+                response = this.admin.handleGetMaintenanceStatus(token);
+            } else if (pathname === '/api/maintenance-status' && method === 'GET') {
+                response = this.admin.handleGetMaintenanceStatusPublic(token);
+
+            // === УСТРОЙСТВА ===
+            } else if (pathname === '/api/devices' && method === 'GET') {
+                response = this.devices.handleGetDevices(token);
+            } else if (pathname === '/api/devices/terminate' && method === 'POST') {
+                response = this.devices.handleTerminateDevice(token, data);
+
+            // === ЭМОДЗИ ===
+            } else if (pathname === '/api/emoji' && method === 'GET') {
+                response = this.emoji.handleGetEmoji(token);
+
+            // === МОБИЛЬНЫЕ API ===
+            } else if (pathname === '/api/mobile/chats' && method === 'GET') {
+                response = this.chats.handleGetChats(token);
+            } else if (pathname === '/api/mobile/posts' && method === 'GET') {
+                response = this.posts.handleGetPosts(token);
+            } else if (pathname === '/api/mobile/ecoin' && method === 'GET') {
+                response = this.users.handleGetBalance(token);
+            } else if (pathname === '/api/mobile/music' && method === 'GET') {
+                response = this.music.handleGetMusic(token);
+            } else if (pathname === '/api/mobile/gifts' && method === 'GET') {
+                response = this.gifts.handleGetGifts(token);
+            } else if (pathname === '/api/mobile/settings' && method === 'GET') {
+                response = this.auth.handleCurrentUser(token, req);
+
+            // === ЗАГРУЗКА ФАЙЛОВ ===
+            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
+                response = this.users.handleUploadAvatar(token, data);
+            } else if (pathname === '/api/upload-file' && method === 'POST') {
+                response = this.fileHandlers.handleUploadFileMultipart(req, res);
+                return;
+
+            // === ТРАНЗАКЦИИ ===
+            } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                const userId = pathname.split('/')[3];
+                if (method === 'GET') {
+                    response = this.users.handleGetTransactions(token, userId);
+                }
+
+            // === НЕИЗВЕСТНЫЙ API ===
+            } else {
+                response = { success: false, message: 'API endpoint not found' };
+            }
+        } catch (error) {
+            console.error('API Error:', error);
+            response = { success: false, message: error.message };
+        }
+
+        if (!response) {
+            response = { success: false, message: 'Method not allowed' };
+        }
+
+        console.log(`📤 Response data:`, response);
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
+            'Access-Control-Allow-Credentials': 'true'
+        };
+        
+        res.writeHead(response.success ? 200 : 400, headers);
+        res.end(JSON.stringify(response));
+    }
+}
+
+module.exports = ApiHandler;
