@@ -2,10 +2,15 @@ const fs = require('fs');
 const path = require('path');
 
 class EmojiHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
+    }
+
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
     }
 
     handleGetEmoji(token) {
@@ -19,6 +24,7 @@ class EmojiHandler {
             if (!fs.existsSync(emojiPath)) {
                 return { success: true, emoji: [] };
             }
+            
             const files = fs.readdirSync(emojiPath);
             const emojiList = files.filter(file => 
                 file.endsWith('.png') || file.endsWith('.svg') || file.endsWith('.gif')
