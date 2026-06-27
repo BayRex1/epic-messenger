@@ -302,8 +302,9 @@
 
     <script src="/js/common.js"></script>
     <script>
-        // Глобальные переменные
-        let currentUser = null;
+        // ⚠️ НЕ ОБЪЯВЛЯЙТЕ currentUser ЗДЕСЬ - она уже есть в common.js!
+        // let currentUser = null; ← УДАЛИТЬ ЭТУ СТРОКУ!
+        
         let currentPost = null;
         
         // Получаем ID поста из URL
@@ -329,7 +330,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    currentUser = data.user;
+                    window.currentUser = data.user;
                     updateUserInterface();
                 } else {
                     localStorage.removeItem('authToken');
@@ -343,26 +344,27 @@
         }
 
         function updateUserInterface() {
-            if (!currentUser) return;
+            const user = window.currentUser || currentUser;
+            if (!user) return;
             
             const userAvatar = document.getElementById('userAvatar');
             const userName = document.getElementById('userName');
             const userUsername = document.getElementById('userUsername');
             const adminPanelBtn = document.getElementById('adminPanelBtn');
 
-            if (currentUser.avatar) {
-                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            if (user.avatar) {
+                userAvatar.innerHTML = `<img src="${user.avatar}" alt="${user.displayName}">`;
             } else {
-                userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+                userAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U';
             }
             
-            userName.textContent = currentUser.displayName || 'Пользователь';
+            userName.textContent = user.displayName || 'Пользователь';
             
-            if (currentUser.isDeveloper) {
+            if (user.isDeveloper) {
                 adminPanelBtn.style.display = 'flex';
             }
 
-            userUsername.textContent = `@${currentUser.username}`;
+            userUsername.textContent = `@${user.username}`;
         }
 
         // Загрузка поста
@@ -411,6 +413,7 @@
 
         function renderPost(post) {
             const container = document.getElementById('postContent');
+            const user = window.currentUser || currentUser;
             
             let mediaHtml = '';
             if (post.image) {
@@ -419,7 +422,7 @@
                 mediaHtml = `<div class="post-media"><video controls style="max-width: 100%; border-radius: 12px;"><source src="${post.file}" type="video/mp4"></video></div>`;
             }
             
-            const isLiked = post.likes && post.likes.includes(currentUser?.id);
+            const isLiked = post.likes && post.likes.includes(user?.id);
             
             container.innerHTML = `
                 <div class="post-full">
@@ -495,6 +498,7 @@
         function renderComments(comments) {
             const list = document.getElementById('commentsList');
             if (!list) return;
+            const user = window.currentUser || currentUser;
             
             if (!comments || comments.length === 0) {
                 list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Пока нет комментариев. Будьте первым!</p>';
@@ -506,7 +510,7 @@
                 const commentEl = document.createElement('div');
                 commentEl.className = 'comment-item';
                 
-                const isLiked = comment.likes && comment.likes.includes(currentUser?.id);
+                const isLiked = comment.likes && comment.likes.includes(user?.id);
                 
                 commentEl.innerHTML = `
                     <div class="comment-header">
