@@ -1,13 +1,18 @@
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
 class ChatsHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === ЧАТЫ ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetChats(token) {
         const user = this.authenticateToken(token);
@@ -123,10 +128,6 @@ class ChatsHandler {
         };
     }
 
-    // ============================================
-    // === СООБЩЕНИЯ ===
-    // ============================================
-
     handleGetMessages(token, query) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -134,14 +135,12 @@ class ChatsHandler {
         }
 
         const { userId } = query;
-        
         if (!userId) {
             return { success: false, message: 'Не указан получатель' };
         }
 
         try {
             let messages;
-            
             const isGroupChat = this.dataManager.groups.some(g => g.id === userId && g.members.includes(user.id));
             
             if (isGroupChat) {
@@ -194,7 +193,6 @@ class ChatsHandler {
             }
 
             let fileUrl = null;
-            
             if (file && fileName && fileType) {
                 const fileExt = path.extname(fileName) || this.getFileExtension(fileType);
                 const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
@@ -266,7 +264,6 @@ class ChatsHandler {
         }
 
         const { fromUserId } = data;
-        
         if (!fromUserId) {
             return { success: false, message: 'Не указан отправитель' };
         }
@@ -276,14 +273,12 @@ class ChatsHandler {
                 if (message.senderId === fromUserId && message.receiverId === user.id && !message.read) {
                     message.read = true;
                 }
-                
                 if (message.receiverId === fromUserId && message.readBy && !message.readBy.includes(user.id)) {
                     message.readBy.push(user.id);
                 }
             });
 
             this.dataManager.saveData();
-
             return { success: true, message: 'Сообщения помечены как прочитанные' };
         } catch (error) {
             console.error('❌ Ошибка отметки сообщений:', error);
@@ -298,7 +293,6 @@ class ChatsHandler {
         }
 
         const { messageId, newText } = data;
-        
         if (!messageId || !newText) {
             return { success: false, message: 'Заполните все поля' };
         }
@@ -345,10 +339,6 @@ class ChatsHandler {
 
         return { success: true, message: 'Сообщение удалено' };
     }
-
-    // ============================================
-    // === ГРУППЫ ===
-    // ============================================
 
     handleCreateGroup(token, data) {
         const user = this.authenticateToken(token);
@@ -427,7 +417,6 @@ class ChatsHandler {
         }
 
         const { groupId, userId } = data;
-        
         const group = this.dataManager.groups.find(g => g.id === groupId);
         if (!group) {
             return { success: false, message: 'Группа не найдена' };
@@ -516,7 +505,6 @@ class ChatsHandler {
         }
 
         group.members.splice(memberIndex, 1);
-        
         if (group.members.length === 0) {
             const groupIndex = this.dataManager.groups.findIndex(g => g.id === groupId);
             this.dataManager.groups.splice(groupIndex, 1);
@@ -525,10 +513,6 @@ class ChatsHandler {
         this.dataManager.saveData();
         return { success: true, message: 'Вы вышли из группы' };
     }
-
-    // ============================================
-    // === ВСПОМОГАТЕЛЬНЫЕ ===
-    // ============================================
 
     getFileExtension(fileType) {
         const extensions = {
