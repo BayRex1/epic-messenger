@@ -6,30 +6,26 @@ const requestCounts = new Map();
 class SecuritySystem {
     constructor() {
         this.sessions = new Map();
-        // Очистка старых сессий каждые 5 минут
         setInterval(() => this.cleanupSessions(), 5 * 60 * 1000);
     }
 
-    // Rate limiting
     checkRateLimit(ip, endpoint) {
         const key = `${ip}-${endpoint}`;
         const now = Date.now();
-        const windowStart = now - 60000; // 1 minute
+        const windowStart = now - 60000;
         
         if (!requestCounts.has(key)) {
             requestCounts.set(key, []);
         }
         
         const requests = requestCounts.get(key);
-        // Удаляем старые запросы
         const recentRequests = requests.filter(time => time > windowStart);
         
-        // Лимиты по endpoint
         const limits = {
-            '/api/login': 10,       // 10 попыток входа в минуту
-            '/api/register': 5,     // 5 регистраций в минуту
-            '/api/messages': 100,   // 100 сообщений в минуту
-            'default': 200          // 200 запросов в минуту для остального
+            '/api/login': 10,
+            '/api/register': 5,
+            '/api/messages': 100,
+            'default': 200
         };
         
         const limit = limits[endpoint] || limits.default;
@@ -44,10 +40,9 @@ class SecuritySystem {
         return true;
     }
 
-    // Система сессий
     createSession(userId) {
         const sessionId = crypto.randomBytes(32).toString('hex');
-        const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 часа
+        const expires = Date.now() + 24 * 60 * 60 * 1000;
         
         this.sessions.set(sessionId, {
             userId,
@@ -66,7 +61,6 @@ class SecuritySystem {
             return null;
         }
         
-        // Обновляем время активности
         session.lastActive = new Date();
         return session;
     }
@@ -80,19 +74,14 @@ class SecuritySystem {
         }
     }
 
-    // Проверка прав администратора
     isAdmin(user) {
         return user && user.isDeveloper && user.isAdmin;
     }
 
-    // Проверка дружеских отношений
     isFriend(userId1, userId2) {
-        // Здесь можно добавить логику проверки друзей
-        // Пока возвращаем false - только свои данные
         return false;
     }
 
-    // Валидация входных данных
     validateInput(input, type) {
         if (typeof input !== 'string') return false;
         
@@ -101,13 +90,12 @@ class SecuritySystem {
             email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
             userId: /^[a-f0-9]{10,}$/,
             displayName: /^[a-zA-Z0-9а-яА-ЯёЁ\s\-_]{2,30}$/i,
-            text: /^[\s\S]{1,5000}$/ // Базовая проверка длины
+            text: /^[\s\S]{1,5000}$/
         };
         
         return validators[type] ? validators[type].test(input) : true;
     }
 
-    // Логирование безопасности
     logSecurityEvent(user, action, target, success = true) {
         const timestamp = new Date().toISOString();
         const username = user ? (user.username || 'unknown') : 'unknown';
@@ -117,15 +105,14 @@ class SecuritySystem {
         
         console.log(logEntry.trim());
         
-        // Сохраняем в файл
         const logFile = path.join('/tmp', 'security.log');
         fs.appendFileSync(logFile, logEntry, 'utf8');
     }
 
-    // Безопасные заголовки
+    // 🔥 ИСПРАВЛЕНО: добавлен data: и blob: для загрузки изображений
     setSecurityHeaders(res) {
         const securityHeaders = {
-            'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+            'Content-Security-Policy': "default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:;",
             'X-Content-Type-Options': 'nosniff',
             'X-Frame-Options': 'DENY',
             'X-XSS-Protection': '1; mode=block',
@@ -143,10 +130,9 @@ class SecuritySystem {
         
         let sanitized = content;
 
-        // Удаляем HTML теги и опасные атрибуты
         sanitized = sanitized
-            .replace(/<[^>]*>/g, '') // Удаляем все HTML теги
-            .replace(/&[^;]+;/g, '') // Удаляем HTML entities
+            .replace(/<[^>]*>/g, '')
+            .replace(/&[^;]+;/g, '')
             .replace(/javascript:/gi, '[БЛОК]')
             .replace(/data:/gi, '[БЛОК]')
             .replace(/vbscript:/gi, '[БЛОК]')
@@ -154,7 +140,6 @@ class SecuritySystem {
             .replace(/on\w+='[^']*'/gi, '')
             .replace(/on\w+=\w+/gi, '');
 
-        // Фильтрация по опасным ключевым словам (регистронезависимая)
         const dangerousKeywords = [
             'script', 'iframe', 'object', 'embed', 'link', 'meta', 'style',
             'expression', 'eval', 'exec', 'compile', 'function constructor',
@@ -170,7 +155,6 @@ class SecuritySystem {
             sanitized = sanitized.replace(regex, '[БЛОК]');
         });
 
-        // Фильтрация опасных паттернов
         const dangerousPatterns = [
             /<script[\s\S]*?<\/script>/gi,
             /<iframe[\s\S]*?<\/iframe>/gi,
@@ -202,13 +186,9 @@ class SecuritySystem {
             sanitized = sanitized.replace(pattern, '[БЛОК]');
         });
 
-        // Фильтрация IP-адресов (опционально)
         sanitized = sanitized.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP]');
-
-        // Фильтрация URL (только явные http/https ссылки)
         sanitized = sanitized.replace(/(https?|ftp):\/\/[^\s<>{}\[\]"']+/gi, '[ССЫЛКА]');
 
-        // Удаляем лишние пробелы и обрезаем длину
         sanitized = sanitized.trim();
 
         if (sanitized.length > 5000) {
@@ -220,6 +200,21 @@ class SecuritySystem {
 
     hashPassword(password) {
         return crypto.createHash('sha256').update(password).digest('hex');
+    }
+
+    // 🔥 ДОБАВЛЕНО: метод для получения логов безопасности
+    getSecurityLogs() {
+        try {
+            const logFile = path.join('/tmp', 'security.log');
+            if (fs.existsSync(logFile)) {
+                const logs = fs.readFileSync(logFile, 'utf8');
+                return logs.split('\n').filter(line => line.trim());
+            }
+            return [];
+        } catch (error) {
+            console.error('❌ Ошибка чтения логов безопасности:', error);
+            return [];
+        }
     }
 }
 
