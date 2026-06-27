@@ -1,8 +1,13 @@
 class GiftsHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
+    }
+
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
     }
 
     handleGetGifts(token) {
@@ -21,14 +26,12 @@ class GiftsHandler {
 
     handleCreateGift(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'CREATE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { name, price, type, image } = data;
-        
         if (!name || !price) {
             return { success: false, message: 'Название и цена обязательны' };
         }
@@ -60,7 +63,6 @@ class GiftsHandler {
 
     handleDeleteGift(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -68,13 +70,11 @@ class GiftsHandler {
 
         const { giftId } = data;
         const giftIndex = this.dataManager.gifts.findIndex(g => g.id === giftId);
-        
         if (giftIndex === -1) {
             return { success: false, message: 'Подарок не найден' };
         }
 
         const gift = this.dataManager.gifts[giftIndex];
-
         if (gift.image && gift.image.startsWith('/uploads/gifts/')) {
             this.fileHandlers.deleteFile(gift.image);
         }
@@ -113,7 +113,6 @@ class GiftsHandler {
 
         const { giftId, toUserId } = data;
         const gift = this.dataManager.gifts.find(g => g.id === giftId);
-        
         if (!gift) {
             return { success: false, message: 'Подарок не найден' };
         }
@@ -163,7 +162,6 @@ class GiftsHandler {
         });
 
         recipient.giftsCount = (recipient.giftsCount || 0) + 1;
-
         this.dataManager.saveData();
 
         this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
@@ -187,7 +185,6 @@ class GiftsHandler {
         }
 
         const { userId } = query;
-        
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
@@ -239,13 +236,8 @@ class GiftsHandler {
         };
     }
 
-    // ============================================
-    // === ЗАГРУЗКА ИЗОБРАЖЕНИЙ ПОДАРКОВ ===
-    // ============================================
-
     async handleUploadGift(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -261,7 +253,7 @@ class GiftsHandler {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'gifts', uniqueFilename);
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'gifts', uniqueFilename);
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
 
