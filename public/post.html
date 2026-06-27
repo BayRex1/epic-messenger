@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Пост - Epic Messenger</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
     <style>
         .post-container {
             max-width: 700px;
@@ -300,6 +300,7 @@
 
     <div id="notificationsContainer"></div>
 
+    <script src="/js/common.js"></script>
     <script>
         // Глобальные переменные
         let currentUser = null;
@@ -592,7 +593,7 @@
         async function addComment(postId) {
             const text = document.getElementById('commentText').value.trim();
             if (!text) {
-                showNotification('Введите текст комментария', 'warning');
+                alert('Введите текст комментария');
                 return;
             }
 
@@ -611,11 +612,9 @@
                 if (data.success) {
                     document.getElementById('commentText').value = '';
                     loadPost();
-                    showNotification('Комментарий добавлен!', 'success');
                 }
             } catch (error) {
                 console.error('Ошибка комментария:', error);
-                showNotification('Ошибка добавления комментария', 'error');
             }
         }
 
@@ -623,7 +622,7 @@
         async function addReply(postId, commentId) {
             const text = document.getElementById(`reply-text-${commentId}`).value.trim();
             if (!text) {
-                showNotification('Введите текст ответа', 'warning');
+                alert('Введите текст ответа');
                 return;
             }
 
@@ -643,11 +642,9 @@
                     document.getElementById(`reply-text-${commentId}`).value = '';
                     document.getElementById(`reply-section-${commentId}`).classList.remove('active');
                     loadPost();
-                    showNotification('Ответ добавлен!', 'success');
                 }
             } catch (error) {
                 console.error('Ошибка ответа:', error);
-                showNotification('Ошибка добавления ответа', 'error');
             }
         }
 
@@ -676,18 +673,9 @@
                 navigator.share({ title: 'Пост из Epic Messenger', url: url });
             } else {
                 navigator.clipboard.writeText(url).then(() => {
-                    showNotification('Ссылка скопирована!', 'success');
+                    alert('Ссылка скопирована!');
                 });
             }
-        }
-
-        function showNotification(message, type = 'success') {
-            const container = document.getElementById('notificationsContainer');
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            container.appendChild(notification);
-            setTimeout(() => notification.remove(), 3000);
         }
 
         // Выход
