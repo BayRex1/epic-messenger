@@ -1,4 +1,6 @@
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const WebSocketServer = require('./public/server/websocket-server');
 const SecuritySystem = require('./public/server/security-system');
 const FileHandlers = require('./public/server/file-handlers');
@@ -52,7 +54,7 @@ class SimpleServer {
         console.log(`Content-Type: ${req.headers['content-type']}`);
         console.log(`Content-Length: ${req.headers['content-length']}`);
         
-        // 🔥 НОВОЕ: Обработка загруженных файлов из /tmp
+        // 🔥 Обработка загруженных файлов из /tmp
         if (pathname.startsWith('/api/uploads/')) {
             this.handleUploadedFile(req, res, pathname);
             return;
@@ -70,6 +72,19 @@ class SimpleServer {
                 message: 'Слишком много запросов. Попробуйте позже.' 
             }));
             return;
+        }
+
+        // 🔥 ПРОВЕРКА АВТОРИЗАЦИИ (кроме login и register)
+        const token = req.headers['authorization']?.replace('Bearer ', '');
+        const isAuthRoute = pathname === '/api/login' || pathname === '/api/register';
+        
+        if (!isAuthRoute) {
+            const user = this.apiHandlers.authenticateToken(token);
+            if (!user) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+                return;
+            }
         }
 
         // Обработка multipart/form-data
@@ -103,14 +118,12 @@ class SimpleServer {
         });
     }
 
-    // 🔥 НОВЫЙ МЕТОД: Обработка загруженных файлов из /tmp
+    // 🔥 Обработка загруженных файлов из /tmp
     handleUploadedFile(req, res, pathname) {
-        const path = require('path');
-        const fs = require('fs');
-        
-        // Извлекаем путь к файлу
+        const isProduction = process.env.NODE_ENV === 'production';
+        const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
         const filePath = pathname.replace('/api/uploads/', '');
-        const fullPath = path.join('/tmp', 'uploads', filePath);
+        const fullPath = path.join(baseDir, filePath);
         
         console.log(`📁 Serving uploaded file from: ${fullPath}`);
         
@@ -208,9 +221,6 @@ class SimpleServer {
 
     // Метод для обработки мобильных профилей пользователей
     handleMobileUserProfile(req, res, username) {
-        const fs = require('fs');
-        const path = require('path');
-        
         // Сначала проверяем авторизацию
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -399,16 +409,13 @@ class SimpleServer {
     }
 
     handleStaticFiles(req, res, pathname) {
-        const path = require('path');
-        const fs = require('fs');
-
-        // 🔥 НОВОЕ: Обработка страницы 404
+        // 🔥 Обработка страницы 404
         if (pathname === '/404') {
             serveStaticFile(res, 'public/additions/404.html', 'text/html');
             return;
         }
 
-        // 🔥 НОВОЕ: Список разрешенных страниц мессенджера
+        // 🔥 Список разрешенных страниц мессенджера
         const allowedPages = [
             '/', '/index.html',
             '/mobile', '/mobile.html',
@@ -426,12 +433,12 @@ class SimpleServer {
             '/TehnicalWork', '/technical-work', '/TechnicalWork.html'
         ];
 
-        // 🔥 НОВОЕ: Проверяем, является ли запрос к разрешенной странице
+        // 🔥 Проверяем, является ли запрос к разрешенной странице
         const isAllowedPage = allowedPages.some(page => pathname === page) ||
                              pathname.startsWith('/mobile/') ||
                              pathname.startsWith('/post/');
 
-        // 🔥 НОВОЕ: Если это не разрешенная страница - показываем 404
+        // 🔥 Если это не разрешенная страница - показываем 404
         if (!isAllowedPage && !pathname.startsWith('/uploads/') && 
             !pathname.endsWith('.css') && !pathname.endsWith('.js') && 
             !pathname.startsWith('/assets/')) {
@@ -470,7 +477,7 @@ class SimpleServer {
             }
         }
 
-        // 🔥 НОВОЕ: Автоматическое перенаправление на мобильную версию для телефонов
+        // 🔥 Автоматическое перенаправление на мобильную версию для телефонов
         const userAgent = req.headers['user-agent'] || '';
         const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
         
@@ -483,10 +490,10 @@ class SimpleServer {
             return;
         }
 
-        // ✅ ИЗМЕНЕНО: главная страница теперь открывает посты
+        // ✅ ГЛАВНАЯ СТРАНИЦА - ПОСТЫ
         const routes = {
-            '/': 'public/posts.html',  // ← здесь было main.html
-            '/index.html': 'public/posts.html',  // ← здесь было main.html
+            '/': 'public/posts.html',
+            '/index.html': 'public/posts.html',
             '/mobile.html': 'public/mobile.html',
             '/mobile': 'public/mobile/index.html',
             '/login.html': 'public/login.html',
@@ -518,10 +525,10 @@ class SimpleServer {
             '/404': 'public/additions/404.html'
         };
 
-        // 🔥 НОВОЕ: Обработка отдельных постов
+        // 🔥 Обработка отдельных постов /post/:id
         if (pathname.startsWith('/post/')) {
             console.log(`📄 Serving post page for: ${pathname}`);
-            serveStaticFile(res, 'public/posts.html', 'text/html');
+            serveStaticFile(res, 'public/post.html', 'text/html');
             return;
         }
 
@@ -530,14 +537,17 @@ class SimpleServer {
             return;
         }
 
-        // Явно обрабатываем uploads директорию
+        // 🔥 Обработка загруженных файлов /uploads/
         if (pathname.startsWith('/uploads/')) {
-            const filePath = path.join(process.cwd(), 'public', pathname);
-            console.log(`📁 Serving upload file: ${pathname} -> ${filePath}`);
+            const isProduction = process.env.NODE_ENV === 'production';
+            const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
+            const filePath = path.join(baseDir, pathname.replace('/uploads/', ''));
+            
+            console.log(`📁 Serving file: ${pathname} -> ${filePath}`);
             
             fs.readFile(filePath, (err, data) => {
                 if (err) {
-                    console.log('❌ Upload file not found:', filePath, err.message);
+                    console.log('❌ File not found:', filePath, err.message);
                     serveStaticFile(res, 'public/additions/404.html', 'text/html');
                     return;
                 }
@@ -566,7 +576,7 @@ class SimpleServer {
                     '.txt': 'text/plain'
                 }[ext] || 'application/octet-stream';
                 
-                console.log(`✅ Serving upload file: ${pathname}, type: ${contentType}, size: ${data.length} bytes`);
+                console.log(`✅ Serving file: ${pathname}, type: ${contentType}, size: ${data.length} bytes`);
                 
                 res.writeHead(200, { 
                     'Content-Type': contentType,
@@ -607,11 +617,10 @@ class SimpleServer {
             
             serveStaticFile(res, 'public' + pathname, contentType);
         } else {
-            // 🔥 ОБНОВЛЕНО: По умолчанию отдаем мобильную версию для мобильных устройств
+            // По умолчанию отдаем мобильную версию для мобильных устройств
             if (isMobile) {
                 serveStaticFile(res, 'public/mobile/index.html', 'text/html');
             } else {
-                // 🔥 НОВОЕ: Если страница не найдена, показываем 404
                 serveStaticFile(res, 'public/additions/404.html', 'text/html');
             }
         }
