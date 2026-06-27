@@ -15,14 +15,12 @@ class ApiHandlers {
         if (!token) return null;
         
         try {
-            // Пробуем новый формат (base64 JSON)
             let userId, sessionId;
             try {
                 const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
                 userId = decoded.userId;
                 sessionId = decoded.sessionId;
             } catch {
-                // Старый формат (session token)
                 const session = this.securitySystem.validateSession(token);
                 if (!session) return null;
                 userId = session.userId;
@@ -53,7 +51,6 @@ class ApiHandlers {
             'Access-Control-Allow-Credentials': 'true'
         };
 
-        // 🔐 Устанавливаем безопасные заголовки
         this.securitySystem.setSecurityHeaders(res);
 
         if (method === 'OPTIONS') {
@@ -96,11 +93,24 @@ class ApiHandlers {
                 case '/api/user-by-username':
                     if (method === 'POST') response = this.handleGetUserByUsername(token, data);
                     break;
+                case '/api/mobile/user-by-username':
+                    if (method === 'POST') response = this.handleGetUserByUsernameMobile(token, data);
+                    break;
+                case '/api/mobile/user-posts':
+                    if (method === 'POST') response = this.handleGetUserPostsMobile(token, data);
+                    break;
                 case '/api/update-profile':
                     if (method === 'POST') response = this.handleUpdateProfile(token, data);
                     break;
                 case '/api/update-avatar':
                     if (method === 'POST') response = this.handleUpdateAvatar(token, data);
+                    break;
+                case '/api/preview-avatar':
+                    if (method === 'POST') response = this.handlePreviewAvatar(token, data);
+                    break;
+                case '/api/debug-upload':
+                    if (method === 'POST') response = this.handleDebugUpload(token);
+                    else if (method === 'GET') response = this.handleDebugUpload(token);
                     break;
 
                 // === ПОСТЫ ===
@@ -115,8 +125,18 @@ class ApiHandlers {
                 case '/api/posts/like':
                     if (method === 'POST') response = this.handleLikePost(token, data);
                     break;
-
-                // === КОММЕНТАРИИ ===
+                case '/api/posts/comment':
+                    if (method === 'POST') response = this.handleAddComment(token, data);
+                    break;
+                case '/api/posts/comment/like':
+                    if (method === 'POST') response = this.handleLikeComment(token, data);
+                    break;
+                case '/api/posts/comment/reply':
+                    if (method === 'POST') response = this.handleReplyToComment(token, data);
+                    break;
+                case '/api/posts/share':
+                    if (method === 'POST') response = this.handleSharePost(token, data);
+                    break;
                 case '/api/posts/comments':
                     if (method === 'GET') response = this.handleGetComments(token, query);
                     else if (method === 'POST') response = this.handleAddComment(token, data);
@@ -151,6 +171,7 @@ class ApiHandlers {
                     break;
                 case '/api/groups':
                     if (method === 'GET') response = this.handleGetUserGroups(token);
+                    else if (method === 'POST') response = this.handleCreateGroup(token, data);
                     break;
                 case '/api/groups/add-member':
                     if (method === 'POST') response = this.handleAddToGroup(token, data);
@@ -170,6 +191,9 @@ class ApiHandlers {
                     break;
                 case '/api/gifts/buy':
                     if (method === 'POST') response = this.handleBuyGift(token, data);
+                    break;
+                case '/api/gifts/user':
+                    if (method === 'GET') response = this.handleGetUserGifts(token, query);
                     break;
                 case '/api/my-gifts':
                     if (method === 'GET') response = this.handleGetMyGifts(token);
@@ -208,9 +232,16 @@ class ApiHandlers {
                 // === МУЗЫКА ===
                 case '/api/music':
                     if (method === 'GET') response = this.handleGetMusic(token);
+                    else if (method === 'POST') response = this.handleUploadMusic(token, data);
+                    break;
+                case '/api/music/upload':
+                    if (method === 'POST') response = this.handleUploadMusicFile(token, data);
                     break;
                 case '/api/music/upload-full':
                     if (method === 'POST') response = this.handleUploadMusicFull(token, data);
+                    break;
+                case '/api/music/upload-cover':
+                    if (method === 'POST') response = this.handleUploadMusicCover(token, data);
                     break;
                 case '/api/music/delete':
                     if (method === 'POST') response = this.handleDeleteMusic(token, data);
@@ -218,16 +249,46 @@ class ApiHandlers {
                 case '/api/music/search':
                     if (method === 'GET') response = this.handleSearchMusic(token, query);
                     break;
+                case '/api/music/random':
+                    if (method === 'GET') response = this.handleGetRandomMusic(token);
+                    break;
+
+                // === ПЛЕЙЛИСТЫ ===
+                case '/api/playlists':
+                    if (method === 'GET') response = this.handleGetPlaylists(token);
+                    else if (method === 'POST') response = this.handleCreatePlaylist(token, data);
+                    break;
+                case '/api/playlists/create':
+                    if (method === 'POST') response = this.handleCreatePlaylist(token, data);
+                    break;
+                case '/api/playlists/add':
+                    if (method === 'POST') response = this.handleAddToPlaylist(token, data);
+                    break;
+                case '/api/playlists/add-track':
+                    if (method === 'POST') response = this.handleAddTrackToPlaylist(token, data);
+                    break;
 
                 // === АДМИН ===
                 case '/api/admin/stats':
                     if (method === 'GET') response = this.handleAdminStats(token);
+                    break;
+                case '/api/admin/statistics':
+                    if (method === 'GET') response = this.handleAdminStatistics(token);
                     break;
                 case '/api/admin/delete-user':
                     if (method === 'POST') response = this.handleDeleteUser(token, data);
                     break;
                 case '/api/admin/ban-user':
                     if (method === 'POST') response = this.handleBanUser(token, data);
+                    break;
+                case '/api/admin/unban-user':
+                    if (method === 'POST') response = this.handleUnbanUser(token, data);
+                    break;
+                case '/api/admin/verify-user':
+                    if (method === 'POST') response = this.handleAdminVerifyUser(token, data);
+                    break;
+                case '/api/admin/make-developer':
+                    if (method === 'POST') response = this.handleAdminMakeDeveloper(token, data);
                     break;
                 case '/api/admin/toggle-verification':
                     if (method === 'POST') response = this.handleToggleVerification(token, data);
@@ -244,48 +305,103 @@ class ApiHandlers {
                 case '/api/admin/users':
                     if (method === 'GET') response = this.handleAdminGetUsers(token);
                     break;
+                case '/api/admin/security-logs':
+                    if (method === 'GET') response = this.handleAdminSecurityLogs(token);
+                    break;
                 case '/api/admin/maintenance':
                     if (method === 'POST') response = this.handleMaintenanceMode(token, data);
                     else if (method === 'GET') response = this.handleGetMaintenanceStatus(token);
                     break;
 
+                // === МОБИЛЬНЫЕ API ===
+                case '/api/mobile/chats':
+                    if (method === 'GET') response = this.handleGetChats(token);
+                    break;
+                case '/api/mobile/posts':
+                    if (method === 'GET') response = this.handleGetPosts(token);
+                    break;
+                case '/api/mobile/ecoin':
+                    if (method === 'GET') response = this.handleGetBalance(token);
+                    break;
+                case '/api/mobile/music':
+                    if (method === 'GET') response = this.handleGetMusic(token);
+                    break;
+                case '/api/mobile/gifts':
+                    if (method === 'GET') response = this.handleGetGifts(token);
+                    break;
+                case '/api/mobile/settings':
+                    if (method === 'GET') response = this.handleCurrentUser(token, req);
+                    break;
+
+                // === ЗАГРУЗКА ФАЙЛОВ ===
+                case '/api/upload-avatar':
+                    if (method === 'POST') response = this.handleUploadAvatar(token, data);
+                    break;
+                case '/api/upload-post-image':
+                    if (method === 'POST') response = this.handleUploadPostImage(token, data);
+                    break;
+                case '/api/upload-file':
+                    if (method === 'POST') response = this.handleUploadFile(token, data);
+                    break;
+                case '/api/upload-gift':
+                    if (method === 'POST') response = this.handleUploadGift(token, data);
+                    break;
+
+                // === ТЕХНИЧЕСКИЕ ===
+                case '/api/maintenance-status':
+                    if (method === 'GET') response = this.handleGetMaintenanceStatusPublic(token);
+                    break;
+
                 default:
-                    // 🔥 Обработка /api/posts/:id (получение одного поста)
+                    // 🔥 Обработка /api/posts/:id
                     if (pathname.startsWith('/api/posts/') && method === 'GET') {
                         const postId = pathname.split('/')[3];
-                        if (postId) {
+                        if (postId && !pathname.includes('/comments')) {
                             response = this.handleGetPostById(token, postId);
                             break;
                         }
                     }
+                    
                     // 🔥 Обработка /api/posts/:postId/comments
                     if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
                         const parts = pathname.split('/');
                         const postId = parts[3];
+                        
                         if (parts.length === 5 && parts[4] === 'comments') {
                             if (method === 'GET') response = this.handleGetPostComments(token, postId);
                             else if (method === 'POST') response = this.handleAddPostComment(token, postId, data);
                         } else if (parts.length === 6 && parts[5] === 'like' && method === 'POST') {
                             const commentId = parts[4];
-                            response = this.handleLikeComment(token, postId, commentId);
+                            response = this.handleLikeComment(token, { postId, commentId });
                         } else if (parts.length === 7 && parts[5] === 'reply' && method === 'POST') {
                             const commentId = parts[4];
-                            response = this.handleAddReply(token, postId, commentId, data);
+                            response = this.handleReplyToComment(token, { postId, commentId, ...data });
                         } else if (parts.length === 8 && parts[7] === 'like' && method === 'POST') {
                             const commentId = parts[4];
                             const replyId = parts[6];
-                            response = this.handleLikeReply(token, postId, commentId, replyId);
+                            response = this.handleLikeReply(token, { postId, commentId, replyId });
                         } else {
                             response = { success: false, message: 'API endpoint not found' };
                         }
                         break;
                     }
+                    
                     // 🔥 Обработка /api/gifts/:giftId/buy
                     if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
                         const giftId = pathname.split('/')[3];
                         response = this.handleBuyGift(token, { giftId, ...data });
                         break;
                     }
+                    
+                    // 🔥 Обработка /api/user/:userId/transactions
+                    if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
+                        const userId = pathname.split('/')[3];
+                        if (method === 'GET') {
+                            response = this.handleGetTransactions(token, userId);
+                            break;
+                        }
+                    }
+                    
                     response = { success: false, message: 'API endpoint not found' };
             }
         } catch (error) {
@@ -322,7 +438,6 @@ class ApiHandlers {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
-        // 🔧 ПРОВЕРКА ТЕХНИЧЕСКИХ РАБОТ
         if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
             return { 
                 success: false, 
@@ -339,10 +454,8 @@ class ApiHandlers {
             return { success: false, message: 'Ваш IP адрес заблокирован' };
         }
 
-        // Обновляем сессию
         user.sessionId = crypto.randomBytes(16).toString('hex');
         const device = this.dataManager.registerDevice(user.id, req);
-        
         user.status = 'online';
         user.lastSeen = new Date();
         this.dataManager.saveData();
@@ -655,7 +768,6 @@ class ApiHandlers {
         }
 
         const { username } = data;
-        
         if (!this.securitySystem.validateInput(username, 'username')) {
             return { success: false, message: 'Некорректное имя пользователя' };
         }
@@ -664,6 +776,20 @@ class ApiHandlers {
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
+
+        const userGifts = this.dataManager.messages
+            .filter(msg => msg.type === 'gift' && msg.receiverId === targetUser.id)
+            .map(msg => ({
+                id: msg.id,
+                giftId: msg.giftId,
+                giftName: msg.giftName,
+                giftImage: msg.giftImage,
+                fromUserId: msg.senderId,
+                fromUserName: msg.displayName,
+                timestamp: msg.timestamp
+            }));
+
+        const userPosts = this.dataManager.posts.filter(post => post.userId === targetUser.id);
 
         return {
             success: true,
@@ -683,8 +809,77 @@ class ApiHandlers {
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
                 banned: targetUser.banned || false
-            }
+            },
+            gifts: userGifts,
+            posts: userPosts
         };
+    }
+
+    handleGetUserByUsernameMobile(token, data) {
+        const { username } = data;
+        if (!username) {
+            return { success: false, message: 'Username не указан' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.username === username);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        const userData = {
+            id: targetUser.id,
+            username: targetUser.username,
+            displayName: targetUser.displayName,
+            avatar: targetUser.avatar,
+            description: targetUser.description,
+            coins: targetUser.coins || 0,
+            verified: targetUser.verified || false,
+            isDeveloper: targetUser.isDeveloper || false,
+            status: targetUser.status || 'offline',
+            lastSeen: targetUser.lastSeen,
+            createdAt: targetUser.createdAt,
+            postsCount: this.dataManager.posts.filter(p => p.userId === targetUser.id).length,
+            followersCount: targetUser.followers ? targetUser.followers.length : 0,
+            followingCount: targetUser.following ? targetUser.following.length : 0
+        };
+
+        return { success: true, message: 'Данные пользователя получены', user: userData };
+    }
+
+    handleGetUserPostsMobile(token, data) {
+        const { userId } = data;
+        if (!userId) {
+            return { success: false, message: 'User ID не указан' };
+        }
+
+        const userPosts = this.dataManager.posts
+            .filter(post => post.userId === userId)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .map(post => {
+                const postUser = this.dataManager.users.find(u => u.id === post.userId);
+                return {
+                    id: post.id,
+                    text: post.text,
+                    image: post.image,
+                    file: post.file,
+                    fileName: post.fileName,
+                    fileType: post.fileType,
+                    likes: post.likes || [],
+                    comments: post.comments || [],
+                    views: post.views || 0,
+                    createdAt: post.createdAt,
+                    user: {
+                        id: postUser?.id,
+                        username: postUser?.username,
+                        displayName: postUser?.displayName,
+                        avatar: postUser?.avatar,
+                        verified: postUser?.verified || false,
+                        isDeveloper: postUser?.isDeveloper || false
+                    }
+                };
+            });
+
+        return { success: true, message: 'Посты пользователя получены', posts: userPosts };
     }
 
     handleUpdateProfile(token, data) {
@@ -802,6 +997,103 @@ class ApiHandlers {
         };
     }
 
+    async handleUploadAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validateAvatarFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'avatars', uniqueFilename);
+
+            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                this.fileHandlers.deleteFile(user.avatar);
+            }
+
+            user.avatar = fileUrl;
+            this.dataManager.saveData();
+
+            return {
+                success: true,
+                avatarUrl: fileUrl,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    email: user.email,
+                    avatar: fileUrl,
+                    description: user.description,
+                    coins: user.coins,
+                    verified: user.verified,
+                    isDeveloper: user.isDeveloper,
+                    status: user.status,
+                    lastSeen: user.lastSeen,
+                    createdAt: user.createdAt,
+                    friendsCount: user.friendsCount || 0,
+                    postsCount: user.postsCount || 0,
+                    giftsCount: user.giftsCount || 0,
+                    banned: user.banned || false
+                }
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аватара:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    handlePreviewAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename } = data;
+        if (!this.fileHandlers.validateAvatarFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            if (fileData.length > 2 * 1024 * 1024) {
+                return { success: false, message: 'Размер файла не должен превышать 2 МБ' };
+            }
+
+            return {
+                success: true,
+                previewUrl: fileData,
+                fileName: filename
+            };
+        } catch (error) {
+            console.error('Ошибка предпросмотра аватара:', error);
+            return { success: false, message: 'Ошибка обработки файла' };
+        }
+    }
+
+    handleDebugUpload(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        return {
+            success: true,
+            message: 'Upload debug endpoint',
+            user: user.username,
+            timestamp: new Date().toISOString()
+        };
+    }
+
     // ============================================
     // === ПОСТЫ ===
     // ============================================
@@ -833,7 +1125,6 @@ class ApiHandlers {
         });
 
         postsWithUserInfo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
         return { success: true, posts: postsWithUserInfo };
     }
 
@@ -848,11 +1139,9 @@ class ApiHandlers {
             return { success: false, message: 'Пост не найден' };
         }
 
-        // Увеличиваем просмотры
         post.views = (post.views || 0) + 1;
         this.dataManager.saveData();
 
-        // Добавляем информацию о пользователе
         const postUser = this.dataManager.users.find(u => u.id === post.userId);
         const postWithUser = {
             ...post,
@@ -1030,6 +1319,51 @@ class ApiHandlers {
         return { success: true, likes: post.likes, liked: likeIndex === -1 };
     }
 
+    handleSharePost(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { postId } = data;
+        if (!postId) {
+            return { success: false, message: 'Не указан ID поста' };
+        }
+
+        const originalPost = this.dataManager.posts.find(p => p.id === postId);
+        if (!originalPost) {
+            return { success: false, message: 'Пост не найден' };
+        }
+
+        const sharePost = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            text: `🔁 Репост: ${originalPost.text ? originalPost.text.substring(0, 100) + '...' : 'Пост'}`,
+            originalPostId: postId,
+            likes: [],
+            comments: [],
+            views: 0,
+            createdAt: new Date(),
+            banned: false,
+            isShare: true
+        };
+
+        this.dataManager.posts.unshift(sharePost);
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            post: {
+                ...sharePost,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified,
+                userIsDeveloper: user.isDeveloper
+            },
+            message: 'Пост успешно опубликован'
+        };
+    }
+
     // ============================================
     // === КОММЕНТАРИИ ===
     // ============================================
@@ -1077,6 +1411,10 @@ class ApiHandlers {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
         const { postId, text, parentCommentId } = data;
@@ -1129,15 +1467,15 @@ class ApiHandlers {
         return this.handleAddComment(token, { postId, ...data });
     }
 
-    handleAddReply(token, postId, commentId, data) {
+    handleReplyToComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { text } = data;
-        if (!text || text.trim() === '') {
-            return { success: false, message: 'Текст ответа не может быть пустым' };
+        const { postId, commentId, text } = data;
+        if (!postId || !commentId || !text) {
+            return { success: false, message: 'Заполните все поля' };
         }
 
         const post = this.dataManager.posts.find(p => p.id === postId);
@@ -1174,10 +1512,15 @@ class ApiHandlers {
         };
     }
 
-    handleLikeComment(token, postId, commentId) {
+    handleLikeComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
+        }
+
+        const { postId, commentId } = data;
+        if (!postId || !commentId) {
+            return { success: false, message: 'Заполните все поля' };
         }
 
         const post = this.dataManager.posts.find(p => p.id === postId);
@@ -1201,10 +1544,15 @@ class ApiHandlers {
         return { success: true, likes: comment.likes };
     }
 
-    handleLikeReply(token, postId, commentId, replyId) {
+    handleLikeReply(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
+        }
+
+        const { postId, commentId, replyId } = data;
+        if (!postId || !commentId || !replyId) {
+            return { success: false, message: 'Заполните все поля' };
         }
 
         const post = this.dataManager.posts.find(p => p.id === postId);
@@ -1243,7 +1591,6 @@ class ApiHandlers {
             return { success: false, message: 'Не авторизован' };
         }
 
-        // Личные чаты
         const personalChats = this.dataManager.users
             .filter(u => u.id !== user.id)
             .map(u => {
@@ -1273,7 +1620,6 @@ class ApiHandlers {
             .filter(chat => chat.lastMessage !== null)
             .sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
 
-        // Групповые чаты
         const groupChats = this.dataManager.groups
             .filter(g => g.members.includes(user.id) && g.isActive !== false)
             .map(g => {
@@ -1409,15 +1755,15 @@ class ApiHandlers {
             
             const isProduction = process.env.NODE_ENV === 'production';
             const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
-            const filePath = path.join(baseDir, uploadDir, uniqueFilename);
+            const dir = path.join(baseDir, uploadDir);
             
-            const base64Data = file.replace(/^data:[^;]+;base64,/, '');
-            const buffer = Buffer.from(base64Data, 'base64');
-            
-            if (!fs.existsSync(path.join(baseDir, uploadDir))) {
-                fs.mkdirSync(path.join(baseDir, uploadDir), { recursive: true });
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
             }
             
+            const filePath = path.join(dir, uniqueFilename);
+            const base64Data = file.replace(/^data:[^;]+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
             fs.writeFileSync(filePath, buffer);
             fileUrl = `/uploads/${uploadDir}/${uniqueFilename}`;
         }
@@ -1482,7 +1828,7 @@ class ApiHandlers {
             return { success: false, message: 'Сообщение не найдено' };
         }
 
-        if (message.senderId !== user.id) {
+        if (message.senderId !== user.id && !user.isDeveloper) {
             return { success: false, message: 'Нет прав для редактирования этого сообщения' };
         }
 
@@ -1816,6 +2162,32 @@ class ApiHandlers {
         };
     }
 
+    handleGetUserGifts(token, query) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { userId } = query;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
+        }
+
+        const sentGifts = this.dataManager.sentGifts || [];
+        const userGifts = sentGifts.filter(gift => gift.toUserId === userId);
+
+        const giftsWithSenders = userGifts.map(gift => {
+            const fromUser = this.dataManager.users.find(u => u.id === gift.fromUserId);
+            return {
+                ...gift,
+                fromUserName: fromUser ? fromUser.displayName : 'Неизвестный пользователь',
+                fromUserAvatar: fromUser ? fromUser.avatar : null
+            };
+        });
+
+        return { success: true, gifts: giftsWithSenders };
+    }
+
     handleGetMyGifts(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2037,6 +2409,76 @@ class ApiHandlers {
         return { success: true, music: musicWithUserInfo };
     }
 
+    handleUploadMusic(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { title, artist, duration, fileUrl, coverUrl, genre } = data;
+        if (!title || !artist || !fileUrl) {
+            return { success: false, message: 'Название, исполнитель и файл обязательны' };
+        }
+
+        const track = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            title: this.securitySystem.sanitizeContent(title),
+            artist: this.securitySystem.sanitizeContent(artist),
+            genre: genre ? this.securitySystem.sanitizeContent(genre) : 'Не указан',
+            fileUrl: fileUrl,
+            coverUrl: coverUrl || '/assets/default-cover.png',
+            duration: duration || 0,
+            plays: 0,
+            likes: [],
+            createdAt: new Date()
+        };
+
+        this.dataManager.music.unshift(track);
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            track: {
+                ...track,
+                userName: user.displayName,
+                userAvatar: user.avatar,
+                userVerified: user.verified
+            }
+        };
+    }
+
+    async handleUploadMusicFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+        if (!this.fileHandlers.validateMusicFile(filename)) {
+            return { success: false, message: 'Недопустимый формат аудио файла' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music', uniqueFilename);
+
+            return { success: true, fileUrl: fileUrl };
+        } catch (error) {
+            console.error('Ошибка загрузки аудио файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
     handleUploadMusicFull(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2076,6 +2518,33 @@ class ApiHandlers {
         };
     }
 
+    async handleUploadMusicCover(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+        if (!this.fileHandlers.validateCoverFile(filename)) {
+            return { success: false, message: 'Недопустимый формат изображения' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music/covers', uniqueFilename);
+
+            return { success: true, coverUrl: fileUrl };
+        } catch (error) {
+            console.error('Ошибка загрузки обложки:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
     handleDeleteMusic(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -2095,6 +2564,10 @@ class ApiHandlers {
 
         if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
             this.fileHandlers.deleteFile(track.fileUrl);
+        }
+
+        if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
+            this.fileHandlers.deleteFile(track.coverUrl);
         }
 
         this.dataManager.music.splice(trackIndex, 1);
@@ -2134,6 +2607,166 @@ class ApiHandlers {
         return { success: true, music: musicWithUserInfo };
     }
 
+    handleGetRandomMusic(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (this.dataManager.music.length === 0) {
+            return { success: true, music: [] };
+        }
+
+        const shuffled = [...this.dataManager.music].sort(() => 0.5 - Math.random());
+        const randomMusic = shuffled.slice(0, 10);
+
+        const musicWithUserInfo = randomMusic.map(track => {
+            const trackUser = this.dataManager.users.find(u => u.id === track.userId);
+            return {
+                ...track,
+                userName: trackUser ? trackUser.displayName : 'Неизвестный',
+                userAvatar: trackUser ? trackUser.avatar : null,
+                userVerified: trackUser ? trackUser.verified : false
+            };
+        });
+
+        return { success: true, music: musicWithUserInfo };
+    }
+
+    // ============================================
+    // === ПЛЕЙЛИСТЫ ===
+    // ============================================
+
+    handleGetPlaylists(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const userPlaylists = this.dataManager.playlists.filter(p => p.userId === user.id);
+        return { success: true, playlists: userPlaylists };
+    }
+
+    handleCreatePlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { name, description } = data;
+        if (!name || name.trim() === '') {
+            return { success: false, message: 'Название плейлиста обязательно' };
+        }
+
+        const playlist = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            name: this.securitySystem.sanitizeContent(name.trim()),
+            description: description ? this.securitySystem.sanitizeContent(description) : '',
+            tracks: [],
+            cover: null,
+            createdAt: new Date()
+        };
+
+        this.dataManager.playlists.push(playlist);
+        this.dataManager.saveData();
+
+        return { success: true, playlist: playlist };
+    }
+
+    handleAddToPlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { playlistId, trackId } = data;
+        const playlist = this.dataManager.playlists.find(p => p.id === playlistId && p.userId === user.id);
+        if (!playlist) {
+            return { success: false, message: 'Плейлист не найден' };
+        }
+
+        const track = this.dataManager.music.find(t => t.id === trackId);
+        if (!track) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        if (playlist.tracks.includes(trackId)) {
+            return { success: false, message: 'Трек уже есть в плейлисте' };
+        }
+
+        playlist.tracks.push(trackId);
+        if (!playlist.cover && playlist.tracks.length === 1) {
+            playlist.cover = track.coverUrl;
+        }
+
+        this.dataManager.saveData();
+        return { success: true, playlist: playlist };
+    }
+
+    handleAddTrackToPlaylist(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { playlistId, trackId } = data;
+        if (!playlistId || !trackId) {
+            return { success: false, message: 'Не указан плейлист или трек' };
+        }
+
+        const playlist = this.dataManager.playlists.find(p => p.id === playlistId && p.userId === user.id);
+        if (!playlist) {
+            return { success: false, message: 'Плейлист не найден' };
+        }
+
+        const track = this.dataManager.music.find(t => t.id === trackId);
+        if (!track) {
+            return { success: false, message: 'Трек не найден' };
+        }
+
+        if (!playlist.tracks.includes(trackId)) {
+            playlist.tracks.push(trackId);
+            this.dataManager.saveData();
+            return { success: true, message: 'Трек добавлен в плейлист' };
+        } else {
+            return { success: false, message: 'Трек уже есть в плейлисте' };
+        }
+    }
+
+    // ============================================
+    // === ТРАНЗАКЦИИ ===
+    // ============================================
+
+    handleGetTransactions(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.id !== userId) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const transactions = [
+            {
+                description: 'Регистрация бонус',
+                date: user.createdAt,
+                amount: user.coins >= 50000 ? 50000 : 1000
+            }
+        ];
+
+        return { success: true, transactions: transactions };
+    }
+
     // ============================================
     // === АДМИН ===
     // ============================================
@@ -2153,12 +2786,46 @@ class ApiHandlers {
                 totalGifts: this.dataManager.gifts.length,
                 totalPromoCodes: this.dataManager.promoCodes.length,
                 totalMusic: this.dataManager.music.length,
+                totalPlaylists: this.dataManager.playlists.length,
                 totalGroups: this.dataManager.groups.length,
                 onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
                 bannedUsers: this.dataManager.users.filter(u => u.banned).length,
+                bannedIPs: this.dataManager.bannedIPs.size,
+                activeDevices: this.dataManager.devices.size,
                 maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
             }
         };
+    }
+
+    handleAdminStatistics(token) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const stats = {
+            totalUsers: this.dataManager.users.length,
+            totalMessages: this.dataManager.messages.length,
+            totalPosts: this.dataManager.posts.length,
+            totalGifts: this.dataManager.gifts.length,
+            totalMusic: this.dataManager.music.length,
+            totalGroups: this.dataManager.groups.length,
+            onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
+            bannedIPs: this.dataManager.bannedIPs.size,
+            maintenanceMode: this.dataManager.maintenanceMode,
+            dataFileSize: this.getFileSize(this.dataManager.dataFile)
+        };
+
+        return { success: true, message: 'Статистика получена', statistics: stats };
+    }
+
+    getFileSize(filePath) {
+        try {
+            const stats = fs.statSync(filePath);
+            return (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+        } catch (error) {
+            return 'Unknown';
+        }
     }
 
     handleDeleteUser(token, data) {
@@ -2217,6 +2884,75 @@ class ApiHandlers {
         this.dataManager.saveData();
 
         return { success: true, message: `Пользователь ${targetUser.username} заблокирован` };
+    }
+
+    handleUnbanUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { ip } = data;
+        if (!ip) {
+            return { success: false, message: 'IP не указан' };
+        }
+
+        this.dataManager.bannedIPs.delete(ip);
+        this.dataManager.saveData();
+
+        return { success: true, message: `IP ${ip} разбанен` };
+    }
+
+    handleAdminVerifyUser(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Недостаточно прав' };
+        }
+
+        const { userId, verified } = data;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.verified = !!verified;
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            message: `Пользователь ${verified ? 'верифицирован' : 'лишен верификации'}`,
+            user: targetUser
+        };
+    }
+
+    handleAdminMakeDeveloper(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Недостаточно прав' };
+        }
+
+        const { userId, isDeveloper } = data;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        targetUser.isDeveloper = !!isDeveloper;
+        this.dataManager.saveData();
+
+        return {
+            success: true,
+            message: `Права разработчика ${isDeveloper ? 'назначены' : 'сняты'}`,
+            user: targetUser
+        };
     }
 
     handleToggleVerification(token, data) {
@@ -2286,6 +3022,21 @@ class ApiHandlers {
         return { success: true, users: users };
     }
 
+    handleAdminSecurityLogs(token) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Недостаточно прав' };
+        }
+
+        try {
+            const logs = this.securitySystem.getSecurityLogs ? this.securitySystem.getSecurityLogs() : [];
+            return { success: true, logs: logs };
+        } catch (error) {
+            console.error('❌ Ошибка получения логов безопасности:', error);
+            return { success: false, message: 'Ошибка получения логов безопасности' };
+        }
+    }
+
     handleExportDatabase(token, res) {
         const user = this.authenticateToken(token);
         if (!user || !user.isDeveloper) {
@@ -2313,6 +3064,7 @@ class ApiHandlers {
                     gifts: this.dataManager.gifts,
                     promoCodes: this.dataManager.promoCodes,
                     music: this.dataManager.music,
+                    playlists: this.dataManager.playlists,
                     groups: this.dataManager.groups,
                     bannedIPs: Object.fromEntries(this.dataManager.bannedIPs),
                     devices: Object.fromEntries(this.dataManager.devices)
@@ -2323,11 +3075,13 @@ class ApiHandlers {
             
             res.writeHead(200, {
                 'Content-Type': 'application/json',
-                'Content-Disposition': `attachment; filename="${filename}"`
+                'Content-Disposition': `attachment; filename="${filename}"`,
+                'Access-Control-Expose-Headers': 'Content-Disposition'
             });
             res.end(JSON.stringify(exportData, null, 2));
 
         } catch (error) {
+            console.error('❌ Ошибка экспорта базы данных:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, message: 'Ошибка экспорта базы данных' }));
         }
@@ -2339,7 +3093,7 @@ class ApiHandlers {
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        return { success: true, message: 'Импорт БД выполнен' };
+        return { success: true, message: 'Импорт БД выполнен (обрабатывается в file-handlers)' };
     }
 
     handleMaintenanceMode(token, data) {
@@ -2368,6 +3122,98 @@ class ApiHandlers {
             success: true,
             maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
         };
+    }
+
+    handleGetMaintenanceStatusPublic(token) {
+        const status = {
+            maintenance: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false,
+            message: this.dataManager.isMaintenanceMode() ? 
+                'Ведутся технические работы' : 'Сервер работает нормально'
+        };
+
+        return { success: true, ...status };
+    }
+
+    // ============================================
+    // === ЗАГРУЗКА ФАЙЛОВ ===
+    // ============================================
+
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+        if (!this.fileHandlers.validatePostFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для поста' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'posts', uniqueFilename);
+
+            return { success: true, imageUrl: fileUrl };
+        } catch (error) {
+            console.error('Ошибка загрузки файла для поста:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename, fileType } = data;
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
+            let uploadDir = 'files';
+            if (fileType === 'image') uploadDir = 'images';
+            else if (fileType === 'video') uploadDir = 'videos';
+            else if (fileType === 'audio') uploadDir = 'audio';
+            
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, uploadDir, uniqueFilename);
+
+            return {
+                success: true,
+                fileUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadGift(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user || !user.isDeveloper) {
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { fileData, filename } = data;
+        if (!this.fileHandlers.validateGiftFile(filename)) {
+            return { success: false, message: 'Недопустимый формат файла для подарка' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'gifts', uniqueFilename);
+
+            return { success: true, imageUrl: fileUrl };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения подарка:', error);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 
     // ============================================
