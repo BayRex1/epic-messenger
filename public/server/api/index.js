@@ -92,27 +92,67 @@ class ApiHandler {
             } else if (pathname === '/api/posts' && method === 'DELETE') {
                 response = this.posts.handleDeletePost(token, query);
 
-            // 🔥 ЛАЙКИ ПОСТОВ
+            // 🔥 ЛАЙК ПОСТА
             } else if (pathname === '/api/posts/like' && method === 'POST') {
                 response = this.posts.handleLikePost(token, data);
 
-            // 🔥 КОММЕНТАРИИ
+            // 🔥 КОММЕНТАРИЙ К ПОСТУ
             } else if (pathname === '/api/posts/comment' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
+
+            // 🔥 ЛАЙК КОММЕНТАРИЯ
             } else if (pathname === '/api/posts/comment/like' && method === 'POST') {
                 response = this.posts.handleLikeComment(token, data);
+
+            // 🔥 ОТВЕТ НА КОММЕНТАРИЙ
             } else if (pathname === '/api/posts/comment/reply' && method === 'POST') {
                 response = this.posts.handleReplyToComment(token, data);
 
-            // 🔥 ШЕРИНГ
+            // 🔥 РЕПОСТ
             } else if (pathname === '/api/posts/share' && method === 'POST') {
                 response = this.posts.handleSharePost(token, data);
 
-            // 🔥 КОММЕНТАРИИ (альтернативный маршрут)
+            // 🔥 КОММЕНТАРИИ (альтернативный маршрут /api/posts/comments)
             } else if (pathname === '/api/posts/comments' && method === 'GET') {
                 response = this.posts.handleGetComments(token, query);
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
+
+            // === ЗАГРУЗКА ИЗОБРАЖЕНИЙ ДЛЯ ПОСТОВ ===
+            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
+                response = this.posts.handleUploadPostImage(token, data);
+
+            // === ДИНАМИЧЕСКИЕ МАРШРУТЫ ДЛЯ ПОСТОВ ===
+            // 🔥 /api/posts/:id (получение одного поста)
+            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                // Проверяем, что это не вложенный маршрут с comments/like/comment
+                if (postId && !parts.includes('comments') && !parts.includes('like') && !parts.includes('comment') && !parts.includes('share')) {
+                    response = this.posts.handleGetPostById(token, postId);
+                }
+
+            // 🔥 /api/posts/:postId/comments
+            } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                const commentId = parts[5] || null;
+                
+                if (method === 'GET') {
+                    response = this.posts.handleGetPostComments(token, postId);
+                } else if (method === 'POST') {
+                    if (parts.length === 5) {
+                        // /api/posts/:postId/comments
+                        response = this.posts.handleAddPostComment(token, postId, data);
+                    } else if (parts.length === 6 && parts[5] === 'like') {
+                        // /api/posts/:postId/comments/:commentId/like
+                        response = this.posts.handleLikeComment(token, { postId, commentId });
+                    } else if (parts.length === 7 && parts[5] === 'reply') {
+                        // /api/posts/:postId/comments/:commentId/reply
+                        const replyData = { postId, commentId, text: data.text };
+                        response = this.posts.handleReplyToComment(token, replyData);
+                    }
+                }
 
             // === ЧАТЫ ===
             } else if (pathname === '/api/chats' && method === 'GET') {
@@ -159,6 +199,9 @@ class ApiHandler {
                 response = this.gifts.handleGetMyGifts(token);
             } else if (pathname === '/api/upload-gift' && method === 'POST') {
                 response = this.gifts.handleUploadGift(token, data);
+            } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
+                const giftId = pathname.split('/')[3];
+                response = this.gifts.handleBuyGift(token, { giftId, ...data });
 
             // === ПРОМОКОДЫ ===
             } else if (pathname === '/api/promo-codes' && method === 'GET') {
@@ -260,54 +303,18 @@ class ApiHandler {
                 response = this.auth.handleCurrentUser(token, req);
 
             // === ЗАГРУЗКА ФАЙЛОВ ===
-            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                response = this.posts.handleUploadPostImage(token, data);
             } else if (pathname === '/api/upload-file' && method === 'POST') {
                 response = this.fileHandlers.handleUploadFileMultipart(req, res);
                 return;
 
-            // === ДИНАМИЧЕСКИЕ МАРШРУТЫ ===
-
-            // 🔥 /api/posts/:id (получение поста)
-            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
-                const parts = pathname.split('/');
-                const postId = parts[3];
-                if (postId && !parts.includes('comments') && !parts.includes('like') && !parts.includes('comment')) {
-                    response = this.posts.handleGetPostById(token, postId);
-                }
-
-            // 🔥 /api/posts/:postId/comments
-            } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
-                const parts = pathname.split('/');
-                const postId = parts[3];
-                const commentId = parts[5] || null;
-                
-                if (method === 'GET') {
-                    response = this.posts.handleGetPostComments(token, postId);
-                } else if (method === 'POST') {
-                    if (parts.length === 5) {
-                        response = this.posts.handleAddPostComment(token, postId, data);
-                    } else if (parts.length === 6 && parts[5] === 'like') {
-                        response = this.posts.handleLikeComment(token, { postId, commentId });
-                    } else if (parts.length === 7 && parts[5] === 'reply') {
-                        const replyData = { postId, commentId, text: data.text };
-                        response = this.posts.handleReplyToComment(token, replyData);
-                    }
-                }
-
-            // 🔥 /api/gifts/:giftId/buy
-            } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
-                const giftId = pathname.split('/')[3];
-                response = this.gifts.handleBuyGift(token, { giftId, ...data });
-
-            // 🔥 /api/user/:userId/transactions
+            // === /api/user/:userId/transactions ===
             } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
                 const userId = pathname.split('/')[3];
                 if (method === 'GET') {
                     response = this.users.handleGetTransactions(token, userId);
                 }
 
-            // 🔥 /api/users/:id
+            // === /api/users/:id ===
             } else if (pathname.startsWith('/api/users/') && method === 'GET') {
                 const userId = pathname.split('/')[3];
                 if (userId) {
@@ -316,7 +323,7 @@ class ApiHandler {
 
             // === НЕИЗВЕСТНЫЙ API ===
             } else {
-                response = { success: false, message: 'API endpoint not found' };
+                response = { success: false, message: 'API endpoint not found: ' + pathname };
             }
         } catch (error) {
             console.error('API Error:', error);
