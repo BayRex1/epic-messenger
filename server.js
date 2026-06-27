@@ -73,7 +73,7 @@ class SimpleServer {
             return;
         }
 
-        // 🔥 ПРОВЕРКА АВТОРИЗАЦИИ (кроме login и register)
+        // Проверка авторизации (кроме login и register)
         const token = req.headers['authorization']?.replace('Bearer ', '');
         const isAuthRoute = pathname === '/api/login' || pathname === '/api/register';
         
@@ -517,8 +517,8 @@ class SimpleServer {
             '/404': 'public/additions/404.html'
         };
 
-        // Обработка отдельных постов /post/:id
-        if (pathname.startsWith('/post/')) {
+        // 🔥 ИСПРАВЛЕНО: Обработка отдельных постов /post/:id (только если нет расширения файла)
+        if (pathname.startsWith('/post/') && !pathname.includes('.')) {
             console.log(`📄 Serving post page for: ${pathname}`);
             serveStaticFile(res, 'public/post.html', 'text/html');
             return;
