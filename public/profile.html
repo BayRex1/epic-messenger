@@ -5,6 +5,178 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Профиль - Epic Messenger</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Стили для обложки профиля */
+        .profile-cover-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            border-radius: 16px 16px 0 0;
+            overflow: hidden;
+            margin-bottom: 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .profile-cover-container:hover .cover-overlay {
+            opacity: 1;
+        }
+
+        .profile-cover-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .cover-overlay-content {
+            text-align: center;
+            color: white;
+        }
+
+        .cover-overlay-content svg {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 8px;
+        }
+
+        .cover-overlay-content span {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .profile-header-large {
+            position: relative;
+            padding: 0 30px 30px 30px;
+            background: var(--bg-secondary);
+            border-radius: 0 0 16px 16px;
+            border: 1px solid var(--border-color);
+            border-top: none;
+        }
+
+        .avatar-large-wrapper {
+            position: relative;
+            margin-top: -60px;
+            display: inline-block;
+        }
+
+        .avatar-large {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid var(--bg-secondary);
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            font-weight: 600;
+            overflow: hidden;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .avatar-large:hover .avatar-overlay {
+            opacity: 1;
+        }
+
+        .avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: 50%;
+        }
+
+        .avatar-overlay svg {
+            width: 30px;
+            height: 30px;
+            color: white;
+        }
+
+        .profile-info-large {
+            margin-top: 10px;
+        }
+
+        .profile-info-large h2 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Модалка для обложки */
+        .cover-preview {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .cover-preview img {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        /* Адаптив */
+        @media (max-width: 768px) {
+            .profile-cover-container {
+                height: 140px;
+            }
+            
+            .avatar-large {
+                width: 90px;
+                height: 90px;
+                font-size: 28px;
+            }
+            
+            .avatar-large-wrapper {
+                margin-top: -45px;
+            }
+            
+            .profile-header-large {
+                padding: 0 20px 20px 20px;
+            }
+            
+            .profile-info-large h2 {
+                font-size: 22px;
+            }
+        }
+    </style>
 </head>
 <body class="theme-dark">
     <!-- Сайдбар -->
@@ -129,8 +301,36 @@
         <div class="content-area active" id="profile-section">
             <div class="profile-container">
                 <div class="user-profile">
+                    <!-- ОБЛОЖКА -->
+                    <div class="profile-cover-container" id="profileCoverContainer" onclick="document.getElementById('coverFileInput').click()">
+                        <img id="profileCover" src="" alt="Обложка профиля" style="display: none;">
+                        <div class="cover-overlay">
+                            <div class="cover-overlay-content">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                                </svg>
+                                <span>Изменить обложку</span>
+                            </div>
+                        </div>
+                        <input type="file" id="coverFileInput" accept="image/*" style="display: none;" onchange="uploadCover(this.files[0])">
+                    </div>
+                    
                     <div class="profile-header-large">
-                        <div class="avatar-large" id="profileUserAvatar">U</div>
+                        <div class="avatar-large-wrapper">
+                            <div class="avatar-large" id="profileUserAvatar" onclick="document.getElementById('avatarFileInput').click()">
+                                <span>U</span>
+                                <div class="avatar-overlay">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                            <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" onchange="uploadAvatar(this.files[0])">
+                        </div>
                         <div class="profile-info-large">
                             <h2 id="profileUserName">
                                 Пользователь
@@ -162,7 +362,6 @@
                             </div>
                             <div class="profile-actions">
                                 <button class="btn" id="editProfileBtn">Редактировать профиль</button>
-                                <button class="btn" id="changeAvatarBtn">Сменить аватар</button>
                             </div>
                         </div>
                     </div>
@@ -223,251 +422,182 @@
         </div>
     </div>
 
-    <div id="changeAvatarModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Сменить аватар</h3>
-                <span class="close" id="closeChangeAvatar">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="file-upload-area" id="avatarUploadArea">
-                    <div class="upload-area-content">
-                        <svg viewBox="0 0 24 24" class="upload-icon">
-                            <path fill="currentColor" d="M14,13V17H10V13H7L12,8L17,13M19.35,10.03C18.67,6.59 15.64,4 12,4C9.11,4 6.6,5.64 5.35,8.03C2.34,8.36 0,10.9 0,14A6,6 0 0,0 6,20H19A5,5 0 0,0 24,15C24,12.36 21.95,10.22 19.35,10.03Z"/>
-                        </svg>
-                        <div class="upload-text">Перетащите сюда изображение или нажмите для выбора</div>
-                        <div class="upload-subtext">Поддерживаемые форматы: JPG, PNG, GIF, WEBP (макс. 5 МБ)</div>
-                    </div>
-                    <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
-                </div>
-                <div class="file-preview" id="avatarPreview"></div>
-                <div class="form-group" style="margin-top: 15px;">
-                    <label>Или введите URL изображения</label>
-                    <input type="text" id="avatarUrl" class="modal-input" placeholder="https://example.com/avatar.jpg">
-                </div>
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-btn secondary" id="cancelChangeAvatar">Отмена</button>
-                <button class="modal-btn primary" id="saveAvatar">Сохранить аватар</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="userProfileModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content large">
-            <div class="modal-header">
-                <h3 id="userProfileTitle">Профиль пользователя</h3>
-                <span class="close" id="closeUserProfile">&times;</span>
-            </div>
-            <div class="modal-body" id="userProfileContent">
-                <!-- Контент будет загружен динамически -->
-            </div>
-        </div>
-    </div>
-
     <script src="js/common.js"></script>
     <script src="js/profile.js"></script>
 
-    <!-- Дополнительная проверка для страницы профиля -->
     <script>
-        // Дополнительная проверка для страницы профиля
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🔐 Дополнительная проверка для профиля...');
+        // ============================================
+        // ФУНКЦИИ ДЛЯ ЗАГРУЗКИ ОБЛОЖКИ И АВАТАРА
+        // ============================================
+
+        // Загрузка обложки
+        async function uploadCover(file) {
+            if (!file) return;
             
-            // Проверяем токен
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                console.log('❌ Токен не найден, перенаправляем на логин');
-                window.location.href = '/login.html';
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                showNotification('Размер файла не должен превышать 5 МБ', 'error');
                 return;
             }
-            
-            console.log('✅ Токен присутствует');
-            
-            // Если currentUser еще не загружен, ждем
-            if (typeof currentUser === 'undefined' || !currentUser) {
-                console.log('⏳ Ожидаем инициализации пользователя...');
-                let checkCount = 0;
-                const maxChecks = 50; // 5 секунд максимум
-                
-                const checkInterval = setInterval(() => {
-                    checkCount++;
-                    if (typeof currentUser !== 'undefined' && currentUser) {
-                        clearInterval(checkInterval);
-                        console.log('✅ Пользователь загружен, продолжаем...');
-                    } else if (checkCount >= maxChecks) {
-                        clearInterval(checkInterval);
-                        console.log('❌ Таймаут загрузки пользователя, перенаправляем на логин');
-                        localStorage.removeItem('authToken');
-                        window.location.href = '/login.html';
-                    }
-                }, 100);
+
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                showNotification('Поддерживаются только JPG, PNG, GIF, WEBP', 'error');
+                return;
             }
-        });
 
-        // Функция для создания элемента поста (если не определена в common.js)
-        if (typeof createPostElement === 'undefined') {
-            function createPostElement(post) {
-                const postElement = document.createElement('div');
-                postElement.className = 'post';
-                postElement.innerHTML = `
-                    <div class="post-header">
-                        <div class="post-avatar">
-                            ${post.userAvatar ? 
-                                `<img src="${post.userAvatar}" alt="${post.userName}">` : 
-                                post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
-                            }
-                        </div>
-                        <div class="post-user-info">
-                            <div class="post-user-name">
-                                ${post.userName || 'Пользователь'}
-                                ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
-                            </div>
-                            <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
-                        </div>
-                    </div>
-                    <div class="post-content">
-                        <div class="post-text">${post.text || ''}</div>
-                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Изображение поста">` : ''}
-                        ${post.file ? `
-                            <div class="post-file">
-                                <a href="${post.file}" target="_blank" class="file-link">
-                                    📎 ${post.fileName || 'Файл'}
-                                </a>
-                            </div>
-                        ` : ''}
-                    </div>
-                    <div class="post-actions">
-                        <button class="like-btn" data-post-id="${post.id}">
-                            ❤️ <span>${post.likes ? post.likes.length : 0}</span>
-                        </button>
-                        <button class="comment-btn" data-post-id="${post.id}">
-                            💬 <span>${post.comments ? post.comments.length : 0}</span>
-                        </button>
-                        <button class="share-btn" data-post-id="${post.id}">
-                            🔄 Поделиться
-                        </button>
-                    </div>
-                `;
-                return postElement;
-            }
-        }
+            const formData = new FormData();
+            formData.append('file', file);
 
-        // Показать уведомление (если не определена в common.js)
-        if (typeof showNotification === 'undefined') {
-            function showNotification(message, type = 'success') {
-                const notificationsContainer = document.getElementById('notificationsContainer');
-                if (!notificationsContainer) return;
-                
-                const notification = document.createElement('div');
-                notification.className = `notification ${type}`;
-                notification.textContent = message;
-                
-                notificationsContainer.appendChild(notification);
-                
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 5000);
-            }
-        }
-
-        // Обновление интерфейса пользователя (если не определена в common.js)
-        if (typeof updateUserInterface === 'undefined') {
-            function updateUserInterface() {
-                if (!currentUser) return;
-                
-                const userAvatar = document.getElementById('userAvatar');
-                const userName = document.getElementById('userName');
-                const userUsername = document.getElementById('userUsername');
-                const profileUserAvatar = document.getElementById('profileUserAvatar');
-                const profileUserName = document.getElementById('profileUserName');
-                const profileUserUsername = document.getElementById('profileUserUsername');
-                const profilePostsCount = document.getElementById('profilePostsCount');
-                const profileGiftsCount = document.getElementById('profileGiftsCount');
-                const profileCoinsCount = document.getElementById('profileCoinsCount');
-
-                // Обновляем аватар в сайдбаре
-                if (userAvatar) {
-                    if (currentUser.avatar) {
-                        userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
-                    } else {
-                        userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
-                    }
-                }
-
-                // Обновляем имя в сайдбаре
-                if (userName) {
-                    userName.textContent = currentUser.displayName || 'Пользователь';
-                }
-
-                // Обновляем username в сайдбаре
-                if (userUsername) {
-                    userUsername.textContent = `@${currentUser.username}`;
-                }
-
-                // Обновляем аватар в профиле
-                if (profileUserAvatar) {
-                    if (currentUser.avatar) {
-                        profileUserAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
-                    } else {
-                        profileUserAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
-                    }
-                }
-
-                // Обновляем имя в профиле
-                if (profileUserName) {
-                    profileUserName.textContent = currentUser.displayName || 'Пользователь';
-                }
-
-                // Обновляем username в профиле
-                if (profileUserUsername) {
-                    profileUserUsername.textContent = `@${currentUser.username}`;
-                }
-
-                // Обновляем статистику
-                if (profilePostsCount) profilePostsCount.textContent = currentUser.postsCount || 0;
-                if (profileGiftsCount) profileGiftsCount.textContent = currentUser.giftsCount || 0;
-                if (profileCoinsCount) profileCoinsCount.textContent = currentUser.coins || 0;
-            }
-        }
-
-        // Резервная инициализация на случай проблем с common.js
-        setTimeout(() => {
-            if (typeof initializeApp === 'undefined') {
-                console.log('⚠️ common.js не загружен, используем резервную инициализацию');
-                
-                // Базовая проверка аутентификации
+            try {
                 const token = localStorage.getItem('authToken');
-                if (!token) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                // Пытаемся получить данные пользователя
-                fetch('/api/current-user', {
+                const response = await fetch('/api/update-cover', {
+                    method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.user) {
-                        currentUser = data.user;
-                        updateUserInterface();
-                        console.log('✅ Резервная инициализация успешна');
-                    } else {
-                        throw new Error('Не удалось загрузить пользователя');
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ Ошибка резервной инициализации:', error);
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/login.html';
+                    },
+                    body: formData
                 });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser.cover = data.coverUrl;
+                    updateCoverUI(data.coverUrl);
+                    showNotification('Обложка обновлена!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка загрузки обложки', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки обложки:', error);
+                showNotification('Ошибка загрузки обложки', 'error');
             }
-        }, 2000);
+        }
+
+        // Загрузка аватара
+        async function uploadAvatar(file) {
+            if (!file) return;
+            
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            if (file.size > maxSize) {
+                showNotification('Размер файла не должен превышать 2 МБ', 'error');
+                return;
+            }
+
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                showNotification('Поддерживаются только JPG, PNG, GIF, WEBP', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('/api/upload-avatar', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser.avatar = data.avatarUrl;
+                    updateAvatarUI(data.avatarUrl);
+                    showNotification('Аватар обновлен!', 'success');
+                } else {
+                    showNotification(data.message || 'Ошибка загрузки аватара', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки аватара:', error);
+                showNotification('Ошибка загрузки аватара', 'error');
+            }
+        }
+
+        // Обновление UI обложки
+        function updateCoverUI(coverUrl) {
+            const coverImg = document.getElementById('profileCover');
+            const container = document.getElementById('profileCoverContainer');
+            
+            if (coverUrl) {
+                coverImg.src = coverUrl;
+                coverImg.style.display = 'block';
+                // Убираем фон градиента
+                container.style.background = 'none';
+            }
+        }
+
+        // Обновление UI аватара
+        function updateAvatarUI(avatarUrl) {
+            const avatarElement = document.getElementById('profileUserAvatar');
+            
+            if (avatarUrl) {
+                avatarElement.innerHTML = `<img src="${avatarUrl}" alt="Аватар">`;
+            }
+        }
+
+        // Функция для обновления всей страницы профиля
+        function updateProfilePageWithCover() {
+            if (!currentUser) return;
+
+            // Обновляем обложку
+            const coverImg = document.getElementById('profileCover');
+            const container = document.getElementById('profileCoverContainer');
+            
+            if (currentUser.cover) {
+                coverImg.src = currentUser.cover;
+                coverImg.style.display = 'block';
+                container.style.background = 'none';
+            } else {
+                coverImg.style.display = 'none';
+                container.style.background = 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)';
+            }
+
+            // Обновляем аватар
+            const avatarElement = document.getElementById('profileUserAvatar');
+            if (currentUser.avatar) {
+                avatarElement.innerHTML = `<img src="${currentUser.avatar}" alt="Аватар">`;
+            } else {
+                avatarElement.innerHTML = `<span>${currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}</span>`;
+            }
+
+            // Обновляем остальные данные
+            const profileUserName = document.getElementById('profileUserName');
+            if (profileUserName) {
+                profileUserName.textContent = currentUser.displayName || 'Пользователь';
+            }
+
+            const profileUserUsername = document.getElementById('profileUserUsername');
+            if (profileUserUsername) {
+                profileUserUsername.textContent = `@${currentUser.username}`;
+            }
+
+            document.getElementById('profilePostsCount').textContent = currentUser.postsCount || 0;
+            document.getElementById('profileGiftsCount').textContent = currentUser.giftsCount || 0;
+            document.getElementById('profileCoinsCount').textContent = currentUser.coins || 0;
+        }
+
+        // Переопределяем функцию updateUserInterface чтобы обновлять и обложку
+        const originalUpdateUserInterface = window.updateUserInterface || function() {};
+        window.updateUserInterface = function() {
+            originalUpdateUserInterface();
+            updateProfilePageWithCover();
+        };
+
+        // При загрузке страницы обновляем обложку
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ждем пока currentUser загрузится
+            const checkUser = setInterval(() => {
+                if (window.currentUser) {
+                    clearInterval(checkUser);
+                    updateProfilePageWithCover();
+                }
+            }, 500);
+        });
     </script>
 </body>
 </html>
