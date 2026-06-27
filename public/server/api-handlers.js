@@ -223,7 +223,6 @@ class ApiHandlers {
                     }
                     break;
 
-                // 🔥 НОВЫЙ API ДЛЯ ОБЛОЖКИ ПРОФИЛЯ
                 case '/api/update-cover':
                     if (method === 'POST') {
                         response = this.handleUpdateCover(token, data);
@@ -570,7 +569,7 @@ class ApiHandlers {
                     break;
                     
                 default:
-                    // 🔥 Обработка /api/posts/:id (получение одного поста)
+                    // Обработка /api/posts/:id (получение одного поста)
                     if (pathname.startsWith('/api/posts/') && method === 'GET') {
                         const postId = pathname.split('/')[3];
                         if (postId && !pathname.includes('/comments')) {
@@ -579,7 +578,7 @@ class ApiHandlers {
                         }
                     }
                     
-                    // 🔥 Обработка /api/posts/:postId/comments
+                    // Обработка /api/posts/:postId/comments
                     if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
                         const parts = pathname.split('/');
                         const postId = parts[3];
@@ -603,14 +602,14 @@ class ApiHandlers {
                         break;
                     }
                     
-                    // 🔥 Обработка /api/gifts/:giftId/buy
+                    // Обработка /api/gifts/:giftId/buy
                     if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
                         const giftId = pathname.split('/')[3];
                         response = this.handleBuyGift(token, { giftId, ...data });
                         break;
                     }
                     
-                    // 🔥 Обработка /api/user/:userId/transactions
+                    // Обработка /api/user/:userId/transactions
                     if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
                         const userId = pathname.split('/')[3];
                         if (method === 'GET') {
@@ -669,7 +668,7 @@ class ApiHandlers {
     }
 
     // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ (НОВЫЙ МЕТОД) ===
+    // === ОБЛОЖКА ПРОФИЛЯ ===
     // ============================================
 
     handleUpdateCover(token, data) {
@@ -685,9 +684,7 @@ class ApiHandlers {
 
         const { cover, fileData, filename } = data;
 
-        // Если передан base64 или URL напрямую
         if (cover) {
-            // Удаляем старую обложку если есть
             if (user.cover && user.cover.startsWith('/uploads/covers/')) {
                 this.fileHandlers.deleteFile(user.cover);
             }
@@ -709,7 +706,6 @@ class ApiHandlers {
             };
         }
 
-        // Если передан файл
         if (fileData && filename) {
             if (!this.fileHandlers.validateCoverFile(filename)) {
                 this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
@@ -753,7 +749,168 @@ class ApiHandlers {
     }
 
     // ============================================
-    // === ОСТАЛЬНЫЕ МЕТОДЫ ===
+    // === ЛАЙКИ ПОСТОВ ===
+    // ============================================
+
+    handleLikePost(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${data.postId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { postId } = data;
+        
+        if (!postId) {
+            return { success: false, message: 'Не указан ID поста' };
+        }
+
+        try {
+            const post = this.dataManager.posts.find(p => p.id === postId);
+            if (!post) {
+                return { success: false, message: 'Пост не найден' };
+            }
+
+            const likeIndex = post.likes.indexOf(user.id);
+            
+            if (likeIndex === -1) {
+                post.likes.push(user.id);
+            } else {
+                post.likes.splice(likeIndex, 1);
+            }
+
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
+
+            return {
+                success: true,
+                likes: post.likes,
+                liked: likeIndex === -1
+            };
+        } catch (error) {
+            console.error('❌ Ошибка лайка поста:', error);
+            return { success: false, message: 'Ошибка лайка поста' };
+        }
+    }
+
+    // ============================================
+    // === ЛАЙКИ КОММЕНТАРИЕВ ===
+    // ============================================
+
+    handleLikeComment(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${data.postId}, comment:${data.commentId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { postId, commentId } = data;
+        if (!postId || !commentId) {
+            return { success: false, message: 'Заполните все поля' };
+        }
+
+        try {
+            const post = this.dataManager.posts.find(p => p.id === postId);
+            if (!post) {
+                return { success: false, message: 'Пост не найден' };
+            }
+
+            const comment = post.comments.find(c => c.id === commentId);
+            if (!comment) {
+                return { success: false, message: 'Комментарий не найден' };
+            }
+
+            const likeIndex = comment.likes.indexOf(user.id);
+            if (likeIndex === -1) {
+                comment.likes.push(user.id);
+            } else {
+                comment.likes.splice(likeIndex, 1);
+            }
+
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
+
+            return {
+                success: true,
+                likes: comment.likes,
+                liked: likeIndex === -1
+            };
+        } catch (error) {
+            console.error('❌ Ошибка лайка комментария:', error);
+            return { success: false, message: 'Ошибка лайка комментария' };
+        }
+    }
+
+    // ============================================
+    // === ЛАЙКИ ОТВЕТОВ НА КОММЕНТАРИИ ===
+    // ============================================
+
+    handleLikeReply(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${data.postId}, comment:${data.commentId}, reply:${data.replyId}`, false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { postId, commentId, replyId } = data;
+        if (!postId || !commentId || !replyId) {
+            return { success: false, message: 'Заполните все поля' };
+        }
+
+        try {
+            const post = this.dataManager.posts.find(p => p.id === postId);
+            if (!post) {
+                return { success: false, message: 'Пост не найден' };
+            }
+
+            const comment = post.comments.find(c => c.id === commentId);
+            if (!comment) {
+                return { success: false, message: 'Комментарий не найден' };
+            }
+
+            const reply = comment.replies.find(r => r.id === replyId);
+            if (!reply) {
+                return { success: false, message: 'Ответ не найден' };
+            }
+
+            const likeIndex = reply.likes.indexOf(user.id);
+            if (likeIndex === -1) {
+                reply.likes.push(user.id);
+            } else {
+                reply.likes.splice(likeIndex, 1);
+            }
+
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
+
+            return {
+                success: true,
+                likes: reply.likes,
+                liked: likeIndex === -1
+            };
+        } catch (error) {
+            console.error('❌ Ошибка лайка ответа:', error);
+            return { success: false, message: 'Ошибка лайка ответа' };
+        }
+    }
+
+    // ============================================
+    // === АУТЕНТИФИКАЦИЯ (продолжение) ===
     // ============================================
 
     handleLogin(data, req) {
@@ -1734,52 +1891,6 @@ class ApiHandlers {
         };
     }
 
-    handleLikePost(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${data.postId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { postId } = data;
-        
-        if (!postId) {
-            return { success: false, message: 'Не указан ID поста' };
-        }
-
-        try {
-            const post = this.dataManager.posts.find(p => p.id === postId);
-            if (!post) {
-                return { success: false, message: 'Пост не найден' };
-            }
-
-            const likeIndex = post.likes.indexOf(user.id);
-            
-            if (likeIndex === -1) {
-                post.likes.push(user.id);
-            } else {
-                post.likes.splice(likeIndex, 1);
-            }
-
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
-
-            return {
-                success: true,
-                likes: post.likes,
-                liked: likeIndex === -1
-            };
-        } catch (error) {
-            console.error('❌ Ошибка лайка поста:', error);
-            return { success: false, message: 'Ошибка лайка поста' };
-        }
-    }
-
     handleAddComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -1846,38 +1957,6 @@ class ApiHandlers {
             console.error('❌ Ошибка добавления комментария:', error);
             return { success: false, message: 'Ошибка добавления комментария' };
         }
-    }
-
-    handleLikeComment(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { postId, commentId } = data;
-        if (!postId || !commentId) {
-            return { success: false, message: 'Заполните все поля' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        const comment = post.comments.find(c => c.id === commentId);
-        if (!comment) {
-            return { success: false, message: 'Комментарий не найден' };
-        }
-
-        const likeIndex = comment.likes.indexOf(user.id);
-        if (likeIndex === -1) {
-            comment.likes.push(user.id);
-        } else {
-            comment.likes.splice(likeIndex, 1);
-        }
-
-        this.dataManager.saveData();
-        return { success: true, message: 'Лайк комментария обновлен', likes: comment.likes };
     }
 
     handleReplyToComment(token, data) {
@@ -2976,7 +3055,7 @@ class ApiHandlers {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music', uniqueFilename);
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'music', uniqueFilename);
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
 
@@ -3021,7 +3100,7 @@ class ApiHandlers {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music/covers', uniqueFilename);
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'music/covers', uniqueFilename);
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
 
@@ -3958,6 +4037,166 @@ class ApiHandlers {
         };
 
         return { success: true, ...status };
+    }
+
+    // ============================================
+    // === ЗАГРУЗКА ФАЙЛОВ (через file-handlers) ===
+    // ============================================
+
+    async handleUploadAvatar(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validateAvatarFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для аватара' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'avatars', uniqueFilename);
+
+            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                this.fileHandlers.deleteFile(user.avatar);
+            }
+
+            user.avatar = fileUrl;
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
+
+            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
+
+            return {
+                success: true,
+                avatarUrl: fileUrl,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    avatar: fileUrl
+                }
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки аватара:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validatePostFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для поста' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'posts', uniqueFilename);
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
+
+            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла для поста:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadFile(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { fileData, filename, fileType } = data;
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
+            let uploadDir = 'files';
+            
+            if (fileType === 'image') uploadDir = 'images';
+            else if (fileType === 'video') uploadDir = 'videos';
+            else if (fileType === 'audio') uploadDir = 'audio';
+            
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, uploadDir, uniqueFilename);
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${filename}, type:${fileType}`);
+
+            return {
+                success: true,
+                fileUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
+    }
+
+    async handleUploadGift(token, data) {
+        const user = this.authenticateToken(token);
+        
+        if (!user || !user.isDeveloper) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validateGiftFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для подарка' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'gifts', uniqueFilename);
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
+
+            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки изображения подарка:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 
     // ============================================
