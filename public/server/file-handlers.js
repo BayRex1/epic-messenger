@@ -1,4 +1,3 @@
-// public/server/file-handlers.js
 const busboy = require('busboy');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -10,11 +9,10 @@ class FileHandlers {
         this.securitySystem = securitySystem;
     }
 
-    // Базовая директория для загрузок:
-    // - на Render используем /tmp/uploads (writable)
-    // - локально используем public/uploads
+    // Базовая директория для загрузок
     getUploadBase() {
-        return process.env.RENDER ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
+        const isProduction = process.env.NODE_ENV === 'production';
+        return isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
     }
 
     validateFileType(filename, fileType) {
@@ -80,23 +78,23 @@ class FileHandlers {
         return allowedExtensions.includes(ext);
     }
 
-    // Универсальная функция сохранения: folder относительно upload base
+    // 🔥 ГЛАВНЫЙ МЕТОД СОХРАНЕНИЯ ФАЙЛОВ (ИСПРАВЛЕН)
     async saveBufferToFolder(buffer, folder, filename) {
-        const base = this.getUploadBase();
-        const dir = path.join(base, folder);
-        const filePath = path.join(dir, filename);
-
-        // Создаем директорию, если нужно
+        const isProduction = process.env.NODE_ENV === 'production';
+        const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
+        const dir = path.join(baseDir, folder);
+        
         if (!fsSync.existsSync(dir)) {
             fsSync.mkdirSync(dir, { recursive: true });
         }
-
+        
+        const filePath = path.join(dir, filename);
         await fs.writeFile(filePath, buffer);
-        // возвращаем URL, подаваемый фронтенду — /uploads/...
+        
         return `/uploads/${folder}/${filename}`;
     }
 
-    // Удаление файла (для старых аватаров и т.п.)
+    // Удаление файла
     deleteFile(fileUrl) {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         const base = this.getUploadBase();
@@ -106,11 +104,16 @@ class FileHandlers {
         try {
             if (fsSync.existsSync(filePath)) {
                 fsSync.unlinkSync(filePath);
+                console.log(`🗑️ Файл удален: ${filePath}`);
             }
         } catch (e) {
             console.error('❌ Ошибка при удалении файла', filePath, e.message);
         }
     }
+
+    // ============================================
+    // === MULTIPART ОБРАБОТЧИКИ ===
+    // ============================================
 
     handleMultipartRequest(req, res, pathname) {
         const handlers = {
@@ -134,7 +137,7 @@ class FileHandlers {
         }
     }
 
-    // ---------------- AVATAR ----------------
+    // === AVATAR ===
     async handleUploadAvatarMultipart(req, res) {
         console.log('🖼️ Начало обработки загрузки аватара...');
         if (req.method === 'OPTIONS') {
@@ -147,7 +150,6 @@ class FileHandlers {
             return;
         }
 
-        // Аутентификация: используем securitySystem.validateSession, как в проекте
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
         const user = this.dataManager.users.find(u => {
@@ -215,9 +217,9 @@ class FileHandlers {
 
                     const fileExt = path.extname(avatarFile.filename);
                     const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
+                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(avatarFile.buffer, 'avatars', uniqueFilename);
 
-                    // Удаляем старый, если есть
                     if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                         this.deleteFile(user.avatar);
                     }
@@ -256,7 +258,7 @@ class FileHandlers {
         }
     }
 
-    // ---------------- POST IMAGE ----------------
+    // === POST IMAGE ===
     async handleUploadPostImageMultipart(req, res) {
         console.log('📸 Начало обработки загрузки изображения для поста...');
         if (req.method === 'OPTIONS') {
@@ -336,6 +338,7 @@ class FileHandlers {
 
                     const fileExt = path.extname(imageFile.filename);
                     const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(imageFile.buffer, 'posts', uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${imageFile.filename}`);
@@ -360,7 +363,7 @@ class FileHandlers {
         }
     }
 
-    // ---------------- GENERIC FILE (chat files) ----------------
+    // === GENERIC FILE ===
     async handleUploadFileMultipart(req, res) {
         console.log('📎 Начало обработки загрузки файла...');
         if (req.method === 'OPTIONS') {
@@ -462,6 +465,7 @@ class FileHandlers {
 
                     const fileExt = path.extname(uploadedFile.filename);
                     const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
+                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(uploadedFile.buffer, uploadDir, uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${uploadedFile.filename}, type:${fileType}`);
@@ -491,7 +495,7 @@ class FileHandlers {
         }
     }
 
-    // ---------------- GIFT UPLOAD (admin) ----------------
+    // === GIFT UPLOAD ===
     async handleUploadGiftMultipart(req, res) {
         console.log('🎁 Начало обработки загрузки изображения подарка...');
         if (req.method === 'OPTIONS') {
@@ -571,6 +575,7 @@ class FileHandlers {
 
                     const fileExt = path.extname(giftFile.filename);
                     const uniqueFilename = `gift_${Date.now()}${fileExt}`;
+                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(giftFile.buffer, 'gifts', uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${giftFile.filename}`);
@@ -595,7 +600,7 @@ class FileHandlers {
         }
     }
 
-    // ---------------- MUSIC FULL UPLOAD ----------------
+    // === MUSIC FULL UPLOAD ===
     async handleUploadMusicFull(req, res) {
         console.log('🎵 Начало обработки загрузки музыки...');
         if (req.method === 'OPTIONS') {
@@ -653,13 +658,9 @@ class FileHandlers {
             const fields = {};
             let audioFile = null;
             let coverFile = null;
-            let filesProcessed = 0;
-            let totalFilesExpected = 0;
-            let fieldsProcessed = 0;
 
             bb.on('field', (name, val) => {
                 fields[name] = val;
-                fieldsProcessed++;
             });
 
             bb.on('file', (name, file, info) => {
@@ -669,11 +670,9 @@ class FileHandlers {
                     return;
                 }
 
-                totalFilesExpected++;
                 const chunks = [];
                 file.on('data', (chunk) => chunks.push(chunk));
                 file.on('end', () => {
-                    filesProcessed++;
                     const buffer = Buffer.concat(chunks);
                     if (name === 'audioFile') {
                         audioFile = { buffer, filename, mimeType };
@@ -701,6 +700,7 @@ class FileHandlers {
                     // сохраняем аудио
                     const audioExt = path.extname(audioFile.filename);
                     const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
+                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const audioUrl = await this.saveBufferToFolder(audioFile.buffer, 'music', audioFilename);
 
                     // сохраняем обложку если есть
@@ -762,25 +762,15 @@ class FileHandlers {
         }
     }
 
-    // вспомогательная обертка (совместимость с прежним кодом)
-    async saveBufferToFolder(buffer, folder, filename) {
-        return this.saveBufferToFolderInternal(buffer, folder, filename);
-    }
-
-    async saveBufferToFolderInternal(buffer, folder, filename) {
-        const base = this.getUploadBase();
-        const dir = path.join(base, folder);
-        if (!fsSync.existsSync(dir)) fsSync.mkdirSync(dir, { recursive: true });
-        const filePath = path.join(dir, filename);
-        await fs.writeFile(filePath, buffer);
-        return `/uploads/${folder}/${filename}`;
-    }
-
-    // импорт БД через multipart (как у тебя было)
+    // === IMPORT DATABASE ===
     async handleImportDatabaseMultipart(req, res) {
         console.log('🔄 Начало обработки импорта базы данных...');
         if (req.method === 'OPTIONS') {
-            res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' });
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            });
             res.end();
             return;
         }
@@ -846,20 +836,6 @@ class FileHandlers {
                     }
 
                     // Создаем бэкап и импортируем
-                    const backupData = {
-                        users: this.dataManager.users,
-                        messages: this.dataManager.messages,
-                        posts: this.dataManager.posts,
-                        gifts: this.dataManager.gifts,
-                        promoCodes: this.dataManager.promoCodes,
-                        music: this.dataManager.music,
-                        playlists: this.dataManager.playlists,
-                        groups: this.dataManager.groups,
-                        bannedIPs: Object.fromEntries(this.dataManager.bannedIPs || []),
-                        devices: Object.fromEntries(this.dataManager.devices || [])
-                    };
-
-                    // Пытаемся заменить данные
                     this.dataManager.users = importData.data.users || [];
                     this.dataManager.messages = importData.data.messages || [];
                     this.dataManager.posts = importData.data.posts || [];
@@ -875,7 +851,16 @@ class FileHandlers {
                     this.dataManager.saveData && this.dataManager.saveData();
 
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, message: 'База данных успешно импортирована' }));
+                    res.end(JSON.stringify({ 
+                        success: true, 
+                        message: 'База данных успешно импортирована',
+                        stats: {
+                            users: this.dataManager.users.length,
+                            messages: this.dataManager.messages.length,
+                            posts: this.dataManager.posts.length,
+                            gifts: this.dataManager.gifts.length
+                        }
+                    }));
                 } catch (err) {
                     console.error('❌ Ошибка импорта:', err);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
