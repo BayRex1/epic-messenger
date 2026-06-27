@@ -10,7 +10,6 @@ const { serveStaticFile, getClientIP, getDeviceInfo, generateDeviceId, ensureUpl
 
 class SimpleServer {
     constructor() {
-        // Создаем необходимые директории при запуске
         console.log('🚀 Initializing server...');
         ensureUploadDirs();
         
@@ -54,7 +53,7 @@ class SimpleServer {
         console.log(`Content-Type: ${req.headers['content-type']}`);
         console.log(`Content-Length: ${req.headers['content-length']}`);
         
-        // 🔥 Обработка загруженных файлов из /tmp
+        // Обработка загруженных файлов из /tmp
         if (pathname.startsWith('/api/uploads/')) {
             this.handleUploadedFile(req, res, pathname);
             return;
@@ -118,7 +117,7 @@ class SimpleServer {
         });
     }
 
-    // 🔥 Обработка загруженных файлов из /tmp
+    // Обработка загруженных файлов из /tmp
     handleUploadedFile(req, res, pathname) {
         const isProduction = process.env.NODE_ENV === 'production';
         const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
@@ -221,7 +220,6 @@ class SimpleServer {
 
     // Метод для обработки мобильных профилей пользователей
     handleMobileUserProfile(req, res, username) {
-        // Сначала проверяем авторизацию
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
         
@@ -230,7 +228,6 @@ class SimpleServer {
             currentUser = this.apiHandlers.authenticateToken(token);
         }
 
-        // Ищем пользователя по username
         const targetUser = this.dataManager.users.find(u => u.username === username);
         
         if (!targetUser) {
@@ -242,7 +239,6 @@ class SimpleServer {
             return;
         }
 
-        // Читаем шаблон профиля
         const profileTemplatePath = path.join(process.cwd(), 'public/mobile/profile.html');
         
         fs.readFile(profileTemplatePath, 'utf8', (err, template) => {
@@ -253,7 +249,6 @@ class SimpleServer {
                 return;
             }
 
-            // Заменяем плейсхолдеры на реальные данные
             const isOwnProfile = currentUser && currentUser.id === targetUser.id;
             
             const profileHtml = template
@@ -400,7 +395,6 @@ class SimpleServer {
             console.log(`   ✅ Улучшено логирование`);
         });
 
-        // Обработка ошибок сервера
         server.on('error', (error) => {
             console.error('❌ Server error:', error);
         });
@@ -409,13 +403,13 @@ class SimpleServer {
     }
 
     handleStaticFiles(req, res, pathname) {
-        // 🔥 Обработка страницы 404
+        // Обработка страницы 404
         if (pathname === '/404') {
             serveStaticFile(res, 'public/additions/404.html', 'text/html');
             return;
         }
 
-        // 🔥 Список разрешенных страниц мессенджера
+        // Список разрешенных страниц мессенджера
         const allowedPages = [
             '/', '/index.html',
             '/mobile', '/mobile.html',
@@ -433,12 +427,12 @@ class SimpleServer {
             '/TehnicalWork', '/technical-work', '/TechnicalWork.html'
         ];
 
-        // 🔥 Проверяем, является ли запрос к разрешенной странице
+        // Проверяем, является ли запрос к разрешенной странице
         const isAllowedPage = allowedPages.some(page => pathname === page) ||
                              pathname.startsWith('/mobile/') ||
                              pathname.startsWith('/post/');
 
-        // 🔥 Если это не разрешенная страница - показываем 404
+        // Если это не разрешенная страница - показываем 404
         if (!isAllowedPage && !pathname.startsWith('/uploads/') && 
             !pathname.endsWith('.css') && !pathname.endsWith('.js') && 
             !pathname.startsWith('/assets/')) {
@@ -458,7 +452,6 @@ class SimpleServer {
             !pathname.startsWith('/login') &&
             pathname !== '/404') {
             
-            // Разрешаем доступ только разработчикам
             const authHeader = req.headers['authorization'];
             const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
             
@@ -471,13 +464,12 @@ class SimpleServer {
             }
             
             if (!isDeveloper) {
-                // Перенаправляем на страницу техработ
                 serveStaticFile(res, 'public/additions/TechnicalWork.html', 'text/html');
                 return;
             }
         }
 
-        // 🔥 Автоматическое перенаправление на мобильную версию для телефонов
+        // Автоматическое перенаправление на мобильную версию для телефонов
         const userAgent = req.headers['user-agent'] || '';
         const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
         
@@ -525,7 +517,7 @@ class SimpleServer {
             '/404': 'public/additions/404.html'
         };
 
-        // 🔥 Обработка отдельных постов /post/:id
+        // Обработка отдельных постов /post/:id
         if (pathname.startsWith('/post/')) {
             console.log(`📄 Serving post page for: ${pathname}`);
             serveStaticFile(res, 'public/post.html', 'text/html');
@@ -537,7 +529,7 @@ class SimpleServer {
             return;
         }
 
-        // 🔥 Обработка загруженных файлов /uploads/
+        // 🔥 ОБРАБОТКА ЗАГРУЖЕННЫХ ФАЙЛОВ /uploads/
         if (pathname.startsWith('/uploads/')) {
             const isProduction = process.env.NODE_ENV === 'production';
             const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
@@ -617,7 +609,6 @@ class SimpleServer {
             
             serveStaticFile(res, 'public' + pathname, contentType);
         } else {
-            // По умолчанию отдаем мобильную версию для мобильных устройств
             if (isMobile) {
                 serveStaticFile(res, 'public/mobile/index.html', 'text/html');
             } else {
