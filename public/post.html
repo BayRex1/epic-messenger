@@ -469,4 +469,241 @@
                     <div id="commentsList"></div>
                     <div class="add-comment">
                         <textarea id="commentText" placeholder="Напишите комментарий..."></textarea>
-                        <button class="send-btn
+                        <button class="send-btn" id="addCommentBtn">Отправить</button>
+                    </div>
+                </div>
+            `;
+
+            // Обработчики
+            document.querySelector('.like-btn').addEventListener('click', function() {
+                toggleLike(post.id);
+            });
+
+            document.getElementById('addCommentBtn').addEventListener('click', function() {
+                addComment(post.id);
+            });
+
+            document.getElementById('commentText').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    addComment(post.id);
+                }
+            });
+        }
+
+        function renderComments(comments) {
+            const list = document.getElementById('commentsList');
+            if (!list) return;
+            
+            if (!comments || comments.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Пока нет комментариев. Будьте первым!</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            comments.forEach(comment => {
+                const commentEl = document.createElement('div');
+                commentEl.className = 'comment-item';
+                
+                const isLiked = comment.likes && comment.likes.includes(currentUser?.id);
+                
+                commentEl.innerHTML = `
+                    <div class="comment-header">
+                        <div class="comment-avatar">
+                            ${comment.userAvatar ? 
+                                `<img src="${comment.userAvatar}" alt="${comment.userName}">` : 
+                                comment.userName ? comment.userName.charAt(0).toUpperCase() : 'U'
+                            }
+                        </div>
+                        <div>
+                            <div class="comment-name">${comment.userName || 'Неизвестный'}</div>
+                            <div class="comment-time">${new Date(comment.createdAt).toLocaleString()}</div>
+                        </div>
+                    </div>
+                    <div class="comment-text">${comment.text}</div>
+                    <div class="comment-actions">
+                        <button class="comment-like ${isLiked ? 'liked' : ''}" data-comment-id="${comment.id}">
+                            ❤️ <span>${comment.likes ? comment.likes.length : 0}</span>
+                        </button>
+                        <button class="comment-like reply-toggle" data-comment-id="${comment.id}">
+                            💬 Ответить
+                        </button>
+                    </div>
+                    <div class="reply-section" id="reply-section-${comment.id}">
+                        <textarea placeholder="Напишите ответ..." id="reply-text-${comment.id}"></textarea>
+                        <button class="send-btn" onclick="addReply('${currentPost?.id}', '${comment.id}')">Отправить ответ</button>
+                    </div>
+                    <div id="replies-${comment.id}">
+                        ${comment.replies ? comment.replies.map(reply => `
+                            <div class="reply-item">
+                                <div class="comment-header">
+                                    <div class="comment-avatar">
+                                        ${reply.userAvatar ? 
+                                            `<img src="${reply.userAvatar}" alt="${reply.userName}">` : 
+                                            reply.userName ? reply.userName.charAt(0).toUpperCase() : 'U'
+                                        }
+                                    </div>
+                                    <div>
+                                        <div class="comment-name">${reply.userName || 'Неизвестный'}</div>
+                                        <div class="comment-time">${new Date(reply.createdAt).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                                <div class="comment-text">${reply.text}</div>
+                            </div>
+                        `).join('') : ''}
+                    </div>
+                `;
+                
+                list.appendChild(commentEl);
+
+                // Обработчики
+                commentEl.querySelector('.comment-like').addEventListener('click', function() {
+                    likeComment(currentPost.id, comment.id);
+                });
+
+                commentEl.querySelector('.reply-toggle').addEventListener('click', function() {
+                    const section = document.getElementById(`reply-section-${comment.id}`);
+                    section.classList.toggle('active');
+                });
+            });
+
+            document.getElementById('commentsCount').textContent = comments.length;
+        }
+
+        // Лайк поста
+        async function toggleLike(postId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadPost();
+                }
+            } catch (error) {
+                console.error('Ошибка лайка:', error);
+            }
+        }
+
+        // Комментарий
+        async function addComment(postId) {
+            const text = document.getElementById('commentText').value.trim();
+            if (!text) {
+                showNotification('Введите текст комментария', 'warning');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ text })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('commentText').value = '';
+                    loadPost();
+                    showNotification('Комментарий добавлен!', 'success');
+                }
+            } catch (error) {
+                console.error('Ошибка комментария:', error);
+                showNotification('Ошибка добавления комментария', 'error');
+            }
+        }
+
+        // Ответ на комментарий
+        async function addReply(postId, commentId) {
+            const text = document.getElementById(`reply-text-${commentId}`).value.trim();
+            if (!text) {
+                showNotification('Введите текст ответа', 'warning');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}/reply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ text })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(`reply-text-${commentId}`).value = '';
+                    document.getElementById(`reply-section-${commentId}`).classList.remove('active');
+                    loadPost();
+                    showNotification('Ответ добавлен!', 'success');
+                }
+            } catch (error) {
+                console.error('Ошибка ответа:', error);
+                showNotification('Ошибка добавления ответа', 'error');
+            }
+        }
+
+        // Лайк комментария
+        async function likeComment(postId, commentId) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}/like`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadPost();
+                }
+            } catch (error) {
+                console.error('Ошибка лайка комментария:', error);
+            }
+        }
+
+        // Поделиться
+        function sharePost(postId) {
+            const url = `${window.location.origin}/post/${postId}`;
+            if (navigator.share) {
+                navigator.share({ title: 'Пост из Epic Messenger', url: url });
+            } else {
+                navigator.clipboard.writeText(url).then(() => {
+                    showNotification('Ссылка скопирована!', 'success');
+                });
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const container = document.getElementById('notificationsContainer');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            container.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // Выход
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+            }
+        });
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeUser().then(() => {
+                loadPost();
+            });
+        });
+    </script>
+</body>
+</html>
