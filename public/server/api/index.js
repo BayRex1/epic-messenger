@@ -15,10 +15,7 @@ class ApiHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
 
-        // Сначала создаем auth
         this.auth = new AuthHandler(dataManager, securitySystem);
-        
-        // Потом все остальные с передачей auth
         this.users = new UsersHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.posts = new PostsHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.chats = new ChatsHandler(dataManager, securitySystem, fileHandlers, this.auth);
@@ -39,13 +36,16 @@ class ApiHandler {
     processApiRequest(pathname, method, data, query, req, res) {
         console.log(`🔄 Processing API: ${method} ${pathname}`);
         console.log(`📦 Request data keys:`, Object.keys(data));
-        console.log(`❓ Query params:`, query);
 
         const token = req.headers['authorization']?.replace('Bearer ', '');
 
-        let response;
+        let response = null;
 
         try {
+            // ============================================
+            // 1. СНАЧАЛА ТОЧНЫЕ СОВПАДЕНИЯ
+            // ============================================
+
             // === АУТЕНТИФИКАЦИЯ ===
             if (pathname === '/api/login' && method === 'POST') {
                 response = this.auth.handleLogin(data, req);
@@ -81,11 +81,8 @@ class ApiHandler {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
-            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
-                const userId = pathname.split('/')[3];
-                if (userId) {
-                    response = this.users.handleGetUser(token, userId);
-                }
+            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
+                response = this.users.handleUploadAvatar(token, data);
 
             // === ПОСТЫ ===
             } else if (pathname === '/api/posts' && method === 'GET') {
@@ -94,46 +91,28 @@ class ApiHandler {
                 response = this.posts.handleCreatePost(token, data);
             } else if (pathname === '/api/posts' && method === 'DELETE') {
                 response = this.posts.handleDeletePost(token, query);
-            } else if (pathname === '/api/posts/user' && method === 'GET') {
-                response = this.posts.handleGetUserPosts(token, query);
+
+            // 🔥 ЛАЙКИ ПОСТОВ
             } else if (pathname === '/api/posts/like' && method === 'POST') {
                 response = this.posts.handleLikePost(token, data);
+
+            // 🔥 КОММЕНТАРИИ
             } else if (pathname === '/api/posts/comment' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
             } else if (pathname === '/api/posts/comment/like' && method === 'POST') {
                 response = this.posts.handleLikeComment(token, data);
             } else if (pathname === '/api/posts/comment/reply' && method === 'POST') {
                 response = this.posts.handleReplyToComment(token, data);
+
+            // 🔥 ШЕРИНГ
             } else if (pathname === '/api/posts/share' && method === 'POST') {
                 response = this.posts.handleSharePost(token, data);
+
+            // 🔥 КОММЕНТАРИИ (альтернативный маршрут)
             } else if (pathname === '/api/posts/comments' && method === 'GET') {
                 response = this.posts.handleGetComments(token, query);
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
-            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                response = this.posts.handleUploadPostImage(token, data);
-            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
-                const postId = pathname.split('/')[3];
-                if (postId && !pathname.includes('/comments')) {
-                    response = this.posts.handleGetPostById(token, postId);
-                } else if (pathname.includes('/comments')) {
-                    const parts = pathname.split('/');
-                    const postId = parts[3];
-                    if (parts.length === 5 && parts[4] === 'comments') {
-                        if (method === 'GET') response = this.posts.handleGetPostComments(token, postId);
-                        else if (method === 'POST') response = this.posts.handleAddPostComment(token, postId, data);
-                    } else if (parts.length === 6 && parts[5] === 'like' && method === 'POST') {
-                        const commentId = parts[4];
-                        response = this.posts.handleLikeComment(token, { postId, commentId });
-                    } else if (parts.length === 7 && parts[5] === 'reply' && method === 'POST') {
-                        const commentId = parts[4];
-                        response = this.posts.handleReplyToComment(token, { postId, commentId, ...data });
-                    } else if (parts.length === 8 && parts[7] === 'like' && method === 'POST') {
-                        const commentId = parts[4];
-                        const replyId = parts[6];
-                        response = this.posts.handleLikeReply(token, { postId, commentId, replyId });
-                    }
-                }
 
             // === ЧАТЫ ===
             } else if (pathname === '/api/chats' && method === 'GET') {
@@ -150,6 +129,8 @@ class ApiHandler {
                 response = this.chats.handleEditMessage(token, data);
             } else if (pathname === '/api/messages/delete' && method === 'POST') {
                 response = this.chats.handleDeleteMessage(token, data);
+
+            // === ГРУППЫ ===
             } else if (pathname === '/api/groups' && method === 'GET') {
                 response = this.chats.handleGetUserGroups(token);
             } else if (pathname === '/api/groups' && method === 'POST') {
@@ -178,9 +159,6 @@ class ApiHandler {
                 response = this.gifts.handleGetMyGifts(token);
             } else if (pathname === '/api/upload-gift' && method === 'POST') {
                 response = this.gifts.handleUploadGift(token, data);
-            } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
-                const giftId = pathname.split('/')[3];
-                response = this.gifts.handleBuyGift(token, { giftId, ...data });
 
             // === ПРОМОКОДЫ ===
             } else if (pathname === '/api/promo-codes' && method === 'GET') {
@@ -209,6 +187,8 @@ class ApiHandler {
                 response = this.music.handleSearchMusic(token, query);
             } else if (pathname === '/api/music/random' && method === 'GET') {
                 response = this.music.handleGetRandomMusic(token);
+
+            // === ПЛЕЙЛИСТЫ ===
             } else if (pathname === '/api/playlists' && method === 'GET') {
                 response = this.music.handleGetPlaylists(token);
             } else if (pathname === '/api/playlists' && method === 'POST') {
@@ -280,17 +260,58 @@ class ApiHandler {
                 response = this.auth.handleCurrentUser(token, req);
 
             // === ЗАГРУЗКА ФАЙЛОВ ===
-            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                response = this.users.handleUploadAvatar(token, data);
+            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
+                response = this.posts.handleUploadPostImage(token, data);
             } else if (pathname === '/api/upload-file' && method === 'POST') {
                 response = this.fileHandlers.handleUploadFileMultipart(req, res);
                 return;
 
-            // === ТРАНЗАКЦИИ ===
+            // === ДИНАМИЧЕСКИЕ МАРШРУТЫ ===
+
+            // 🔥 /api/posts/:id (получение поста)
+            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                if (postId && !parts.includes('comments') && !parts.includes('like') && !parts.includes('comment')) {
+                    response = this.posts.handleGetPostById(token, postId);
+                }
+
+            // 🔥 /api/posts/:postId/comments
+            } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                const commentId = parts[5] || null;
+                
+                if (method === 'GET') {
+                    response = this.posts.handleGetPostComments(token, postId);
+                } else if (method === 'POST') {
+                    if (parts.length === 5) {
+                        response = this.posts.handleAddPostComment(token, postId, data);
+                    } else if (parts.length === 6 && parts[5] === 'like') {
+                        response = this.posts.handleLikeComment(token, { postId, commentId });
+                    } else if (parts.length === 7 && parts[5] === 'reply') {
+                        const replyData = { postId, commentId, text: data.text };
+                        response = this.posts.handleReplyToComment(token, replyData);
+                    }
+                }
+
+            // 🔥 /api/gifts/:giftId/buy
+            } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
+                const giftId = pathname.split('/')[3];
+                response = this.gifts.handleBuyGift(token, { giftId, ...data });
+
+            // 🔥 /api/user/:userId/transactions
             } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
                 const userId = pathname.split('/')[3];
                 if (method === 'GET') {
                     response = this.users.handleGetTransactions(token, userId);
+                }
+
+            // 🔥 /api/users/:id
+            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
+                const userId = pathname.split('/')[3];
+                if (userId) {
+                    response = this.users.handleGetUser(token, userId);
                 }
 
             // === НЕИЗВЕСТНЫЙ API ===
@@ -306,8 +327,8 @@ class ApiHandler {
             response = { success: false, message: 'Method not allowed' };
         }
 
-        console.log(`📤 Response data:`, response);
-        
+        console.log(`📤 Response:`, response);
+
         const headers = {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
@@ -315,7 +336,7 @@ class ApiHandler {
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Content-Length, Accept, Origin',
             'Access-Control-Allow-Credentials': 'true'
         };
-        
+
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
     }
