@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пост - Epic Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .post-container {
+            max-width: 700px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .post-full {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .post-full .post-content {
+            font-size: 18px;
+            line-height: 1.6;
+        }
+        .post-full .post-media img {
+            max-height: 500px;
+            border-radius: 12px;
+        }
+        .post-stats {
+            display: flex;
+            gap: 30px;
+            padding: 15px 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            margin: 15px 0;
+        }
+        .post-stats span {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .post-stats strong {
+            font-size: 18px;
+        }
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-color);
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .back-btn:hover {
+            color: var(--accent-hover);
+        }
+        .comments-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+        }
+        .comments-section h3 {
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        .comment-item {
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .comment-item:last-child {
+            border-bottom: none;
+        }
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .comment-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            overflow: hidden;
+        }
+        .comment-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .comment-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .comment-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .comment-text {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-left: 48px;
+        }
+        .comment-actions {
+            margin-left: 48px;
+            margin-top: 8px;
+            display: flex;
+            gap: 15px;
+        }
+        .comment-like {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+        }
+        .comment-like.liked {
+            color: #e74c3c;
+        }
+        .comment-like:hover {
+            color: var(--text-primary);
+        }
+        .comment-like.liked:hover {
+            color: #c0392b;
+        }
+        .reply-section {
+            margin-left: 48px;
+            margin-top: 10px;
+            display: none;
+        }
+        .reply-section.active {
+            display: block;
+        }
+        .reply-section textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            resize: vertical;
+            font-size: 14px;
+        }
+        .reply-section .send-btn {
+            margin-top: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+        .reply-item {
+            margin-left: 48px;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-color);
+        }
+        .reply-item:first-child {
+            border-top: none;
+        }
+        .reply-item .comment-header {
+            margin-bottom: 4px;
+        }
+        .reply-item .comment-text {
+            margin-left: 48px;
+            font-size: 14px;
+        }
+        .add-comment {
+            margin-top: 20px;
+        }
+        .add-comment textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            resize: vertical;
+            font-size: 15px;
+            min-height: 80px;
+        }
+        .add-comment .send-btn {
+            margin-top: 10px;
+            padding: 10px 24px;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .post-not-found {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        .post-not-found h2 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <div class="sidebar" id="sidebar">
+        <div class="profile-section" id="profileSection">
+            <div class="profile-header">
+                <div class="avatar" id="userAvatar">U</div>
+                <div class="profile-info">
+                    <h3 id="userName">Пользователь</h3>
+                    <div class="username" id="userUsername">@username</div>
+                </div>
+            </div>
+        </div>
+        <div class="compact-menu">
+            <a href="/chat" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2Z"/></svg>
+                </div>
+                <div class="menu-text">Сообщения</div>
+            </a>
+            <a href="/posts" class="menu-item active">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/></svg>
+                </div>
+                <div class="menu-text">Посты</div>
+            </a>
+            <a href="/gifts" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M22,12V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V12A1,1 0 0,1 1,11V8A2,2 0 0,1 3,6H6.17C6.06,5.69 6,5.35 6,5A3,3 0 0,1 9,2C10,2 10.88,2.5 11.43,3.24V3.23L12,4L12.57,3.23V3.24C13.12,2.5 14,2 15,2A3,3 0 0,1 18,5C18,5.35 17.94,5.69 17.83,6H21A2,2 0 0,1 23,8V11A1,1 0 0,1 22,12M4,20H11V12H4V20M20,20V12H13V20H20M9,4A1,1 0 0,0 8,5A1,1 0 0,0 9,6A1,1 0 0,0 10,5A1,1 0 0,0 9,4M15,4A1,1 0 0,0 14,5A1,1 0 0,0 15,6A1,1 0 0,0 16,5A1,1 0 0,0 15,4M3,8V10H11V8H3M13,8V10H21V8H13Z"/></svg>
+                </div>
+                <div class="menu-text">Подарки</div>
+            </a>
+            <a href="/ecoin" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,17H13A2,2 0 0,0 15,15V13.5A1.5,1.5 0 0,0 13.5,12A1.5,1.5 0 0,0 15,10.5V9A2,2 0 0,0 13,7H11A2,2 0 0,0 9,9V9.5H11V9H13V10.5H11V11H13A2,2 0 0,0 15,13V13.5A1.5,1.5 0 0,0 13.5,15A1.5,1.5 0 0,0 15,16.5V17A2,2 0 0,0 13,19H11A2,2 0 0,0 9,17V16.5H11V17Z"/></svg>
+                </div>
+                <div class="menu-text">E-COIN</div>
+            </a>
+            <a href="/music" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,3V12.26C11.5,12.09 11,12 10.5,12C8,12 6,14 6,16.5C6,19 8,21 10.5,21C13,21 15,19 15,16.5V6H19V3H12Z"/></svg>
+                </div>
+                <div class="menu-text">Музыка</div>
+            </a>
+            <a href="/search" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+                </div>
+                <div class="menu-text">Поиск</div>
+            </a>
+            <div class="menu-divider"></div>
+            <a href="/profile" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg>
+                </div>
+                <div class="menu-text">Мой профиль</div>
+            </a>
+            <a href="/settings" class="menu-item">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+                </div>
+                <div class="menu-text">Настройки</div>
+            </a>
+            <a href="/admin" class="menu-item" id="adminPanelBtn" style="display: none;">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.5 16,12.1 16,12.7V16.5C16,17.1 15.4,17.7 14.8,17.7H9.2C8.6,17.7 8,17.1 8,16.5V12.6C8,12 8.6,11.4 9.2,11.4V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,9.5V11.5H13.5V9.5C13.5,8.7 12.8,8.2 12,8.2Z"/></svg>
+                </div>
+                <div class="menu-text">Админ панель</div>
+            </a>
+            <div class="menu-divider"></div>
+            <button class="menu-item" id="logoutBtn">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/></svg>
+                </div>
+                <div class="menu-text">Выйти</div>
+            </button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="post-container" id="postContainer">
+            <a href="/posts" class="back-btn">← Назад к постам</a>
+            <div id="postContent">
+                <div class="loading-spinner"></div>
+                <p style="margin-top: 10px; color: var(--text-secondary);">Загрузка поста...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="notificationsContainer"></div>
+
+    <script>
+        // Глобальные переменные
+        let currentUser = null;
+        let currentPost = null;
+        
+        // Получаем ID поста из URL
+        function getPostId() {
+            const path = window.location.pathname;
+            const match = path.match(/\/post\/(.+)/);
+            return match ? match[1] : null;
+        }
+
+        // Инициализация пользователя
+        async function initializeUser() {
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const response = await fetch('/api/current-user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    updateUserInterface();
+                } else {
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login.html';
+                }
+            } catch (error) {
+                console.error('Ошибка инициализации:', error);
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+            }
+        }
+
+        function updateUserInterface() {
+            if (!currentUser) return;
+            
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            const userUsername = document.getElementById('userUsername');
+            const adminPanelBtn = document.getElementById('adminPanelBtn');
+
+            if (currentUser.avatar) {
+                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+            } else {
+                userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
+            }
+            
+            userName.textContent = currentUser.displayName || 'Пользователь';
+            
+            if (currentUser.isDeveloper) {
+                adminPanelBtn.style.display = 'flex';
+            }
+
+            userUsername.textContent = `@${currentUser.username}`;
+        }
+
+        // Загрузка поста
+        async function loadPost() {
+            const postId = getPostId();
+            if (!postId) {
+                document.getElementById('postContent').innerHTML = `
+                    <div class="post-not-found">
+                        <h2>404</h2>
+                        <p>Пост не найден</p>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`/api/posts/${postId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentPost = data.post;
+                    renderPost(data.post);
+                    renderComments(data.post.comments || []);
+                } else {
+                    document.getElementById('postContent').innerHTML = `
+                        <div class="post-not-found">
+                            <h2>404</h2>
+                            <p>${data.message || 'Пост не найден'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки поста:', error);
+                document.getElementById('postContent').innerHTML = `
+                    <div class="post-not-found">
+                        <h2>Ошибка</h2>
+                        <p>Не удалось загрузить пост</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderPost(post) {
+            const container = document.getElementById('postContent');
+            
+            let mediaHtml = '';
+            if (post.image) {
+                mediaHtml = `<div class="post-media"><img src="${post.image}" alt="Изображение поста" style="max-width: 100%; border-radius: 12px;"></div>`;
+            } else if (post.file && post.fileType === 'video') {
+                mediaHtml = `<div class="post-media"><video controls style="max-width: 100%; border-radius: 12px;"><source src="${post.file}" type="video/mp4"></video></div>`;
+            }
+            
+            const isLiked = post.likes && post.likes.includes(currentUser?.id);
+            
+            container.innerHTML = `
+                <div class="post-full">
+                    <div class="post-header">
+                        <div class="post-user">
+                            <div class="post-avatar">
+                                ${post.userAvatar ? 
+                                    `<img src="${post.userAvatar}" alt="${post.userName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
+                                    post.userName ? post.userName.charAt(0).toUpperCase() : 'U'
+                                }
+                            </div>
+                            <div class="post-user-info">
+                                <h4>
+                                    ${post.userName || 'Неизвестный'}
+                                    ${post.userVerified ? '<span class="verified-badge">✓</span>' : ''}
+                                    ${post.userDeveloper ? '<span class="developer-badge">👑</span>' : ''}
+                                </h4>
+                                <div class="post-time">${new Date(post.createdAt).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <div class="post-text" style="font-size: 18px; line-height: 1.6;">${post.text || ''}</div>
+                        ${mediaHtml}
+                    </div>
+                    <div class="post-stats">
+                        <span>❤️ <strong>${post.likes ? post.likes.length : 0}</strong> лайков</span>
+                        <span>💬 <strong>${post.comments ? post.comments.length : 0}</strong> комментариев</span>
+                        <span>👁️ <strong>${post.views || 0}</strong> просмотров</span>
+                    </div>
+                    <div class="post-actions">
+                        <button class="post-action like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post.id}">
+                            <svg viewBox="0 0 24 24" width="18" height="18">
+                                <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.28 2,8.5C2,5.42 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.09C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.42 22,8.5C22,12.28 18.6,15.36 13.45,20.04L12,21.35Z"/>
+                            </svg>
+                            <span>${post.likes ? post.likes.length : 0}</span>
+                        </button>
+                        <button class="post-action share-btn" onclick="sharePost('${post.id}')">
+                            <svg viewBox="0 0 24 24" width="18" height="18">
+                                <path fill="currentColor" d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
+                            </svg>
+                            Поделиться
+                        </button>
+                    </div>
+                </div>
+                <div class="comments-section">
+                    <h3>Комментарии <span id="commentsCount">${post.comments ? post.comments.length : 0}</span></h3>
+                    <div id="commentsList"></div>
+                    <div class="add-comment">
+                        <textarea id="commentText" placeholder="Напишите комментарий..."></textarea>
+                        <button class="send-btn
