@@ -1,13 +1,17 @@
+const path = require('path');
+const fs = require('fs');
+
 class MusicHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === МУЗЫКА ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetMusic(token) {
         const user = this.authenticateToken(token);
@@ -98,7 +102,6 @@ class MusicHandler {
         }
 
         const { fileData, filename } = data;
-        
         if (!this.fileHandlers.validateMusicFile(filename)) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`, false);
             return { success: false, message: 'Недопустимый формат аудио файла' };
@@ -107,7 +110,7 @@ class MusicHandler {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `music_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'music', uniqueFilename);
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music', uniqueFilename);
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_FILE', `file:${filename}`);
 
@@ -143,7 +146,6 @@ class MusicHandler {
         }
 
         const { fileData, filename } = data;
-        
         if (!this.fileHandlers.validateCoverFile(filename)) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`, false);
             return { success: false, message: 'Недопустимый формат изображения' };
@@ -152,7 +154,7 @@ class MusicHandler {
         try {
             const fileExt = path.extname(filename);
             const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = this.fileHandlers.saveBufferToFolder(fileData, 'music/covers', uniqueFilename);
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'music/covers', uniqueFilename);
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_MUSIC_COVER', `file:${filename}`);
 
@@ -175,13 +177,11 @@ class MusicHandler {
 
         const { trackId } = data;
         const trackIndex = this.dataManager.music.findIndex(t => t.id === trackId);
-        
         if (trackIndex === -1) {
             return { success: false, message: 'Трек не найден' };
         }
 
         const track = this.dataManager.music[trackIndex];
-        
         if (track.userId !== user.id && !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_MUSIC', `track:${trackId}`, false);
             return { success: false, message: 'Вы можете удалять только свои треки' };
@@ -190,7 +190,6 @@ class MusicHandler {
         if (track.fileUrl && track.fileUrl.startsWith('/uploads/music/')) {
             this.fileHandlers.deleteFile(track.fileUrl);
         }
-
         if (track.coverUrl && track.coverUrl.startsWith('/uploads/music/covers/')) {
             this.fileHandlers.deleteFile(track.coverUrl);
         }
@@ -279,10 +278,6 @@ class MusicHandler {
         };
     }
 
-    // ============================================
-    // === ПЛЕЙЛИСТЫ ===
-    // ============================================
-
     handleGetPlaylists(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -311,7 +306,6 @@ class MusicHandler {
         }
 
         const { name, description } = data;
-        
         if (!name || name.trim() === '') {
             return { success: false, message: 'Название плейлиста обязательно' };
         }
@@ -354,7 +348,6 @@ class MusicHandler {
         }
 
         const { playlistId, trackId } = data;
-        
         const playlist = this.dataManager.playlists.find(p => p.id === playlistId && p.userId === user.id);
         if (!playlist) {
             return { success: false, message: 'Плейлист не найден' };
@@ -370,7 +363,6 @@ class MusicHandler {
         }
 
         playlist.tracks.push(trackId);
-
         if (!playlist.cover && playlist.tracks.length === 1) {
             playlist.cover = track.coverUrl;
         }
@@ -394,7 +386,6 @@ class MusicHandler {
         }
 
         const { playlistId, trackId } = data;
-        
         if (!playlistId || !trackId) {
             return { success: false, message: 'Не указан плейлист или трек' };
         }
