@@ -1,17 +1,19 @@
+const fs = require('fs');
+
 class AdminHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === АДМИН СТАТИСТИКА ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleAdminStats(token) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -41,7 +43,6 @@ class AdminHandler {
 
     handleAdminStatistics(token) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -71,20 +72,14 @@ class AdminHandler {
         }
     }
 
-    // ============================================
-    // === АДМИН УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ===
-    // ============================================
-
     handleDeleteUser(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { userId } = data;
-        
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
@@ -101,7 +96,6 @@ class AdminHandler {
         if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
             this.fileHandlers.deleteFile(targetUser.avatar);
         }
-
         if (targetUser.cover && targetUser.cover.startsWith('/uploads/covers/')) {
             this.fileHandlers.deleteFile(targetUser.cover);
         }
@@ -127,14 +121,12 @@ class AdminHandler {
 
     handleBanUser(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'BAN_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { userId, reason } = data;
-        
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
@@ -166,7 +158,6 @@ class AdminHandler {
 
     handleUnbanUser(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'UNBAN_USER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -187,14 +178,12 @@ class AdminHandler {
 
     handleToggleVerification(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { userId } = data;
-            
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
@@ -216,14 +205,12 @@ class AdminHandler {
 
     handleToggleDeveloper(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { userId } = data;
-            
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
@@ -275,7 +262,6 @@ class AdminHandler {
         }
 
         const { userId, verified } = data;
-        
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
@@ -311,7 +297,6 @@ class AdminHandler {
         }
 
         const { userId, isDeveloper } = data;
-        
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
@@ -340,10 +325,6 @@ class AdminHandler {
         }
     }
 
-    // ============================================
-    // === АДМИН ЛОГИ БЕЗОПАСНОСТИ ===
-    // ============================================
-
     handleAdminSecurityLogs(token) {
         const user = this.authenticateToken(token);
         if (!user || !user.isDeveloper) {
@@ -359,13 +340,8 @@ class AdminHandler {
         }
     }
 
-    // ============================================
-    // === АДМИН БАЗА ДАННЫХ ===
-    // ============================================
-
     handleExportDatabase(token, res) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', 'SYSTEM', false);
             res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -386,10 +362,7 @@ class AdminHandler {
                     totalMusic: this.dataManager.music.length
                 },
                 data: {
-                    users: this.dataManager.users.map(u => ({
-                        ...u,
-                        password: '[ENCRYPTED]'
-                    })),
+                    users: this.dataManager.users.map(u => ({ ...u, password: '[ENCRYPTED]' })),
                     messages: this.dataManager.messages,
                     posts: this.dataManager.posts,
                     gifts: this.dataManager.gifts,
@@ -432,22 +405,15 @@ class AdminHandler {
         return { success: true, message: 'Импорт БД выполнен (обрабатывается в file-handlers)' };
     }
 
-    // ============================================
-    // === ТЕХНИЧЕСКИЕ РАБОТЫ ===
-    // ============================================
-
     handleMaintenanceMode(token, data) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { enabled } = data;
-        
         this.dataManager.setMaintenanceMode(enabled);
-        
         this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', `enabled:${enabled}`);
         
         console.log(`🔧 Администратор ${user.username} ${enabled ? 'ВКЛЮЧИЛ' : 'выключил'} режим технических работ`);
@@ -461,7 +427,6 @@ class AdminHandler {
 
     handleGetMaintenanceStatus(token) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             return { success: false, message: 'Доступ запрещен' };
         }
