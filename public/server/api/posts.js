@@ -1,13 +1,14 @@
 class PostsHandler {
-    constructor(dataManager, securitySystem, fileHandlers) {
+    constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
+        this.authHandler = authHandler;
     }
 
-    // ============================================
-    // === ПОСТЫ ===
-    // ============================================
+    authenticateToken(token) {
+        return this.authHandler?.authenticateToken(token) || null;
+    }
 
     handleGetPosts(token) {
         const user = this.authenticateToken(token);
@@ -95,7 +96,6 @@ class PostsHandler {
         }
 
         const { userId } = query;
-        
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
@@ -192,7 +192,6 @@ class PostsHandler {
 
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
-        
         if (!user || !user.isDeveloper) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
@@ -200,13 +199,11 @@ class PostsHandler {
 
         const { postId } = query;
         const postIndex = this.dataManager.posts.findIndex(p => p.id === postId);
-        
         if (postIndex === -1) {
             return { success: false, message: 'Пост не найден' };
         }
 
         const post = this.dataManager.posts[postIndex];
-        
         if (post.userId === 'system') {
             return { success: false, message: 'Нельзя удалить системный пост' };
         }
@@ -214,18 +211,15 @@ class PostsHandler {
         if (post.image && post.image.startsWith('/uploads/posts/')) {
             this.fileHandlers.deleteFile(post.image);
         }
-
         if (post.file && post.file.startsWith('/uploads/')) {
             this.fileHandlers.deleteFile(post.file);
         }
 
         this.dataManager.posts.splice(postIndex, 1);
-
         const postUser = this.dataManager.users.find(u => u.id === post.userId);
         if (postUser && postUser.postsCount > 0) {
             postUser.postsCount--;
         }
-
         this.dataManager.saveData();
 
         this.securitySystem.logSecurityEvent(user, 'DELETE_POST', `post:${postId}, author:${postUser ? postUser.username : 'unknown'}`);
@@ -237,10 +231,6 @@ class PostsHandler {
             message: 'Пост успешно удален'
         };
     }
-
-    // ============================================
-    // === ЛАЙКИ ПОСТОВ ===
-    // ============================================
 
     handleLikePost(token, data) {
         const user = this.authenticateToken(token);
@@ -254,7 +244,6 @@ class PostsHandler {
         }
 
         const { postId } = data;
-        
         if (!postId) {
             return { success: false, message: 'Не указан ID поста' };
         }
@@ -266,7 +255,6 @@ class PostsHandler {
             }
 
             const likeIndex = post.likes.indexOf(user.id);
-            
             if (likeIndex === -1) {
                 post.likes.push(user.id);
             } else {
@@ -274,7 +262,6 @@ class PostsHandler {
             }
 
             this.dataManager.saveData();
-
             this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
 
             return {
@@ -288,10 +275,6 @@ class PostsHandler {
         }
     }
 
-    // ============================================
-    // === КОММЕНТАРИИ ===
-    // ============================================
-
     handleAddComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -299,7 +282,6 @@ class PostsHandler {
         }
 
         const { postId, text, parentCommentId } = data;
-        
         if (!postId || !text) {
             return { success: false, message: 'Не указан пост или текст комментария' };
         }
@@ -338,7 +320,6 @@ class PostsHandler {
             }
 
             this.dataManager.saveData();
-
             this.securitySystem.logSecurityEvent(user, 'ADD_COMMENT', `post:${postId}, comment:${comment.id}`);
 
             console.log(`💬 Пользователь ${user.displayName} добавил комментарий к посту ${postId}`);
@@ -397,10 +378,6 @@ class PostsHandler {
         return { success: true, message: 'Ответ добавлен', reply: reply };
     }
 
-    // ============================================
-    // === ЛАЙКИ КОММЕНТАРИЕВ ===
-    // ============================================
-
     handleLikeComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -436,7 +413,6 @@ class PostsHandler {
             }
 
             this.dataManager.saveData();
-
             this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
 
             return {
@@ -449,10 +425,6 @@ class PostsHandler {
             return { success: false, message: 'Ошибка лайка комментария' };
         }
     }
-
-    // ============================================
-    // === ЛАЙКИ ОТВЕТОВ НА КОММЕНТАРИИ ===
-    // ============================================
 
     handleLikeReply(token, data) {
         const user = this.authenticateToken(token);
@@ -494,7 +466,6 @@ class PostsHandler {
             }
 
             this.dataManager.saveData();
-
             this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
 
             return {
@@ -515,7 +486,6 @@ class PostsHandler {
         }
 
         const { postId } = data;
-        
         if (!postId) {
             return { success: false, message: 'Не указан ID поста' };
         }
@@ -562,10 +532,6 @@ class PostsHandler {
             return { success: false, message: 'Ошибка репоста' };
         }
     }
-
-    // ============================================
-    // === КОММЕНТАРИИ (дополнительные методы) ===
-    // ============================================
 
     handleGetComments(token, query) {
         const { postId } = query;
@@ -629,6 +595,44 @@ class PostsHandler {
 
     handleLikeReply(token, postId, commentId, replyId) {
         return this.handleLikeReply(token, { postId, commentId, replyId });
+    }
+
+    async handleUploadPostImage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { fileData, filename } = data;
+
+        if (!this.fileHandlers.validatePostFile(filename)) {
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Недопустимый формат файла для поста' };
+        }
+
+        try {
+            const fileExt = path.extname(filename);
+            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
+            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'posts', uniqueFilename);
+
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
+
+            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
+
+            return {
+                success: true,
+                imageUrl: fileUrl
+            };
+        } catch (error) {
+            console.error('Ошибка загрузки файла для поста:', error);
+            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
+            return { success: false, message: 'Ошибка загрузки файла' };
+        }
     }
 }
 
