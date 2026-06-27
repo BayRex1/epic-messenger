@@ -15,7 +15,7 @@ class ApiHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
 
-        // Инициализация всех обработчиков
+        // Инициализация всех обработчиков с передачей authenticateToken
         this.auth = new AuthHandler(dataManager, securitySystem);
         this.users = new UsersHandler(dataManager, securitySystem, fileHandlers);
         this.posts = new PostsHandler(dataManager, securitySystem, fileHandlers);
@@ -26,9 +26,11 @@ class ApiHandler {
         this.admin = new AdminHandler(dataManager, securitySystem, fileHandlers);
         this.devices = new DevicesHandler(dataManager, securitySystem, fileHandlers);
         this.emoji = new EmojiHandler(dataManager, securitySystem, fileHandlers);
+
+        // 🔥 Проксируем authenticateToken для всех обработчиков
+        this.authenticateToken = this.authenticateToken.bind(this);
     }
 
-    // Прокси метод для аутентификации
     authenticateToken(token) {
         return this.auth.authenticateToken(token);
     }
@@ -79,6 +81,11 @@ class ApiHandler {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
+            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
+                const userId = pathname.split('/')[3];
+                if (userId) {
+                    response = this.users.handleGetUser(token, userId);
+                }
 
             // === ПОСТЫ ===
             } else if (pathname === '/api/posts' && method === 'GET') {
@@ -103,6 +110,8 @@ class ApiHandler {
                 response = this.posts.handleGetComments(token, query);
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
+            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
+                response = this.posts.handleUploadPostImage(token, data);
             } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
                 const postId = pathname.split('/')[3];
                 if (postId && !pathname.includes('/comments')) {
@@ -125,8 +134,6 @@ class ApiHandler {
                         response = this.posts.handleLikeReply(token, { postId, commentId, replyId });
                     }
                 }
-            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                response = this.posts.handleUploadPostImage(token, data);
 
             // === ЧАТЫ ===
             } else if (pathname === '/api/chats' && method === 'GET') {
@@ -284,13 +291,6 @@ class ApiHandler {
                 const userId = pathname.split('/')[3];
                 if (method === 'GET') {
                     response = this.users.handleGetTransactions(token, userId);
-                }
-
-            // === ПОЛЬЗОВАТЕЛЬ ПО ID ===
-            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
-                const userId = pathname.split('/')[3];
-                if (userId) {
-                    response = this.users.handleGetUser(token, userId);
                 }
 
             // === НЕИЗВЕСТНЫЙ API ===
