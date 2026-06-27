@@ -483,9 +483,10 @@ class SimpleServer {
             return;
         }
 
+        // ✅ ИЗМЕНЕНО: главная страница теперь открывает посты
         const routes = {
-            '/': 'public/main.html',
-            '/index.html': 'public/main.html',
+            '/': 'public/posts.html',  // ← здесь было main.html
+            '/index.html': 'public/posts.html',  // ← здесь было main.html
             '/mobile.html': 'public/mobile.html',
             '/mobile': 'public/mobile/index.html',
             '/login.html': 'public/login.html',
