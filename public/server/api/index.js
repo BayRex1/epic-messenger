@@ -92,27 +92,7 @@ class ApiHandler {
             } else if (pathname === '/api/posts' && method === 'DELETE') {
                 response = this.posts.handleDeletePost(token, query);
 
-            // 🔥 ЛАЙК ПОСТА
-            } else if (pathname === '/api/posts/like' && method === 'POST') {
-                response = this.posts.handleLikePost(token, data);
-
-            // 🔥 КОММЕНТАРИЙ К ПОСТУ
-            } else if (pathname === '/api/posts/comment' && method === 'POST') {
-                response = this.posts.handleAddComment(token, data);
-
-            // 🔥 ЛАЙК КОММЕНТАРИЯ
-            } else if (pathname === '/api/posts/comment/like' && method === 'POST') {
-                response = this.posts.handleLikeComment(token, data);
-
-            // 🔥 ОТВЕТ НА КОММЕНТАРИЙ
-            } else if (pathname === '/api/posts/comment/reply' && method === 'POST') {
-                response = this.posts.handleReplyToComment(token, data);
-
-            // 🔥 РЕПОСТ
-            } else if (pathname === '/api/posts/share' && method === 'POST') {
-                response = this.posts.handleSharePost(token, data);
-
-            // 🔥 КОММЕНТАРИИ (альтернативный маршрут /api/posts/comments)
+            // === КОММЕНТАРИИ (основные маршруты) ===
             } else if (pathname === '/api/posts/comments' && method === 'GET') {
                 response = this.posts.handleGetComments(token, query);
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
@@ -122,37 +102,48 @@ class ApiHandler {
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
                 response = this.posts.handleUploadPostImage(token, data);
 
-            // === ДИНАМИЧЕСКИЕ МАРШРУТЫ ДЛЯ ПОСТОВ ===
-            // 🔥 /api/posts/:id (получение одного поста)
-            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
-                const parts = pathname.split('/');
-                const postId = parts[3];
-                // Проверяем, что это не вложенный маршрут с comments/like/comment
-                if (postId && !parts.includes('comments') && !parts.includes('like') && !parts.includes('comment') && !parts.includes('share')) {
-                    response = this.posts.handleGetPostById(token, postId);
-                }
+            // ============================================
+            // 2. ДИНАМИЧЕСКИЕ МАРШРУТЫ ДЛЯ ПОСТОВ
+            // ============================================
 
-            // 🔥 /api/posts/:postId/comments
-            } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+            // 🔥 /api/posts/:id/like (лайк поста с ID в URL)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+\/like$/) && method === 'POST') {
                 const parts = pathname.split('/');
                 const postId = parts[3];
-                const commentId = parts[5] || null;
-                
-                if (method === 'GET') {
-                    response = this.posts.handleGetPostComments(token, postId);
-                } else if (method === 'POST') {
-                    if (parts.length === 5) {
-                        // /api/posts/:postId/comments
-                        response = this.posts.handleAddPostComment(token, postId, data);
-                    } else if (parts.length === 6 && parts[5] === 'like') {
-                        // /api/posts/:postId/comments/:commentId/like
-                        response = this.posts.handleLikeComment(token, { postId, commentId });
-                    } else if (parts.length === 7 && parts[5] === 'reply') {
-                        // /api/posts/:postId/comments/:commentId/reply
-                        const replyData = { postId, commentId, text: data.text };
-                        response = this.posts.handleReplyToComment(token, replyData);
-                    }
-                }
+                response = this.posts.handleLikePost(token, { postId });
+
+            // 🔥 /api/posts/:id (получение одного поста)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+$/) && method === 'GET') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                response = this.posts.handleGetPostById(token, postId);
+
+            // 🔥 /api/posts/:postId/comments (получение комментариев поста)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+\/comments$/) && method === 'GET') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                response = this.posts.handleGetPostComments(token, postId);
+
+            // 🔥 /api/posts/:postId/comments (добавление комментария)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+\/comments$/) && method === 'POST') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                response = this.posts.handleAddPostComment(token, postId, data);
+
+            // 🔥 /api/posts/:postId/comments/:commentId/like (лайк комментария)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+\/comments\/[^\/]+\/like$/) && method === 'POST') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                const commentId = parts[5];
+                response = this.posts.handleLikeComment(token, { postId, commentId });
+
+            // 🔥 /api/posts/:postId/comments/:commentId/reply (ответ на комментарий)
+            } else if (pathname.match(/^\/api\/posts\/[^\/]+\/comments\/[^\/]+\/reply$/) && method === 'POST') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                const commentId = parts[5];
+                const replyData = { postId, commentId, text: data.text };
+                response = this.posts.handleReplyToComment(token, replyData);
 
             // === ЧАТЫ ===
             } else if (pathname === '/api/chats' && method === 'GET') {
