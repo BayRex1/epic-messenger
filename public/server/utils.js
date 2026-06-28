@@ -69,7 +69,6 @@ function checkFileExists(filePath) {
 }
 
 function ensureUploadDirs() {
-    // 🔥 ИСПРАВЛЕНИЕ ДЛЯ RENDER: правильные пути для production и development
     const baseDir = process.env.NODE_ENV === 'production' ? 
         path.join('/tmp', 'uploads') : 
         path.join(process.cwd(), 'public', 'uploads');
@@ -83,7 +82,7 @@ function ensureUploadDirs() {
         'images',
         'videos',
         'audio',
-        'files'
+        'files',
         'covers'
     ];
     
@@ -113,7 +112,7 @@ function ensureUploadDirs() {
         }
     });
     
-    // 🔥 ДОПОЛНИТЕЛЬНО: создаем директории для эмодзи в public
+    // Создаем директорию для эмодзи в public
     const emojiDir = path.join(process.cwd(), 'public', 'assets', 'emoji');
     if (!fs.existsSync(emojiDir)) {
         fs.mkdirSync(emojiDir, { recursive: true });
