@@ -5,7 +5,6 @@ const { ensureUploadDirs } = require('./utils');
 
 class DataManager {
     constructor() {
-        // Используем текущую директорию вместо /tmp для Render
         this.dataFile = path.join(process.cwd(), 'epic-messenger-data.json');
         console.log(`💾 Data file: ${this.dataFile}`);
         this.encryptionKey = crypto.randomBytes(32);
@@ -18,7 +17,6 @@ class DataManager {
     }
 
     ensureUploadDirs() {
-        // 🔥 ИСПРАВЛЕНИЕ ДЛЯ RENDER: правильные пути для загрузок
         const fs = require('fs');
         const path = require('path');
         
@@ -55,15 +53,15 @@ class DataManager {
                 this.music = data.music || [];
                 this.playlists = data.playlists || [];
                 this.groups = data.groups || [];
+                this.chats = data.chats || [];  // <--- ДОБАВЛЕНО
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
                 this.maintenanceMode = data.maintenanceMode || false;
                 
-                // Восстанавливаем даты
                 this.restoreDates();
                 
                 console.log('✅ Данные загружены из файла');
-                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.groups.length} групп`);
+                console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.chats.length} чатов`);
                 console.log(`🔧 Режим технических работ: ${this.maintenanceMode ? 'ВКЛЮЧЕН' : 'выключен'}`);
             } else {
                 console.log('📁 Файл данных не найден, инициализируем пустые данные');
@@ -87,7 +85,6 @@ class DataManager {
         this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
         this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
         
-        // Восстанавливаем даты комментариев
         this.posts.forEach(post => {
             if (post.comments) {
                 post.comments.forEach(comment => {
@@ -113,6 +110,7 @@ class DataManager {
                 music: this.music,
                 playlists: this.playlists,
                 groups: this.groups,
+                chats: this.chats,  // <--- ДОБАВЛЕНО
                 bannedIPs: Object.fromEntries(this.bannedIPs),
                 devices: Object.fromEntries(this.devices),
                 maintenanceMode: this.maintenanceMode,
@@ -128,6 +126,7 @@ class DataManager {
 
     initializeData() {
         this.users = [];
+        this.chats = [];  // <--- ДОБАВЛЕНО
 
         this.gifts = [
             {
@@ -195,13 +194,11 @@ class DataManager {
         this.music = [];
         this.playlists = [];
         this.groups = [];
-
         this.messages = [];
         this.bannedIPs = new Map();
         this.devices = new Map();
         this.maintenanceMode = false;
         
-        // Сохраняем начальные данные
         this.saveData();
     }
 
@@ -228,7 +225,7 @@ class DataManager {
             return decrypted;
         } catch (error) {
             console.log('❌ Ошибка дешифрования:', error);
-            return encryptedText; // Возвращаем оригинальный текст в случае ошибки
+            return encryptedText;
         }
     }
 
@@ -312,7 +309,6 @@ class DataManager {
         }
     }
 
-    // 🔧 Новые методы для управления техническими работами
     setMaintenanceMode(enabled) {
         this.maintenanceMode = enabled;
         this.saveData();
@@ -323,7 +319,6 @@ class DataManager {
         return this.maintenanceMode;
     }
 
-    // Проверка доступа пользователя во время техработ
     canAccessDuringMaintenance(user) {
         return user && user.isDeveloper;
     }
