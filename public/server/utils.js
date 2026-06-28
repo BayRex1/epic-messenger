@@ -84,6 +84,7 @@ function ensureUploadDirs() {
         'videos',
         'audio',
         'files'
+        'covers'
     ];
     
     console.log('📁 Creating upload directories...');
