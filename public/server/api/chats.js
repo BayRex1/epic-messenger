@@ -14,6 +14,10 @@ class ChatsHandler {
         return this.authHandler?.authenticateToken(token) || null;
     }
 
+    // ============================================
+    // === ПОЛУЧЕНИЕ ЧАТОВ ===
+    // ============================================
+
     handleGetChats(token) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -21,82 +25,66 @@ class ChatsHandler {
         }
 
         try {
-            const personalChats = this.dataManager.users
-                .filter(u => u.id !== user.id)
-                .map(u => {
-                    const messages = this.dataManager.messages.filter(m => 
-                        (m.senderId === user.id && m.receiverId === u.id) ||
-                        (m.senderId === u.id && m.receiverId === user.id)
-                    ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            let chats = this.dataManager.chats || [];
+            
+            // Фильтруем чаты для текущего пользователя
+            const userChats = chats.filter(chat => 
+                chat.userId === user.id || 
+                chat.targetUserId === user.id ||
+                chat.members?.includes(user.id)
+            );
 
-                    const lastMessage = messages[0] || null;
-                    const unreadCount = messages.filter(m => 
-                        m.senderId === u.id && !m.read
-                    ).length;
-
-                    return {
-                        id: u.id,
-                        displayName: u.displayName || 'Пользователь',
-                        avatar: u.avatar,
-                        verified: u.verified,
-                        isDeveloper: u.isDeveloper,
-                        status: u.status,
-                        lastSeen: u.lastSeen,
-                        lastMessage: lastMessage,
-                        unreadCount: unreadCount,
-                        isGroup: false
-                    };
-                })
-                .filter(chat => chat.lastMessage !== null)
-                .sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
-
-            const groupChats = this.dataManager.groups
-                .filter(g => g.members.includes(user.id) && g.isActive !== false)
-                .map(g => {
-                    const groupMessages = this.dataManager.messages.filter(m => 
-                        m.receiverId === g.id
-                    ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                    const lastMessage = groupMessages[0] || null;
-                    const unreadCount = groupMessages.filter(m => {
-                        if (m.senderId === user.id) return false;
-                        if (!m.readBy) return true;
-                        return !m.readBy.includes(user.id);
-                    }).length;
-
-                    return {
-                        id: g.id,
-                        displayName: g.name,
-                        avatar: g.avatar,
-                        isGroup: true,
-                        memberCount: g.members.length,
-                        lastMessage: lastMessage,
-                        unreadCount: unreadCount,
-                        creatorId: g.creatorId,
-                        members: g.members,
-                        createdAt: g.createdAt
-                    };
-                })
-                .sort((a, b) => {
-                    const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(a.createdAt || 0);
-                    const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(b.createdAt || 0);
-                    return dateB - dateA;
-                });
-
-            const allChats = [...personalChats, ...groupChats];
-
-            console.log(`👥 Загружено чатов для ${user.username}:`, {
-                personal: personalChats.length,
-                groups: groupChats.length,
-                total: allChats.length
+            // Добавляем информацию о пользователях
+            const chatsWithInfo = userChats.map(chat => {
+                // Если это личный чат - берем данные собеседника
+                if (!chat.isGroup && chat.targetUserId) {
+                    const targetUser = this.dataManager.users.find(u => u.id === chat.targetUserId);
+                    if (targetUser) {
+                        chat.displayName = targetUser.displayName || 'Пользователь';
+                        chat.avatar = targetUser.avatar;
+                        chat.verified = targetUser.verified;
+                        chat.isDeveloper = targetUser.isDeveloper;
+                        chat.status = targetUser.status;
+                    }
+                }
+                
+                // Если это групповой чат
+                if (chat.isGroup) {
+                    const members = chat.members || [];
+                    chat.memberCount = members.length;
+                }
+                
+                // Берем последнее сообщение из messages
+                const messages = this.dataManager.messages.filter(m => 
+                    m.chatId === chat.id
+                ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                chat.lastMessage = messages[0] || null;
+                chat.unreadCount = messages.filter(m => 
+                    m.senderId !== user.id && !m.read
+                ).length;
+                
+                return chat;
             });
 
-            return { success: true, chats: allChats };
+            // Сортируем по времени последнего сообщения
+            chatsWithInfo.sort((a, b) => {
+                const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(a.createdAt || 0);
+                const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(b.createdAt || 0);
+                return dateB - dateA;
+            });
+
+            console.log(`👥 Загружено чатов для ${user.username}: ${chatsWithInfo.length}`);
+            return { success: true, chats: chatsWithInfo };
         } catch (error) {
             console.error('❌ Ошибка получения чатов:', error);
             return { success: false, message: 'Ошибка получения чатов' };
         }
     }
+
+    // ============================================
+    // === НАЧАТЬ ЧАТ ===
+    // ============================================
 
     handleStartChat(token, data) {
         const user = this.authenticateToken(token);
@@ -114,9 +102,47 @@ class ChatsHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
+        // Проверяем есть ли уже чат
+        let existingChat = this.dataManager.chats.find(chat => 
+            !chat.isGroup && 
+            ((chat.userId === user.id && chat.targetUserId === userId) ||
+             (chat.userId === userId && chat.targetUserId === user.id))
+        );
+
+        if (existingChat) {
+            return {
+                success: true,
+                chatId: existingChat.id,
+                chat: existingChat
+            };
+        }
+
+        // Создаем новый чат
+        const newChat = {
+            id: this.dataManager.generateId(),
+            userId: user.id,
+            targetUserId: userId,
+            displayName: targetUser.displayName || 'Пользователь',
+            avatar: targetUser.avatar,
+            verified: targetUser.verified,
+            isDeveloper: targetUser.isDeveloper,
+            status: targetUser.status,
+            isGroup: false,
+            createdAt: new Date(),
+            members: [user.id, userId],
+            lastMessage: null,
+            unreadCount: 0
+        };
+
+        this.dataManager.chats.push(newChat);
+        this.dataManager.saveData();
+
+        console.log(`💬 Создан новый чат между ${user.displayName} и ${targetUser.displayName}`);
+
         return {
             success: true,
-            chatId: userId,
+            chatId: newChat.id,
+            chat: newChat,
             user: {
                 id: targetUser.id,
                 displayName: targetUser.displayName,
@@ -127,6 +153,10 @@ class ChatsHandler {
             }
         };
     }
+
+    // ============================================
+    // === ПОЛУЧЕНИЕ СООБЩЕНИЙ ===
+    // ============================================
 
     handleGetMessages(token, query) {
         const user = this.authenticateToken(token);
@@ -140,21 +170,29 @@ class ChatsHandler {
         }
 
         try {
-            let messages;
-            const isGroupChat = this.dataManager.groups.some(g => g.id === userId && g.members.includes(user.id));
-            
-            if (isGroupChat) {
-                messages = this.dataManager.messages
-                    .filter(m => m.receiverId === userId)
-                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            } else {
-                messages = this.dataManager.messages
-                    .filter(m => 
-                        (m.senderId === user.id && m.receiverId === userId) ||
-                        (m.senderId === userId && m.receiverId === user.id)
-                    )
-                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            // Находим чат
+            const chat = this.dataManager.chats.find(c => 
+                (c.userId === user.id && c.targetUserId === userId) ||
+                (c.userId === userId && c.targetUserId === user.id) ||
+                (c.isGroup && c.id === userId && c.members?.includes(user.id))
+            );
+
+            if (!chat) {
+                return { success: false, message: 'Чат не найден' };
             }
+
+            // Получаем сообщения
+            const messages = this.dataManager.messages
+                .filter(m => m.chatId === chat.id)
+                .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            // Помечаем как прочитанные
+            messages.forEach(msg => {
+                if (msg.senderId !== user.id && !msg.read) {
+                    msg.read = true;
+                }
+            });
+            this.dataManager.saveData();
 
             const messagesWithInfo = messages.map(msg => ({
                 ...msg,
@@ -167,6 +205,10 @@ class ChatsHandler {
             return { success: false, message: 'Ошибка получения сообщений' };
         }
     }
+
+    // ============================================
+    // === ОТПРАВКА СООБЩЕНИЯ ===
+    // ============================================
 
     handleSendMessage(token, data) {
         const user = this.authenticateToken(token);
@@ -185,11 +227,35 @@ class ChatsHandler {
         }
 
         try {
-            const isUser = this.dataManager.users.some(u => u.id === toUserId);
-            const isGroup = this.dataManager.groups.some(g => g.id === toUserId && g.members.includes(user.id));
-            
-            if (!isUser && !isGroup) {
-                return { success: false, message: 'Получатель не найден или у вас нет доступа к группе' };
+            // Находим чат
+            let chat = this.dataManager.chats.find(c => 
+                (c.userId === user.id && c.targetUserId === toUserId) ||
+                (c.userId === toUserId && c.targetUserId === user.id)
+            );
+
+            // Если чата нет - создаем
+            if (!chat) {
+                const targetUser = this.dataManager.users.find(u => u.id === toUserId);
+                if (!targetUser) {
+                    return { success: false, message: 'Пользователь не найден' };
+                }
+                
+                chat = {
+                    id: this.dataManager.generateId(),
+                    userId: user.id,
+                    targetUserId: toUserId,
+                    displayName: targetUser.displayName || 'Пользователь',
+                    avatar: targetUser.avatar,
+                    verified: targetUser.verified,
+                    isDeveloper: targetUser.isDeveloper,
+                    status: targetUser.status,
+                    isGroup: false,
+                    createdAt: new Date(),
+                    members: [user.id, toUserId],
+                    lastMessage: null,
+                    unreadCount: 0
+                };
+                this.dataManager.chats.push(chat);
             }
 
             let fileUrl = null;
@@ -219,6 +285,7 @@ class ChatsHandler {
 
             const message = {
                 id: this.dataManager.generateId(),
+                chatId: chat.id,
                 senderId: user.id,
                 receiverId: toUserId,
                 text: text ? this.securitySystem.sanitizeContent(text) : null,
@@ -228,27 +295,21 @@ class ChatsHandler {
                 fileType: fileType,
                 timestamp: new Date(),
                 read: false,
-                readBy: isGroup ? [user.id] : []
+                readBy: []
             };
 
             this.dataManager.messages.push(message);
+            
+            // Обновляем последнее сообщение в чате
+            chat.lastMessage = message;
+            chat.unreadCount = (chat.unreadCount || 0) + 1;
+            chat.lastMessageTime = new Date();
+            
             this.dataManager.saveData();
 
-            if (isGroup) {
-                console.log(`💬 Сообщение отправлено в группу ${toUserId}`);
-                const group = this.dataManager.groups.find(g => g.id === toUserId);
-                if (group) {
-                    group.members.forEach(memberId => {
-                        if (memberId !== user.id) {
-                            console.log(`📢 Уведомление для участника группы: ${memberId}`);
-                        }
-                    });
-                }
-            }
+            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}`);
 
-            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}, isGroup:${isGroup}`);
-
-            console.log(`💬 Пользователь ${user.displayName} отправил сообщение ${isGroup ? 'в группу' : 'пользователю'} ${toUserId}`);
+            console.log(`💬 Пользователь ${user.displayName} отправил сообщение пользователю ${toUserId}`);
 
             return { success: true, message: message };
         } catch (error) {
@@ -256,6 +317,10 @@ class ChatsHandler {
             return { success: false, message: 'Ошибка отправки сообщения: ' + error.message };
         }
     }
+
+    // ============================================
+    // === ОТМЕТКА ПРОЧИТАННЫХ ===
+    // ============================================
 
     handleMarkAsRead(token, data) {
         const user = this.authenticateToken(token);
@@ -269,22 +334,34 @@ class ChatsHandler {
         }
 
         try {
-            this.dataManager.messages.forEach(message => {
-                if (message.senderId === fromUserId && message.receiverId === user.id && !message.read) {
-                    message.read = true;
-                }
-                if (message.receiverId === fromUserId && message.readBy && !message.readBy.includes(user.id)) {
-                    message.readBy.push(user.id);
-                }
-            });
+            // Находим чат
+            const chat = this.dataManager.chats.find(c => 
+                (c.userId === user.id && c.targetUserId === fromUserId) ||
+                (c.userId === fromUserId && c.targetUserId === user.id)
+            );
 
-            this.dataManager.saveData();
+            if (chat) {
+                // Помечаем сообщения как прочитанные
+                this.dataManager.messages.forEach(message => {
+                    if (message.chatId === chat.id && message.senderId === fromUserId && !message.read) {
+                        message.read = true;
+                    }
+                });
+                
+                chat.unreadCount = 0;
+                this.dataManager.saveData();
+            }
+
             return { success: true, message: 'Сообщения помечены как прочитанные' };
         } catch (error) {
             console.error('❌ Ошибка отметки сообщений:', error);
             return { success: false, message: 'Ошибка отметки сообщений' };
         }
     }
+
+    // ============================================
+    // === РЕДАКТИРОВАНИЕ СООБЩЕНИЯ ===
+    // ============================================
 
     handleEditMessage(token, data) {
         const user = this.authenticateToken(token);
@@ -313,6 +390,10 @@ class ChatsHandler {
         return { success: true, message: 'Сообщение отредактировано' };
     }
 
+    // ============================================
+    // === УДАЛЕНИЕ СООБЩЕНИЯ ===
+    // ============================================
+
     handleDeleteMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -339,6 +420,10 @@ class ChatsHandler {
 
         return { success: true, message: 'Сообщение удалено' };
     }
+
+    // ============================================
+    // === ГРУППЫ ===
+    // ============================================
 
     handleCreateGroup(token, data) {
         const user = this.authenticateToken(token);
