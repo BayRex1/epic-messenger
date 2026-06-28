@@ -15,10 +15,7 @@ class ApiHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
 
-        // Сначала создаем auth
         this.auth = new AuthHandler(dataManager, securitySystem);
-        
-        // Потом все остальные с передачей auth
         this.users = new UsersHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.posts = new PostsHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.chats = new ChatsHandler(dataManager, securitySystem, fileHandlers, this.auth);
@@ -122,10 +119,17 @@ class ApiHandler {
                 response = this.posts.handleAddComment(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
                 response = this.posts.handleUploadPostImage(token, data);
-            } else if (pathname.startsWith('/api/posts/') && method === 'GET' && !pathname.includes('/comments')) {
+            } else if (pathname.startsWith('/api/posts/') && method === 'GET' && !pathname.includes('/comments') && !pathname.includes('/like')) {
                 const postId = pathname.split('/')[3];
                 if (postId) {
                     response = this.posts.handleGetPostById(token, postId);
+                }
+            // 🔥 НОВОЕ: /api/posts/:id/like
+            } else if (pathname.startsWith('/api/posts/') && pathname.endsWith('/like') && method === 'POST') {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                if (postId) {
+                    response = this.posts.handleLikePost(token, { postId });
                 }
             } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
                 const parts = pathname.split('/');
