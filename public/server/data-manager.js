@@ -78,12 +78,13 @@ class DataManager {
         this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
         this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
         this.users.forEach(user => {
-            user.lastSeen = new Date(user.lastSeen);
-            user.createdAt = new Date(user.createdAt);
+            if (user.lastSeen) user.lastSeen = new Date(user.lastSeen);
+            if (user.createdAt) user.createdAt = new Date(user.createdAt);
         });
         this.music.forEach(track => track.createdAt = new Date(track.createdAt));
         this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
         this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
+        this.chats.forEach(chat => chat.createdAt = new Date(chat.createdAt));
         
         this.posts.forEach(post => {
             if (post.comments) {
@@ -125,9 +126,41 @@ class DataManager {
     }
 
     initializeData() {
-        this.users = [];
-        this.chats = [];  // <--- ДОБАВЛЕНО
+        // ============================================
+        // === ПОЛЬЗОВАТЕЛИ ===
+        // ============================================
+        this.users = [
+            {
+                id: 'system',
+                username: 'epic',
+                displayName: 'Epic Messenger',
+                email: 'system@epic-messenger.com',
+                password: this.encrypt('system123'),
+                avatar: '',
+                cover: null,
+                description: 'Официальный аккаунт Epic Messenger',
+                coins: 0,
+                verified: true,
+                isDeveloper: true,
+                isAdmin: true,
+                status: 'online',
+                lastSeen: new Date(),
+                createdAt: new Date(),
+                sessionId: null,
+                gifts: [],
+                isProtected: true,
+                friendsCount: 0,
+                postsCount: 0,
+                giftsCount: 0,
+                banned: false,
+                followers: [],
+                following: []
+            }
+        ];
 
+        // ============================================
+        // === ПОДАРКИ ===
+        // ============================================
         this.gifts = [
             {
                 id: '1',
@@ -155,6 +188,9 @@ class DataManager {
             }
         ];
 
+        // ============================================
+        // === ПРОМОКОДЫ ===
+        // ============================================
         this.promoCodes = [
             {
                 id: '1',
@@ -166,6 +202,9 @@ class DataManager {
             }
         ];
 
+        // ============================================
+        // === ПОСТЫ ===
+        // ============================================
         this.posts = [
             {
                 id: '1',
@@ -191,15 +230,32 @@ class DataManager {
             }
         ];
 
+        // ============================================
+        // === ЧАТЫ ===
+        // ============================================
+        this.chats = [];
+
+        // ============================================
+        // === СООБЩЕНИЯ ===
+        // ============================================
+        this.messages = [];
+
+        // ============================================
+        // === МУЗЫКА, ПЛЕЙЛИСТЫ, ГРУППЫ ===
+        // ============================================
         this.music = [];
         this.playlists = [];
         this.groups = [];
-        this.messages = [];
+
+        // ============================================
+        // === БАНЫ И УСТРОЙСТВА ===
+        // ============================================
         this.bannedIPs = new Map();
         this.devices = new Map();
         this.maintenanceMode = false;
         
         this.saveData();
+        console.log('✅ Инициализированы пустые данные');
     }
 
     generateId() {
