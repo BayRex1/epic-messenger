@@ -81,7 +81,9 @@ class ApiHandler {
                 response = this.users.handleUpdateCover(token, data);
             } else if (pathname === '/api/preview-avatar' && method === 'POST') {
                 response = this.users.handlePreviewAvatar(token, data);
-            } else if (pathname === '/api/debug-upload') {
+            } else if (pathname === '/api/debug-upload' && method === 'POST') {
+                response = this.users.handleDebugUpload(token);
+            } else if (pathname === '/api/debug-upload' && method === 'GET') {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
@@ -94,7 +96,7 @@ class ApiHandler {
                 }
 
             // ============================================
-            // === ПОСТЫ (ВКЛЮЧАЯ ЛАЙКИ) ===
+            // === ПОСТЫ ===
             // ============================================
             } else if (pathname === '/api/posts' && method === 'GET') {
                 response = this.posts.handleGetPosts(token);
@@ -120,27 +122,33 @@ class ApiHandler {
                 response = this.posts.handleAddComment(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
                 response = this.posts.handleUploadPostImage(token, data);
-            } else if (pathname.startsWith('/api/posts/') && method === 'GET') {
+            } else if (pathname.startsWith('/api/posts/') && method === 'GET' && !pathname.includes('/comments')) {
                 const postId = pathname.split('/')[3];
-                if (postId && !pathname.includes('/comments')) {
+                if (postId) {
                     response = this.posts.handleGetPostById(token, postId);
-                } else if (pathname.includes('/comments')) {
-                    const parts = pathname.split('/');
-                    const postId = parts[3];
-                    if (parts.length === 5 && parts[4] === 'comments') {
-                        if (method === 'GET') response = this.posts.handleGetPostComments(token, postId);
-                        else if (method === 'POST') response = this.posts.handleAddPostComment(token, postId, data);
-                    } else if (parts.length === 6 && parts[5] === 'like' && method === 'POST') {
-                        const commentId = parts[4];
-                        response = this.posts.handleLikeComment(token, { postId, commentId });
-                    } else if (parts.length === 7 && parts[5] === 'reply' && method === 'POST') {
-                        const commentId = parts[4];
-                        response = this.posts.handleReplyToComment(token, { postId, commentId, ...data });
-                    } else if (parts.length === 8 && parts[7] === 'like' && method === 'POST') {
-                        const commentId = parts[4];
-                        const replyId = parts[6];
-                        response = this.posts.handleLikeReply(token, { postId, commentId, replyId });
+                }
+            } else if (pathname.startsWith('/api/posts/') && pathname.includes('/comments')) {
+                const parts = pathname.split('/');
+                const postId = parts[3];
+                
+                if (parts.length === 5 && parts[4] === 'comments') {
+                    if (method === 'GET') {
+                        response = this.posts.handleGetPostComments(token, postId);
+                    } else if (method === 'POST') {
+                        response = this.posts.handleAddPostComment(token, postId, data);
                     }
+                } else if (parts.length === 6 && parts[5] === 'like' && method === 'POST') {
+                    const commentId = parts[4];
+                    response = this.posts.handleLikeComment(token, { postId, commentId });
+                } else if (parts.length === 7 && parts[5] === 'reply' && method === 'POST') {
+                    const commentId = parts[4];
+                    response = this.posts.handleAddReply(token, postId, commentId, data);
+                } else if (parts.length === 8 && parts[7] === 'like' && method === 'POST') {
+                    const commentId = parts[4];
+                    const replyId = parts[6];
+                    response = this.posts.handleLikeReply(token, { postId, commentId, replyId });
+                } else {
+                    response = { success: false, message: 'API endpoint not found' };
                 }
 
             // ============================================
@@ -326,7 +334,7 @@ class ApiHandler {
                 }
 
             // ============================================
-            // === НЕИЗВЕСТНЫЙ API ===
+            // === ЕСЛИ НИЧЕГО НЕ ПОДОШЛО ===
             // ============================================
             } else {
                 response = { success: false, message: 'API endpoint not found' };
