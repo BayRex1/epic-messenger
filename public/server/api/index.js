@@ -85,6 +85,8 @@ class ApiHandler {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
+            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
+                response = this.users.handleUploadAvatar(token, data);
             } else if (pathname.startsWith('/api/users/') && method === 'GET') {
                 const userId = pathname.split('/')[3];
                 if (userId) {
@@ -92,7 +94,7 @@ class ApiHandler {
                 }
 
             // ============================================
-            // === ПОСТЫ ===
+            // === ПОСТЫ (ВКЛЮЧАЯ ЛАЙКИ) ===
             // ============================================
             } else if (pathname === '/api/posts' && method === 'GET') {
                 response = this.posts.handleGetPosts(token);
