@@ -15,7 +15,10 @@ class ApiHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
 
+        // Сначала создаем auth
         this.auth = new AuthHandler(dataManager, securitySystem);
+        
+        // Потом все остальные с передачей auth
         this.users = new UsersHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.posts = new PostsHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.chats = new ChatsHandler(dataManager, securitySystem, fileHandlers, this.auth);
@@ -43,7 +46,9 @@ class ApiHandler {
         let response;
 
         try {
+            // ============================================
             // === АУТЕНТИФИКАЦИЯ ===
+            // ============================================
             if (pathname === '/api/login' && method === 'POST') {
                 response = this.auth.handleLogin(data, req);
             } else if (pathname === '/api/register' && method === 'POST') {
@@ -55,7 +60,9 @@ class ApiHandler {
             } else if (pathname === '/api/logout' && method === 'POST') {
                 response = this.auth.handleLogout(token);
 
+            // ============================================
             // === ПОЛЬЗОВАТЕЛИ ===
+            // ============================================
             } else if (pathname === '/api/users' && method === 'GET') {
                 response = this.users.handleGetUsers(token);
             } else if (pathname === '/api/users/search' && method === 'GET') {
@@ -84,7 +91,9 @@ class ApiHandler {
                     response = this.users.handleGetUser(token, userId);
                 }
 
+            // ============================================
             // === ПОСТЫ ===
+            // ============================================
             } else if (pathname === '/api/posts' && method === 'GET') {
                 response = this.posts.handleGetPosts(token);
             } else if (pathname === '/api/posts' && method === 'POST') {
@@ -132,7 +141,9 @@ class ApiHandler {
                     }
                 }
 
+            // ============================================
             // === ЧАТЫ ===
+            // ============================================
             } else if (pathname === '/api/chats' && method === 'GET') {
                 response = this.chats.handleGetChats(token);
             } else if (pathname === '/api/chats/start' && method === 'POST') {
@@ -160,7 +171,9 @@ class ApiHandler {
             } else if (pathname === '/api/groups/leave' && method === 'POST') {
                 response = this.chats.handleLeaveGroup(token, data);
 
+            // ============================================
             // === ПОДАРКИ ===
+            // ============================================
             } else if (pathname === '/api/gifts' && method === 'GET') {
                 response = this.gifts.handleGetGifts(token);
             } else if (pathname === '/api/gifts' && method === 'POST') {
@@ -179,7 +192,9 @@ class ApiHandler {
                 const giftId = pathname.split('/')[3];
                 response = this.gifts.handleBuyGift(token, { giftId, ...data });
 
+            // ============================================
             // === ПРОМОКОДЫ ===
+            // ============================================
             } else if (pathname === '/api/promo-codes' && method === 'GET') {
                 response = this.promo.handleGetPromoCodes(token);
             } else if (pathname === '/api/promo-codes' && method === 'DELETE') {
@@ -189,7 +204,9 @@ class ApiHandler {
             } else if (pathname === '/api/promo-codes/activate' && method === 'POST') {
                 response = this.promo.handleActivatePromoCode(token, data);
 
+            // ============================================
             // === МУЗЫКА ===
+            // ============================================
             } else if (pathname === '/api/music' && method === 'GET') {
                 response = this.music.handleGetMusic(token);
             } else if (pathname === '/api/music' && method === 'POST') {
@@ -217,7 +234,9 @@ class ApiHandler {
             } else if (pathname === '/api/playlists/add-track' && method === 'POST') {
                 response = this.music.handleAddTrackToPlaylist(token, data);
 
+            // ============================================
             // === АДМИН ===
+            // ============================================
             } else if (pathname === '/api/admin/stats' && method === 'GET') {
                 response = this.admin.handleAdminStats(token);
             } else if (pathname === '/api/admin/statistics' && method === 'GET') {
@@ -252,17 +271,23 @@ class ApiHandler {
             } else if (pathname === '/api/maintenance-status' && method === 'GET') {
                 response = this.admin.handleGetMaintenanceStatusPublic(token);
 
+            // ============================================
             // === УСТРОЙСТВА ===
+            // ============================================
             } else if (pathname === '/api/devices' && method === 'GET') {
                 response = this.devices.handleGetDevices(token);
             } else if (pathname === '/api/devices/terminate' && method === 'POST') {
                 response = this.devices.handleTerminateDevice(token, data);
 
+            // ============================================
             // === ЭМОДЗИ ===
+            // ============================================
             } else if (pathname === '/api/emoji' && method === 'GET') {
                 response = this.emoji.handleGetEmoji(token);
 
+            // ============================================
             // === МОБИЛЬНЫЕ API ===
+            // ============================================
             } else if (pathname === '/api/mobile/chats' && method === 'GET') {
                 response = this.chats.handleGetChats(token);
             } else if (pathname === '/api/mobile/posts' && method === 'GET') {
@@ -276,7 +301,9 @@ class ApiHandler {
             } else if (pathname === '/api/mobile/settings' && method === 'GET') {
                 response = this.auth.handleCurrentUser(token, req);
 
+            // ============================================
             // === ЗАГРУЗКА ФАЙЛОВ ===
+            // ============================================
             } else if (pathname === '/api/upload-avatar' && method === 'POST') {
                 response = this.users.handleUploadAvatar(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
@@ -287,14 +314,18 @@ class ApiHandler {
                 response = this.fileHandlers.handleUploadFileMultipart(req, res);
                 return;
 
+            // ============================================
             // === ТРАНЗАКЦИИ ===
+            // ============================================
             } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
                 const userId = pathname.split('/')[3];
                 if (method === 'GET') {
                     response = this.users.handleGetTransactions(token, userId);
                 }
 
+            // ============================================
             // === НЕИЗВЕСТНЫЙ API ===
+            // ============================================
             } else {
                 response = { success: false, message: 'API endpoint not found' };
             }
