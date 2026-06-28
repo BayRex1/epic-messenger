@@ -497,7 +497,7 @@ class UsersHandler {
     }
 
     // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ (ИСПРАВЛЕНО: async) ===
+    // === ОБЛОЖКА ПРОФИЛЯ (ИСПРАВЛЕНО) ===
     // ============================================
 
     async handleUpdateCover(token, data) {
@@ -513,6 +513,7 @@ class UsersHandler {
 
         const { cover, fileData, filename } = data;
 
+        // Если передан URL обложки напрямую
         if (cover) {
             if (user.cover && user.cover.startsWith('/uploads/covers/')) {
                 this.fileHandlers.deleteFile(user.cover);
@@ -535,17 +536,22 @@ class UsersHandler {
             };
         }
 
+        // Если передан файл
         if (fileData && filename) {
+            // ✅ ИСПРАВЛЕНО: используем validateCoverFile
             if (!this.fileHandlers.validateCoverFile(filename)) {
                 this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
-                return { success: false, message: 'Недопустимый формат файла для обложки' };
+                return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP, SVG' };
             }
 
             try {
                 const fileExt = path.extname(filename);
                 const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
+                
+                // ✅ ИСПРАВЛЕНО: используем saveBufferToFolder с папкой 'covers'
                 const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'covers', uniqueFilename);
 
+                // Удаляем старую обложку
                 if (user.cover && user.cover.startsWith('/uploads/covers/')) {
                     this.fileHandlers.deleteFile(user.cover);
                 }
@@ -570,7 +576,7 @@ class UsersHandler {
             } catch (error) {
                 console.error('Ошибка загрузки обложки:', error);
                 this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
-                return { success: false, message: 'Ошибка загрузки файла' };
+                return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
             }
         }
 
