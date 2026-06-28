@@ -497,10 +497,10 @@ class UsersHandler {
     }
 
     // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ ===
+    // === ОБЛОЖКА ПРОФИЛЯ (ИСПРАВЛЕНО: async) ===
     // ============================================
 
-    handleUpdateCover(token, data) {
+    async handleUpdateCover(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
