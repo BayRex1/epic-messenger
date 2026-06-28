@@ -6,7 +6,6 @@
     <title>Профиль - Epic Messenger</title>
     <link rel="stylesheet" href="/styles.css">
     <style>
-        /* Стили для обложки профиля */
         .profile-cover-container {
             position: relative;
             width: 100%;
@@ -165,7 +164,6 @@
     </style>
 </head>
 <body class="theme-dark">
-    <!-- Сайдбар -->
     <div class="sidebar" id="sidebar">
         <div class="profile-section" id="profileSection">
             <div class="profile-header">
@@ -409,9 +407,8 @@
 
     <script>
         // ============================================
-        // ФУНКЦИИ ДЛЯ ЗАГРУЗКИ ОБЛОЖКИ И АВАТАРА (ИСПРАВЛЕНЫ)
+        // ЗАГРУЗКА ОБЛОЖКИ (ИСПРАВЛЕНО)
         // ============================================
-
         async function uploadCover(file) {
             if (!file) return;
             
@@ -457,6 +454,9 @@
             }
         }
 
+        // ============================================
+        // ЗАГРУЗКА АВАТАРА (ИСПРАВЛЕНО)
+        // ============================================
         async function uploadAvatar(file) {
             if (!file) return;
             
@@ -544,16 +544,8 @@
                 avatarElement.innerHTML = `<span>${user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}</span><div class="avatar-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line><line x1="12" y1="8" x2="12" y2="16"></line></svg></div>`;
             }
 
-            const profileUserName = document.getElementById('profileUserName');
-            if (profileUserName) {
-                profileUserName.textContent = user.displayName || 'Пользователь';
-            }
-
-            const profileUserUsername = document.getElementById('profileUserUsername');
-            if (profileUserUsername) {
-                profileUserUsername.textContent = `@${user.username}`;
-            }
-
+            document.getElementById('profileUserName').textContent = user.displayName || 'Пользователь';
+            document.getElementById('profileUserUsername').textContent = `@${user.username}`;
             document.getElementById('profilePostsCount').textContent = user.postsCount || 0;
             document.getElementById('profileGiftsCount').textContent = user.giftsCount || 0;
             document.getElementById('profileCoinsCount').textContent = user.coins || 0;
@@ -568,7 +560,6 @@
                 }
             }, 500);
 
-            // Обновляем обложку при изменении currentUser
             const originalUpdate = window.updateUserInterface;
             window.updateUserInterface = function() {
                 if (originalUpdate) originalUpdate();
