@@ -75,6 +75,7 @@ class ApiHandler {
             } else if (pathname === '/api/update-avatar' && method === 'POST') {
                 response = this.users.handleUpdateAvatar(token, data);
             } else if (pathname === '/api/update-cover' && method === 'POST') {
+                // 🔥 ДОБАВЛЕНО!
                 response = this.users.handleUpdateCover(token, data);
             } else if (pathname === '/api/preview-avatar' && method === 'POST') {
                 response = this.users.handlePreviewAvatar(token, data);
@@ -84,15 +85,6 @@ class ApiHandler {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
-            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
-                const userId = pathname.split('/')[3];
-                if (userId) {
-                    response = this.users.handleGetUser(token, userId);
-                }
-
-            // ============================================
-            // === ЗАГРУЗКА АВАТАРКИ (multipart) с проверкой авторизации ===
-            // ============================================
             } else if (pathname === '/api/upload-avatar' && method === 'POST') {
                 const user = this.auth.authenticateToken(token);
                 if (!user) {
@@ -102,6 +94,11 @@ class ApiHandler {
                 }
                 this.fileHandlers.handleUploadAvatarMultipart(req, res);
                 return;
+            } else if (pathname.startsWith('/api/users/') && method === 'GET') {
+                const userId = pathname.split('/')[3];
+                if (userId) {
+                    response = this.users.handleGetUser(token, userId);
+                }
 
             // ============================================
             // === ПОСТЫ ===
