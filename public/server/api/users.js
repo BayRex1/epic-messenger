@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 
 class UsersHandler {
     constructor(dataManager, securitySystem, fileHandlers, authHandler) {
@@ -11,6 +12,10 @@ class UsersHandler {
     authenticateToken(token) {
         return this.authHandler?.authenticateToken(token) || null;
     }
+
+    // ============================================
+    // === ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЕЙ ===
+    // ============================================
 
     handleGetUsers(token) {
         const user = this.authenticateToken(token);
@@ -252,6 +257,10 @@ class UsersHandler {
         return { success: true, message: 'Посты пользователя получены', posts: userPosts };
     }
 
+    // ============================================
+    // === ОБНОВЛЕНИЕ ПРОФИЛЯ ===
+    // ============================================
+
     handleUpdateProfile(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -344,6 +353,10 @@ class UsersHandler {
         };
     }
 
+    // ============================================
+    // === АВАТАРЫ ===
+    // ============================================
+
     handleUpdateAvatar(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -413,6 +426,10 @@ class UsersHandler {
 
         const { fileData, filename } = data;
 
+        if (!fileData || !filename) {
+            return { success: false, message: 'Файл не передан' };
+        }
+
         if (!this.fileHandlers.validateAvatarFile(filename)) {
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
             return { success: false, message: 'Недопустимый формат файла для аватара' };
@@ -447,7 +464,7 @@ class UsersHandler {
         } catch (error) {
             console.error('Ошибка загрузки аватара:', error);
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
+            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
         }
     }
 
@@ -479,8 +496,11 @@ class UsersHandler {
         }
     }
 
-    // 🔥 ИСПРАВЛЕНО: добавлен async
-    async handleUpdateCover(token, data) {
+    // ============================================
+    // === ОБЛОЖКА ПРОФИЛЯ ===
+    // ============================================
+
+    handleUpdateCover(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
@@ -570,6 +590,10 @@ class UsersHandler {
             timestamp: new Date().toISOString()
         };
     }
+
+    // ============================================
+    // === E-COIN ===
+    // ============================================
 
     handleGetBalance(token) {
         const user = this.authenticateToken(token);
