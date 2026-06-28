@@ -84,15 +84,18 @@ class ApiHandler {
                 response = this.users.handleDebugUpload(token);
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
-            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                // 🔥 ВАЖНО: обрабатываем через fileHandlers для multipart
-                response = this.fileHandlers.handleUploadAvatarMultipart(req, res);
-                return;
             } else if (pathname.startsWith('/api/users/') && method === 'GET') {
                 const userId = pathname.split('/')[3];
                 if (userId) {
                     response = this.users.handleGetUser(token, userId);
                 }
+
+            // ============================================
+            // === ЗАГРУЗКА АВАТАРКИ (multipart) ===
+            // ============================================
+            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
+                this.fileHandlers.handleUploadAvatarMultipart(req, res);
+                return;
 
             // ============================================
             // === ПОСТЫ ===
@@ -120,8 +123,7 @@ class ApiHandler {
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                // 🔥 ВАЖНО: обрабатываем через fileHandlers для multipart
-                response = this.fileHandlers.handleUploadPostImageMultipart(req, res);
+                this.fileHandlers.handleUploadPostImageMultipart(req, res);
                 return;
             } else if (pathname.startsWith('/api/posts/') && method === 'GET' && !pathname.includes('/comments') && !pathname.includes('/like')) {
                 const postId = pathname.split('/')[3];
@@ -204,8 +206,7 @@ class ApiHandler {
             } else if (pathname === '/api/my-gifts' && method === 'GET') {
                 response = this.gifts.handleGetMyGifts(token);
             } else if (pathname === '/api/upload-gift' && method === 'POST') {
-                // 🔥 ВАЖНО: обрабатываем через fileHandlers для multipart
-                response = this.fileHandlers.handleUploadGiftMultipart(req, res);
+                this.fileHandlers.handleUploadGiftMultipart(req, res);
                 return;
             } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
                 const giftId = pathname.split('/')[3];
@@ -233,8 +234,7 @@ class ApiHandler {
             } else if (pathname === '/api/music/upload' && method === 'POST') {
                 response = this.music.handleUploadMusicFile(token, data);
             } else if (pathname === '/api/music/upload-full' && method === 'POST') {
-                // 🔥 ВАЖНО: обрабатываем через fileHandlers для multipart
-                response = this.fileHandlers.handleUploadMusicFull(req, res);
+                this.fileHandlers.handleUploadMusicFull(req, res);
                 return;
             } else if (pathname === '/api/music/upload-cover' && method === 'POST') {
                 response = this.music.handleUploadMusicCover(token, data);
@@ -284,8 +284,7 @@ class ApiHandler {
                 response = this.admin.handleExportDatabase(token, res);
                 return;
             } else if (pathname === '/api/admin/import-database' && method === 'POST') {
-                // 🔥 ВАЖНО: обрабатываем через fileHandlers для multipart
-                response = this.fileHandlers.handleImportDatabaseMultipart(req, res);
+                this.fileHandlers.handleImportDatabaseMultipart(req, res);
                 return;
             } else if (pathname === '/api/admin/maintenance' && method === 'POST') {
                 response = this.admin.handleMaintenanceMode(token, data);
@@ -328,16 +327,16 @@ class ApiHandler {
             // === ЗАГРУЗКА ФАЙЛОВ (multipart) ===
             // ============================================
             } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                response = this.fileHandlers.handleUploadAvatarMultipart(req, res);
+                this.fileHandlers.handleUploadAvatarMultipart(req, res);
                 return;
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                response = this.fileHandlers.handleUploadPostImageMultipart(req, res);
+                this.fileHandlers.handleUploadPostImageMultipart(req, res);
                 return;
             } else if (pathname === '/api/upload-gift' && method === 'POST') {
-                response = this.fileHandlers.handleUploadGiftMultipart(req, res);
+                this.fileHandlers.handleUploadGiftMultipart(req, res);
                 return;
             } else if (pathname === '/api/upload-file' && method === 'POST') {
-                response = this.fileHandlers.handleUploadFileMultipart(req, res);
+                this.fileHandlers.handleUploadFileMultipart(req, res);
                 return;
 
             // ============================================
