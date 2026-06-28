@@ -1,3 +1,6 @@
+const path = require('path');
+const fs = require('fs');
+
 class PostsHandler {
     constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
@@ -9,6 +12,10 @@ class PostsHandler {
     authenticateToken(token) {
         return this.authHandler?.authenticateToken(token) || null;
     }
+
+    // ============================================
+    // === ПОЛУЧЕНИЕ ПОСТОВ ===
+    // ============================================
 
     handleGetPosts(token) {
         const user = this.authenticateToken(token);
@@ -122,6 +129,10 @@ class PostsHandler {
         }
     }
 
+    // ============================================
+    // === СОЗДАНИЕ И УДАЛЕНИЕ ПОСТОВ ===
+    // ============================================
+
     handleCreatePost(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -232,6 +243,10 @@ class PostsHandler {
         };
     }
 
+    // ============================================
+    // === ЛАЙКИ (ИСПРАВЛЕНО) ===
+    // ============================================
+
     handleLikePost(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -255,25 +270,35 @@ class PostsHandler {
             }
 
             const likeIndex = post.likes.indexOf(user.id);
+            let liked = false;
+            
             if (likeIndex === -1) {
                 post.likes.push(user.id);
+                liked = true;
             } else {
                 post.likes.splice(likeIndex, 1);
+                liked = false;
             }
 
             this.dataManager.saveData();
-            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
+
+            this.securitySystem.logSecurityEvent(user, 'LIKE_POST', `post:${postId}, action:${liked ? 'like' : 'unlike'}`);
 
             return {
                 success: true,
                 likes: post.likes,
-                liked: likeIndex === -1
+                liked: liked,
+                count: post.likes.length
             };
         } catch (error) {
             console.error('❌ Ошибка лайка поста:', error);
-            return { success: false, message: 'Ошибка лайка поста' };
+            return { success: false, message: 'Ошибка лайка поста: ' + error.message };
         }
     }
+
+    // ============================================
+    // === КОММЕНТАРИИ ===
+    // ============================================
 
     handleAddComment(token, data) {
         const user = this.authenticateToken(token);
@@ -378,6 +403,10 @@ class PostsHandler {
         return { success: true, message: 'Ответ добавлен', reply: reply };
     }
 
+    // ============================================
+    // === ЛАЙКИ КОММЕНТАРИЕВ ===
+    // ============================================
+
     handleLikeComment(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -406,234 +435,15 @@ class PostsHandler {
             }
 
             const likeIndex = comment.likes.indexOf(user.id);
+            let liked = false;
+            
             if (likeIndex === -1) {
                 comment.likes.push(user.id);
+                liked = true;
             } else {
                 comment.likes.splice(likeIndex, 1);
+                liked = false;
             }
 
             this.dataManager.saveData();
-            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
-
-            return {
-                success: true,
-                likes: comment.likes,
-                liked: likeIndex === -1
-            };
-        } catch (error) {
-            console.error('❌ Ошибка лайка комментария:', error);
-            return { success: false, message: 'Ошибка лайка комментария' };
-        }
-    }
-
-    handleLikeReply(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${data.postId}, comment:${data.commentId}, reply:${data.replyId}`, false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { postId, commentId, replyId } = data;
-        if (!postId || !commentId || !replyId) {
-            return { success: false, message: 'Заполните все поля' };
-        }
-
-        try {
-            const post = this.dataManager.posts.find(p => p.id === postId);
-            if (!post) {
-                return { success: false, message: 'Пост не найден' };
-            }
-
-            const comment = post.comments.find(c => c.id === commentId);
-            if (!comment) {
-                return { success: false, message: 'Комментарий не найден' };
-            }
-
-            const reply = comment.replies.find(r => r.id === replyId);
-            if (!reply) {
-                return { success: false, message: 'Ответ не найден' };
-            }
-
-            const likeIndex = reply.likes.indexOf(user.id);
-            if (likeIndex === -1) {
-                reply.likes.push(user.id);
-            } else {
-                reply.likes.splice(likeIndex, 1);
-            }
-
-            this.dataManager.saveData();
-            this.securitySystem.logSecurityEvent(user, 'LIKE_REPLY', `post:${postId}, comment:${commentId}, reply:${replyId}, action:${likeIndex === -1 ? 'like' : 'unlike'}`);
-
-            return {
-                success: true,
-                likes: reply.likes,
-                liked: likeIndex === -1
-            };
-        } catch (error) {
-            console.error('❌ Ошибка лайка ответа:', error);
-            return { success: false, message: 'Ошибка лайка ответа' };
-        }
-    }
-
-    handleSharePost(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { postId } = data;
-        if (!postId) {
-            return { success: false, message: 'Не указан ID поста' };
-        }
-
-        try {
-            const originalPost = this.dataManager.posts.find(p => p.id === postId);
-            if (!originalPost) {
-                return { success: false, message: 'Пост не найден' };
-            }
-
-            const sharePost = {
-                id: this.dataManager.generateId(),
-                userId: user.id,
-                text: `🔁 Репост: ${originalPost.text ? originalPost.text.substring(0, 100) + '...' : 'Пост'}`,
-                originalPostId: postId,
-                likes: [],
-                comments: [],
-                views: 0,
-                createdAt: new Date(),
-                banned: false,
-                isShare: true
-            };
-
-            this.dataManager.posts.unshift(sharePost);
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'SHARE_POST', `post:${postId}, share:${sharePost.id}`);
-
-            console.log(`🔁 Пользователь ${user.displayName} сделал репост ${postId}`);
-
-            return {
-                success: true,
-                post: {
-                    ...sharePost,
-                    userName: user.displayName,
-                    userAvatar: user.avatar,
-                    userVerified: user.verified,
-                    userIsDeveloper: user.isDeveloper
-                },
-                message: 'Пост успешно опубликован'
-            };
-        } catch (error) {
-            console.error('❌ Ошибка репоста:', error);
-            return { success: false, message: 'Ошибка репоста' };
-        }
-    }
-
-    handleGetComments(token, query) {
-        const { postId } = query;
-        return this.handleGetPostComments(token, postId);
-    }
-
-    handleGetPostComments(token, postId) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const post = this.dataManager.posts.find(p => p.id === postId);
-        if (!post) {
-            return { success: false, message: 'Пост не найден' };
-        }
-
-        post.views = (post.views || 0) + 1;
-        this.dataManager.saveData();
-
-        const commentsWithUserInfo = (post.comments || []).map(comment => {
-            const commentUser = this.dataManager.users.find(u => u.id === comment.userId);
-            const repliesWithUserInfo = (comment.replies || []).map(reply => {
-                const replyUser = this.dataManager.users.find(u => u.id === reply.userId);
-                return {
-                    ...reply,
-                    userName: replyUser ? replyUser.displayName : 'Неизвестный',
-                    userAvatar: replyUser ? replyUser.avatar : null,
-                    userVerified: replyUser ? replyUser.verified : false
-                };
-            });
-
-            return {
-                ...comment,
-                userName: commentUser ? commentUser.displayName : 'Неизвестный',
-                userAvatar: commentUser ? commentUser.avatar : null,
-                userVerified: commentUser ? commentUser.verified : false,
-                replies: repliesWithUserInfo
-            };
-        });
-
-        this.securitySystem.logSecurityEvent(user, 'GET_POST_COMMENTS', `post:${postId}, count:${commentsWithUserInfo.length}`);
-
-        return {
-            success: true,
-            comments: commentsWithUserInfo
-        };
-    }
-
-    handleAddPostComment(token, postId, data) {
-        return this.handleAddComment(token, { postId, ...data });
-    }
-
-    handleAddReply(token, postId, commentId, data) {
-        return this.handleReplyToComment(token, { postId, commentId, ...data });
-    }
-
-    handleLikeComment(token, postId, commentId) {
-        return this.handleLikeComment(token, { postId, commentId });
-    }
-
-    handleLikeReply(token, postId, commentId, replyId) {
-        return this.handleLikeReply(token, { postId, commentId, replyId });
-    }
-
-    async handleUploadPostImage(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.fileHandlers.validatePostFile(filename)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для поста' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'posts', uniqueFilename);
-
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`);
-
-            console.log(`📸 Пользователь ${user.username} загрузил файл для поста: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки файла для поста:', error);
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
-    }
-}
-
-module.exports = PostsHandler;
+            this.securitySystem.logSecurityEvent(user, 'LIKE_COMMENT', `post:${postId}, comment:${commentId}, action
