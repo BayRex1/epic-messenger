@@ -25,36 +25,32 @@ class ChatsHandler {
         }
 
         try {
+            // Сначала получаем чаты из массива
             let chats = this.dataManager.chats || [];
             
             // Фильтруем чаты для текущего пользователя
             const userChats = chats.filter(chat => 
-                chat.userId === user.id || 
-                chat.targetUserId === user.id ||
-                chat.members?.includes(user.id)
+                chat.members && chat.members.includes(user.id)
             );
 
-            // Добавляем информацию о пользователях
+            // Добавляем информацию о пользователях и последние сообщения
             const chatsWithInfo = userChats.map(chat => {
-                // Если это личный чат - берем данные собеседника
-                if (!chat.isGroup && chat.targetUserId) {
-                    const targetUser = this.dataManager.users.find(u => u.id === chat.targetUserId);
-                    if (targetUser) {
-                        chat.displayName = targetUser.displayName || 'Пользователь';
-                        chat.avatar = targetUser.avatar;
-                        chat.verified = targetUser.verified;
-                        chat.isDeveloper = targetUser.isDeveloper;
-                        chat.status = targetUser.status;
+                // Находим собеседника для личного чата
+                if (!chat.isGroup && chat.members) {
+                    const otherId = chat.members.find(id => id !== user.id);
+                    if (otherId) {
+                        const otherUser = this.dataManager.users.find(u => u.id === otherId);
+                        if (otherUser) {
+                            chat.displayName = otherUser.displayName || otherUser.username || 'Пользователь';
+                            chat.avatar = otherUser.avatar || '';
+                            chat.verified = otherUser.verified || false;
+                            chat.isDeveloper = otherUser.isDeveloper || false;
+                            chat.status = otherUser.status || 'offline';
+                        }
                     }
                 }
                 
-                // Если это групповой чат
-                if (chat.isGroup) {
-                    const members = chat.members || [];
-                    chat.memberCount = members.length;
-                }
-                
-                // Берем последнее сообщение из messages
+                // Находим последнее сообщение
                 const messages = this.dataManager.messages.filter(m => 
                     m.chatId === chat.id
                 ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -69,8 +65,8 @@ class ChatsHandler {
 
             // Сортируем по времени последнего сообщения
             chatsWithInfo.sort((a, b) => {
-                const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(a.createdAt || 0);
-                const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(b.createdAt || 0);
+                const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
+                const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
                 return dateB - dateA;
             });
 
@@ -105,8 +101,9 @@ class ChatsHandler {
         // Проверяем есть ли уже чат
         let existingChat = this.dataManager.chats.find(chat => 
             !chat.isGroup && 
-            ((chat.userId === user.id && chat.targetUserId === userId) ||
-             (chat.userId === userId && chat.targetUserId === user.id))
+            chat.members && 
+            chat.members.includes(user.id) && 
+            chat.members.includes(userId)
         );
 
         if (existingChat) {
@@ -120,16 +117,16 @@ class ChatsHandler {
         // Создаем новый чат
         const newChat = {
             id: this.dataManager.generateId(),
+            isGroup: false,
             userId: user.id,
             targetUserId: userId,
-            displayName: targetUser.displayName || 'Пользователь',
-            avatar: targetUser.avatar,
-            verified: targetUser.verified,
-            isDeveloper: targetUser.isDeveloper,
-            status: targetUser.status,
-            isGroup: false,
-            createdAt: new Date(),
+            displayName: targetUser.displayName || targetUser.username || 'Пользователь',
+            avatar: targetUser.avatar || '',
+            verified: targetUser.verified || false,
+            isDeveloper: targetUser.isDeveloper || false,
+            status: targetUser.status || 'offline',
             members: [user.id, userId],
+            createdAt: new Date(),
             lastMessage: null,
             unreadCount: 0
         };
@@ -142,16 +139,99 @@ class ChatsHandler {
         return {
             success: true,
             chatId: newChat.id,
-            chat: newChat,
-            user: {
-                id: targetUser.id,
-                displayName: targetUser.displayName,
-                avatar: targetUser.avatar,
-                verified: targetUser.verified,
-                isDeveloper: targetUser.isDeveloper,
-                status: targetUser.status
-            }
+            chat: newChat
         };
+    }
+
+    // ============================================
+    // === ОТПРАВКА СООБЩЕНИЯ ===
+    // ============================================
+
+    handleSendMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { toUserId, text, type = 'text', file, fileName, fileType } = data;
+        
+        if (!toUserId) {
+            return { success: false, message: 'Не указан получатель' };
+        }
+
+        if (!text && !file) {
+            return { success: false, message: 'Сообщение не может быть пустым' };
+        }
+
+        try {
+            // Проверяем получателя
+            const targetUser = this.dataManager.users.find(u => u.id === toUserId);
+            if (!targetUser) {
+                return { success: false, message: 'Пользователь не найден' };
+            }
+
+            // Ищем существующий чат
+            let chat = this.dataManager.chats.find(c => 
+                !c.isGroup && 
+                c.members && 
+                c.members.includes(user.id) && 
+                c.members.includes(toUserId)
+            );
+
+            // Если чата нет - создаем
+            if (!chat) {
+                chat = {
+                    id: this.dataManager.generateId(),
+                    isGroup: false,
+                    userId: user.id,
+                    targetUserId: toUserId,
+                    displayName: targetUser.displayName || targetUser.username || 'Пользователь',
+                    avatar: targetUser.avatar || '',
+                    verified: targetUser.verified || false,
+                    isDeveloper: targetUser.isDeveloper || false,
+                    status: targetUser.status || 'offline',
+                    members: [user.id, toUserId],
+                    createdAt: new Date(),
+                    lastMessage: null,
+                    unreadCount: 0
+                };
+                this.dataManager.chats.push(chat);
+                console.log(`💬 Автоматически создан чат между ${user.displayName} и ${targetUser.displayName}`);
+            }
+
+            // Создаем сообщение
+            const message = {
+                id: this.dataManager.generateId(),
+                chatId: chat.id,
+                senderId: user.id,
+                receiverId: toUserId,
+                text: text ? this.securitySystem.sanitizeContent(text) : null,
+                type: type,
+                file: file || null,
+                fileName: fileName || null,
+                fileType: fileType || null,
+                timestamp: new Date(),
+                read: false,
+                readBy: []
+            };
+
+            this.dataManager.messages.push(message);
+            
+            // Обновляем последнее сообщение в чате
+            chat.lastMessage = message;
+            chat.unreadCount = (chat.unreadCount || 0) + 1;
+            
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}`);
+
+            console.log(`💬 Пользователь ${user.displayName} отправил сообщение пользователю ${targetUser.displayName}`);
+
+            return { success: true, message: message };
+        } catch (error) {
+            console.error('❌ Ошибка отправки сообщения:', error);
+            return { success: false, message: 'Ошибка отправки сообщения: ' + error.message };
+        }
     }
 
     // ============================================
@@ -172,9 +252,10 @@ class ChatsHandler {
         try {
             // Находим чат
             const chat = this.dataManager.chats.find(c => 
-                (c.userId === user.id && c.targetUserId === userId) ||
-                (c.userId === userId && c.targetUserId === user.id) ||
-                (c.isGroup && c.id === userId && c.members?.includes(user.id))
+                !c.isGroup && 
+                c.members && 
+                c.members.includes(user.id) && 
+                c.members.includes(userId)
             );
 
             if (!chat) {
@@ -206,122 +287,6 @@ class ChatsHandler {
         }
     }
 
-    // ============================================
-    // === ОТПРАВКА СООБЩЕНИЯ ===
-    // ============================================
-
-    handleSendMessage(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        const { toUserId, text, type = 'text', file, fileName, fileType } = data;
-        
-        if (!toUserId) {
-            return { success: false, message: 'Не указан получатель' };
-        }
-
-        if (!text && !file) {
-            return { success: false, message: 'Сообщение не может быть пустым' };
-        }
-
-        try {
-            // Находим чат
-            let chat = this.dataManager.chats.find(c => 
-                (c.userId === user.id && c.targetUserId === toUserId) ||
-                (c.userId === toUserId && c.targetUserId === user.id)
-            );
-
-            // Если чата нет - создаем
-            if (!chat) {
-                const targetUser = this.dataManager.users.find(u => u.id === toUserId);
-                if (!targetUser) {
-                    return { success: false, message: 'Пользователь не найден' };
-                }
-                
-                chat = {
-                    id: this.dataManager.generateId(),
-                    userId: user.id,
-                    targetUserId: toUserId,
-                    displayName: targetUser.displayName || 'Пользователь',
-                    avatar: targetUser.avatar,
-                    verified: targetUser.verified,
-                    isDeveloper: targetUser.isDeveloper,
-                    status: targetUser.status,
-                    isGroup: false,
-                    createdAt: new Date(),
-                    members: [user.id, toUserId],
-                    lastMessage: null,
-                    unreadCount: 0
-                };
-                this.dataManager.chats.push(chat);
-            }
-
-            let fileUrl = null;
-            if (file && fileName && fileType) {
-                const fileExt = path.extname(fileName) || this.getFileExtension(fileType);
-                const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
-                let uploadDir = 'files';
-                
-                if (fileType === 'image') uploadDir = 'images';
-                else if (fileType === 'video') uploadDir = 'videos';
-                else if (fileType === 'audio') uploadDir = 'audio';
-                
-                const isProduction = process.env.NODE_ENV === 'production';
-                const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
-                const dir = path.join(baseDir, uploadDir);
-                
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
-                }
-                
-                const filePath = path.join(dir, uniqueFilename);
-                const base64Data = file.replace(/^data:[^;]+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                fs.writeFileSync(filePath, buffer);
-                fileUrl = `/uploads/${uploadDir}/${uniqueFilename}`;
-            }
-
-            const message = {
-                id: this.dataManager.generateId(),
-                chatId: chat.id,
-                senderId: user.id,
-                receiverId: toUserId,
-                text: text ? this.securitySystem.sanitizeContent(text) : null,
-                type: type,
-                file: fileUrl,
-                fileName: fileName,
-                fileType: fileType,
-                timestamp: new Date(),
-                read: false,
-                readBy: []
-            };
-
-            this.dataManager.messages.push(message);
-            
-            // Обновляем последнее сообщение в чате
-            chat.lastMessage = message;
-            chat.unreadCount = (chat.unreadCount || 0) + 1;
-            chat.lastMessageTime = new Date();
-            
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'SEND_MESSAGE', `to:${toUserId}, type:${type}`);
-
-            console.log(`💬 Пользователь ${user.displayName} отправил сообщение пользователю ${toUserId}`);
-
-            return { success: true, message: message };
-        } catch (error) {
-            console.error('❌ Ошибка отправки сообщения:', error);
-            return { success: false, message: 'Ошибка отправки сообщения: ' + error.message };
-        }
-    }
-
-    // ============================================
-    // === ОТМЕТКА ПРОЧИТАННЫХ ===
-    // ============================================
-
     handleMarkAsRead(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -334,20 +299,19 @@ class ChatsHandler {
         }
 
         try {
-            // Находим чат
             const chat = this.dataManager.chats.find(c => 
-                (c.userId === user.id && c.targetUserId === fromUserId) ||
-                (c.userId === fromUserId && c.targetUserId === user.id)
+                !c.isGroup && 
+                c.members && 
+                c.members.includes(user.id) && 
+                c.members.includes(fromUserId)
             );
 
             if (chat) {
-                // Помечаем сообщения как прочитанные
                 this.dataManager.messages.forEach(message => {
                     if (message.chatId === chat.id && message.senderId === fromUserId && !message.read) {
                         message.read = true;
                     }
                 });
-                
                 chat.unreadCount = 0;
                 this.dataManager.saveData();
             }
@@ -358,10 +322,6 @@ class ChatsHandler {
             return { success: false, message: 'Ошибка отметки сообщений' };
         }
     }
-
-    // ============================================
-    // === РЕДАКТИРОВАНИЕ СООБЩЕНИЯ ===
-    // ============================================
 
     handleEditMessage(token, data) {
         const user = this.authenticateToken(token);
@@ -390,10 +350,6 @@ class ChatsHandler {
         return { success: true, message: 'Сообщение отредактировано' };
     }
 
-    // ============================================
-    // === УДАЛЕНИЕ СООБЩЕНИЯ ===
-    // ============================================
-
     handleDeleteMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -420,10 +376,6 @@ class ChatsHandler {
 
         return { success: true, message: 'Сообщение удалено' };
     }
-
-    // ============================================
-    // === ГРУППЫ ===
-    // ============================================
 
     handleCreateGroup(token, data) {
         const user = this.authenticateToken(token);
