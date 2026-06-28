@@ -353,6 +353,7 @@ class SimpleServer {
             console.log(`   ✅ Изображения для постов: /api/upload-post-image (multipart/form-data)`);
             console.log(`   ✅ Файлы для чатов: /api/upload-file (multipart/form-data)`);
             console.log(`   ✅ Подарки: /api/upload-gift (multipart/form-data)`);
+            console.log(`   ✅ Обложки профиля: /api/update-cover (multipart/form-data)`);
             console.log(`   ✅ Предпросмотр аватарок: /api/preview-avatar`);
             console.log(`   ✅ Отладка загрузки: /api/debug-upload`);
             console.log(`\n🔄 ФУНКЦИИ ЭКСПОРТА/ИМПОРТА БД:`);
@@ -364,6 +365,7 @@ class SimpleServer {
             console.log(`   ✅ Удаление промокодов: DELETE /api/promo-codes (с передачей promoCodeId в теле)`);
             console.log(`\n📁 Созданные директории для загрузок:`);
             console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/avatars' : 'public/uploads/avatars'}`);
+            console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/covers' : 'public/uploads/covers'}`);
             console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/posts' : 'public/uploads/posts'}`);
             console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/music' : 'public/uploads/music'}`);
             console.log(`   ✅ ${process.env.NODE_ENV === 'production' ? '/tmp/uploads/gifts' : 'public/uploads/gifts'}`);
@@ -393,6 +395,8 @@ class SimpleServer {
             console.log(`   ✅ Улучшена обработка ошибок`);
             console.log(`   ✅ Добавлена проверка авторизации`);
             console.log(`   ✅ Улучшено логирование`);
+            console.log(`   ✅ Исправлена загрузка обложек профиля`);
+            console.log(`   ✅ Добавлена директория covers для обложек`);
         });
 
         server.on('error', (error) => {
@@ -517,7 +521,7 @@ class SimpleServer {
             '/404': 'public/additions/404.html'
         };
 
-        // 🔥 ИСПРАВЛЕНО: Обработка отдельных постов /post/:id (только если нет расширения файла)
+        // Обработка отдельных постов /post/:id (только если нет расширения файла)
         if (pathname.startsWith('/post/') && !pathname.includes('.')) {
             console.log(`📄 Serving post page for: ${pathname}`);
             serveStaticFile(res, 'public/post.html', 'text/html');
@@ -529,7 +533,7 @@ class SimpleServer {
             return;
         }
 
-        // 🔥 ОБРАБОТКА ЗАГРУЖЕННЫХ ФАЙЛОВ /uploads/
+        // ОБРАБОТКА ЗАГРУЖЕННЫХ ФАЙЛОВ /uploads/
         if (pathname.startsWith('/uploads/')) {
             const isProduction = process.env.NODE_ENV === 'production';
             const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
