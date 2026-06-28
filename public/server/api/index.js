@@ -15,10 +15,7 @@ class ApiHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
 
-        // Сначала создаем auth
         this.auth = new AuthHandler(dataManager, securitySystem);
-        
-        // Потом все остальные с передачей auth
         this.users = new UsersHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.posts = new PostsHandler(dataManager, securitySystem, fileHandlers, this.auth);
         this.chats = new ChatsHandler(dataManager, securitySystem, fileHandlers, this.auth);
@@ -284,11 +281,11 @@ class ApiHandler {
                 response = this.users.handleUploadAvatar(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
                 response = this.posts.handleUploadPostImage(token, data);
+            } else if (pathname === '/api/upload-gift' && method === 'POST') {
+                response = this.gifts.handleUploadGift(token, data);
             } else if (pathname === '/api/upload-file' && method === 'POST') {
                 response = this.fileHandlers.handleUploadFileMultipart(req, res);
                 return;
-            } else if (pathname === '/api/upload-gift' && method === 'POST') {
-                response = this.gifts.handleUploadGift(token, data);
 
             // === ТРАНЗАКЦИИ ===
             } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
