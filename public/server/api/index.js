@@ -91,9 +91,15 @@ class ApiHandler {
                 }
 
             // ============================================
-            // === ЗАГРУЗКА АВАТАРКИ (multipart) ===
+            // === ЗАГРУЗКА АВАТАРКИ (multipart) с проверкой авторизации ===
             // ============================================
             } else if (pathname === '/api/upload-avatar' && method === 'POST') {
+                const user = this.auth.authenticateToken(token);
+                if (!user) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+                    return;
+                }
                 this.fileHandlers.handleUploadAvatarMultipart(req, res);
                 return;
 
@@ -123,6 +129,12 @@ class ApiHandler {
             } else if (pathname === '/api/posts/comments' && method === 'POST') {
                 response = this.posts.handleAddComment(token, data);
             } else if (pathname === '/api/upload-post-image' && method === 'POST') {
+                const user = this.auth.authenticateToken(token);
+                if (!user) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+                    return;
+                }
                 this.fileHandlers.handleUploadPostImageMultipart(req, res);
                 return;
             } else if (pathname.startsWith('/api/posts/') && method === 'GET' && !pathname.includes('/comments') && !pathname.includes('/like')) {
@@ -206,6 +218,12 @@ class ApiHandler {
             } else if (pathname === '/api/my-gifts' && method === 'GET') {
                 response = this.gifts.handleGetMyGifts(token);
             } else if (pathname === '/api/upload-gift' && method === 'POST') {
+                const user = this.auth.authenticateToken(token);
+                if (!user || !user.isDeveloper) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Не авторизован или недостаточно прав' }));
+                    return;
+                }
                 this.fileHandlers.handleUploadGiftMultipart(req, res);
                 return;
             } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
@@ -234,6 +252,12 @@ class ApiHandler {
             } else if (pathname === '/api/music/upload' && method === 'POST') {
                 response = this.music.handleUploadMusicFile(token, data);
             } else if (pathname === '/api/music/upload-full' && method === 'POST') {
+                const user = this.auth.authenticateToken(token);
+                if (!user) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+                    return;
+                }
                 this.fileHandlers.handleUploadMusicFull(req, res);
                 return;
             } else if (pathname === '/api/music/upload-cover' && method === 'POST') {
@@ -284,6 +308,12 @@ class ApiHandler {
                 response = this.admin.handleExportDatabase(token, res);
                 return;
             } else if (pathname === '/api/admin/import-database' && method === 'POST') {
+                const user = this.auth.authenticateToken(token);
+                if (!user || !user.isDeveloper) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Не авторизован или недостаточно прав' }));
+                    return;
+                }
                 this.fileHandlers.handleImportDatabaseMultipart(req, res);
                 return;
             } else if (pathname === '/api/admin/maintenance' && method === 'POST') {
@@ -322,31 +352,6 @@ class ApiHandler {
                 response = this.gifts.handleGetGifts(token);
             } else if (pathname === '/api/mobile/settings' && method === 'GET') {
                 response = this.auth.handleCurrentUser(token, req);
-
-            // ============================================
-            // === ЗАГРУЗКА ФАЙЛОВ (multipart) ===
-            // ============================================
-            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                this.fileHandlers.handleUploadAvatarMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                this.fileHandlers.handleUploadPostImageMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-gift' && method === 'POST') {
-                this.fileHandlers.handleUploadGiftMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-file' && method === 'POST') {
-                this.fileHandlers.handleUploadFileMultipart(req, res);
-                return;
-
-            // ============================================
-            // === ТРАНЗАКЦИИ ===
-            // ============================================
-            } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                const userId = pathname.split('/')[3];
-                if (method === 'GET') {
-                    response = this.users.handleGetTransactions(token, userId);
-                }
 
             // ============================================
             // === ЕСЛИ НИЧЕГО НЕ ПОДОШЛО ===
