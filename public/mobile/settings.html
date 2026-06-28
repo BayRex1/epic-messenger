@@ -43,7 +43,6 @@
             overflow: hidden;
         }
 
-        /* Мобильный хедер */
         .mobile-header {
             position: fixed;
             top: 0;
@@ -98,14 +97,12 @@
             gap: 8px;
         }
 
-        /* Основной контент */
         .main-content {
             padding-top: 60px;
             height: calc(100vh - 120px);
             overflow-y: auto;
         }
 
-        /* Меню настроек */
         .menu-container {
             padding: 20px;
         }
@@ -189,7 +186,6 @@
             font-size: 14px;
         }
 
-        /* Нижняя панель навигации */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -233,7 +229,6 @@
             justify-content: center;
         }
 
-        /* Переключатель темы */
         .theme-switch {
             position: relative;
             display: inline-block;
@@ -280,7 +275,6 @@
             transform: translateX(24px);
         }
 
-        /* Стили для обложки в мобильной версии */
         .profile-card {
             background: var(--bg-secondary);
             border-radius: 16px;
@@ -402,7 +396,6 @@
             font-size: 14px;
         }
 
-        /* Модальные окна */
         .gifts-modal {
             position: fixed;
             top: 0;
@@ -582,7 +575,6 @@
 
     <div class="main-content">
         <div class="menu-container">
-            <!-- Карточка профиля с обложкой -->
             <div class="profile-card">
                 <div class="profile-cover-container" id="mobileCoverContainer" onclick="document.getElementById('mobileCoverInput').click()">
                     <img id="mobileCover" src="" alt="Обложка" style="display: none;">
@@ -614,7 +606,6 @@
                 </div>
             </div>
 
-            <!-- Основные настройки -->
             <div class="menu-section">
                 <div class="menu-section-title">Основные</div>
                 <button class="menu-item" onclick="openProfileEdit()">
@@ -648,7 +639,6 @@
                 </button>
             </div>
 
-            <!-- Безопасность -->
             <div class="menu-section">
                 <div class="menu-section-title">Безопасность</div>
                 <button class="menu-item" onclick="showDevices()">
@@ -680,7 +670,6 @@
                 </button>
             </div>
 
-            <!-- Аккаунт -->
             <div class="menu-section">
                 <div class="menu-section-title">Аккаунт</div>
                 <button class="menu-item danger" onclick="logout()">
@@ -712,7 +701,6 @@
                 </button>
             </div>
 
-            <!-- Информация -->
             <div class="menu-section">
                 <div class="menu-section-title">О приложении</div>
                 <button class="menu-item" onclick="showAbout()">
@@ -748,7 +736,6 @@
         </div>
     </div>
 
-    <!-- Нижняя панель навигации -->
     <div class="bottom-nav">
         <a href="/mobile/chats" class="nav-item">
             <div class="nav-icon">
@@ -813,7 +800,6 @@
         </a>
     </div>
 
-    <!-- Модальное окно редактирования профиля -->
     <div class="gifts-modal" id="profileModal" style="display: none;">
         <div class="gifts-container">
             <h3 style="margin-bottom: 20px;">Редактирование профиля</h3>
@@ -845,7 +831,6 @@
     <script>
         let currentUser = null;
 
-        // Загрузка темы
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.body.className = `theme-${savedTheme}`;
@@ -856,7 +841,6 @@
             }
         }
 
-        // Проверка авторизации
         async function checkAuth() {
             const token = localStorage.getItem('authToken');
             if (!token) {
@@ -889,11 +873,9 @@
             }
         }
 
-        // Обновление интерфейса пользователя
         function updateUserInterface() {
             if (!currentUser) return;
             
-            // Обновляем аватар
             const avatarElement = document.getElementById('mobileUserAvatar');
             if (currentUser.avatar) {
                 avatarElement.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}"><div class="avatar-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line><line x1="12" y1="8" x2="12" y2="16"></line></svg></div>`;
@@ -901,7 +883,6 @@
                 avatarElement.innerHTML = `<span>${currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}</span><div class="avatar-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line><line x1="12" y1="8" x2="12" y2="16"></line></svg></div>`;
             }
 
-            // Обновляем обложку
             const coverImg = document.getElementById('mobileCover');
             const container = document.getElementById('mobileCoverContainer');
             
@@ -918,7 +899,6 @@
             document.getElementById('mobileUserUsername').textContent = `@${currentUser.username}`;
         }
 
-        // Смена темы
         function toggleTheme() {
             const currentTheme = document.body.classList.contains('theme-dark') ? 'dark' : 'light';
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -930,7 +910,6 @@
             showNotification(`Тема изменена на ${newTheme === 'dark' ? 'темную' : 'светлую'}`, 'success');
         }
 
-        // Открытие редактирования профиля
         function openProfileEdit() {
             document.getElementById('profileModal').style.display = 'flex';
             
@@ -943,7 +922,6 @@
             document.getElementById('profileModal').style.display = 'none';
         }
 
-        // Сохранение профиля (мобильная версия)
         async function saveMobileProfile() {
             const username = document.getElementById('editUsername').value.trim();
             const displayName = document.getElementById('editDisplayName').value.trim();
@@ -994,7 +972,7 @@
             }
         }
 
-        // Загрузка обложки (мобильная)
+        // 🔥 ИСПРАВЛЕНО: загрузка обложки (мобильная)
         async function uploadMobileCover(file) {
             if (!file) return;
             
@@ -1005,7 +983,7 @@
             }
 
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('cover', file);
 
             try {
                 const token = localStorage.getItem('authToken');
@@ -1032,7 +1010,7 @@
             }
         }
 
-        // Загрузка аватара (мобильная)
+        // 🔥 ИСПРАВЛЕНО: загрузка аватара (мобильная)
         async function uploadMobileAvatar(file) {
             if (!file) return;
             
@@ -1043,7 +1021,7 @@
             }
 
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('avatar', file);
 
             try {
                 const token = localStorage.getItem('authToken');
@@ -1113,7 +1091,6 @@
             }, 3000);
         }
 
-        // Инициализация
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             const user = await checkAuth();
