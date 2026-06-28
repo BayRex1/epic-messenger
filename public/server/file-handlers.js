@@ -23,7 +23,8 @@ class FileHandlers {
             music: this.validateMusicFile.bind(this),
             image: this.validateImageFile.bind(this),
             video: this.validateVideoFile.bind(this),
-            audio: this.validateAudioFile.bind(this)
+            audio: this.validateAudioFile.bind(this),
+            cover: this.validateCoverFile.bind(this)  // ✅ ДОБАВЛЕНО
         };
 
         return validators[fileType] ? validators[fileType](filename) : false;
@@ -55,7 +56,8 @@ class FileHandlers {
     }
 
     validateCoverFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        if (!filename) return false;
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -78,7 +80,6 @@ class FileHandlers {
         return allowedExtensions.includes(ext);
     }
 
-    // 🔥 ГЛАВНЫЙ МЕТОД СОХРАНЕНИЯ ФАЙЛОВ (ИСПРАВЛЕН)
     async saveBufferToFolder(buffer, folder, filename) {
         const isProduction = process.env.NODE_ENV === 'production';
         const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
@@ -217,7 +218,6 @@ class FileHandlers {
 
                     const fileExt = path.extname(avatarFile.filename);
                     const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(avatarFile.buffer, 'avatars', uniqueFilename);
 
                     if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
@@ -338,7 +338,6 @@ class FileHandlers {
 
                     const fileExt = path.extname(imageFile.filename);
                     const uniqueFilename = `post_${user.id}_${Date.now()}${fileExt}`;
-                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(imageFile.buffer, 'posts', uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_POST_IMAGE', `file:${imageFile.filename}`);
@@ -465,7 +464,6 @@ class FileHandlers {
 
                     const fileExt = path.extname(uploadedFile.filename);
                     const uniqueFilename = `${fileType}_${user.id}_${Date.now()}${fileExt}`;
-                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(uploadedFile.buffer, uploadDir, uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_FILE', `file:${uploadedFile.filename}, type:${fileType}`);
@@ -575,7 +573,6 @@ class FileHandlers {
 
                     const fileExt = path.extname(giftFile.filename);
                     const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const url = await this.saveBufferToFolder(giftFile.buffer, 'gifts', uniqueFilename);
 
                     this.securitySystem.logSecurityEvent && this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${giftFile.filename}`);
@@ -697,13 +694,10 @@ class FileHandlers {
                         return;
                     }
 
-                    // сохраняем аудио
                     const audioExt = path.extname(audioFile.filename);
                     const audioFilename = `music_${user.id}_${Date.now()}${audioExt}`;
-                    // 🔥 ИСПРАВЛЕНО: используем saveBufferToFolder
                     const audioUrl = await this.saveBufferToFolder(audioFile.buffer, 'music', audioFilename);
 
-                    // сохраняем обложку если есть
                     let coverUrl = null;
                     if (coverFile && coverFile.filename) {
                         const coverExt = path.extname(coverFile.filename);
@@ -835,7 +829,6 @@ class FileHandlers {
                         return;
                     }
 
-                    // Создаем бэкап и импортируем
                     this.dataManager.users = importData.data.users || [];
                     this.dataManager.messages = importData.data.messages || [];
                     this.dataManager.posts = importData.data.posts || [];
