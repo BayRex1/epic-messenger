@@ -354,7 +354,7 @@ class UsersHandler {
     }
 
     // ============================================
-    // === АВАТАРЫ ===
+    // === АВАТАРЫ (JSON версия) ===
     // ============================================
 
     handleUpdateAvatar(token, data) {
@@ -368,26 +368,70 @@ class UsersHandler {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR_DURING_MAINTENANCE', 'SYSTEM', false);
-            return { 
-                success: false, 
-                message: 'В настоящее время ведутся технические работы. Функция обновления аватара временно недоступна.' 
-            };
-        }
-
         const { avatar } = data;
-
-        if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-            this.fileHandlers.deleteFile(user.avatar);
+        if (!avatar) {
+            return { success: false, message: 'Аватар не передан' };
         }
 
+        // Если это Base64 - сохраняем как есть
         user.avatar = avatar;
         this.dataManager.saveData();
 
         this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
 
-        console.log(`🖼️ Пользователь ${user.username} обновил аватар`);
+        console.log(`🖼️ Пользователь ${user.username} обновил аватар (JSON)`);
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                email: user.email,
+                avatar: user.avatar,
+                cover: user.cover || null,
+                description: user.description,
+                coins: user.coins,
+                verified: user.verified,
+                isDeveloper: user.isDeveloper,
+                status: user.status,
+                lastSeen: user.lastSeen,
+                createdAt: user.createdAt,
+                friendsCount: user.friendsCount || 0,
+                postsCount: user.postsCount || 0,
+                giftsCount: user.giftsCount || 0,
+                banned: user.banned || false
+            }
+        };
+    }
+
+    // ============================================
+    // === ОБЛОЖКА ПРОФИЛЯ (JSON версия) ===
+    // ============================================
+
+    handleUpdateCover(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        if (user.banned) {
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM', false);
+            return { success: false, message: 'Ваш аккаунт заблокирован' };
+        }
+
+        const { cover } = data;
+        if (!cover) {
+            return { success: false, message: 'Обложка не передана' };
+        }
+
+        // Если это Base64 - сохраняем как есть
+        user.cover = cover;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
+
+        console.log(`🖼️ Пользователь ${user.username} обновил обложку (JSON)`);
 
         return {
             success: true,
@@ -494,93 +538,6 @@ class UsersHandler {
             console.error('Ошибка предпросмотра аватара:', error);
             return { success: false, message: 'Ошибка обработки файла' };
         }
-    }
-
-    // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ (ИСПРАВЛЕНО) ===
-    // ============================================
-
-    async handleUpdateCover(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { cover, fileData, filename } = data;
-
-        // Если передан URL обложки напрямую
-        if (cover) {
-            if (user.cover && user.cover.startsWith('/uploads/covers/')) {
-                this.fileHandlers.deleteFile(user.cover);
-            }
-
-            user.cover = cover;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
-
-            return {
-                success: true,
-                coverUrl: cover,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    displayName: user.displayName,
-                    cover: cover
-                }
-            };
-        }
-
-        // Если передан файл
-        if (fileData && filename) {
-            // ✅ ИСПРАВЛЕНО: используем validateCoverFile
-            if (!this.fileHandlers.validateCoverFile(filename)) {
-                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
-                return { success: false, message: 'Недопустимый формат файла для обложки. Разрешены: JPG, JPEG, PNG, GIF, BMP, WEBP, SVG' };
-            }
-
-            try {
-                const fileExt = path.extname(filename);
-                const uniqueFilename = `cover_${user.id}_${Date.now()}${fileExt}`;
-                
-                // ✅ ИСПРАВЛЕНО: используем saveBufferToFolder с папкой 'covers'
-                const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'covers', uniqueFilename);
-
-                // Удаляем старую обложку
-                if (user.cover && user.cover.startsWith('/uploads/covers/')) {
-                    this.fileHandlers.deleteFile(user.cover);
-                }
-
-                user.cover = fileUrl;
-                this.dataManager.saveData();
-
-                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`);
-
-                console.log(`🖼️ Пользователь ${user.username} загрузил обложку профиля: ${filename}`);
-
-                return {
-                    success: true,
-                    coverUrl: fileUrl,
-                    user: {
-                        id: user.id,
-                        username: user.username,
-                        displayName: user.displayName,
-                        cover: fileUrl
-                    }
-                };
-            } catch (error) {
-                console.error('Ошибка загрузки обложки:', error);
-                this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', `file:${filename}`, false);
-                return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
-            }
-        }
-
-        return { success: false, message: 'Не указана обложка или файл' };
     }
 
     handleDebugUpload(token) {
