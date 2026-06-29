@@ -147,20 +147,6 @@ class UsersHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        const userGifts = this.dataManager.messages
-            .filter(msg => msg.type === 'gift' && msg.receiverId === targetUser.id)
-            .map(msg => ({
-                id: msg.id,
-                giftId: msg.giftId,
-                giftName: msg.giftName,
-                giftImage: msg.giftImage,
-                fromUserId: msg.senderId,
-                fromUserName: msg.displayName,
-                timestamp: msg.timestamp
-            }));
-
-        const userPosts = this.dataManager.posts.filter(post => post.userId === targetUser.id);
-
         return {
             success: true,
             user: {
@@ -180,9 +166,7 @@ class UsersHandler {
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
                 banned: targetUser.banned || false
-            },
-            gifts: userGifts,
-            posts: userPosts
+            }
         };
     }
 
@@ -198,25 +182,25 @@ class UsersHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        const userData = {
-            id: targetUser.id,
-            username: targetUser.username,
-            displayName: targetUser.displayName,
-            avatar: targetUser.avatar,
-            cover: targetUser.cover || null,
-            description: targetUser.description,
-            coins: targetUser.coins || 0,
-            verified: targetUser.verified || false,
-            isDeveloper: targetUser.isDeveloper || false,
-            status: targetUser.status || 'offline',
-            lastSeen: targetUser.lastSeen,
-            createdAt: targetUser.createdAt,
-            postsCount: this.dataManager.posts.filter(p => p.userId === targetUser.id).length,
-            followersCount: targetUser.followers ? targetUser.followers.length : 0,
-            followingCount: targetUser.following ? targetUser.following.length : 0
+        return {
+            success: true,
+            message: 'Данные пользователя получены',
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                cover: targetUser.cover || null,
+                description: targetUser.description,
+                coins: targetUser.coins || 0,
+                verified: targetUser.verified || false,
+                isDeveloper: targetUser.isDeveloper || false,
+                status: targetUser.status || 'offline',
+                lastSeen: targetUser.lastSeen,
+                createdAt: targetUser.createdAt,
+                postsCount: this.dataManager.posts.filter(p => p.userId === targetUser.id).length
+            }
         };
-
-        return { success: true, message: 'Данные пользователя получены', user: userData };
     }
 
     handleGetUserPostsMobile(token, data) {
@@ -272,14 +256,6 @@ class UsersHandler {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_PROFILE_DURING_MAINTENANCE', 'SYSTEM', false);
-            return { 
-                success: false, 
-                message: 'В настоящее время ведутся технические работы. Функция обновления профиля временно недоступна.' 
-            };
-        }
-
         const { displayName, description, username, email } = data;
 
         if (displayName && displayName.trim()) {
@@ -327,8 +303,6 @@ class UsersHandler {
 
         this.securitySystem.logSecurityEvent(user, 'UPDATE_PROFILE', 'SYSTEM');
 
-        console.log(`📝 Пользователь ${user.username} обновил профиль`);
-
         return {
             success: true,
             user: {
@@ -354,7 +328,7 @@ class UsersHandler {
     }
 
     // ============================================
-    // === АВАТАРЫ (JSON версия) ===
+    // === АВАТАРЫ (JSON версия с сохранением в файл) ===
     // ============================================
 
     handleUpdateAvatar(token, data) {
@@ -373,39 +347,73 @@ class UsersHandler {
             return { success: false, message: 'Аватар не передан' };
         }
 
-        user.avatar = avatar;
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
-
-        console.log(`🖼️ Пользователь ${user.username} обновил аватар (JSON)`);
-
-        return {
-            success: true,
-            user: {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                email: user.email,
-                avatar: user.avatar,
-                cover: user.cover || null,
-                description: user.description,
-                coins: user.coins,
-                verified: user.verified,
-                isDeveloper: user.isDeveloper,
-                status: user.status,
-                lastSeen: user.lastSeen,
-                createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
-                postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+        try {
+            // Проверяем, что это Base64
+            if (avatar.length > 1000) {
+                // Это Base64 - сохраняем как файл
+                const base64Data = avatar.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                const isProduction = process.env.NODE_ENV === 'production';
+                const uploadDir = isProduction ? '/tmp/uploads/avatars' : path.join(process.cwd(), 'public/uploads/avatars');
+                
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true });
+                }
+                
+                const filename = `avatar_${user.id}_${Date.now()}.jpg`;
+                const filePath = path.join(uploadDir, filename);
+                fs.writeFileSync(filePath, buffer);
+                
+                const avatarUrl = `/uploads/avatars/${filename}`;
+                
+                // Удаляем старый аватар
+                if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
+                    const oldPath = path.join(uploadDir, path.basename(user.avatar));
+                    if (fs.existsSync(oldPath)) {
+                        fs.unlinkSync(oldPath);
+                    }
+                }
+                
+                user.avatar = avatarUrl;
+                this.dataManager.saveData();
+                
+                console.log(`🖼️ Аватар сохранен: ${avatarUrl}`);
+                
+                return {
+                    success: true,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        avatar: avatarUrl
+                    }
+                };
             }
-        };
+            
+            // Если это уже URL - сохраняем как есть
+            user.avatar = avatar;
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
+
+            return {
+                success: true,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    avatar: user.avatar
+                }
+            };
+        } catch (error) {
+            console.error('❌ Ошибка сохранения аватара:', error);
+            return { success: false, message: 'Ошибка сохранения аватара: ' + error.message };
+        }
     }
 
     // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ (JSON версия) ===
+    // === ОБЛОЖКА ПРОФИЛЯ (JSON версия с сохранением в файл) ===
     // ============================================
 
     handleUpdateCover(token, data) {
@@ -424,40 +432,68 @@ class UsersHandler {
             return { success: false, message: 'Обложка не передана' };
         }
 
-        // Проверяем размер Base64
-        if (cover.length > 2 * 1024 * 1024) {
-            return { success: false, message: 'Размер обложки не должен превышать 2 МБ' };
-        }
-
-        user.cover = cover;
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
-
-        console.log(`🖼️ Пользователь ${user.username} обновил обложку (JSON)`);
-
-        return {
-            success: true,
-            user: {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                email: user.email,
-                avatar: user.avatar,
-                cover: user.cover,
-                description: user.description,
-                coins: user.coins,
-                verified: user.verified,
-                isDeveloper: user.isDeveloper,
-                status: user.status,
-                lastSeen: user.lastSeen,
-                createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
-                postsCount: user.postsCount || 0,
-                giftsCount: user.giftsCount || 0,
-                banned: user.banned || false
+        try {
+            // Проверяем, что это Base64
+            if (cover.length > 1000) {
+                const base64Data = cover.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                const isProduction = process.env.NODE_ENV === 'production';
+                const uploadDir = isProduction ? '/tmp/uploads/covers' : path.join(process.cwd(), 'public/uploads/covers');
+                
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true });
+                }
+                
+                const filename = `cover_${user.id}_${Date.now()}.jpg`;
+                const filePath = path.join(uploadDir, filename);
+                fs.writeFileSync(filePath, buffer);
+                
+                const coverUrl = `/uploads/covers/${filename}`;
+                
+                // Удаляем старую обложку
+                if (user.cover && user.cover.startsWith('/uploads/covers/')) {
+                    const oldPath = path.join(uploadDir, path.basename(user.cover));
+                    if (fs.existsSync(oldPath)) {
+                        fs.unlinkSync(oldPath);
+                    }
+                }
+                
+                user.cover = coverUrl;
+                this.dataManager.saveData();
+                
+                console.log(`🖼️ Обложка сохранена: ${coverUrl}`);
+                
+                return {
+                    success: true,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        cover: coverUrl
+                    }
+                };
             }
-        };
+            
+            // Если это уже URL - сохраняем как есть
+            user.cover = cover;
+            this.dataManager.saveData();
+
+            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
+
+            return {
+                success: true,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.displayName,
+                    cover: user.cover
+                }
+            };
+        } catch (error) {
+            console.error('❌ Ошибка сохранения обложки:', error);
+            return { success: false, message: 'Ошибка сохранения обложки: ' + error.message };
+        }
     }
 
     async handleUploadAvatar(token, data) {
@@ -495,8 +531,6 @@ class UsersHandler {
             this.dataManager.saveData();
 
             this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
-
-            console.log(`🖼️ Пользователь ${user.username} загрузил аватар: ${filename}`);
 
             return {
                 success: true,
