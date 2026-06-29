@@ -9,7 +9,6 @@ class FileHandlers {
         this.securitySystem = securitySystem;
     }
 
-    // Базовая директория для загрузок
     getUploadBase() {
         const isProduction = process.env.NODE_ENV === 'production';
         return isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
@@ -24,7 +23,7 @@ class FileHandlers {
             image: this.validateImageFile.bind(this),
             video: this.validateVideoFile.bind(this),
             audio: this.validateAudioFile.bind(this),
-            cover: this.validateCoverFile.bind(this)  // ✅ ДОБАВЛЕНО
+            cover: this.validateCoverFile.bind(this)
         };
 
         return validators[fileType] ? validators[fileType](filename) : false;
@@ -33,6 +32,13 @@ class FileHandlers {
     validateAvatarFile(filename) {
         if (!filename) return false;
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        const ext = path.extname(filename).toLowerCase();
+        return allowedExtensions.includes(ext);
+    }
+
+    validateCoverFile(filename) {
+        if (!filename) return false;
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -51,13 +57,6 @@ class FileHandlers {
 
     validateMusicFile(filename) {
         const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
-        const ext = path.extname(filename).toLowerCase();
-        return allowedExtensions.includes(ext);
-    }
-
-    validateCoverFile(filename) {
-        if (!filename) return false;
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -95,7 +94,6 @@ class FileHandlers {
         return `/uploads/${folder}/${filename}`;
     }
 
-    // Удаление файла
     deleteFile(fileUrl) {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         const base = this.getUploadBase();
@@ -111,10 +109,6 @@ class FileHandlers {
             console.error('❌ Ошибка при удалении файла', filePath, e.message);
         }
     }
-
-    // ============================================
-    // === MULTIPART ОБРАБОТЧИКИ ===
-    // ============================================
 
     handleMultipartRequest(req, res, pathname) {
         const handlers = {
@@ -138,7 +132,6 @@ class FileHandlers {
         }
     }
 
-    // === AVATAR ===
     async handleUploadAvatarMultipart(req, res) {
         console.log('🖼️ Начало обработки загрузки аватара...');
         if (req.method === 'OPTIONS') {
@@ -258,7 +251,6 @@ class FileHandlers {
         }
     }
 
-    // === POST IMAGE ===
     async handleUploadPostImageMultipart(req, res) {
         console.log('📸 Начало обработки загрузки изображения для поста...');
         if (req.method === 'OPTIONS') {
@@ -362,7 +354,6 @@ class FileHandlers {
         }
     }
 
-    // === GENERIC FILE ===
     async handleUploadFileMultipart(req, res) {
         console.log('📎 Начало обработки загрузки файла...');
         if (req.method === 'OPTIONS') {
@@ -493,7 +484,6 @@ class FileHandlers {
         }
     }
 
-    // === GIFT UPLOAD ===
     async handleUploadGiftMultipart(req, res) {
         console.log('🎁 Начало обработки загрузки изображения подарка...');
         if (req.method === 'OPTIONS') {
@@ -597,7 +587,6 @@ class FileHandlers {
         }
     }
 
-    // === MUSIC FULL UPLOAD ===
     async handleUploadMusicFull(req, res) {
         console.log('🎵 Начало обработки загрузки музыки...');
         if (req.method === 'OPTIONS') {
@@ -756,7 +745,6 @@ class FileHandlers {
         }
     }
 
-    // === IMPORT DATABASE ===
     async handleImportDatabaseMultipart(req, res) {
         console.log('🔄 Начало обработки импорта базы данных...');
         if (req.method === 'OPTIONS') {
