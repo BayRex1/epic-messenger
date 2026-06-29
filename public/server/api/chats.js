@@ -15,7 +15,7 @@ class ChatsHandler {
     }
 
     // ============================================
-    // === ПОЛУЧЕНИЕ ЧАТОВ ===
+    // === ПОЛУЧЕНИЕ ЧАТОВ (С УДАЛЕНИЕМ ДУБЛИКАТОВ) ===
     // ============================================
 
     handleGetChats(token) {
@@ -25,6 +25,38 @@ class ChatsHandler {
         }
 
         try {
+            // ============================================
+            // === УДАЛЕНИЕ ДУБЛИКАТОВ ЧАТОВ ===
+            // ============================================
+            const uniqueChats = [];
+            const seen = new Set();
+            
+            for (const chat of this.dataManager.chats) {
+                let key;
+                if (!chat.isGroup) {
+                    const members = chat.members ? [...chat.members].sort() : [];
+                    key = members.join('-');
+                } else {
+                    key = chat.id;
+                }
+                
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueChats.push(chat);
+                } else {
+                    console.log(`🗑️ Удаляем дубликат чата: ${chat.id}`);
+                }
+            }
+            
+            if (uniqueChats.length !== this.dataManager.chats.length) {
+                this.dataManager.chats = uniqueChats;
+                this.dataManager.saveData();
+                console.log(`🧹 Очищено дублирующихся чатов`);
+            }
+            
+            // ============================================
+            // === ДАЛЬШЕ ОБЫЧНАЯ ЛОГИКА ===
+            // ============================================
             let chats = this.dataManager.chats || [];
             
             const userChats = chats.filter(chat => 
@@ -114,6 +146,7 @@ class ChatsHandler {
             console.log(`👤 Создан временный пользователь: ${targetUser.id} (${targetUser.username})`);
         }
 
+        // Проверяем существующий чат
         let existingChat = this.dataManager.chats.find(chat => 
             !chat.isGroup && 
             chat.members && 
@@ -200,6 +233,7 @@ class ChatsHandler {
                 console.log(`👤 Создан временный пользователь для сообщения: ${targetUser.id} (${targetUser.username})`);
             }
 
+            // Ищем существующий чат - сначала проверяем по участникам
             let chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
                 c.members && 
@@ -207,6 +241,16 @@ class ChatsHandler {
                 c.members.includes(toUserId)
             );
 
+            // Если чат не найден по участникам, ищем по targetUserId
+            if (!chat) {
+                chat = this.dataManager.chats.find(c => 
+                    !c.isGroup && 
+                    c.targetUserId === toUserId && 
+                    c.userId === user.id
+                );
+            }
+
+            // Если всё равно не найден - создаем
             if (!chat) {
                 chat = {
                     id: this.dataManager.generateId(),
