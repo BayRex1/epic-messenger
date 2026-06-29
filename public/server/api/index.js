@@ -75,7 +75,7 @@ class ApiHandler {
             } else if (pathname === '/api/update-avatar' && method === 'POST') {
                 response = this.users.handleUpdateAvatar(token, data);
             } else if (pathname === '/api/update-cover' && method === 'POST') {
-                response = this.users.handleUpdateCover(token, data);  // <--- ДОБАВЛЕНО
+                response = this.users.handleUpdateCover(token, data);
             } else if (pathname === '/api/preview-avatar' && method === 'POST') {
                 response = this.users.handlePreviewAvatar(token, data);
             } else if (pathname === '/api/debug-upload' && method === 'POST') {
@@ -85,7 +85,6 @@ class ApiHandler {
             } else if (pathname === '/api/ecoins/balance' && method === 'GET') {
                 response = this.users.handleGetBalance(token);
             } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                // Multipart загрузка аватара - обрабатывается в file-handlers
                 this.fileHandlers.handleUploadAvatarMultipart(req, res);
                 return;
             } else if (pathname.startsWith('/api/users/') && method === 'GET') {
