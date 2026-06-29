@@ -373,7 +373,6 @@ class UsersHandler {
             return { success: false, message: 'Аватар не передан' };
         }
 
-        // Если это Base64 - сохраняем как есть
         user.avatar = avatar;
         this.dataManager.saveData();
 
@@ -425,7 +424,11 @@ class UsersHandler {
             return { success: false, message: 'Обложка не передана' };
         }
 
-        // Если это Base64 - сохраняем как есть
+        // Проверяем размер Base64
+        if (cover.length > 2 * 1024 * 1024) {
+            return { success: false, message: 'Размер обложки не должен превышать 2 МБ' };
+        }
+
         user.cover = cover;
         this.dataManager.saveData();
 
@@ -441,7 +444,7 @@ class UsersHandler {
                 displayName: user.displayName,
                 email: user.email,
                 avatar: user.avatar,
-                cover: user.cover || null,
+                cover: user.cover,
                 description: user.description,
                 coins: user.coins,
                 verified: user.verified,
