@@ -34,7 +34,7 @@ class ChatsHandler {
             const chatsWithInfo = userChats.map(chat => {
                 let result = {
                     id: chat.id,
-                    userId: null,      // <--- БУДЕТ ЗАПОЛНЕН
+                    userId: null,
                     displayName: 'Пользователь',
                     avatar: '',
                     verified: false,
@@ -43,16 +43,16 @@ class ChatsHandler {
                     lastSeen: null,
                     isGroup: chat.isGroup || false,
                     unreadCount: 0,
-                    lastMessage: null
+                    lastMessage: null,
+                    createdAt: chat.createdAt || new Date()
                 };
 
                 if (!chat.isGroup && chat.members) {
-                    // Находим собеседника
                     const otherId = chat.members.find(id => id !== user.id);
                     if (otherId) {
                         const otherUser = this.dataManager.users.find(u => u.id === otherId);
                         if (otherUser) {
-                            result.userId = otherId;  // <--- ID пользователя для отправки
+                            result.userId = otherId;
                             result.displayName = otherUser.displayName || otherUser.username || 'Пользователь';
                             result.avatar = otherUser.avatar || '';
                             result.verified = otherUser.verified || false;
@@ -67,7 +67,6 @@ class ChatsHandler {
                     result.avatar = chat.avatar || '';
                 }
                 
-                // Находим последнее сообщение
                 const messages = this.dataManager.messages.filter(m => 
                     m.chatId === chat.id
                 ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -80,7 +79,6 @@ class ChatsHandler {
                 return result;
             });
 
-            // Сортируем по времени последнего сообщения
             chatsWithInfo.sort((a, b) => {
                 const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
                 const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
@@ -127,7 +125,15 @@ class ChatsHandler {
             return {
                 success: true,
                 chatId: existingChat.id,
-                chat: existingChat
+                chat: existingChat,
+                user: {
+                    id: targetUser.id,
+                    displayName: targetUser.displayName,
+                    avatar: targetUser.avatar,
+                    verified: targetUser.verified,
+                    isDeveloper: targetUser.isDeveloper,
+                    status: targetUser.status
+                }
             };
         }
 
@@ -155,7 +161,15 @@ class ChatsHandler {
         return {
             success: true,
             chatId: newChat.id,
-            chat: newChat
+            chat: newChat,
+            user: {
+                id: targetUser.id,
+                displayName: targetUser.displayName,
+                avatar: targetUser.avatar,
+                verified: targetUser.verified,
+                isDeveloper: targetUser.isDeveloper,
+                status: targetUser.status
+            }
         };
     }
 
@@ -213,6 +227,31 @@ class ChatsHandler {
                 console.log(`💬 Автоматически создан чат между ${user.displayName} и ${targetUser.displayName}`);
             }
 
+            let fileUrl = null;
+            if (file && fileName && fileType) {
+                const fileExt = path.extname(fileName) || this.getFileExtension(fileType);
+                const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
+                let uploadDir = 'files';
+                
+                if (fileType === 'image') uploadDir = 'images';
+                else if (fileType === 'video') uploadDir = 'videos';
+                else if (fileType === 'audio') uploadDir = 'audio';
+                
+                const isProduction = process.env.NODE_ENV === 'production';
+                const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
+                const dir = path.join(baseDir, uploadDir);
+                
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                
+                const filePath = path.join(dir, uniqueFilename);
+                const base64Data = file.replace(/^data:[^;]+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                fs.writeFileSync(filePath, buffer);
+                fileUrl = `/uploads/${uploadDir}/${uniqueFilename}`;
+            }
+
             const message = {
                 id: this.dataManager.generateId(),
                 chatId: chat.id,
@@ -220,9 +259,9 @@ class ChatsHandler {
                 receiverId: toUserId,
                 text: text ? this.securitySystem.sanitizeContent(text) : null,
                 type: type,
-                file: file || null,
-                fileName: fileName || null,
-                fileType: fileType || null,
+                file: fileUrl,
+                fileName: fileName,
+                fileType: fileType,
                 timestamp: new Date(),
                 read: false,
                 readBy: []
@@ -239,7 +278,20 @@ class ChatsHandler {
 
             console.log(`💬 Пользователь ${user.displayName} отправил сообщение пользователю ${targetUser.displayName}`);
 
-            return { success: true, message: message };
+            return { 
+                success: true, 
+                message: message,
+                chat: {
+                    id: chat.id,
+                    userId: toUserId,
+                    displayName: targetUser.displayName || targetUser.username || 'Пользователь',
+                    avatar: targetUser.avatar || '',
+                    verified: targetUser.verified || false,
+                    isDeveloper: targetUser.isDeveloper || false,
+                    status: targetUser.status || 'offline',
+                    unreadCount: chat.unreadCount
+                }
+            };
         } catch (error) {
             console.error('❌ Ошибка отправки сообщения:', error);
             return { success: false, message: 'Ошибка отправки сообщения: ' + error.message };
@@ -296,6 +348,10 @@ class ChatsHandler {
         }
     }
 
+    // ============================================
+    // === ОТМЕТКА ПРОЧИТАННЫХ ===
+    // ============================================
+
     handleMarkAsRead(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -332,6 +388,10 @@ class ChatsHandler {
         }
     }
 
+    // ============================================
+    // === РЕДАКТИРОВАНИЕ СООБЩЕНИЯ ===
+    // ============================================
+
     handleEditMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -358,6 +418,10 @@ class ChatsHandler {
 
         return { success: true, message: 'Сообщение отредактировано' };
     }
+
+    // ============================================
+    // === УДАЛЕНИЕ СООБЩЕНИЯ ===
+    // ============================================
 
     handleDeleteMessage(token, data) {
         const user = this.authenticateToken(token);
