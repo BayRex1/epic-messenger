@@ -17,7 +17,7 @@ class DataManager {
     }
 
     ensureUploadDirs() {
-        const fs = require('fs');
+        const fsSync = require('fs');
         const path = require('path');
         
         const baseDir = process.env.NODE_ENV === 'production' ? 
@@ -26,13 +26,13 @@ class DataManager {
         
         const dirs = [
             'avatars', 'posts', 'gifts', 'music', 'music/covers',
-            'images', 'videos', 'audio', 'files'
+            'images', 'videos', 'audio', 'files', 'covers'
         ];
         
         dirs.forEach(dir => {
             const fullPath = path.join(baseDir, dir);
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
+            if (!fsSync.existsSync(fullPath)) {
+                fsSync.mkdirSync(fullPath, { recursive: true });
                 console.log(`✅ Created upload directory: ${fullPath}`);
             }
         });
@@ -53,7 +53,7 @@ class DataManager {
                 this.music = data.music || [];
                 this.playlists = data.playlists || [];
                 this.groups = data.groups || [];
-                this.chats = data.chats || [];  // <--- ДОБАВЛЕНО
+                this.chats = data.chats || [];
                 this.bannedIPs = new Map(Object.entries(data.bannedIPs || {}));
                 this.devices = new Map(Object.entries(data.devices || {}));
                 this.maintenanceMode = data.maintenanceMode || false;
@@ -78,26 +78,13 @@ class DataManager {
         this.messages.forEach(msg => msg.timestamp = new Date(msg.timestamp));
         this.posts.forEach(post => post.createdAt = new Date(post.createdAt));
         this.users.forEach(user => {
-            if (user.lastSeen) user.lastSeen = new Date(user.lastSeen);
-            if (user.createdAt) user.createdAt = new Date(user.createdAt);
+            user.lastSeen = new Date(user.lastSeen);
+            user.createdAt = new Date(user.createdAt);
         });
         this.music.forEach(track => track.createdAt = new Date(track.createdAt));
         this.playlists.forEach(playlist => playlist.createdAt = new Date(playlist.createdAt));
         this.groups.forEach(group => group.createdAt = new Date(group.createdAt));
         this.chats.forEach(chat => chat.createdAt = new Date(chat.createdAt));
-        
-        this.posts.forEach(post => {
-            if (post.comments) {
-                post.comments.forEach(comment => {
-                    comment.createdAt = new Date(comment.createdAt);
-                    if (comment.replies) {
-                        comment.replies.forEach(reply => {
-                            reply.createdAt = new Date(reply.createdAt);
-                        });
-                    }
-                });
-            }
-        });
     }
 
     saveData() {
@@ -111,7 +98,7 @@ class DataManager {
                 music: this.music,
                 playlists: this.playlists,
                 groups: this.groups,
-                chats: this.chats,  // <--- ДОБАВЛЕНО
+                chats: this.chats,
                 bannedIPs: Object.fromEntries(this.bannedIPs),
                 devices: Object.fromEntries(this.devices),
                 maintenanceMode: this.maintenanceMode,
@@ -126,41 +113,9 @@ class DataManager {
     }
 
     initializeData() {
-        // ============================================
-        // === ПОЛЬЗОВАТЕЛИ ===
-        // ============================================
-        this.users = [
-            {
-                id: 'system',
-                username: 'epic',
-                displayName: 'Epic Messenger',
-                email: 'system@epic-messenger.com',
-                password: this.encrypt('system123'),
-                avatar: '',
-                cover: null,
-                description: 'Официальный аккаунт Epic Messenger',
-                coins: 0,
-                verified: true,
-                isDeveloper: true,
-                isAdmin: true,
-                status: 'online',
-                lastSeen: new Date(),
-                createdAt: new Date(),
-                sessionId: null,
-                gifts: [],
-                isProtected: true,
-                friendsCount: 0,
-                postsCount: 0,
-                giftsCount: 0,
-                banned: false,
-                followers: [],
-                following: []
-            }
-        ];
+        this.users = [];
+        this.chats = [];
 
-        // ============================================
-        // === ПОДАРКИ ===
-        // ============================================
         this.gifts = [
             {
                 id: '1',
@@ -188,9 +143,6 @@ class DataManager {
             }
         ];
 
-        // ============================================
-        // === ПРОМОКОДЫ ===
-        // ============================================
         this.promoCodes = [
             {
                 id: '1',
@@ -202,9 +154,6 @@ class DataManager {
             }
         ];
 
-        // ============================================
-        // === ПОСТЫ ===
-        // ============================================
         this.posts = [
             {
                 id: '1',
@@ -230,32 +179,15 @@ class DataManager {
             }
         ];
 
-        // ============================================
-        // === ЧАТЫ ===
-        // ============================================
-        this.chats = [];
-
-        // ============================================
-        // === СООБЩЕНИЯ ===
-        // ============================================
-        this.messages = [];
-
-        // ============================================
-        // === МУЗЫКА, ПЛЕЙЛИСТЫ, ГРУППЫ ===
-        // ============================================
         this.music = [];
         this.playlists = [];
         this.groups = [];
-
-        // ============================================
-        // === БАНЫ И УСТРОЙСТВА ===
-        // ============================================
+        this.messages = [];
         this.bannedIPs = new Map();
         this.devices = new Map();
         this.maintenanceMode = false;
         
         this.saveData();
-        console.log('✅ Инициализированы пустые данные');
     }
 
     generateId() {
