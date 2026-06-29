@@ -15,7 +15,7 @@ class ChatsHandler {
     }
 
     // ============================================
-    // === ПОЛУЧЕНИЕ ЧАТОВ (С УДАЛЕНИЕМ ДУБЛИКАТОВ) ===
+    // === ПОЛУЧЕНИЕ ЧАТОВ ===
     // ============================================
 
     handleGetChats(token) {
@@ -26,32 +26,38 @@ class ChatsHandler {
 
         try {
             // ============================================
-            // === УДАЛЕНИЕ ДУБЛИКАТОВ ЧАТОВ ===
+            // === УДАЛЕНИЕ ПУСТЫХ И ДУБЛИРУЮЩИХСЯ ЧАТОВ ===
             // ============================================
-            const uniqueChats = [];
-            const seen = new Set();
+            const chatsToRemove = [];
+            const seenMembers = new Set();
             
             for (const chat of this.dataManager.chats) {
-                let key;
-                if (!chat.isGroup) {
-                    const members = chat.members ? [...chat.members].sort() : [];
-                    key = members.join('-');
-                } else {
-                    key = chat.id;
+                // Проверяем есть ли сообщения
+                const messages = this.dataManager.messages.filter(m => m.chatId === chat.id);
+                
+                // Если нет сообщений - удаляем
+                if (messages.length === 0) {
+                    chatsToRemove.push(chat.id);
+                    continue;
                 }
                 
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    uniqueChats.push(chat);
-                } else {
-                    console.log(`🗑️ Удаляем дубликат чата: ${chat.id}`);
+                // Проверяем дубликаты по участникам
+                if (!chat.isGroup && chat.members) {
+                    const key = [...chat.members].sort().join('-');
+                    if (seenMembers.has(key)) {
+                        chatsToRemove.push(chat.id);
+                    } else {
+                        seenMembers.add(key);
+                    }
                 }
             }
             
-            if (uniqueChats.length !== this.dataManager.chats.length) {
-                this.dataManager.chats = uniqueChats;
+            if (chatsToRemove.length > 0) {
+                this.dataManager.chats = this.dataManager.chats.filter(
+                    c => !chatsToRemove.includes(c.id)
+                );
                 this.dataManager.saveData();
-                console.log(`🧹 Очищено дублирующихся чатов`);
+                console.log(`🗑️ Удалено ${chatsToRemove.length} пустых/дублирующихся чатов`);
             }
             
             // ============================================
@@ -229,47 +235,33 @@ class ChatsHandler {
         try {
             let targetUser = this.dataManager.users.find(u => u.id === toUserId);
             if (!targetUser) {
-                targetUser = this.createTempUser(toUserId);
-                console.log(`👤 Создан временный пользователь для сообщения: ${targetUser.id} (${targetUser.username})`);
+                // ВАЖНО: НЕ создаем нового пользователя!
+                return { success: false, message: 'Пользователь не найден' };
             }
 
-            // Ищем существующий чат - сначала проверяем по участникам
-            let chat = this.dataManager.chats.find(c => 
+            // ============================================
+            // === ПОИСК ЧАТА ПО УЧАСТНИКАМ ===
+            // ============================================
+            let chat = null;
+            
+            // Ищем по members
+            chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
                 c.members && 
                 c.members.includes(user.id) && 
                 c.members.includes(toUserId)
             );
-
-            // Если чат не найден по участникам, ищем по targetUserId
+            
+            // Если не нашли - ОШИБКА! Не создаем новый чат!
             if (!chat) {
-                chat = this.dataManager.chats.find(c => 
-                    !c.isGroup && 
-                    c.targetUserId === toUserId && 
-                    c.userId === user.id
-                );
-            }
-
-            // Если всё равно не найден - создаем
-            if (!chat) {
-                chat = {
-                    id: this.dataManager.generateId(),
-                    isGroup: false,
-                    userId: user.id,
-                    targetUserId: toUserId,
-                    displayName: targetUser.displayName || targetUser.username || 'Пользователь',
-                    avatar: targetUser.avatar || '',
-                    verified: targetUser.verified || false,
-                    isDeveloper: targetUser.isDeveloper || false,
-                    status: targetUser.status || 'offline',
-                    members: [user.id, toUserId],
-                    createdAt: new Date(),
-                    lastMessage: null,
-                    unreadCount: 0
+                console.error(`❌ Чат между ${user.id} и ${toUserId} не найден!`);
+                return { 
+                    success: false, 
+                    message: 'Чат не найден. Создайте чат через /api/chats/start' 
                 };
-                this.dataManager.chats.push(chat);
-                console.log(`💬 Автоматически создан чат между ${user.displayName} и ${targetUser.displayName}`);
             }
+
+            console.log(`✅ Найден чат: ${chat.id} между ${user.displayName} и ${targetUser.displayName}`);
 
             let fileUrl = null;
             if (file && fileName && fileType) {
