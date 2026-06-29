@@ -236,12 +236,27 @@ function renderChats(chats) {
 }
 
 function selectChat(chat) {
-    window.currentChat = chat;
+    // Сохраняем userId для отправки сообщений
+    window.currentChat = {
+        id: chat.id,
+        userId: chat.userId || chat.id,  // <--- ВАЖНО! Сохраняем userId
+        displayName: chat.displayName,
+        avatar: chat.avatar,
+        verified: chat.verified,
+        isDeveloper: chat.isDeveloper,
+        status: chat.status,
+        lastSeen: chat.lastSeen,
+        isGroup: chat.isGroup,
+        unreadCount: chat.unreadCount,
+        lastMessage: chat.lastMessage,
+        memberCount: chat.memberCount
+    };
     
     console.log('💬 Выбран чат:', {
-        id: chat.id,
-        name: chat.displayName,
-        isGroup: chat.isGroup
+        id: window.currentChat.id,
+        userId: window.currentChat.userId,
+        name: window.currentChat.displayName,
+        isGroup: window.currentChat.isGroup
     });
     
     const currentChatName = document.getElementById('currentChatName');
@@ -285,7 +300,6 @@ function selectChat(chat) {
     }
     
     loadChatMessages(chat.id);
-    
     loadChats();
 }
 
@@ -470,6 +484,10 @@ function renderNewMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// ============================================
+// === ОТПРАВКА СООБЩЕНИЯ (ИСПРАВЛЕНО) ===
+// ============================================
+
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
@@ -487,8 +505,12 @@ async function sendMessage() {
     try {
         const token = localStorage.getItem('authToken');
         
+        // ============ ИСПРАВЛЕНО ============
+        // Используем userId для отправки, а не chatId
+        const toUserId = window.currentChat.userId || window.currentChat.id;
+        
         let requestData = {
-            toUserId: window.currentChat.id,
+            toUserId: toUserId,  // <--- ИСПРАВЛЕНО
             text: text,
             type: 'text'
         };
@@ -502,7 +524,7 @@ async function sendMessage() {
         }
 
         console.log('📤 Отправка сообщения:', {
-            toUserId: window.currentChat.id,
+            toUserId: toUserId,
             isGroup: window.currentChat.isGroup,
             hasFile: !!window.currentFileData,
             text: text
@@ -765,6 +787,7 @@ function renderUserSearchResultsForChat(users) {
 function startNewChat(user) {
     const chat = {
         id: user.id,
+        userId: user.id,  // <--- ВАЖНО! Сохраняем userId
         displayName: user.displayName || 'Пользователь',
         avatar: user.avatar,
         verified: user.verified,
@@ -939,6 +962,7 @@ async function createNewGroup() {
             
             const groupChat = {
                 id: data.group.id,
+                userId: data.group.id,  // <--- ВАЖНО! Для группы userId = groupId
                 displayName: data.group.name,
                 avatar: data.group.avatar,
                 isGroup: true,
@@ -959,6 +983,14 @@ async function createNewGroup() {
         console.error('❌ Ошибка создания группы:', error);
         showNotification('Ошибка создания группы', 'error');
     }
+}
+
+function processMentions(text) {
+    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+}
+
+function openImageModal(imageUrl) {
+    console.log('Открытие изображения:', imageUrl);
 }
 
 async function initializeChat() {
@@ -1094,14 +1126,6 @@ function handleFileSelect(file) {
     };
     
     reader.readAsDataURL(file);
-}
-
-function processMentions(text) {
-    return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
-}
-
-function openImageModal(imageUrl) {
-    console.log('Открытие изображения:', imageUrl);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
