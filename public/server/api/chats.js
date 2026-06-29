@@ -25,17 +25,13 @@ class ChatsHandler {
         }
 
         try {
-            // Сначала получаем чаты из массива
             let chats = this.dataManager.chats || [];
             
-            // Фильтруем чаты для текущего пользователя
             const userChats = chats.filter(chat => 
                 chat.members && chat.members.includes(user.id)
             );
 
-            // Добавляем информацию о пользователях и последние сообщения
             const chatsWithInfo = userChats.map(chat => {
-                // Находим собеседника для личного чата
                 if (!chat.isGroup && chat.members) {
                     const otherId = chat.members.find(id => id !== user.id);
                     if (otherId) {
@@ -50,7 +46,6 @@ class ChatsHandler {
                     }
                 }
                 
-                // Находим последнее сообщение
                 const messages = this.dataManager.messages.filter(m => 
                     m.chatId === chat.id
                 ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -63,7 +58,6 @@ class ChatsHandler {
                 return chat;
             });
 
-            // Сортируем по времени последнего сообщения
             chatsWithInfo.sort((a, b) => {
                 const dateA = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
                 const dateB = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
@@ -93,12 +87,13 @@ class ChatsHandler {
             return { success: false, message: 'User ID не указан' };
         }
 
-        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        let targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
+            // Создаем пользователя, если его нет
+            targetUser = this.createTempUser(userId);
+            console.log(`👤 Создан временный пользователь: ${targetUser.id} (${targetUser.username})`);
         }
 
-        // Проверяем есть ли уже чат
         let existingChat = this.dataManager.chats.find(chat => 
             !chat.isGroup && 
             chat.members && 
@@ -114,7 +109,6 @@ class ChatsHandler {
             };
         }
 
-        // Создаем новый чат
         const newChat = {
             id: this.dataManager.generateId(),
             isGroup: false,
@@ -164,10 +158,11 @@ class ChatsHandler {
         }
 
         try {
-            // Проверяем получателя
-            const targetUser = this.dataManager.users.find(u => u.id === toUserId);
+            // Проверяем получателя - создаем если нет
+            let targetUser = this.dataManager.users.find(u => u.id === toUserId);
             if (!targetUser) {
-                return { success: false, message: 'Пользователь не найден' };
+                targetUser = this.createTempUser(toUserId);
+                console.log(`👤 Создан временный пользователь для сообщения: ${targetUser.id} (${targetUser.username})`);
             }
 
             // Ищем существующий чат
@@ -235,6 +230,42 @@ class ChatsHandler {
     }
 
     // ============================================
+    // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
+    // ============================================
+
+    createTempUser(userId) {
+        const username = 'user_' + userId.substring(0, 8);
+        const user = {
+            id: userId,
+            username: username,
+            displayName: 'Пользователь',
+            email: username + '@temp.com',
+            password: this.dataManager.encrypt('temp123'),
+            avatar: '',
+            cover: null,
+            description: 'Временный пользователь',
+            coins: 0,
+            verified: false,
+            isDeveloper: false,
+            status: 'offline',
+            lastSeen: new Date(),
+            createdAt: new Date(),
+            sessionId: null,
+            gifts: [],
+            isProtected: false,
+            friendsCount: 0,
+            postsCount: 0,
+            giftsCount: 0,
+            banned: false,
+            followers: [],
+            following: []
+        };
+        this.dataManager.users.push(user);
+        this.dataManager.saveData();
+        return user;
+    }
+
+    // ============================================
     // === ПОЛУЧЕНИЕ СООБЩЕНИЙ ===
     // ============================================
 
@@ -250,7 +281,6 @@ class ChatsHandler {
         }
 
         try {
-            // Находим чат
             const chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
                 c.members && 
@@ -262,12 +292,10 @@ class ChatsHandler {
                 return { success: false, message: 'Чат не найден' };
             }
 
-            // Получаем сообщения
             const messages = this.dataManager.messages
                 .filter(m => m.chatId === chat.id)
                 .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-            // Помечаем как прочитанные
             messages.forEach(msg => {
                 if (msg.senderId !== user.id && !msg.read) {
                     msg.read = true;
@@ -376,6 +404,10 @@ class ChatsHandler {
 
         return { success: true, message: 'Сообщение удалено' };
     }
+
+    // ============================================
+    // === ГРУППЫ ===
+    // ============================================
 
     handleCreateGroup(token, data) {
         const user = this.authenticateToken(token);
