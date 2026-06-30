@@ -211,7 +211,7 @@ class ChatsHandler {
             }
 
             // ============================================
-            // ★★★ ИСПРАВЛЕНО: ИЩЕМ СУЩЕСТВУЮЩИЙ ЧАТ ★★★
+            // ★★★ ИЩЕМ СУЩЕСТВУЮЩИЙ ЧАТ ★★★
             // ============================================
             let chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
@@ -220,13 +220,20 @@ class ChatsHandler {
                 c.members.includes(toUserId)
             );
 
-            // ★★★ НЕ СОЗДАЕМ НОВЫЙ ЧАТ! ★★★
+            // ★★★ ЕСЛИ ЧАТА НЕТ - СОЗДАЕМ ЕГО ★★★
             if (!chat) {
-                console.error(`❌ Чат между ${user.id} и ${toUserId} не найден!`);
-                return { 
-                    success: false, 
-                    message: 'Чат не найден. Создайте чат через /api/chats/start' 
+                console.log(`⚠️ Чат между ${user.id} и ${toUserId} не найден, создаем новый...`);
+                chat = {
+                    id: this.dataManager.generateId(),
+                    isGroup: false,
+                    members: [user.id, toUserId],
+                    createdAt: new Date(),
+                    lastMessage: null,
+                    unreadCount: 0
                 };
+                this.dataManager.chats.push(chat);
+                this.dataManager.saveData();
+                console.log(`✅ Создан новый чат: ${chat.id}`);
             }
 
             console.log(`✅ Найден чат: ${chat.id} между ${user.displayName} и ${targetUser.displayName}`);
@@ -328,7 +335,8 @@ class ChatsHandler {
             );
 
             if (!chat) {
-                return { success: false, message: 'Чат не найден' };
+                console.log(`⚠️ Чат между ${user.id} и ${userId} не найден`);
+                return { success: true, messages: [] };
             }
 
             // Получаем сообщения ТОЛЬКО для этого чата
