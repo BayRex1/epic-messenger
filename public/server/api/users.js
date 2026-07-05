@@ -34,7 +34,6 @@ class UsersHandler {
         user.lastSeen = new Date();
         this.dataManager.saveData();
 
-        // ★★★ ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET ★★★
         if (this.wsServer) {
             this.wsServer.broadcast('user_status', {
                 userId: user.id,
