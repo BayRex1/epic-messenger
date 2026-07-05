@@ -49,23 +49,41 @@ class UsersHandler {
     }
 
     // ============================================
-    // ★★★ ПОЛУЧЕНИЕ СТАТУСА (БЕЗ ПРОВЕРКИ ПРАВ) ★★★
+    // ★★★ ПОЛУЧЕНИЕ СТАТУСА (ПУБЛИЧНЫЙ - БЕЗ ТОКЕНА) ★★★
     // ============================================
 
-    handleGetStatus(token, userId) {
-        // Проверяем авторизацию
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        // Ищем пользователя
+    handleGetStatusPublic(userId) {
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        // ★★★ ВОЗВРАЩАЕМ СТАТУС БЕЗ ПРОВЕРКИ ПРАВ ★★★
+        return { 
+            success: true, 
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                status: targetUser.status || 'offline',
+                lastSeen: targetUser.lastSeen
+            }
+        };
+    }
+
+    // ============================================
+    // ★★★ ПОЛУЧЕНИЕ СТАТУСА (С ТОКЕНОМ) ★★★
+    // ============================================
+
+    handleGetStatus(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
         return { 
             success: true, 
             user: {
