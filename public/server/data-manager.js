@@ -60,6 +60,19 @@ class DataManager {
                 
                 this.restoreDates();
                 
+                console.log(`\n📊 ===== СТАТИСТИКА ДАННЫХ =====`);
+                console.log(`👥 Пользователей: ${this.users.length}`);
+                console.log(`💬 Чатов: ${this.chats.length}`);
+                console.log(`📨 Сообщений: ${this.messages.length}`);
+                console.log(`📝 Постов: ${this.posts.length}`);
+                console.log(`🎵 Треков: ${this.music.length}`);
+                console.log(`🎁 Подарков: ${this.gifts.length}`);
+                console.log(`🏷️ Промокодов: ${this.promoCodes.length}`);
+                console.log(`🚫 Забаненных IP: ${this.bannedIPs.size}`);
+                console.log(`📱 Устройств: ${this.devices.size}`);
+                console.log(`🔧 Режим техработ: ${this.maintenanceMode ? 'ВКЛЮЧЕН' : 'выключен'}`);
+                console.log(`================================\n`);
+                
                 console.log('✅ Данные загружены из файла');
                 console.log(`📊 Статистика: ${this.users.length} пользователей, ${this.messages.length} сообщений, ${this.posts.length} постов, ${this.chats.length} чатов`);
                 console.log(`🔧 Режим технических работ: ${this.maintenanceMode ? 'ВКЛЮЧЕН' : 'выключен'}`);
@@ -115,6 +128,7 @@ class DataManager {
     initializeData() {
         this.users = [];
         this.chats = [];
+        this.messages = [];
 
         this.gifts = [
             {
@@ -123,7 +137,8 @@ class DataManager {
                 type: 'crown',
                 preview: '👑',
                 price: 500,
-                image: null
+                image: null,
+                createdAt: new Date()
             },
             {
                 id: '2',
@@ -131,7 +146,8 @@ class DataManager {
                 type: 'heart',
                 preview: '❤️',
                 price: 100,
-                image: null
+                image: null,
+                createdAt: new Date()
             },
             {
                 id: '3',
@@ -139,7 +155,8 @@ class DataManager {
                 type: 'star',
                 preview: '⭐',
                 price: 200,
-                image: null
+                image: null,
+                createdAt: new Date()
             }
         ];
 
@@ -188,6 +205,7 @@ class DataManager {
         this.maintenanceMode = false;
         
         this.saveData();
+        console.log('✅ Инициализированы пустые данные');
     }
 
     generateId() {
