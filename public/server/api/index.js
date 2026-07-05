@@ -27,6 +27,12 @@ class ApiHandler {
         this.emoji = new EmojiHandler(dataManager, securitySystem, fileHandlers, this.auth);
 
         this.authenticateToken = this.authenticateToken.bind(this);
+        this.wsServer = null;
+    }
+
+    setWebSocketServer(wsServer) {
+        this.wsServer = wsServer;
+        this.users.setWebSocketServer(wsServer);
     }
 
     authenticateToken(token) {
@@ -92,6 +98,15 @@ class ApiHandler {
                 if (userId) {
                     response = this.users.handleGetUser(token, userId);
                 }
+            
+            // ★★★ СТАТУС ★★★
+            } else if (pathname === '/api/users/status' && method === 'POST') {
+                response = this.users.handleSetStatus(token, data);
+            } else if (pathname.startsWith('/api/users/') && pathname.endsWith('/status') && method === 'GET') {
+                const userId = pathname.split('/')[3];
+                response = this.users.handleGetStatus(token, userId);
+            } else if (pathname === '/api/users/last-seen' && method === 'POST') {
+                response = this.users.handleUpdateLastSeen(token);
 
             // ============================================
             // === ПОСТЫ ===
@@ -185,6 +200,10 @@ class ApiHandler {
                 response = this.chats.handleJoinGroup(token, data);
             } else if (pathname === '/api/groups/leave' && method === 'POST') {
                 response = this.chats.handleLeaveGroup(token, data);
+            } else if (pathname === '/api/messages/unread' && method === 'GET') {
+                response = this.getUnreadMessages(token);
+            } else if (pathname === '/api/messages/check' && method === 'GET') {
+                response = this.checkNewMessages(token);
 
             // ============================================
             // === ПОДАРКИ ===
@@ -277,7 +296,7 @@ class ApiHandler {
             } else if (pathname === '/api/admin/security-logs' && method === 'GET') {
                 response = this.admin.handleAdminSecurityLogs(token);
             } else if (pathname === '/api/admin/export-database' && method === 'GET') {
-                response = this.admin.handleExportDatabase(token, res);
+                this.admin.handleExportDatabase(token, res);
                 return;
             } else if (pathname === '/api/admin/import-database' && method === 'POST') {
                 this.fileHandlers.handleImportDatabaseMultipart(req, res);
@@ -320,31 +339,6 @@ class ApiHandler {
                 response = this.auth.handleCurrentUser(token, req);
 
             // ============================================
-            // === ЗАГРУЗКА ФАЙЛОВ (multipart) ===
-            // ============================================
-            } else if (pathname === '/api/upload-avatar' && method === 'POST') {
-                this.fileHandlers.handleUploadAvatarMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-post-image' && method === 'POST') {
-                this.fileHandlers.handleUploadPostImageMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-gift' && method === 'POST') {
-                this.fileHandlers.handleUploadGiftMultipart(req, res);
-                return;
-            } else if (pathname === '/api/upload-file' && method === 'POST') {
-                this.fileHandlers.handleUploadFileMultipart(req, res);
-                return;
-
-            // ============================================
-            // === ТРАНЗАКЦИИ ===
-            // ============================================
-            } else if (pathname.startsWith('/api/user/') && pathname.includes('/transactions')) {
-                const userId = pathname.split('/')[3];
-                if (method === 'GET') {
-                    response = this.users.handleGetTransactions(token, userId);
-                }
-
-            // ============================================
             // === ЕСЛИ НИЧЕГО НЕ ПОДОШЛО ===
             // ============================================
             } else {
@@ -371,6 +365,34 @@ class ApiHandler {
         
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
+    }
+
+    // ★★★ ПРОВЕРКА НОВЫХ СООБЩЕНИЙ ★★★
+    checkNewMessages(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const newMessages = this.dataManager.messages.filter(m => 
+            m.receiverId === user.id && !m.read
+        );
+
+        return { success: true, messages: newMessages };
+    }
+
+    // ★★★ НЕПРОЧИТАННЫЕ СООБЩЕНИЯ ★★★
+    getUnreadMessages(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const unreadMessages = this.dataManager.messages.filter(m => 
+            m.receiverId === user.id && !m.read
+        );
+
+        return { success: true, messages: unreadMessages };
     }
 }
 
