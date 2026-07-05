@@ -28,6 +28,7 @@ class WebSocketServer {
         const client = {
             id: clientId,
             socket: socket,
+            userId: null,
             rooms: new Set()
         };
         
@@ -82,12 +83,52 @@ class WebSocketServer {
                 const message = this.decodeMessage(data);
                 if (message && message.type && message.data) {
                     console.log(`📨 WebSocket сообщение от ${clientId}:`, message.type);
+                    
+                    // ★★★ ОБРАБОТКА HELLO (СОХРАНЯЕМ USER ID) ★★★
+                    if (message.type === 'hello' && message.data.token) {
+                        const token = message.data.token;
+                        const user = this.authenticateToken(token);
+                        if (user) {
+                            const client = this.clients.get(clientId);
+                            if (client) {
+                                client.userId = user.id;
+                                console.log(`🔗 Пользователь ${user.username} подключился к WebSocket`);
+                                
+                                // ★★★ ОТПРАВЛЯЕМ СТАТУС ONLINE ★★★
+                                user.status = 'online';
+                                user.lastSeen = new Date();
+                                this.dataManager.saveData();
+                                
+                                this.broadcast('user_status', {
+                                    userId: user.id,
+                                    username: user.username,
+                                    status: 'online',
+                                    lastSeen: user.lastSeen
+                                });
+                            }
+                        }
+                        return;
+                    }
+                    
                     this.broadcast(message.type, message.data, clientId);
                 }
             }
             
         } catch (error) {
             console.log('❌ Ошибка обработки WebSocket сообщения:', error);
+        }
+    }
+
+    // ★★★ АУТЕНТИФИКАЦИЯ ТОКЕНА ★★★
+    authenticateToken(token) {
+        if (!token) return null;
+        try {
+            const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+            const userId = decoded.userId;
+            const user = this.dataManager.users.find(u => u.id === userId);
+            return user || null;
+        } catch (error) {
+            return null;
         }
     }
 
@@ -170,14 +211,14 @@ class WebSocketServer {
             }
             
             const header = Buffer.concat([
-                Buffer.from([0x81, payloadLengthByte]), // 0x81 = FIN + текстовый фрейм
+                Buffer.from([0x81, payloadLengthByte]),
                 lengthBytes
             ]);
             
             return Buffer.concat([header, jsonBuffer]);
         } catch (error) {
             console.log('❌ Ошибка кодирования WebSocket сообщения:', error);
-            return Buffer.from([0x81, 0x00]); // Пустой фрейм в случае ошибки
+            return Buffer.from([0x81, 0x00]);
         }
     }
 
@@ -206,6 +247,7 @@ class WebSocketServer {
         }
     }
 
+    // ★★★ BROADCAST ★★★
     broadcast(type, data, excludeClientId = null) {
         for (const [clientId, client] of this.clients) {
             if (clientId !== excludeClientId) {
