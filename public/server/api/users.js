@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 class UsersHandler {
     constructor(dataManager, securitySystem, fileHandlers, authHandler) {
@@ -7,6 +8,11 @@ class UsersHandler {
         this.securitySystem = securitySystem;
         this.fileHandlers = fileHandlers;
         this.authHandler = authHandler;
+        this.wsServer = null;
+    }
+
+    setWebSocketServer(wsServer) {
+        this.wsServer = wsServer;
     }
 
     authenticateToken(token) {
@@ -14,7 +20,79 @@ class UsersHandler {
     }
 
     // ============================================
-    // === ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЕЙ ===
+    // ★★★ УСТАНОВКА СТАТУСА ★★★
+    // ============================================
+
+    handleSetStatus(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { status } = data;
+        user.status = status || 'offline';
+        user.lastSeen = new Date();
+        this.dataManager.saveData();
+
+        // ★★★ ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET ★★★
+        if (this.wsServer) {
+            this.wsServer.broadcast('user_status', {
+                userId: user.id,
+                username: user.username,
+                status: user.status,
+                lastSeen: user.lastSeen
+            });
+        }
+
+        console.log(`📡 Пользователь ${user.username} ${status === 'online' ? 'ВОШЕЛ' : 'ВЫШЕЛ'} в ${user.lastSeen.toLocaleTimeString()}`);
+
+        return { success: true, status: user.status };
+    }
+
+    // ============================================
+    // ★★★ ПОЛУЧЕНИЕ СТАТУСА ★★★
+    // ============================================
+
+    handleGetStatus(token, userId) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const targetUser = this.dataManager.users.find(u => u.id === userId);
+        if (!targetUser) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        return { 
+            success: true, 
+            user: {
+                id: targetUser.id,
+                username: targetUser.username,
+                status: targetUser.status || 'offline',
+                lastSeen: targetUser.lastSeen
+            }
+        };
+    }
+
+    // ============================================
+    // ★★★ ОБНОВЛЕНИЕ LAST SEEN ★★★
+    // ============================================
+
+    handleUpdateLastSeen(token) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        user.lastSeen = new Date();
+        this.dataManager.saveData();
+
+        return { success: true };
+    }
+
+    // ============================================
+    // ★★★ ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЕЙ ★★★
     // ============================================
 
     handleGetUsers(token) {
@@ -35,13 +113,14 @@ class UsersHandler {
                 coins: u.coins,
                 verified: u.verified,
                 isDeveloper: u.isDeveloper,
-                status: u.status,
+                status: u.status || 'offline',
                 lastSeen: u.lastSeen,
                 createdAt: u.createdAt,
                 friendsCount: u.friendsCount || 0,
                 postsCount: u.postsCount || 0,
                 giftsCount: u.giftsCount || 0,
-                banned: u.banned || false
+                banned: u.banned || false,
+                isProtected: u.isProtected || false
             }));
 
         this.securitySystem.logSecurityEvent(user, 'GET_USERS_LIST', `count:${otherUsers.length}`);
@@ -82,13 +161,14 @@ class UsersHandler {
                 coins: targetUser.coins,
                 verified: targetUser.verified,
                 isDeveloper: targetUser.isDeveloper,
-                status: targetUser.status,
+                status: targetUser.status || 'offline',
                 lastSeen: targetUser.lastSeen,
                 createdAt: targetUser.createdAt,
                 friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
-                banned: targetUser.banned || false
+                banned: targetUser.banned || false,
+                isProtected: targetUser.isProtected || false
             }
         };
     }
@@ -118,7 +198,7 @@ class UsersHandler {
             coins: u.coins,
             verified: u.verified,
             isDeveloper: u.isDeveloper,
-            status: u.status,
+            status: u.status || 'offline',
             lastSeen: u.lastSeen,
             createdAt: u.createdAt,
             friendsCount: u.friendsCount || 0,
@@ -159,13 +239,14 @@ class UsersHandler {
                 coins: targetUser.coins,
                 verified: targetUser.verified,
                 isDeveloper: targetUser.isDeveloper,
-                status: targetUser.status,
+                status: targetUser.status || 'offline',
                 lastSeen: targetUser.lastSeen,
                 createdAt: targetUser.createdAt,
                 friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
-                banned: targetUser.banned || false
+                banned: targetUser.banned || false,
+                isProtected: targetUser.isProtected || false
             }
         };
     }
@@ -316,7 +397,7 @@ class UsersHandler {
                 coins: user.coins,
                 verified: user.verified,
                 isDeveloper: user.isDeveloper,
-                status: user.status,
+                status: user.status || 'offline',
                 lastSeen: user.lastSeen,
                 createdAt: user.createdAt,
                 friendsCount: user.friendsCount || 0,
@@ -347,10 +428,9 @@ class UsersHandler {
             return { success: false, message: 'Аватар не передан' };
         }
 
-        try {
-            // Проверяем, что это Base64
-            if (avatar.length > 1000) {
-                // Это Base64 - сохраняем как файл
+        // Проверяем, что это Base64
+        if (avatar.length > 1000) {
+            try {
                 const base64Data = avatar.replace(/^data:image\/\w+;base64,/, '');
                 const buffer = Buffer.from(base64Data, 'base64');
                 
@@ -389,27 +469,27 @@ class UsersHandler {
                         avatar: avatarUrl
                     }
                 };
+            } catch (error) {
+                console.error('❌ Ошибка сохранения аватара:', error);
+                return { success: false, message: 'Ошибка сохранения аватара: ' + error.message };
             }
-            
-            // Если это уже URL - сохраняем как есть
-            user.avatar = avatar;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
-
-            return {
-                success: true,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    displayName: user.displayName,
-                    avatar: user.avatar
-                }
-            };
-        } catch (error) {
-            console.error('❌ Ошибка сохранения аватара:', error);
-            return { success: false, message: 'Ошибка сохранения аватара: ' + error.message };
         }
+        
+        // Если это уже URL - сохраняем как есть
+        user.avatar = avatar;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'UPDATE_AVATAR', 'SYSTEM');
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                avatar: user.avatar
+            }
+        };
     }
 
     // ============================================
@@ -432,9 +512,9 @@ class UsersHandler {
             return { success: false, message: 'Обложка не передана' };
         }
 
-        try {
-            // Проверяем, что это Base64
-            if (cover.length > 1000) {
+        // Проверяем, что это Base64
+        if (cover.length > 1000) {
+            try {
                 const base64Data = cover.replace(/^data:image\/\w+;base64,/, '');
                 const buffer = Buffer.from(base64Data, 'base64');
                 
@@ -473,27 +553,27 @@ class UsersHandler {
                         cover: coverUrl
                     }
                 };
+            } catch (error) {
+                console.error('❌ Ошибка сохранения обложки:', error);
+                return { success: false, message: 'Ошибка сохранения обложки: ' + error.message };
             }
-            
-            // Если это уже URL - сохраняем как есть
-            user.cover = cover;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
-
-            return {
-                success: true,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    displayName: user.displayName,
-                    cover: user.cover
-                }
-            };
-        } catch (error) {
-            console.error('❌ Ошибка сохранения обложки:', error);
-            return { success: false, message: 'Ошибка сохранения обложки: ' + error.message };
         }
+        
+        // Если это уже URL - сохраняем как есть
+        user.cover = cover;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(user, 'UPDATE_COVER', 'SYSTEM');
+
+        return {
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                cover: user.cover
+            }
+        };
     }
 
     async handleUploadAvatar(token, data) {
