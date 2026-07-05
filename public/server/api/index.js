@@ -46,6 +46,46 @@ class ApiHandler {
 
         const token = req.headers['authorization']?.replace('Bearer ', '');
 
+        // ============================================
+        // ★★★ СТАТУС - БЕЗ АВТОРИЗАЦИИ ★★★
+        // ============================================
+        if (pathname.startsWith('/api/users/') && pathname.endsWith('/status') && method === 'GET') {
+            const userId = pathname.split('/')[3];
+            const targetUser = this.dataManager.users.find(u => u.id === userId);
+            
+            if (!targetUser) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Пользователь не найден' }));
+                return;
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                success: true, 
+                user: {
+                    id: targetUser.id,
+                    username: targetUser.username,
+                    status: targetUser.status || 'offline',
+                    lastSeen: targetUser.lastSeen
+                }
+            }));
+            return;
+        }
+
+        // ============================================
+        // ★★★ ОСТАЛЬНЫЕ ЗАПРОСЫ - С ПРОВЕРКОЙ ТОКЕНА ★★★
+        // ============================================
+        const isAuthRoute = pathname === '/api/login' || pathname === '/api/register';
+        
+        if (!isAuthRoute) {
+            const user = this.authenticateToken(token);
+            if (!user) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Не авторизован' }));
+                return;
+            }
+        }
+
         let response;
 
         try {
@@ -99,12 +139,9 @@ class ApiHandler {
                     response = this.users.handleGetUser(token, userId);
                 }
             
-            // ★★★ СТАТУС (БЕЗ ЛИШНИХ ПРОВЕРОК) ★★★
+            // ★★★ СТАТУС (УЖЕ ОБРАБОТАН ВЫШЕ) ★★★
             } else if (pathname === '/api/users/status' && method === 'POST') {
                 response = this.users.handleSetStatus(token, data);
-            } else if (pathname.startsWith('/api/users/') && pathname.endsWith('/status') && method === 'GET') {
-                const userId = pathname.split('/')[3];
-                response = this.users.handleGetStatus(token, userId);
             } else if (pathname === '/api/users/last-seen' && method === 'POST') {
                 response = this.users.handleUpdateLastSeen(token);
 
@@ -374,9 +411,9 @@ class ApiHandler {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const newMessages = this.dataManager.messages.filter(function(m) {
-            return m.receiverId === user.id && !m.read;
-        });
+        const newMessages = this.dataManager.messages.filter(m => 
+            m.receiverId === user.id && !m.read
+        );
 
         return { success: true, messages: newMessages };
     }
@@ -388,9 +425,9 @@ class ApiHandler {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const unreadMessages = this.dataManager.messages.filter(function(m) {
-            return m.receiverId === user.id && !m.read;
-        });
+        const unreadMessages = this.dataManager.messages.filter(m => 
+            m.receiverId === user.id && !m.read
+        );
 
         return { success: true, messages: unreadMessages };
     }
