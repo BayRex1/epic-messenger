@@ -49,20 +49,23 @@ class UsersHandler {
     }
 
     // ============================================
-    // ★★★ ПОЛУЧЕНИЕ СТАТУСА ★★★
+    // ★★★ ПОЛУЧЕНИЕ СТАТУСА (БЕЗ ПРОВЕРКИ ПРАВ) ★★★
     // ============================================
 
     handleGetStatus(token, userId) {
+        // Проверяем авторизацию
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
+        // Ищем пользователя
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
         }
 
+        // ★★★ ВОЗВРАЩАЕМ СТАТУС БЕЗ ПРОВЕРКИ ПРАВ ★★★
         return { 
             success: true, 
             user: {
@@ -408,7 +411,7 @@ class UsersHandler {
     }
 
     // ============================================
-    // === АВАТАРЫ (JSON версия с сохранением в файл) ===
+    // === АВАТАРЫ ===
     // ============================================
 
     handleUpdateAvatar(token, data) {
@@ -427,7 +430,6 @@ class UsersHandler {
             return { success: false, message: 'Аватар не передан' };
         }
 
-        // Проверяем, что это Base64
         if (avatar.length > 1000) {
             try {
                 const base64Data = avatar.replace(/^data:image\/\w+;base64,/, '');
@@ -446,7 +448,6 @@ class UsersHandler {
                 
                 const avatarUrl = `/uploads/avatars/${filename}`;
                 
-                // Удаляем старый аватар
                 if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
                     const oldPath = path.join(uploadDir, path.basename(user.avatar));
                     if (fs.existsSync(oldPath)) {
@@ -474,7 +475,6 @@ class UsersHandler {
             }
         }
         
-        // Если это уже URL - сохраняем как есть
         user.avatar = avatar;
         this.dataManager.saveData();
 
@@ -490,10 +490,6 @@ class UsersHandler {
             }
         };
     }
-
-    // ============================================
-    // === ОБЛОЖКА ПРОФИЛЯ (JSON версия с сохранением в файл) ===
-    // ============================================
 
     handleUpdateCover(token, data) {
         const user = this.authenticateToken(token);
@@ -511,7 +507,6 @@ class UsersHandler {
             return { success: false, message: 'Обложка не передана' };
         }
 
-        // Проверяем, что это Base64
         if (cover.length > 1000) {
             try {
                 const base64Data = cover.replace(/^data:image\/\w+;base64,/, '');
@@ -530,7 +525,6 @@ class UsersHandler {
                 
                 const coverUrl = `/uploads/covers/${filename}`;
                 
-                // Удаляем старую обложку
                 if (user.cover && user.cover.startsWith('/uploads/covers/')) {
                     const oldPath = path.join(uploadDir, path.basename(user.cover));
                     if (fs.existsSync(oldPath)) {
@@ -558,7 +552,6 @@ class UsersHandler {
             }
         }
         
-        // Если это уже URL - сохраняем как есть
         user.cover = cover;
         this.dataManager.saveData();
 
@@ -573,59 +566,6 @@ class UsersHandler {
                 cover: user.cover
             }
         };
-    }
-
-    async handleUploadAvatar(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user) {
-            return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.banned) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', 'SYSTEM', false);
-            return { success: false, message: 'Ваш аккаунт заблокирован' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!fileData || !filename) {
-            return { success: false, message: 'Файл не передан' };
-        }
-
-        if (!this.fileHandlers.validateAvatarFile(filename)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для аватара' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `avatar_${user.id}_${Date.now()}${fileExt}`;
-            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'avatars', uniqueFilename);
-
-            if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
-                this.fileHandlers.deleteFile(user.avatar);
-            }
-
-            user.avatar = fileUrl;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`);
-
-            return {
-                success: true,
-                avatarUrl: fileUrl,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    displayName: user.displayName,
-                    avatar: fileUrl
-                }
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки аватара:', error);
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_AVATAR', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла: ' + error.message };
-        }
     }
 
     handlePreviewAvatar(token, data) {
