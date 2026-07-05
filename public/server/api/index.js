@@ -99,7 +99,7 @@ class ApiHandler {
                     response = this.users.handleGetUser(token, userId);
                 }
             
-            // ★★★ СТАТУС ★★★
+            // ★★★ СТАТУС (БЕЗ ЛИШНИХ ПРОВЕРОК) ★★★
             } else if (pathname === '/api/users/status' && method === 'POST') {
                 response = this.users.handleSetStatus(token, data);
             } else if (pathname.startsWith('/api/users/') && pathname.endsWith('/status') && method === 'GET') {
@@ -374,9 +374,9 @@ class ApiHandler {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const newMessages = this.dataManager.messages.filter(m => 
-            m.receiverId === user.id && !m.read
-        );
+        const newMessages = this.dataManager.messages.filter(function(m) {
+            return m.receiverId === user.id && !m.read;
+        });
 
         return { success: true, messages: newMessages };
     }
@@ -388,9 +388,9 @@ class ApiHandler {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const unreadMessages = this.dataManager.messages.filter(m => 
-            m.receiverId === user.id && !m.read
-        );
+        const unreadMessages = this.dataManager.messages.filter(function(m) {
+            return m.receiverId === user.id && !m.read;
+        });
 
         return { success: true, messages: unreadMessages };
     }
