@@ -295,7 +295,8 @@ class SimpleServer {
         });
 
         // Инициализируем WebSocket сервер
-        new WebSocketServer(server, this.dataManager);
+        const wsServer = new WebSocketServer(server, this.dataManager);
+        this.apiHandlers.setWebSocketServer(wsServer);
 
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Сервер запущен на порту ${port}`);
