@@ -189,6 +189,10 @@ class AdminHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
+        }
+
         targetUser.verified = !targetUser.verified;
         this.dataManager.saveData();
 
@@ -214,6 +218,10 @@ class AdminHandler {
         const targetUser = this.dataManager.users.find(u => u.id === userId);
         if (!targetUser) {
             return { success: false, message: 'Пользователь не найден' };
+        }
+
+        if (targetUser.isProtected) {
+            return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
         }
 
         targetUser.isDeveloper = !targetUser.isDeveloper;
@@ -249,7 +257,8 @@ class AdminHandler {
             lastSeen: u.lastSeen,
             createdAt: u.createdAt,
             postsCount: this.dataManager.posts.filter(p => p.userId === u.id).length,
-            messagesCount: this.dataManager.messages.filter(m => m.senderId === u.id).length
+            messagesCount: this.dataManager.messages.filter(m => m.senderId === u.id).length,
+            isProtected: u.isProtected || false
         }));
 
         return { success: true, users: users };
@@ -270,6 +279,10 @@ class AdminHandler {
             const targetUser = this.dataManager.users.find(u => u.id === userId);
             if (!targetUser) {
                 return { success: false, message: 'Пользователь не найден' };
+            }
+
+            if (targetUser.isProtected) {
+                return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
             }
 
             targetUser.verified = !!verified;
@@ -305,6 +318,10 @@ class AdminHandler {
             const targetUser = this.dataManager.users.find(u => u.id === userId);
             if (!targetUser) {
                 return { success: false, message: 'Пользователь не найден' };
+            }
+
+            if (targetUser.isProtected) {
+                return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
             }
 
             targetUser.isDeveloper = !!isDeveloper;
