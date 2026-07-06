@@ -31,9 +31,14 @@ class GiftsHandler {
             return { success: false, message: 'Доступ запрещен' };
         }
 
-        const { name, price, type, image } = data;
+        const { name, price, fileData, fileName, fileType } = data;
+        
         if (!name || !price) {
             return { success: false, message: 'Название и цена обязательны' };
+        }
+
+        if (!fileData) {
+            return { success: false, message: 'Файл подарка обязателен' };
         }
 
         const sanitizedName = this.securitySystem.sanitizeContent(name);
@@ -41,10 +46,10 @@ class GiftsHandler {
         const gift = {
             id: this.dataManager.generateId(),
             name: sanitizedName,
-            type: type || 'custom',
-            preview: image ? '🖼️' : '🎁',
             price: parseInt(price),
-            image: image,
+            fileData: fileData,
+            fileName: fileName || 'gift.png',
+            fileType: fileType || 'image/png',
             createdAt: new Date()
         };
 
@@ -75,10 +80,6 @@ class GiftsHandler {
         }
 
         const gift = this.dataManager.gifts[giftIndex];
-        if (gift.image && gift.image.startsWith('/uploads/gifts/')) {
-            this.fileHandlers.deleteFile(gift.image);
-        }
-
         this.dataManager.gifts.splice(giftIndex, 1);
         this.dataManager.saveData();
 
@@ -103,15 +104,12 @@ class GiftsHandler {
             return { success: false, message: 'Ваш аккаунт заблокирован' };
         }
 
-        if (this.dataManager.isMaintenanceMode && this.dataManager.isMaintenanceMode() && !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'BUY_GIFT_DURING_MAINTENANCE', `gift:${data.giftId}`, false);
-            return { 
-                success: false, 
-                message: 'В настоящее время ведутся технические работы. Функция покупки подарков временно недоступна.' 
-            };
+        const { giftId, toUserId } = data;
+        
+        if (!giftId || !toUserId) {
+            return { success: false, message: 'Не указан подарок или получатель' };
         }
 
-        const { giftId, toUserId } = data;
         const gift = this.dataManager.gifts.find(g => g.id === giftId);
         if (!gift) {
             return { success: false, message: 'Подарок не найден' };
@@ -119,7 +117,7 @@ class GiftsHandler {
 
         if (user.coins < gift.price) {
             this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}`, false);
-            return { success: false, message: 'Недостаточно E-COIN для покупки подарка' };
+            return { success: false, message: 'Недостаточно E-COIN' };
         }
 
         const recipient = this.dataManager.users.find(u => u.id === toUserId);
@@ -127,31 +125,54 @@ class GiftsHandler {
             return { success: false, message: 'Получатель не найден' };
         }
 
-        if (recipient.banned) {
-            this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
-            return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
-        }
-
+        // Списываем монеты
         user.coins -= gift.price;
 
+        // ★★★ НАХОДИМ ИЛИ СОЗДАЕМ ЧАТ ★★★
+        let chat = this.dataManager.chats.find(c => 
+            c.participants && 
+            c.participants.includes(user.id) && 
+            c.participants.includes(toUserId) &&
+            !c.isGroup
+        );
+
+        if (!chat) {
+            chat = {
+                id: this.dataManager.generateId(),
+                participants: [user.id, toUserId],
+                isGroup: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                lastMessage: null
+            };
+            this.dataManager.chats.push(chat);
+        }
+
+        // ★★★ СОЗДАЕМ СООБЩЕНИЕ О ПОДАРКЕ ★★★
         const giftMessage = {
             id: this.dataManager.generateId(),
+            chatId: chat.id,
             senderId: user.id,
             receiverId: toUserId,
-            text: '',
             type: 'gift',
+            text: `🎁 Подарок: ${gift.name}`,
             giftId: gift.id,
             giftName: gift.name,
-            giftPrice: gift.price,
-            giftImage: gift.image,
-            giftPreview: gift.preview,
+            giftFileType: gift.fileType || 'image/png',
+            giftFileData: gift.fileData || '',
+            giftFileName: gift.fileName || 'gift.png',
             timestamp: new Date(),
-            displayName: user.displayName,
-            read: false
+            read: false,
+            isOutgoing: false
         };
 
         this.dataManager.messages.push(giftMessage);
+        
+        // Обновляем lastMessage в чате
+        chat.lastMessage = giftMessage;
+        chat.updatedAt = new Date();
 
+        // Добавляем подарок в список полученных
         if (!recipient.gifts) recipient.gifts = [];
         recipient.gifts.push({
             id: this.dataManager.generateId(),
@@ -161,17 +182,17 @@ class GiftsHandler {
             receivedAt: new Date()
         });
 
-        recipient.giftsCount = (recipient.giftsCount || 0) + 1;
         this.dataManager.saveData();
 
-        this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}, price:${gift.price}`);
+        this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${gift.name}, to:${recipient.username}`);
 
-        console.log(`🎁 Пользователь ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
+        console.log(`🎁 ${user.displayName} отправил подарок "${gift.name}" пользователю ${recipient.displayName}`);
 
+        // ★★★ ВОЗВРАЩАЕМ CHAT_ID ★★★
         return {
             success: true,
             message: `Подарок "${gift.name}" успешно отправлен!`,
-            gift: gift,
+            chatId: chat.id,
             user: {
                 coins: user.coins
             }
@@ -190,19 +211,20 @@ class GiftsHandler {
         }
 
         try {
-            const sentGifts = this.dataManager.sentGifts || [];
-            const userGifts = sentGifts.filter(gift => gift.toUserId === userId);
+            const userGifts = this.dataManager.messages
+                .filter(msg => msg.type === 'gift' && msg.receiverId === userId)
+                .map(msg => ({
+                    id: msg.id,
+                    giftId: msg.giftId,
+                    giftName: msg.giftName,
+                    giftFileData: msg.giftFileData,
+                    giftFileType: msg.giftFileType,
+                    fromUserId: msg.senderId,
+                    fromUserName: this.dataManager.users.find(u => u.id === msg.senderId)?.displayName || 'Неизвестный',
+                    receivedAt: msg.timestamp
+                }));
 
-            const giftsWithSenders = userGifts.map(gift => {
-                const fromUser = this.dataManager.users.find(u => u.id === gift.fromUserId);
-                return {
-                    ...gift,
-                    fromUserName: fromUser ? fromUser.displayName : 'Неизвестный пользователь',
-                    fromUserAvatar: fromUser ? fromUser.avatar : null
-                };
-            });
-
-            return { success: true, gifts: giftsWithSenders };
+            return { success: true, gifts: userGifts };
         } catch (error) {
             console.error('❌ Ошибка получения подарков пользователя:', error);
             return { success: false, message: 'Ошибка получения подарков пользователя' };
@@ -221,53 +243,18 @@ class GiftsHandler {
                 id: msg.id,
                 giftId: msg.giftId,
                 giftName: msg.giftName,
-                giftImage: msg.giftImage,
-                giftPreview: msg.giftPreview,
+                giftFileData: msg.giftFileData,
+                giftFileType: msg.giftFileType,
                 fromUserId: msg.senderId,
-                fromUserName: msg.displayName,
-                timestamp: msg.timestamp,
-                giftPrice: msg.giftPrice
+                fromUserName: this.dataManager.users.find(u => u.id === msg.senderId)?.displayName || 'Неизвестный',
+                receivedAt: msg.timestamp
             }))
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            .sort((a, b) => new Date(b.receivedAt) - new Date(a.receivedAt));
 
         return {
             success: true,
             gifts: myGifts
         };
-    }
-
-    async handleUploadGift(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { fileData, filename } = data;
-
-        if (!this.fileHandlers.validateGiftFile(filename)) {
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Недопустимый формат файла для подарка' };
-        }
-
-        try {
-            const fileExt = path.extname(filename);
-            const uniqueFilename = `gift_${Date.now()}${fileExt}`;
-            const fileUrl = await this.fileHandlers.saveBufferToFolder(fileData, 'gifts', uniqueFilename);
-
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`);
-
-            console.log(`🎁 Администратор ${user.username} загрузил изображение подарка: ${filename}`);
-
-            return {
-                success: true,
-                imageUrl: fileUrl
-            };
-        } catch (error) {
-            console.error('Ошибка загрузки изображения подарка:', error);
-            this.securitySystem.logSecurityEvent(user, 'UPLOAD_GIFT', `file:${filename}`, false);
-            return { success: false, message: 'Ошибка загрузки файла' };
-        }
     }
 }
 
