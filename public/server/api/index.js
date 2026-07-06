@@ -139,7 +139,7 @@ class ApiHandler {
                     response = this.users.handleGetUser(token, userId);
                 }
             
-            // ★★★ СТАТУС (УЖЕ ОБРАБОТАН ВЫШЕ) ★★★
+            // ★★★ СТАТУС ★★★
             } else if (pathname === '/api/users/status' && method === 'POST') {
                 response = this.users.handleSetStatus(token, data);
             } else if (pathname === '/api/users/last-seen' && method === 'POST') {
@@ -263,6 +263,10 @@ class ApiHandler {
             } else if (pathname.startsWith('/api/gifts/') && pathname.endsWith('/buy') && method === 'POST') {
                 const giftId = pathname.split('/')[3];
                 response = this.gifts.handleBuyGift(token, { giftId, ...data });
+
+            // ★★★ ОТПРАВКА ПОДАРКА В ЧАТ ★★★
+            } else if (pathname === '/api/messages/gift' && method === 'POST') {
+                response = this.handleSendGiftMessage(token, data);
 
             // ============================================
             // === ПРОМОКОДЫ ===
@@ -402,6 +406,80 @@ class ApiHandler {
         
         res.writeHead(response.success ? 200 : 400, headers);
         res.end(JSON.stringify(response));
+    }
+
+    // ★★★ ОТПРАВКА СООБЩЕНИЯ О ПОДАРКЕ В ЧАТ ★★★
+    handleSendGiftMessage(token, data) {
+        const user = this.authenticateToken(token);
+        if (!user) {
+            return { success: false, message: 'Не авторизован' };
+        }
+
+        const { chatId, type, giftId, giftName, giftFileType, giftFileData, giftFileName } = data;
+
+        if (!chatId || !giftId) {
+            return { success: false, message: 'Не указан чат или ID подарка' };
+        }
+
+        // Находим чат
+        const chat = this.dataManager.chats.find(c => c.id === chatId);
+        if (!chat) {
+            return { success: false, message: 'Чат не найден' };
+        }
+
+        // Проверяем, что пользователь участник чата
+        if (!chat.participants || !chat.participants.includes(user.id)) {
+            return { success: false, message: 'Вы не участник этого чата' };
+        }
+
+        // Находим получателя (другого участника)
+        const receiverId = chat.participants.find(id => id !== user.id);
+        if (!receiverId) {
+            return { success: false, message: 'Нет получателя в чате' };
+        }
+
+        // Создаем сообщение о подарке
+        const giftMessage = {
+            id: this.dataManager.generateId(),
+            chatId: chatId,
+            senderId: user.id,
+            receiverId: receiverId,
+            type: 'gift',
+            text: `🎁 Подарок: ${giftName}`,
+            giftId: giftId,
+            giftName: giftName,
+            giftFileType: giftFileType || 'image/png',
+            giftFileData: giftFileData || '',
+            giftFileName: giftFileName || 'gift.png',
+            timestamp: new Date(),
+            read: false,
+            isOutgoing: true
+        };
+
+        // Сохраняем сообщение
+        this.dataManager.messages.push(giftMessage);
+        
+        // Обновляем lastMessage в чате
+        chat.lastMessage = giftMessage;
+        chat.updatedAt = new Date();
+
+        this.dataManager.saveData();
+
+        // ★★★ ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET ★★★
+        if (this.wsServer) {
+            this.wsServer.broadcastToChat(chatId, {
+                type: 'new_message',
+                message: giftMessage
+            });
+        }
+
+        console.log(`🎁 Сообщение о подарке отправлено в чат ${chatId} от ${user.displayName}`);
+
+        return {
+            success: true,
+            message: 'Сообщение о подарке отправлено',
+            data: giftMessage
+        };
     }
 
     // ★★★ ПРОВЕРКА НОВЫХ СООБЩЕНИЙ ★★★
