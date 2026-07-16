@@ -136,7 +136,6 @@ class UsersHandler {
                 status: u.status || 'offline',
                 lastSeen: u.lastSeen,
                 createdAt: u.createdAt,
-                friendsCount: u.friendsCount || 0,
                 postsCount: u.postsCount || 0,
                 giftsCount: u.giftsCount || 0,
                 banned: u.banned || false,
@@ -151,15 +150,14 @@ class UsersHandler {
         };
     }
 
+    // ============================================
+    // ★★★ ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЯ ПО ID ★★★
+    // ============================================
+
     handleGetUser(token, userId) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
-        }
-
-        if (user.id !== userId && !this.securitySystem.isFriend(user.id, userId)) {
-            this.securitySystem.logSecurityEvent(user, 'GET_USER', `user:${userId}`, false);
-            return { success: false, message: 'Доступ запрещен' };
         }
 
         const targetUser = this.dataManager.users.find(u => u.id === userId);
@@ -167,7 +165,11 @@ class UsersHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        this.securitySystem.logSecurityEvent(user, 'GET_USER', `user:${userId}`);
+        // ★★★ УБРАЛИ ПРОВЕРКУ НА ДРУЗЕЙ ★★★
+        // ★★★ СКРЫВАЕМ КОИНЫ ДЛЯ ЧУЖИХ ★★★
+        const isOwnProfile = user.id === userId;
+
+        this.securitySystem.logSecurityEvent(user, 'GET_USER', `user:${targetUser.username}`);
 
         return {
             success: true,
@@ -178,13 +180,12 @@ class UsersHandler {
                 avatar: targetUser.avatar,
                 cover: targetUser.cover || null,
                 description: targetUser.description,
-                coins: targetUser.coins,
-                verified: targetUser.verified,
-                isDeveloper: targetUser.isDeveloper,
+                coins: isOwnProfile ? targetUser.coins : 0,
+                verified: targetUser.verified || false,
+                isDeveloper: targetUser.isDeveloper || false,
                 status: targetUser.status || 'offline',
                 lastSeen: targetUser.lastSeen,
                 createdAt: targetUser.createdAt,
-                friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
                 banned: targetUser.banned || false,
@@ -192,6 +193,10 @@ class UsersHandler {
             }
         };
     }
+
+    // ============================================
+    // ★★★ ПОИСК ПОЛЬЗОВАТЕЛЕЙ ★★★
+    // ============================================
 
     handleSearchUsers(token, query) {
         const user = this.authenticateToken(token);
@@ -221,7 +226,6 @@ class UsersHandler {
             status: u.status || 'offline',
             lastSeen: u.lastSeen,
             createdAt: u.createdAt,
-            friendsCount: u.friendsCount || 0,
             postsCount: u.postsCount || 0,
             giftsCount: u.giftsCount || 0,
             banned: u.banned || false
@@ -229,6 +233,10 @@ class UsersHandler {
 
         return { success: true, users: filteredUsers };
     }
+
+    // ============================================
+    // ★★★ ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЯ ПО USERNAME ★★★
+    // ============================================
 
     handleGetUserByUsername(token, data) {
         const user = this.authenticateToken(token);
@@ -247,6 +255,8 @@ class UsersHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
+        const isOwnProfile = user.id === targetUser.id;
+
         return {
             success: true,
             user: {
@@ -256,13 +266,12 @@ class UsersHandler {
                 avatar: targetUser.avatar,
                 cover: targetUser.cover || null,
                 description: targetUser.description,
-                coins: targetUser.coins,
-                verified: targetUser.verified,
-                isDeveloper: targetUser.isDeveloper,
+                coins: isOwnProfile ? targetUser.coins : 0,
+                verified: targetUser.verified || false,
+                isDeveloper: targetUser.isDeveloper || false,
                 status: targetUser.status || 'offline',
                 lastSeen: targetUser.lastSeen,
                 createdAt: targetUser.createdAt,
-                friendsCount: targetUser.friendsCount || 0,
                 postsCount: targetUser.postsCount || 0,
                 giftsCount: targetUser.giftsCount || 0,
                 banned: targetUser.banned || false,
@@ -420,7 +429,6 @@ class UsersHandler {
                 status: user.status || 'offline',
                 lastSeen: user.lastSeen,
                 createdAt: user.createdAt,
-                friendsCount: user.friendsCount || 0,
                 postsCount: user.postsCount || 0,
                 giftsCount: user.giftsCount || 0,
                 banned: user.banned || false
