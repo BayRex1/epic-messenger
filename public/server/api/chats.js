@@ -130,7 +130,6 @@ class ChatsHandler {
             return { success: false, message: 'Пользователь не найден' };
         }
 
-        // Проверяем существующий чат
         let existingChat = this.dataManager.chats.find(chat => 
             !chat.isGroup && 
             chat.members && 
@@ -154,7 +153,6 @@ class ChatsHandler {
             };
         }
 
-        // Создаем новый чат
         const newChat = {
             id: this.dataManager.generateId(),
             isGroup: false,
@@ -185,7 +183,7 @@ class ChatsHandler {
     }
 
     // ============================================
-    // === ОТПРАВКА СООБЩЕНИЯ - ИСПРАВЛЕНО ===
+    // === ОТПРАВКА СООБЩЕНИЯ ===
     // ============================================
 
     handleSendMessage(token, data) {
@@ -210,9 +208,6 @@ class ChatsHandler {
                 return { success: false, message: 'Пользователь не найден' };
             }
 
-            // ============================================
-            // ★★★ ИЩЕМ СУЩЕСТВУЮЩИЙ ЧАТ ★★★
-            // ============================================
             let chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
                 c.members && 
@@ -220,7 +215,6 @@ class ChatsHandler {
                 c.members.includes(toUserId)
             );
 
-            // ★★★ ЕСЛИ ЧАТА НЕТ - СОЗДАЕМ ЕГО ★★★
             if (!chat) {
                 console.log(`⚠️ Чат между ${user.id} и ${toUserId} не найден, создаем новый...`);
                 chat = {
@@ -238,7 +232,6 @@ class ChatsHandler {
 
             console.log(`✅ Найден чат: ${chat.id} между ${user.displayName} и ${targetUser.displayName}`);
 
-            // Обработка файла
             let fileUrl = null;
             if (file && fileName && fileType) {
                 const fileExt = path.extname(fileName) || this.getFileExtension(fileType);
@@ -311,7 +304,7 @@ class ChatsHandler {
     }
 
     // ============================================
-    // === ПОЛУЧЕНИЕ СООБЩЕНИЙ ===
+    // ★★★ ПОЛУЧЕНИЕ СООБЩЕНИЙ - ИСПРАВЛЕНО ДЛЯ ПОДАРКОВ ★★★
     // ============================================
 
     handleGetMessages(token, query) {
@@ -326,7 +319,6 @@ class ChatsHandler {
         }
 
         try {
-            // Ищем чат по участникам
             const chat = this.dataManager.chats.find(c => 
                 !c.isGroup && 
                 c.members && 
@@ -339,26 +331,47 @@ class ChatsHandler {
                 return { success: true, messages: [] };
             }
 
-            // Получаем сообщения ТОЛЬКО для этого чата
             const messages = this.dataManager.messages
                 .filter(m => m.chatId === chat.id)
                 .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-            // Отмечаем как прочитанные
             messages.forEach(msg => {
                 if (msg.senderId !== user.id && !msg.read) {
                     msg.read = true;
                 }
             });
             
-            // Сбрасываем счетчик непрочитанных
             chat.unreadCount = 0;
             this.dataManager.saveData();
 
-            const messagesWithInfo = messages.map(msg => ({
-                ...msg,
-                isOutgoing: msg.senderId === user.id
-            }));
+            // ★★★ ВОЗВРАЩАЕМ ВСЕ ПОЛЯ, ВКЛЮЧАЯ ПОДАРКИ ★★★
+            const messagesWithInfo = messages.map(msg => {
+                const result = {
+                    id: msg.id,
+                    chatId: msg.chatId,
+                    senderId: msg.senderId,
+                    receiverId: msg.receiverId,
+                    text: msg.text || '',
+                    type: msg.type || 'text',
+                    file: msg.file || null,
+                    fileName: msg.fileName || null,
+                    fileType: msg.fileType || null,
+                    timestamp: msg.timestamp,
+                    read: msg.read || false,
+                    isOutgoing: msg.senderId === user.id
+                };
+
+                // ★★★ ДОБАВЛЯЕМ ПОЛЯ ДЛЯ ПОДАРКОВ ★★★
+                if (msg.type === 'gift') {
+                    result.giftId = msg.giftId || null;
+                    result.giftName = msg.giftName || null;
+                    result.giftFileData = msg.giftFileData || null;
+                    result.giftFileName = msg.giftFileName || null;
+                    result.giftFileType = msg.giftFileType || null;
+                }
+
+                return result;
+            });
 
             console.log(`📨 Загружено ${messagesWithInfo.length} сообщений для чата ${chat.id}`);
             return { success: true, messages: messagesWithInfo };
