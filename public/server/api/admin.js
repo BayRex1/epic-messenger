@@ -1,5 +1,3 @@
-const fs = require('fs');
-
 class AdminHandler {
     constructor(dataManager, securitySystem, fileHandlers, authHandler) {
         this.dataManager = dataManager;
@@ -12,236 +10,49 @@ class AdminHandler {
         return this.authHandler?.authenticateToken(token) || null;
     }
 
-    handleAdminStats(token) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        this.securitySystem.logSecurityEvent(user, 'VIEW_ADMIN_STATS', 'SYSTEM');
-
-        return {
-            success: true,
-            stats: {
-                totalUsers: this.dataManager.users.length,
-                totalMessages: this.dataManager.messages.length,
-                totalPosts: this.dataManager.posts.length,
-                totalGifts: this.dataManager.gifts.length,
-                totalPromoCodes: this.dataManager.promoCodes.length,
-                totalMusic: this.dataManager.music.length,
-                totalPlaylists: this.dataManager.playlists.length,
-                totalGroups: this.dataManager.groups.length,
-                onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
-                bannedUsers: this.dataManager.users.filter(u => u.banned).length,
-                bannedIPs: this.dataManager.bannedIPs.size,
-                activeDevices: this.dataManager.devices.size,
-                maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
-            }
-        };
+    isAdmin(user) {
+        return user && (user.isDeveloper === true || user.verified === true);
     }
 
-    handleAdminStatistics(token) {
+    // ============================================
+    // СТАТИСТИКА
+    // ============================================
+
+    handleAdminStats(token) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
+        if (!user || !this.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'ADMIN_STATS', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const stats = {
             totalUsers: this.dataManager.users.length,
-            totalMessages: this.dataManager.messages.length,
             totalPosts: this.dataManager.posts.length,
             totalGifts: this.dataManager.gifts.length,
-            totalMusic: this.dataManager.music.length,
-            totalGroups: this.dataManager.groups.length,
+            totalPromoCodes: this.dataManager.promoCodes.length,
             onlineUsers: this.dataManager.users.filter(u => u.status === 'online').length,
-            bannedIPs: this.dataManager.bannedIPs.size,
-            maintenanceMode: this.dataManager.maintenanceMode,
-            dataFileSize: this.getFileSize(this.dataManager.dataFile)
+            totalMessages: this.dataManager.messages.length,
+            totalChats: this.dataManager.chats.length
         };
 
-        return { success: true, message: 'Статистика получена', statistics: stats };
+        this.securitySystem.logSecurityEvent(user, 'ADMIN_STATS', `stats:${JSON.stringify(stats)}`);
+
+        return { success: true, stats: stats };
     }
 
-    getFileSize(filePath) {
-        try {
-            const stats = fs.statSync(filePath);
-            return (stats.size / 1024 / 1024).toFixed(2) + ' MB';
-        } catch (error) {
-            return 'Unknown';
-        }
+    handleAdminStatistics(token) {
+        return this.handleAdminStats(token);
     }
 
-    handleDeleteUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'DELETE_USER', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        const targetUser = this.dataManager.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя удалить защищенного пользователя' };
-        }
-
-        if (targetUser.id === user.id) {
-            return { success: false, message: 'Нельзя удалить свой собственный аккаунт' };
-        }
-
-        if (targetUser.avatar && targetUser.avatar.startsWith('/uploads/avatars/')) {
-            this.fileHandlers.deleteFile(targetUser.avatar);
-        }
-        if (targetUser.cover && targetUser.cover.startsWith('/uploads/covers/')) {
-            this.fileHandlers.deleteFile(targetUser.cover);
-        }
-
-        Array.from(this.dataManager.devices.entries()).forEach(([deviceId, device]) => {
-            if (device.userId === userId) {
-                this.dataManager.devices.delete(deviceId);
-            }
-        });
-
-        this.dataManager.users = this.dataManager.users.filter(u => u.id !== userId);
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'DELETE_USER', `user:${targetUser.username}`);
-
-        console.log(`🗑️ Администратор ${user.displayName} удалил аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} успешно удален`
-        };
-    }
-
-    handleBanUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'BAN_USER', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId, reason } = data;
-        const targetUser = this.dataManager.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя заблокировать защищенного пользователя' };
-        }
-
-        targetUser.banned = true;
-
-        const userDevices = this.dataManager.getUserDevices(userId);
-        if (userDevices.length > 0) {
-            const lastDevice = userDevices[userDevices.length - 1];
-            this.dataManager.banIP(lastDevice.ip);
-        }
-
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'BAN_USER', `user:${targetUser.username}, reason:${reason}`);
-
-        console.log(`🔒 Администратор ${user.displayName} заблокировал аккаунт: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} заблокирован`
-        };
-    }
-
-    handleUnbanUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'UNBAN_USER', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { ip } = data;
-        if (!ip) {
-            return { success: false, message: 'IP не указан' };
-        }
-
-        this.dataManager.bannedIPs.delete(ip);
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'UNBAN_USER', `ip:${ip}`);
-
-        return { success: true, message: `IP ${ip} разбанен` };
-    }
-
-    handleToggleVerification(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        const targetUser = this.dataManager.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
-        }
-
-        targetUser.verified = !targetUser.verified;
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'TOGGLE_VERIFICATION', `user:${targetUser.username}, status:${targetUser.verified}`);
-
-        console.log(`✅ Администратор ${user.displayName} ${targetUser.verified ? 'верифицировал' : 'снял верификацию с'} аккаунта: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.verified ? 'верифицирован' : 'лишен верификации'}`,
-            verified: targetUser.verified
-        };
-    }
-
-    handleToggleDeveloper(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        const { userId } = data;
-        const targetUser = this.dataManager.users.find(u => u.id === userId);
-        if (!targetUser) {
-            return { success: false, message: 'Пользователь не найден' };
-        }
-
-        if (targetUser.isProtected) {
-            return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
-        }
-
-        targetUser.isDeveloper = !targetUser.isDeveloper;
-        this.dataManager.saveData();
-
-        this.securitySystem.logSecurityEvent(user, 'TOGGLE_DEVELOPER', `user:${targetUser.username}, status:${targetUser.isDeveloper}`);
-
-        console.log(`👑 Администратор ${user.displayName} ${targetUser.isDeveloper ? 'дал права разработчика' : 'забрал права разработчика'} у: ${targetUser.username}`);
-
-        return {
-            success: true,
-            message: `Пользователь ${targetUser.username} ${targetUser.isDeveloper ? 'получил права разработчика' : 'лишен прав разработчика'}`,
-            isDeveloper: targetUser.isDeveloper
-        };
-    }
+    // ============================================
+    // ПОЛЬЗОВАТЕЛИ
+    // ============================================
 
     handleAdminGetUsers(token) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Недостаточно прав' };
+        if (!user || !this.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'ADMIN_GET_USERS', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
 
         const users = this.dataManager.users.map(u => ({
@@ -249,137 +60,273 @@ class AdminHandler {
             username: u.username,
             displayName: u.displayName,
             avatar: u.avatar,
-            cover: u.cover || null,
-            coins: u.coins,
-            verified: u.verified,
-            isDeveloper: u.isDeveloper,
-            status: u.status,
-            lastSeen: u.lastSeen,
-            createdAt: u.createdAt,
-            postsCount: this.dataManager.posts.filter(p => p.userId === u.id).length,
-            messagesCount: this.dataManager.messages.filter(m => m.senderId === u.id).length,
-            isProtected: u.isProtected || false
+            verified: u.verified || false,
+            isDeveloper: u.isDeveloper || false,
+            banned: u.banned || false,
+            status: u.status || 'offline',
+            coins: u.coins || 0,
+            createdAt: u.createdAt
         }));
+
+        this.securitySystem.logSecurityEvent(user, 'ADMIN_GET_USERS', `count:${users.length}`);
 
         return { success: true, users: users };
     }
 
-    handleAdminVerifyUser(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Недостаточно прав' };
+    // ============================================
+    // ★★★ БАН / РАЗБАН ★★★
+    // ============================================
+
+    handleBanUser(token, data) {
+        const admin = this.authenticateToken(token);
+        if (!admin || !this.isAdmin(admin)) {
+            this.securitySystem.logSecurityEvent(admin, 'BAN_USER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
 
-        const { userId, verified } = data;
+        const { userId } = data;
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
 
-        try {
-            const targetUser = this.dataManager.users.find(u => u.id === userId);
-            if (!targetUser) {
-                return { success: false, message: 'Пользователь не найден' };
-            }
-
-            if (targetUser.isProtected) {
-                return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
-            }
-
-            targetUser.verified = !!verified;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'ADMIN_VERIFY_USER', `target:${targetUser.username}, verified:${verified}`);
-
-            console.log(`✅ Администратор ${user.displayName} ${verified ? 'верифицировал' : 'снял верификацию с'} пользователя ${targetUser.displayName}`);
-
-            return {
-                success: true,
-                message: `Пользователь ${verified ? 'верифицирован' : 'лишен верификации'}`,
-                user: targetUser
-            };
-        } catch (error) {
-            console.error('❌ Ошибка верификации пользователя:', error);
-            return { success: false, message: 'Ошибка верификации пользователя' };
+        const user = this.dataManager.users.find(u => u.id === userId);
+        if (!user) {
+            return { success: false, message: 'Пользователь не найден' };
         }
+
+        // ★★★ НЕЛЬЗЯ ЗАБАНИТЬ BayRex ★★★
+        if (user.username === 'BayRex') {
+            this.securitySystem.logSecurityEvent(admin, 'BAN_USER', `target:${user.username}`, false);
+            return { success: false, message: 'Нельзя заблокировать BayRex' };
+        }
+
+        // ★★★ НЕЛЬЗЯ ЗАБАНИТЬ СЕБЯ ★★★
+        if (user.id === admin.id) {
+            this.securitySystem.logSecurityEvent(admin, 'BAN_USER', 'self', false);
+            return { success: false, message: 'Нельзя заблокировать себя' };
+        }
+
+        // ★★★ УСТАНАВЛИВАЕМ БАН ★★★
+        user.banned = true;
+        user.status = 'offline';
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(admin, 'BAN_USER', `user:${user.username}`);
+
+        console.log(`🔒 Администратор ${admin.displayName} заблокировал пользователя ${user.displayName}`);
+
+        return {
+            success: true,
+            message: 'Пользователь успешно заблокирован',
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                banned: user.banned
+            }
+        };
     }
 
-    handleAdminMakeDeveloper(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Недостаточно прав' };
+    handleUnbanUser(token, data) {
+        const admin = this.authenticateToken(token);
+        if (!admin || !this.isAdmin(admin)) {
+            this.securitySystem.logSecurityEvent(admin, 'UNBAN_USER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
 
-        const { userId, isDeveloper } = data;
+        const { userId } = data;
         if (!userId) {
             return { success: false, message: 'Не указан пользователь' };
         }
 
-        try {
-            const targetUser = this.dataManager.users.find(u => u.id === userId);
-            if (!targetUser) {
-                return { success: false, message: 'Пользователь не найден' };
-            }
-
-            if (targetUser.isProtected) {
-                return { success: false, message: 'Нельзя изменить статус защищенного пользователя' };
-            }
-
-            targetUser.isDeveloper = !!isDeveloper;
-            this.dataManager.saveData();
-
-            this.securitySystem.logSecurityEvent(user, 'ADMIN_MAKE_DEVELOPER', `target:${targetUser.username}, developer:${isDeveloper}`);
-
-            console.log(`👑 Администратор ${user.displayName} ${isDeveloper ? 'назначил' : 'снял'} права разработчика у пользователя ${targetUser.displayName}`);
-
-            return {
-                success: true,
-                message: `Права разработчика ${isDeveloper ? 'назначены' : 'сняты'}`,
-                user: targetUser
-            };
-        } catch (error) {
-            console.error('❌ Ошибка назначения прав разработчика:', error);
-            return { success: false, message: 'Ошибка назначения прав разработчика' };
+        const user = this.dataManager.users.find(u => u.id === userId);
+        if (!user) {
+            return { success: false, message: 'Пользователь не найден' };
         }
+
+        // ★★★ ПРОВЕРЯЕМ, ЗАБЛОКИРОВАН ЛИ ★★★
+        if (user.banned !== true) {
+            return { success: false, message: 'Пользователь не заблокирован' };
+        }
+
+        // ★★★ СНИМАЕМ БАН ★★★
+        user.banned = false;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(admin, 'UNBAN_USER', `user:${user.username}`);
+
+        console.log(`🔓 Администратор ${admin.displayName} разблокировал пользователя ${user.displayName}`);
+
+        return {
+            success: true,
+            message: 'Пользователь успешно разблокирован',
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                banned: user.banned
+            }
+        };
     }
 
-    handleAdminSecurityLogs(token) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Недостаточно прав' };
+    // ============================================
+    // ВЕРИФИКАЦИЯ
+    // ============================================
+
+    handleToggleVerification(token, data) {
+        const admin = this.authenticateToken(token);
+        if (!admin || !this.isAdmin(admin)) {
+            this.securitySystem.logSecurityEvent(admin, 'TOGGLE_VERIFICATION', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
         }
 
-        try {
-            const logs = this.securitySystem.getSecurityLogs();
-            return { success: true, logs: logs };
-        } catch (error) {
-            console.error('❌ Ошибка получения логов безопасности:', error);
-            return { success: false, message: 'Ошибка получения логов безопасности' };
+        const { userId } = data;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
         }
+
+        const user = this.dataManager.users.find(u => u.id === userId);
+        if (!user) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        // ★★★ НЕЛЬЗЯ МЕНЯТЬ BayRex ★★★
+        if (user.username === 'BayRex') {
+            this.securitySystem.logSecurityEvent(admin, 'TOGGLE_VERIFICATION', `target:${user.username}`, false);
+            return { success: false, message: 'Нельзя изменять права BayRex' };
+        }
+
+        user.verified = !user.verified;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(admin, 'TOGGLE_VERIFICATION', `user:${user.username}, verified:${user.verified}`);
+
+        console.log(`✅ Администратор ${admin.displayName} ${user.verified ? 'верифицировал' : 'снял верификацию'} с ${user.displayName}`);
+
+        return {
+            success: true,
+            message: user.verified ? 'Пользователь верифицирован' : 'Верификация снята',
+            verified: user.verified,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                verified: user.verified
+            }
+        };
+    }
+
+    // ============================================
+    // РАЗРАБОТЧИК
+    // ============================================
+
+    handleToggleDeveloper(token, data) {
+        const admin = this.authenticateToken(token);
+        if (!admin || !this.isAdmin(admin)) {
+            this.securitySystem.logSecurityEvent(admin, 'TOGGLE_DEVELOPER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
+        }
+
+        const user = this.dataManager.users.find(u => u.id === userId);
+        if (!user) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        // ★★★ НЕЛЬЗЯ МЕНЯТЬ BayRex ★★★
+        if (user.username === 'BayRex') {
+            this.securitySystem.logSecurityEvent(admin, 'TOGGLE_DEVELOPER', `target:${user.username}`, false);
+            return { success: false, message: 'Нельзя изменять права BayRex' };
+        }
+
+        user.isDeveloper = !user.isDeveloper;
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(admin, 'TOGGLE_DEVELOPER', `user:${user.username}, isDeveloper:${user.isDeveloper}`);
+
+        console.log(`👑 Администратор ${admin.displayName} ${user.isDeveloper ? 'сделал разработчиком' : 'снял права разработчика'} с ${user.displayName}`);
+
+        return {
+            success: true,
+            message: user.isDeveloper ? 'Пользователь назначен разработчиком' : 'Права разработчика сняты',
+            isDeveloper: user.isDeveloper,
+            user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                isDeveloper: user.isDeveloper
+            }
+        };
+    }
+
+    // ============================================
+    // ДРУГИЕ МЕТОДЫ
+    // ============================================
+
+    handleDeleteUser(token, data) {
+        const admin = this.authenticateToken(token);
+        if (!admin || !this.isAdmin(admin)) {
+            this.securitySystem.logSecurityEvent(admin, 'DELETE_USER', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const { userId } = data;
+        if (!userId) {
+            return { success: false, message: 'Не указан пользователь' };
+        }
+
+        const userIndex = this.dataManager.users.findIndex(u => u.id === userId);
+        if (userIndex === -1) {
+            return { success: false, message: 'Пользователь не найден' };
+        }
+
+        const user = this.dataManager.users[userIndex];
+        
+        // ★★★ НЕЛЬЗЯ УДАЛИТЬ BayRex ★★★
+        if (user.username === 'BayRex') {
+            this.securitySystem.logSecurityEvent(admin, 'DELETE_USER', `target:${user.username}`, false);
+            return { success: false, message: 'Нельзя удалить BayRex' };
+        }
+
+        if (user.id === admin.id) {
+            this.securitySystem.logSecurityEvent(admin, 'DELETE_USER', 'self', false);
+            return { success: false, message: 'Нельзя удалить себя' };
+        }
+
+        this.dataManager.users.splice(userIndex, 1);
+        this.dataManager.saveData();
+
+        this.securitySystem.logSecurityEvent(admin, 'DELETE_USER', `user:${user.username}`);
+
+        console.log(`🗑️ Администратор ${admin.displayName} удалил пользователя ${user.displayName}`);
+
+        return { success: true, message: 'Пользователь удален' };
     }
 
     handleExportDatabase(token, res) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', 'SYSTEM', false);
-            res.writeHead(403, { 'Content-Type': 'application/json' });
+        if (!user || !this.isAdmin(user)) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, message: 'Доступ запрещен' }));
             return;
         }
 
         try {
-            const exportData = {
+            const data = {
                 exportInfo: {
-                    version: '1.0',
                     exportedAt: new Date().toISOString(),
                     exportedBy: user.username,
-                    totalUsers: this.dataManager.users.length,
-                    totalMessages: this.dataManager.messages.length,
-                    totalPosts: this.dataManager.posts.length,
-                    totalGifts: this.dataManager.gifts.length,
-                    totalMusic: this.dataManager.music.length
+                    version: '1.0'
                 },
                 data: {
-                    users: this.dataManager.users.map(u => ({ ...u, password: '[ENCRYPTED]' })),
+                    users: this.dataManager.users.map(u => ({
+                        ...u,
+                        password: '***HIDDEN***'
+                    })),
                     messages: this.dataManager.messages,
                     posts: this.dataManager.posts,
                     gifts: this.dataManager.gifts,
@@ -387,81 +334,92 @@ class AdminHandler {
                     music: this.dataManager.music,
                     playlists: this.dataManager.playlists,
                     groups: this.dataManager.groups,
+                    chats: this.dataManager.chats,
                     bannedIPs: Object.fromEntries(this.dataManager.bannedIPs),
                     devices: Object.fromEntries(this.dataManager.devices)
                 }
             };
 
-            const filename = `epic-messenger-backup-${new Date().toISOString().split('T')[0]}.json`;
+            const json = JSON.stringify(data, null, 2);
             
             res.writeHead(200, {
                 'Content-Type': 'application/json',
-                'Content-Disposition': `attachment; filename="${filename}"`,
-                'Access-Control-Expose-Headers': 'Content-Disposition'
+                'Content-Disposition': `attachment; filename="epic-database-${Date.now()}.json"`
             });
+            res.end(json);
 
-            res.end(JSON.stringify(exportData, null, 2));
-
-            this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', `file:${filename}`);
-
-            console.log(`💾 Администратор ${user.username} экспортировал базу данных: ${filename}`);
+            this.securitySystem.logSecurityEvent(user, 'EXPORT_DATABASE', `size:${json.length}`);
 
         } catch (error) {
-            console.error('❌ Ошибка экспорта базы данных:', error);
+            console.error('❌ Ошибка экспорта БД:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, message: 'Ошибка экспорта базы данных' }));
+            res.end(JSON.stringify({ success: false, message: 'Ошибка экспорта' }));
         }
-    }
-
-    handleImportDatabase(token, data) {
-        const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
-            return { success: false, message: 'Доступ запрещен' };
-        }
-
-        return { success: true, message: 'Импорт БД выполнен (обрабатывается в file-handlers)' };
     }
 
     handleMaintenanceMode(token, data) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
+        if (!user || !this.isAdmin(user)) {
             this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
 
         const { enabled } = data;
+        if (enabled === undefined) {
+            return { success: false, message: 'Не указан режим' };
+        }
+
         this.dataManager.setMaintenanceMode(enabled);
+
         this.securitySystem.logSecurityEvent(user, 'MAINTENANCE_MODE', `enabled:${enabled}`);
-        
-        console.log(`🔧 Администратор ${user.username} ${enabled ? 'ВКЛЮЧИЛ' : 'выключил'} режим технических работ`);
-        
+
         return {
             success: true,
-            message: `Режим технических работ ${enabled ? 'ВКЛЮЧЕН' : 'выключен'}`,
-            maintenanceMode: enabled
+            message: enabled ? 'Режим технических работ включен' : 'Режим технических работ выключен',
+            maintenanceMode: this.dataManager.isMaintenanceMode()
         };
     }
 
     handleGetMaintenanceStatus(token) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
+        if (!user || !this.isAdmin(user)) {
             return { success: false, message: 'Доступ запрещен' };
         }
 
         return {
             success: true,
-            maintenanceMode: this.dataManager.isMaintenanceMode ? this.dataManager.isMaintenanceMode() : false
+            maintenanceMode: this.dataManager.isMaintenanceMode()
         };
     }
 
     handleGetMaintenanceStatusPublic(token) {
-        const status = {
-            maintenance: this.dataManager.isMaintenanceMode(),
-            message: this.dataManager.isMaintenanceMode() ? 
-                'Ведутся технические работы' : 'Сервер работает нормально'
+        return {
+            success: true,
+            maintenanceMode: this.dataManager.isMaintenanceMode()
         };
+    }
 
-        return { success: true, ...status };
+    handleAdminSecurityLogs(token) {
+        const user = this.authenticateToken(token);
+        if (!user || !this.isAdmin(user)) {
+            this.securitySystem.logSecurityEvent(user, 'ADMIN_SECURITY_LOGS', 'SYSTEM', false);
+            return { success: false, message: 'Доступ запрещен' };
+        }
+
+        const logs = this.securitySystem.getSecurityLogs ? this.securitySystem.getSecurityLogs() : [];
+
+        return {
+            success: true,
+            logs: logs
+        };
+    }
+
+    handleAdminVerifyUser(token, data) {
+        return this.handleToggleVerification(token, data);
+    }
+
+    handleAdminMakeDeveloper(token, data) {
+        return this.handleToggleDeveloper(token, data);
     }
 }
 
