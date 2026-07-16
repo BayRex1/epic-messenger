@@ -65,26 +65,22 @@ class WebSocketServer {
             const firstByte = data.readUInt8(0);
             const opcode = firstByte & 0x0F;
             
-            // Обработка ping фрейма
             if (opcode === 9) {
                 console.log('🏓 Получен PING от клиента', clientId);
                 this.sendPong(clientId);
                 return;
             }
             
-            // Обработка pong фрейма
             if (opcode === 10) {
                 console.log('🏓 Получен PONG от клиента', clientId);
                 return;
             }
             
-            // Обработка текстового фрейма
             if (opcode === 1) {
                 const message = this.decodeMessage(data);
                 if (message && message.type && message.data) {
                     console.log(`📨 WebSocket сообщение от ${clientId}:`, message.type);
                     
-                    // ★★★ ОБРАБОТКА HELLO (СОХРАНЯЕМ USER ID) ★★★
                     if (message.type === 'hello' && message.data.token) {
                         const token = message.data.token;
                         const user = this.authenticateToken(token);
@@ -94,7 +90,6 @@ class WebSocketServer {
                                 client.userId = user.id;
                                 console.log(`🔗 Пользователь ${user.username} подключился к WebSocket`);
                                 
-                                // ★★★ ОТПРАВЛЯЕМ СТАТУС ONLINE ★★★
                                 user.status = 'online';
                                 user.lastSeen = new Date();
                                 this.dataManager.saveData();
@@ -119,7 +114,6 @@ class WebSocketServer {
         }
     }
 
-    // ★★★ АУТЕНТИФИКАЦИЯ ТОКЕНА ★★★
     authenticateToken(token) {
         if (!token) return null;
         try {
@@ -134,7 +128,6 @@ class WebSocketServer {
 
     decodeMessage(buffer) {
         try {
-            // Проверяем, что это текстовый фрейм (opcode = 1)
             const firstByte = buffer.readUInt8(0);
             const opcode = firstByte & 0x0F;
             
@@ -165,7 +158,6 @@ class WebSocketServer {
                 maskStart = 10;
             }
             
-            // Проверяем, что в буфере достаточно данных
             if (buffer.length < maskStart + 4 + payloadLength) {
                 console.log('❌ Недостаточно данных в буфере');
                 return null;
@@ -226,7 +218,6 @@ class WebSocketServer {
         const client = this.clients.get(clientId);
         if (client && client.socket) {
             try {
-                // Pong фрейм: 0x8A = FIN + Pong opcode
                 const pongFrame = Buffer.from([0x8A, 0x00]);
                 client.socket.write(pongFrame);
             } catch (error) {
@@ -247,10 +238,46 @@ class WebSocketServer {
         }
     }
 
-    // ★★★ BROADCAST ★★★
     broadcast(type, data, excludeClientId = null) {
         for (const [clientId, client] of this.clients) {
             if (clientId !== excludeClientId) {
+                this.sendToClient(clientId, type, data);
+            }
+        }
+    }
+
+    // ★★★ BROADCAST В КОНКРЕТНЫЙ ЧАТ ★★★
+    broadcastToChat(chatId, data) {
+        const message = this.encodeMessage(data);
+        
+        // Находим участников чата
+        const chat = this.dataManager.chats.find(c => c.id === chatId);
+        if (!chat || !chat.participants) {
+            console.log(`❌ Чат ${chatId} не найден или нет участников`);
+            return;
+        }
+
+        console.log(`📤 Отправка в чат ${chatId} участникам:`, chat.participants);
+        
+        for (const [clientId, client] of this.clients) {
+            if (client && client.socket && client.userId) {
+                // Проверяем, участвует ли пользователь в этом чате
+                if (chat.participants.includes(client.userId)) {
+                    try {
+                        client.socket.write(message);
+                        console.log(`📤 Отправлено пользователю ${client.userId}`);
+                    } catch (error) {
+                        console.log('❌ Ошибка отправки в чат:', error);
+                    }
+                }
+            }
+        }
+    }
+
+    // ★★★ BROADCAST В КОМНАТУ ★★★
+    broadcastToRoom(roomId, type, data, excludeClientId = null) {
+        for (const [clientId, client] of this.clients) {
+            if (clientId !== excludeClientId && client.rooms && client.rooms.has(roomId)) {
                 this.sendToClient(clientId, type, data);
             }
         }
