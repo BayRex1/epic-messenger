@@ -408,55 +408,76 @@ class ApiHandler {
         res.end(JSON.stringify(response));
     }
 
-    // ★★★ ОТПРАВКА СООБЩЕНИЯ О ПОДАРКЕ В ЧАТ - ИСПРАВЛЕНО ★★★
+    // ★★★ ОТПРАВКА ПОДАРКА С АВТОМАТИЧЕСКИМ СОЗДАНИЕМ ЧАТА ★★★
     handleSendGiftMessage(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
             return { success: false, message: 'Не авторизован' };
         }
 
-        const { chatId, giftId, giftName, giftFileType, giftFileData, giftFileName } = data;
+        const { chatId, giftId, giftName, giftFileType, giftFileData, giftFileName, toUserId } = data;
 
-        if (!chatId || !giftId) {
-            return { success: false, message: 'Не указан чат или ID подарка' };
+        if (!giftId) {
+            return { success: false, message: 'Не указан ID подарка' };
         }
 
-        // Находим чат
-        const chat = this.dataManager.chats.find(c => c.id === chatId);
+        if (!toUserId) {
+            return { success: false, message: 'Не указан получатель (toUserId)' };
+        }
+
+        // ★★★ НАХОДИМ ИЛИ СОЗДАЕМ ЧАТ ★★★
+        let chat = null;
+        let finalChatId = chatId;
+
+        // Сначала ищем по chatId
+        if (chatId) {
+            chat = this.dataManager.chats.find(c => c.id === chatId);
+        }
+
+        // Если чата нет, ищем по участникам
         if (!chat) {
-            return { success: false, message: 'Чат не найден' };
+            chat = this.dataManager.chats.find(c => 
+                c.members && 
+                c.members.includes(user.id) && 
+                c.members.includes(toUserId) &&
+                !c.isGroup
+            );
         }
 
-        // Проверяем, что пользователь участник чата (используем members вместо participants)
-        if (!chat.members || !chat.members.includes(user.id)) {
-            return { success: false, message: 'Вы не участник этого чата' };
+        // Если все еще нет - создаем новый чат
+        if (!chat) {
+            console.log(`🆕 Создаем новый чат между ${user.id} и ${toUserId}`);
+            chat = {
+                id: this.dataManager.generateId(),
+                members: [user.id, toUserId],
+                participants: [user.id, toUserId],
+                isGroup: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                lastMessage: null
+            };
+            this.dataManager.chats.push(chat);
+            finalChatId = chat.id;
+            console.log(`✅ Создан новый чат: ${finalChatId}`);
+        } else {
+            finalChatId = chat.id;
         }
 
-        // Находим получателя (другого участника)
-        const receiverId = chat.members.find(id => id !== user.id);
-        if (!receiverId) {
-            return { success: false, message: 'Нет получателя в чате' };
-        }
-
-        // ★★★ ПРОВЕРЯЕМ - НЕ ОТПРАВЛЯЛИ ЛИ УЖЕ ТАКОЕ СООБЩЕНИЕ ★★★
-        const existingMessage = this.dataManager.messages.find(m => 
-            m.chatId === chatId && 
-            m.type === 'gift' && 
-            m.giftId === giftId && 
-            m.senderId === user.id &&
-            new Date(m.timestamp) > new Date(Date.now() - 5000)
-        );
-
-        if (existingMessage) {
-            return { success: false, message: 'Сообщение о подарке уже отправлено' };
+        // ★★★ ПРОВЕРЯЕМ УЧАСТНИКОВ ★★★
+        const chatMembers = chat.members || chat.participants || [];
+        
+        if (!chatMembers.includes(user.id)) {
+            if (chat.members) chat.members.push(user.id);
+            if (chat.participants) chat.participants.push(user.id);
+            console.log(`✅ Пользователь ${user.id} добавлен в чат`);
         }
 
         // ★★★ СОЗДАЕМ СООБЩЕНИЕ О ПОДАРКЕ ★★★
         const giftMessage = {
             id: this.dataManager.generateId(),
-            chatId: chatId,
+            chatId: finalChatId,
             senderId: user.id,
-            receiverId: receiverId,
+            receiverId: toUserId,
             type: 'gift',
             text: `🎁 Подарок: ${giftName}`,
             giftId: giftId,
@@ -470,19 +491,16 @@ class ApiHandler {
 
         // ★★★ СОХРАНЯЕМ ★★★
         this.dataManager.messages.push(giftMessage);
-        
-        // Обновляем lastMessage в чате
         chat.lastMessage = giftMessage;
         chat.updatedAt = new Date();
-
         this.dataManager.saveData();
 
-        // ★★★ ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET (ЕСЛИ ЕСТЬ) ★★★
+        // ★★★ ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET ★★★
         if (this.wsServer) {
             try {
                 const messageStr = JSON.stringify({
                     type: 'new_message',
-                    chatId: chatId,
+                    chatId: finalChatId,
                     message: giftMessage
                 });
                 
@@ -500,11 +518,12 @@ class ApiHandler {
             }
         }
 
-        console.log(`🎁 Подарок "${giftName}" отправлен в чат ${chatId} от ${user.displayName}`);
+        console.log(`🎁 Подарок "${giftName}" отправлен в чат ${finalChatId} от ${user.displayName} к ${toUserId}`);
 
         return {
             success: true,
             message: 'Сообщение о подарке отправлено',
+            chatId: finalChatId,
             data: giftMessage
         };
     }
