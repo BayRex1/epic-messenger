@@ -20,7 +20,15 @@ class GiftsHandler {
 
         return {
             success: true,
-            gifts: this.dataManager.gifts
+            gifts: this.dataManager.gifts.map(g => ({
+                id: g.id,
+                name: g.name,
+                price: g.price,
+                fileType: g.fileType || 'image/png',
+                fileName: g.fileName || 'gift.png',
+                fileData: g.fileData || '',
+                createdAt: g.createdAt
+            }))
         };
     }
 
@@ -93,6 +101,7 @@ class GiftsHandler {
         };
     }
 
+    // ★★★ ИСПРАВЛЕННЫЙ МЕТОД ПОКУПКИ ПОДАРКА ★★★
     handleBuyGift(token, data) {
         const user = this.authenticateToken(token);
         if (!user) {
@@ -125,20 +134,27 @@ class GiftsHandler {
             return { success: false, message: 'Получатель не найден' };
         }
 
+        if (recipient.banned) {
+            this.securitySystem.logSecurityEvent(user, 'BUY_GIFT', `gift:${giftId}, to:${toUserId}`, false);
+            return { success: false, message: 'Нельзя отправлять подарки заблокированным пользователям' };
+        }
+
         // Списываем монеты
         user.coins -= gift.price;
+        this.dataManager.saveData();
 
         // ★★★ НАХОДИМ ИЛИ СОЗДАЕМ ЧАТ ★★★
         let chat = this.dataManager.chats.find(c => 
-            c.participants && 
-            c.participants.includes(user.id) && 
-            c.participants.includes(toUserId) &&
+            c.members && 
+            c.members.includes(user.id) && 
+            c.members.includes(toUserId) &&
             !c.isGroup
         );
 
         if (!chat) {
             chat = {
                 id: this.dataManager.generateId(),
+                members: [user.id, toUserId],
                 participants: [user.id, toUserId],
                 isGroup: false,
                 createdAt: new Date(),
@@ -146,6 +162,7 @@ class GiftsHandler {
                 lastMessage: null
             };
             this.dataManager.chats.push(chat);
+            console.log(`✅ Создан новый чат для подарка: ${chat.id}`);
         }
 
         // ★★★ СОЗДАЕМ СООБЩЕНИЕ О ПОДАРКЕ ★★★
@@ -162,8 +179,7 @@ class GiftsHandler {
             giftFileData: gift.fileData || '',
             giftFileName: gift.fileName || 'gift.png',
             timestamp: new Date(),
-            read: false,
-            isOutgoing: false
+            read: false
         };
 
         this.dataManager.messages.push(giftMessage);
