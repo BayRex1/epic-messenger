@@ -264,7 +264,7 @@ class ApiHandler {
                 const giftId = pathname.split('/')[3];
                 response = this.gifts.handleBuyGift(token, { giftId, ...data });
 
-            // ★★★ ОТПРАВКА ПОДАРКА В ЧАТ - ИСПРАВЛЕНО ★★★
+            // ★★★ ОТПРАВКА ПОДАРКА В ЧАТ ★★★
             } else if (pathname === '/api/messages/gift' && method === 'POST') {
                 response = this.handleSendGiftMessage(token, data);
 
@@ -429,12 +429,12 @@ class ApiHandler {
         let chat = null;
         let finalChatId = chatId;
 
-        // Сначала ищем по chatId
+        // 1. Сначала ищем по chatId
         if (chatId) {
             chat = this.dataManager.chats.find(c => c.id === chatId);
         }
 
-        // Если чата нет, ищем по участникам
+        // 2. Если чата нет, ищем по участникам
         if (!chat) {
             chat = this.dataManager.chats.find(c => 
                 c.members && 
@@ -444,7 +444,7 @@ class ApiHandler {
             );
         }
 
-        // Если все еще нет - создаем новый чат
+        // 3. Если все еще нет - создаем новый чат
         if (!chat) {
             console.log(`🆕 Создаем новый чат между ${user.id} и ${toUserId}`);
             chat = {
@@ -463,13 +463,19 @@ class ApiHandler {
             finalChatId = chat.id;
         }
 
-        // ★★★ ПРОВЕРЯЕМ УЧАСТНИКОВ ★★★
+        // ★★★ ПРОВЕРЯЕМ УЧАСТНИКОВ - ДОБАВЛЯЕМ ЕСЛИ НЕТ ★★★
         const chatMembers = chat.members || chat.participants || [];
         
         if (!chatMembers.includes(user.id)) {
             if (chat.members) chat.members.push(user.id);
             if (chat.participants) chat.participants.push(user.id);
             console.log(`✅ Пользователь ${user.id} добавлен в чат`);
+        }
+
+        if (!chatMembers.includes(toUserId)) {
+            if (chat.members) chat.members.push(toUserId);
+            if (chat.participants) chat.participants.push(toUserId);
+            console.log(`✅ Пользователь ${toUserId} добавлен в чат`);
         }
 
         // ★★★ СОЗДАЕМ СООБЩЕНИЕ О ПОДАРКЕ ★★★
