@@ -115,7 +115,7 @@ class SimpleServer {
                 bodyTooLarge = true;
                 res.writeHead(413, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, message: 'Тело запроса слишком большое' }));
-                req.destroy();
+                req.resume();
                 return;
             }
             body += decoder.write(chunk);
