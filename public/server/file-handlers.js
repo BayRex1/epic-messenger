@@ -44,7 +44,7 @@ class FileHandlers {
     }
 
     validateGiftFile(filename) {
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -89,7 +89,7 @@ class FileHandlers {
         }
         
         const safeName = path.basename(String(filename || ''));
-        if (!safeName || safeName !== filename || safeName === '.' || safeName === '..') {
+        if (!safeName || safeName !== filename || safeName === '.' || safeName === '..' || /[\\/]/.test(String(filename))) {
             throw new Error('Недопустимое имя файла');
         }
         const filePath = path.resolve(dir, safeName);
