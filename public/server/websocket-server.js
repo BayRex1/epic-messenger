@@ -119,8 +119,11 @@ class WebSocketServer {
         try {
             const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
             const userId = decoded.userId;
+            const sessionId = decoded.sessionId;
+            if (typeof userId !== 'string' || typeof sessionId !== 'string') return null;
             const user = this.dataManager.users.find(u => u.id === userId);
-            return user || null;
+            if (!user || user.banned || user.sessionId !== sessionId) return null;
+            return user;
         } catch (error) {
             return null;
         }
