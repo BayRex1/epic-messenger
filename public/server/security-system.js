@@ -21,8 +21,11 @@ class SecuritySystem {
         }
         
         const requests = requestCounts.get(key);
-        // Удаляем старые запросы
+        // Удаляем старые запросы и освобождаем неактивные ключи.
         const recentRequests = requests.filter(time => time > windowStart);
+        if (recentRequests.length === 0) {
+            requestCounts.delete(key);
+        }
         
         // Лимиты по endpoint
         const limits = {
@@ -40,6 +43,11 @@ class SecuritySystem {
         }
         
         recentRequests.push(now);
+        // Bound memory use if clients rotate arbitrary IP/endpoint pairs.
+        if (requestCounts.size >= 10000 && !requestCounts.has(key)) {
+            const oldestKey = requestCounts.keys().next().value;
+            if (oldestKey !== undefined) requestCounts.delete(oldestKey);
+        }
         requestCounts.set(key, recentRequests);
         return true;
     }
@@ -223,7 +231,34 @@ class SecuritySystem {
     }
 
     hashPassword(password) {
-        return crypto.createHash('sha256').update(password).digest('hex');
+        const iterations = 210000;
+        const salt = crypto.randomBytes(16);
+        const hash = crypto.pbkdf2Sync(String(password), salt, iterations, 64, 'sha512');
+        return `pbkdf2$${iterations}$${salt.toString('hex')}$${hash.toString('hex')}`;
+    }
+
+    verifyPassword(password, storedHash) {
+        if (typeof password !== 'string' || typeof storedHash !== 'string') return false;
+
+        if (storedHash.startsWith('pbkdf2$')) {
+            const parts = storedHash.split('$');
+            if (parts.length !== 4) return false;
+            const iterations = Number(parts[1]);
+            const saltHex = parts[2];
+            const hashHex = parts[3];
+            if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000 ||
+                !/^[a-f0-9]{32}$/i.test(saltHex) || !/^[a-f0-9]{128}$/i.test(hashHex)) return false;
+
+            const expected = Buffer.from(hashHex, 'hex');
+            const actual = crypto.pbkdf2Sync(password, Buffer.from(saltHex, 'hex'), iterations, expected.length, 'sha512');
+            return crypto.timingSafeEqual(actual, expected);
+        }
+
+        // Verify legacy SHA-256 hashes; successful login upgrades them to PBKDF2.
+        if (!/^[a-f0-9]{64}$/i.test(storedHash)) return false;
+        const expected = Buffer.from(storedHash, 'hex');
+        const actual = crypto.createHash('sha256').update(password).digest();
+        return expected.length === actual.length && crypto.timingSafeEqual(actual, expected);
     }
 
     // 🔥 ДОБАВЛЕН МЕТОД ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ БЕЗОПАСНОСТИ

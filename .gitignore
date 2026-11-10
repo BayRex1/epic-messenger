@@ -5,3 +5,7 @@ users.json
 messages.json
 avatars.json
 .env
+
+# Runtime database and user uploads
+epic-messenger-data.json
+public/uploads/

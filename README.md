@@ -15,10 +15,7 @@ Modern real-time messenger with beautiful interface and advanced features.
 ## 🚀 Quick Start
 
 1. **Visit:** https://epic-messenger.onrender.com/
-2. **Login with test accounts:**
-   - 👑 Admin: `admin` / `123`
-   - 👨‍💻 Developer: `BayRex` / `123` 
-   - 👤 Test User: `testuser` / `123`
+2. **Create an account:** Register through the sign-up form. Do not use shared demo credentials.
 
 ## 📱 Mobile Features
 
