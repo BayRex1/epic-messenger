@@ -43,7 +43,7 @@ class SecuritySystem {
         }
         
         recentRequests.push(now);
-        // Не позволяем произвольному числу IP/endpoint создать бесконечную Map.
+        // Bound memory use if clients rotate arbitrary IP/endpoint pairs.
         if (requestCounts.size >= 10000 && !requestCounts.has(key)) {
             const oldestKey = requestCounts.keys().next().value;
             if (oldestKey !== undefined) requestCounts.delete(oldestKey);
@@ -234,52 +234,14 @@ class SecuritySystem {
         const iterations = 210000;
         const salt = crypto.randomBytes(16);
         const hash = crypto.pbkdf2Sync(String(password), salt, iterations, 64, 'sha512');
-        return `pbkdf2${iterations}${salt.toString('hex')}${hash.toString('hex')}`;
+        return `pbkdf2$${iterations}$${salt.toString('hex')}$${hash.toString('hex')}`;
     }
 
     verifyPassword(password, storedHash) {
         if (typeof password !== 'string' || typeof storedHash !== 'string') return false;
 
-        if (storedHash.startsWith('pbkdf2
-
-    // 🔥 ДОБАВЛЕН МЕТОД ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ БЕЗОПАСНОСТИ
-    getSecurityLogs() {
-        try {
-            const logFile = path.join('/tmp', 'security.log');
-            if (fs.existsSync(logFile)) {
-                const logs = fs.readFileSync(logFile, 'utf8');
-                return logs.split('\n').filter(line => line.trim());
-            }
-            return [];
-        } catch (error) {
-            console.error('❌ Ошибка чтения логов безопасности:', error);
-            return [];
-        }
-    }
-}
-
-module.exports = SecuritySystem;
-)) {
-            const parts = storedHash.split('
-
-    // 🔥 ДОБАВЛЕН МЕТОД ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ БЕЗОПАСНОСТИ
-    getSecurityLogs() {
-        try {
-            const logFile = path.join('/tmp', 'security.log');
-            if (fs.existsSync(logFile)) {
-                const logs = fs.readFileSync(logFile, 'utf8');
-                return logs.split('\n').filter(line => line.trim());
-            }
-            return [];
-        } catch (error) {
-            console.error('❌ Ошибка чтения логов безопасности:', error);
-            return [];
-        }
-    }
-}
-
-module.exports = SecuritySystem;
-);
+        if (storedHash.startsWith('pbkdf2$')) {
+            const parts = storedHash.split('$');
             if (parts.length !== 4) return false;
             const iterations = Number(parts[1]);
             const saltHex = parts[2];
@@ -292,7 +254,7 @@ module.exports = SecuritySystem;
             return crypto.timingSafeEqual(actual, expected);
         }
 
-        // Совместимость со старыми SHA-256 хэшами: они обновляются при успешном входе.
+        // Verify legacy SHA-256 hashes; successful login upgrades them to PBKDF2.
         if (!/^[a-f0-9]{64}$/i.test(storedHash)) return false;
         const expected = Buffer.from(storedHash, 'hex');
         const actual = crypto.createHash('sha256').update(password).digest();
