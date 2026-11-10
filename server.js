@@ -97,7 +97,7 @@ class SimpleServer {
             return;
         }
 
-        const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
+        const MAX_JSON_BODY_BYTES = 70 * 1024 * 1024; // 50 MB file payload plus base64/JSON overhead
         let body = '';
         let bodyTooLarge = false;
         const decoder = new (require('string_decoder').StringDecoder)('utf-8');
