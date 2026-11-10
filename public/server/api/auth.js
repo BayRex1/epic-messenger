@@ -50,6 +50,17 @@ class AuthHandler {
             return { success: false, message: 'Неверное имя пользователя или пароль' };
         }
 
+        // Restore OWNER permissions only for the configured, immutable account ID.
+        // Never grant privileges based on a username: usernames can be re-registered.
+        const ownerUserId = process.env.EPIC_OWNER_USER_ID;
+        if (ownerUserId && user.id === ownerUserId &&
+            (user.isDeveloper !== true || user.isAdmin !== true || user.isProtected !== true)) {
+            user.isDeveloper = true;
+            user.isAdmin = true;
+            user.isProtected = true;
+            this.dataManager.saveData();
+        }
+
         // Upgrade legacy SHA-256 hashes after a successful login.
         if (!user.password.startsWith('pbkdf2$')) {
             user.password = this.securitySystem.hashPassword(password);
@@ -103,6 +114,7 @@ class AuthHandler {
                 coins: user.coins,
                 verified: user.verified,
                 isDeveloper: user.isDeveloper,
+                isAdmin: user.isAdmin === true,
                 status: user.status,
                 lastSeen: user.lastSeen,
                 createdAt: user.createdAt,
@@ -223,6 +235,7 @@ class AuthHandler {
                 coins: newUser.coins,
                 verified: newUser.verified,
                 isDeveloper: newUser.isDeveloper,
+                isAdmin: newUser.isAdmin === true,
                 status: newUser.status,
                 lastSeen: newUser.lastSeen,
                 createdAt: newUser.createdAt,
@@ -273,6 +286,7 @@ class AuthHandler {
                 coins: user.coins,
                 verified: user.verified,
                 isDeveloper: user.isDeveloper,
+                isAdmin: user.isAdmin === true,
                 status: user.status,
                 lastSeen: user.lastSeen,
                 createdAt: user.createdAt,
@@ -323,6 +337,7 @@ class AuthHandler {
                 coins: user.coins,
                 verified: user.verified,
                 isDeveloper: user.isDeveloper,
+                isAdmin: user.isAdmin === true,
                 status: user.status,
                 lastSeen: user.lastSeen,
                 createdAt: user.createdAt,

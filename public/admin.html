@@ -1002,7 +1002,7 @@
                 await initializeUser();
                 
                 // Проверка прав администратора
-                if (!currentUser || !currentUser.isDeveloper) {
+                if (!currentUser || currentUser.isDeveloper !== true || currentUser.isAdmin !== true) {
                     showNotification('Доступ запрещен. Требуются права администратора.', 'error');
                     setTimeout(() => {
                         window.location.href = '/';
@@ -1060,12 +1060,16 @@
             const developerBadge = document.getElementById('developerBadge');
 
             if (currentUser.avatar) {
-                userAvatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.displayName}">`;
+                userAvatar.textContent = '';
+                const avatarImage = document.createElement('img');
+                avatarImage.src = currentUser.avatar;
+                avatarImage.alt = currentUser.displayName || 'Аватар пользователя';
+                userAvatar.appendChild(avatarImage);
             } else {
                 userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U';
             }
             
-            userName.innerHTML = currentUser.displayName || 'Пользователь';
+            userName.firstChild.nodeValue = currentUser.displayName || 'Пользователь';
             
             if (currentUser.verified) {
                 verifiedBadge.style.display = 'inline-flex';
@@ -1321,65 +1325,77 @@
         }
 
         // Отображение пользователей в админке
+        function escapeHTML(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+        }
+
         function renderAdminUsers(users) {
             const adminUsersList = document.getElementById('adminUsersList');
             if (!adminUsersList) return;
-            
-            adminUsersList.innerHTML = '';
-            
-            if (users.length === 0) {
-                adminUsersList.innerHTML = '<div class="system-message">Пользователи не найдены</div>';
+
+            adminUsersList.replaceChildren();
+
+            if (!Array.isArray(users) || users.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'system-message';
+                emptyState.textContent = 'Пользователи не найдены';
+                adminUsersList.appendChild(emptyState);
                 return;
             }
-            
+
             users.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'admin-user-item';
+                const safeId = escapeHTML(user.id);
+                const safeName = escapeHTML(user.displayName || 'Пользователь');
+                const safeUsername = escapeHTML(user.username || '');
+                const safeAvatar = escapeHTML(user.avatar || '');
+                const avatarMarkup = safeAvatar
+                    ? `<img src="${safeAvatar}" alt="${safeName}" style="width: 100%; height: 100%; object-fit: cover;">`
+                    : escapeHTML((user.displayName || 'U').charAt(0).toUpperCase());
+
                 userElement.innerHTML = `
-                    <div class="chat-avatar">
-                        ${user.avatar ? 
-                            `<img src="${user.avatar}" alt="${user.displayName}" style="width: 100%; height: 100%; object-fit: cover;">` : 
-                            user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'
-                        }
-                    </div>
+                    <div class="chat-avatar">${avatarMarkup}</div>
                     <div class="admin-user-info">
                         <h4>
-                            ${user.displayName || 'Пользователь'}
+                            ${safeName}
                             ${user.verified ? '<span class="verified-badge"><img src="/assets/verified-developer/verified.png" alt="Verified"></span>' : ''}
                             ${user.isDeveloper ? '<span class="developer-badge"><img src="/assets/verified-developer/developer.png" alt="Developer"></span>' : ''}
                             ${user.banned ? '<span class="banned-badge">ЗАБАНЕН</span>' : ''}
                         </h4>
                         <div class="admin-user-stats">
-                            <span>@${user.username}</span>
-                            <span>Постов: ${user.postsCount || 0}</span>
-                            <span>E-COIN: ${user.coins || 0}</span>
+                            <span>@${safeUsername}</span>
+                            <span>Постов: ${escapeHTML(Number(user.postsCount) || 0)}</span>
+                            <span>E-COIN: ${escapeHTML(Number(user.coins) || 0)}</span>
                             <span>${user.status === 'online' ? '🟢 Онлайн' : '⚫ Офлайн'}</span>
                         </div>
                     </div>
                     <div class="admin-actions">
-                        <button class="admin-btn ban" data-user-id="${user.id}" data-action="ban">
+                        <button class="admin-btn ban" data-user-id="${safeId}" data-action="ban">
                             ${user.banned ? 'Разблокировать' : 'Заблокировать'}
                         </button>
-                        <button class="admin-btn verify" data-user-id="${user.id}" data-action="verify">
+                        <button class="admin-btn verify" data-user-id="${safeId}" data-action="verify">
                             ${user.verified ? 'Снять верификацию' : 'Верифицировать'}
                         </button>
-                        <button class="admin-btn developer" data-user-id="${user.id}" data-action="developer">
+                        <button class="admin-btn developer" data-user-id="${safeId}" data-action="developer">
                             ${user.isDeveloper ? 'Забрать права' : 'Дать права'}
                         </button>
-                        ${!user.isProtected ? `<button class="admin-btn delete" data-user-id="${user.id}" data-action="delete">Удалить</button>` : ''}
+                        ${!user.isProtected ? `<button class="admin-btn delete" data-user-id="${safeId}" data-action="delete">Удалить</button>` : ''}
                     </div>
                 `;
-                
-                // Добавляем обработчики для кнопок
-                const buttons = userElement.querySelectorAll('.admin-btn');
-                buttons.forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const userId = this.getAttribute('data-user-id');
-                        const action = this.getAttribute('data-action');
-                        handleAdminAction(userId, action);
+
+                userElement.querySelectorAll('.admin-btn').forEach(button => {
+                    button.addEventListener('click', function() {
+                        handleAdminAction(this.getAttribute('data-user-id'), this.getAttribute('data-action'));
                     });
                 });
-                
+
                 adminUsersList.appendChild(userElement);
             });
         }
