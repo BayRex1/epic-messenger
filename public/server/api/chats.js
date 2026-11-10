@@ -473,7 +473,7 @@ class ChatsHandler {
         }
 
         const message = this.dataManager.messages[messageIndex];
-        if (message.senderId !== user.id && !user.isDeveloper) {
+        if (message.senderId !== user.id && !(user.isDeveloper === true && user.isAdmin === true)) {
             return { success: false, message: 'Нет прав для удаления этого сообщения' };
         }
 
