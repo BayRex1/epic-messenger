@@ -21,8 +21,11 @@ class SecuritySystem {
         }
         
         const requests = requestCounts.get(key);
-        // Удаляем старые запросы
+        // Удаляем старые запросы и освобождаем неактивные ключи.
         const recentRequests = requests.filter(time => time > windowStart);
+        if (recentRequests.length === 0) {
+            requestCounts.delete(key);
+        }
         
         // Лимиты по endpoint
         const limits = {
@@ -40,6 +43,11 @@ class SecuritySystem {
         }
         
         recentRequests.push(now);
+        // Не позволяем произвольному числу IP/endpoint создать бесконечную Map.
+        if (requestCounts.size >= 10000 && !requestCounts.has(key)) {
+            const oldestKey = requestCounts.keys().next().value;
+            if (oldestKey !== undefined) requestCounts.delete(oldestKey);
+        }
         requestCounts.set(key, recentRequests);
         return true;
     }
