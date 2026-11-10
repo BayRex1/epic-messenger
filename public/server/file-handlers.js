@@ -38,7 +38,7 @@ class FileHandlers {
 
     validateCoverFile(filename) {
         if (!filename) return false;
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         const ext = path.extname(filename).toLowerCase();
         return allowedExtensions.includes(ext);
     }
@@ -88,8 +88,16 @@ class FileHandlers {
             fsSync.mkdirSync(dir, { recursive: true });
         }
         
-        const filePath = path.join(dir, filename);
-        await fs.writeFile(filePath, buffer);
+        const safeName = path.basename(String(filename || ''));
+        if (!safeName || safeName !== filename || safeName === '.' || safeName === '..') {
+            throw new Error('Недопустимое имя файла');
+        }
+        const filePath = path.resolve(dir, safeName);
+        const resolvedDir = path.resolve(dir) + path.sep;
+        if (!filePath.startsWith(resolvedDir)) {
+            throw new Error('Недопустимый путь файла');
+        }
+        await fs.writeFile(filePath, buffer, { flag: 'wx' });
         
         return `/uploads/${folder}/${filename}`;
     }
@@ -98,7 +106,9 @@ class FileHandlers {
         if (!fileUrl || !fileUrl.startsWith('/uploads/')) return;
         const base = this.getUploadBase();
         const rel = fileUrl.replace('/uploads/', '');
-        const filePath = path.join(base, rel);
+        const filePath = path.resolve(base, rel);
+        const basePrefix = path.resolve(base) + path.sep;
+        if (!filePath.startsWith(basePrefix)) return;
 
         try {
             if (fsSync.existsSync(filePath)) {
