@@ -141,8 +141,6 @@ class AuthManager {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
 
-        const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
-        
         const newUser = {
             id: this.server.generateId(),
             username: sanitizedUsername,
@@ -151,15 +149,15 @@ class AuthManager {
             password: this.server.security.hashPassword(password),
             avatar: null,
             description: 'Новый пользователь Epic Messenger',
-            coins: isBayRex ? 50000 : 1000,
-            verified: isBayRex,
-            isDeveloper: isBayRex,
-            isAdmin: isBayRex,
+            coins: 1000,
+            verified: false,
+            isDeveloper: false,
+            isAdmin: false,
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
             gifts: [],
-            isProtected: isBayRex,
+            isProtected: false,
             friendsCount: 0,
             postsCount: 0,
             giftsCount: 0,
@@ -176,15 +174,9 @@ class AuthManager {
 
         this.server.security.logSecurityEvent(newUser, 'REGISTER', 'SYSTEM');
 
-        if (isBayRex) {
-            console.log(`👑 BayRex зарегистрирован с правами администратора!`);
-        }
-
         return {
             success: true,
-            message: isBayRex ? 
-                'Аккаунт BayRex создан! Вы получили права администратора!' :
-                'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
+            message: 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
             token: sessionToken,
             deviceId: device.id,
             user: this.getSafeUserData(newUser)
