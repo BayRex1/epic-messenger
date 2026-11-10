@@ -1039,8 +1039,6 @@ class ApiHandlers {
             return { success: false, message: 'Пользователь с таким email уже существует' };
         }
 
-        const isBayRex = sanitizedUsername.toLowerCase() === 'bayrex';
-        
         const newUser = {
             id: this.dataManager.generateId(),
             username: sanitizedUsername,
@@ -1050,16 +1048,16 @@ class ApiHandlers {
             avatar: null,
             cover: null,
             description: 'Новый пользователь Epic Messenger',
-            coins: isBayRex ? 50000 : 1000,
-            verified: isBayRex,
-            isDeveloper: isBayRex,
-            isAdmin: isBayRex,
+            coins: 1000,
+            verified: false,
+            isDeveloper: false,
+            isAdmin: false,
             status: 'online',
             lastSeen: new Date(),
             createdAt: new Date(),
             sessionId: crypto.randomBytes(16).toString('hex'),
             gifts: [],
-            isProtected: isBayRex,
+            isProtected: false,
             friendsCount: 0,
             postsCount: 0,
             giftsCount: 0,
@@ -1081,15 +1079,9 @@ class ApiHandlers {
 
         this.securitySystem.logSecurityEvent(newUser, 'REGISTER', 'SYSTEM');
 
-        if (isBayRex) {
-            console.log(`👑 BayRex зарегистрирован с правами администратора!`);
-        }
-
         return {
             success: true,
-            message: isBayRex ? 
-                'Аккаунт BayRex создан! Вы получили права администратора!' :
-                'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
+            message: 'Аккаунт успешно создан! Добро пожаловать в Epic Messenger!',
             token: token,
             deviceId: device.id,
             user: {
@@ -1846,7 +1838,7 @@ class ApiHandlers {
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
         
-        if (!user || !user.isDeveloper) {
+        if (!user || user.isDeveloper !== true || user.isAdmin !== true) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -2733,7 +2725,7 @@ class ApiHandlers {
         }
 
         const message = this.dataManager.messages[messageIndex];
-        if (message.senderId !== user.id && !user.isDeveloper) {
+        if (message.senderId !== user.id && !(user.isDeveloper === true && user.isAdmin === true)) {
             return { success: false, message: 'Нет прав для удаления этого сообщения' };
         }
 
@@ -3979,14 +3971,6 @@ class ApiHandlers {
 
     handleAddReply(token, postId, commentId, data) {
         return this.handleReplyToComment(token, { postId, commentId, ...data });
-    }
-
-    handleLikeComment(token, postId, commentId) {
-        return this.handleLikeComment(token, { postId, commentId });
-    }
-
-    handleLikeReply(token, postId, commentId, replyId) {
-        return this.handleLikeReply(token, { postId, commentId, replyId });
     }
 
     // ============================================
