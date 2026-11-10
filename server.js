@@ -53,8 +53,13 @@ class SimpleServer {
         console.log(`Content-Type: ${req.headers['content-type']}`);
         console.log(`Content-Length: ${req.headers['content-length']}`);
         
-        // Обработка загруженных файлов из /tmp
+        // Публичная выдача загруженных файлов: только GET и только внутри upload-каталога.
         if (pathname.startsWith('/api/uploads/')) {
+            if (method !== 'GET') {
+                res.writeHead(405, { 'Allow': 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
+                res.end('Method not allowed');
+                return;
+            }
             this.handleUploadedFile(req, res, pathname);
             return;
         }
@@ -92,23 +97,46 @@ class SimpleServer {
             return;
         }
 
+        const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
         let body = '';
+        let bodyTooLarge = false;
         const decoder = new (require('string_decoder').StringDecoder)('utf-8');
 
+        if (Number(req.headers['content-length'] || 0) > MAX_JSON_BODY_BYTES) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Тело запроса слишком большое' }));
+            req.resume();
+            return;
+        }
+
         req.on('data', (chunk) => {
+            if (bodyTooLarge) return;
+            if (Buffer.byteLength(body, 'utf8') + chunk.length > MAX_JSON_BODY_BYTES) {
+                bodyTooLarge = true;
+                res.writeHead(413, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Тело запроса слишком большое' }));
+                req.destroy();
+                return;
+            }
             body += decoder.write(chunk);
         });
 
         req.on('end', () => {
+            if (bodyTooLarge) return;
             body += decoder.end();
-            
+
             let data = {};
             if (body && body.trim() !== '' && req.headers['content-type'] && !req.headers['content-type'].includes('multipart/form-data')) {
                 try {
                     data = JSON.parse(body);
+                    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                        throw new Error('JSON body must be an object');
+                    }
                     console.log(`Parsed data keys:`, Object.keys(data));
                 } catch (e) {
-                    console.log(`JSON parse error:`, e.message);
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Некорректный JSON' }));
+                    return;
                 }
             }
 
@@ -121,25 +149,50 @@ class SimpleServer {
     handleUploadedFile(req, res, pathname) {
         const isProduction = process.env.NODE_ENV === 'production';
         const baseDir = isProduction ? '/tmp/uploads' : path.join(process.cwd(), 'public', 'uploads');
-        const filePath = pathname.replace('/api/uploads/', '');
-        const fullPath = path.join(baseDir, filePath);
-        
-        console.log(`📁 Serving uploaded file from: ${fullPath}`);
-        
-        if (!fs.existsSync(fullPath)) {
-            console.log('❌ File not found:', fullPath);
+        let filePath;
+        try {
+            filePath = decodeURIComponent(pathname.slice('/api/uploads/'.length));
+        } catch {
+            res.writeHead(400);
+            res.end('Invalid file path');
+            return;
+        }
+        if (!filePath || filePath.includes('\\') || filePath.includes('\0')) {
+            res.writeHead(400);
+            res.end('Invalid file path');
+            return;
+        }
+        const basePath = path.resolve(baseDir);
+        const fullPath = path.resolve(basePath, filePath);
+        if (!fullPath.startsWith(basePath + path.sep)) {
             res.writeHead(404);
             res.end('File not found');
             return;
         }
-        
-        const ext = path.extname(fullPath).toLowerCase();
+
+        console.log(`📁 Serving uploaded file from: ${fullPath}`);
+
+        let realPath;
+        try {
+            realPath = fs.realpathSync(fullPath);
+        } catch {
+            res.writeHead(404);
+            res.end('File not found');
+            return;
+        }
+        if (!realPath.startsWith(basePath + path.sep) || !fs.statSync(realPath).isFile()) {
+            res.writeHead(404);
+            res.end('File not found');
+            return;
+        }
+
+        const ext = path.extname(realPath).toLowerCase();
         const contentType = {
             '.png': 'image/png',
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',
             '.gif': 'image/gif',
-            '.svg': 'image/svg+xml',
+            '.svg': 'application/octet-stream',
             '.bmp': 'image/bmp',
             '.webp': 'image/webp',
             '.mp3': 'audio/mpeg',
