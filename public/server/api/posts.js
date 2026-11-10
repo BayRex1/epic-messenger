@@ -203,7 +203,7 @@ class PostsHandler {
 
     handleDeletePost(token, query) {
         const user = this.authenticateToken(token);
-        if (!user || !user.isDeveloper) {
+        if (!user || user.isDeveloper !== true || user.isAdmin !== true) {
             this.securitySystem.logSecurityEvent(user, 'DELETE_POST', 'SYSTEM', false);
             return { success: false, message: 'Доступ запрещен' };
         }
@@ -638,14 +638,6 @@ class PostsHandler {
 
     handleAddReply(token, postId, commentId, data) {
         return this.handleReplyToComment(token, { postId, commentId, ...data });
-    }
-
-    handleLikeComment(token, postId, commentId) {
-        return this.handleLikeComment(token, { postId, commentId });
-    }
-
-    handleLikeReply(token, postId, commentId, replyId) {
-        return this.handleLikeReply(token, { postId, commentId, replyId });
     }
 
     // ============================================
