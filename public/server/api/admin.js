@@ -11,7 +11,7 @@ class AdminHandler {
     }
 
     isAdmin(user) {
-        return user && (user.isDeveloper === true || user.verified === true);
+        return Boolean(user && user.isDeveloper === true && user.isAdmin === true);
     }
 
     // ============================================
