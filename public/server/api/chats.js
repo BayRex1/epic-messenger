@@ -234,7 +234,23 @@ class ChatsHandler {
 
             let fileUrl = null;
             if (file && fileName && fileType) {
-                const fileExt = path.extname(fileName) || this.getFileExtension(fileType);
+                const allowedExtensions = {
+                    image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
+                    video: ['.mp4', '.webm', '.mov', '.avi'],
+                    audio: ['.mp3', '.wav', '.ogg', '.m4a', '.aac']
+                };
+                const fileExt = path.extname(String(fileName)).toLowerCase();
+                if (!allowedExtensions[fileType] || !allowedExtensions[fileType].includes(fileExt)) {
+                    return { success: false, message: 'Недопустимый формат вложения' };
+                }
+                const base64Data = String(file).replace(/^data:[^;]+;base64,/, '');
+                if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+                    return { success: false, message: 'Некорректное содержимое файла' };
+                }
+                const buffer = Buffer.from(base64Data, 'base64');
+                if (buffer.length > 50 * 1024 * 1024) {
+                    return { success: false, message: 'Файл превышает лимит 50 МБ' };
+                }
                 const uniqueFilename = `file_${user.id}_${Date.now()}${fileExt}`;
                 let uploadDir = 'files';
                 
@@ -251,9 +267,7 @@ class ChatsHandler {
                 }
                 
                 const filePath = path.join(dir, uniqueFilename);
-                const base64Data = file.replace(/^data:[^;]+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                fs.writeFileSync(filePath, buffer);
+                fs.writeFileSync(filePath, buffer, { flag: 'wx' });
                 fileUrl = `/uploads/${uploadDir}/${uniqueFilename}`;
             }
 
